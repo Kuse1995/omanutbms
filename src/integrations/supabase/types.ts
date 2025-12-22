@@ -409,6 +409,39 @@ export type Database = {
           },
         ]
       }
+      company_settings: {
+        Row: {
+          company_name: string
+          created_at: string
+          currency_symbol: string
+          id: string
+          logo_url: string | null
+          primary_color: string | null
+          tax_rate: number
+          updated_at: string
+        }
+        Insert: {
+          company_name?: string
+          created_at?: string
+          currency_symbol?: string
+          id?: string
+          logo_url?: string | null
+          primary_color?: string | null
+          tax_rate?: number
+          updated_at?: string
+        }
+        Update: {
+          company_name?: string
+          created_at?: string
+          currency_symbol?: string
+          id?: string
+          logo_url?: string | null
+          primary_color?: string | null
+          tax_rate?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       company_statistics: {
         Row: {
           id: string
@@ -1388,6 +1421,105 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      sale_items: {
+        Row: {
+          created_at: string
+          id: string
+          inventory_id: string | null
+          item_name: string
+          quantity: number
+          sale_id: string
+          total_price: number
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          inventory_id?: string | null
+          item_name: string
+          quantity?: number
+          sale_id: string
+          total_price?: number
+          unit_price?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          inventory_id?: string | null
+          item_name?: string
+          quantity?: number
+          sale_id?: string
+          total_price?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sale_items_inventory_id_fkey"
+            columns: ["inventory_id"]
+            isOneToOne: false
+            referencedRelation: "inventory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_items_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales: {
+        Row: {
+          created_at: string
+          customer_email: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          id: string
+          notes: string | null
+          payment_method: string
+          recorded_by: string | null
+          sale_date: string
+          sale_number: string
+          subtotal: number
+          tax_amount: number
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          id?: string
+          notes?: string | null
+          payment_method?: string
+          recorded_by?: string | null
+          sale_date?: string
+          sale_number: string
+          subtotal?: number
+          tax_amount?: number
+          total_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          id?: string
+          notes?: string | null
+          payment_method?: string
+          recorded_by?: string | null
+          sale_date?: string
+          sale_number?: string
+          subtotal?: number
+          tax_amount?: number
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       sales_transactions: {
         Row: {
