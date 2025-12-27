@@ -452,6 +452,11 @@ export type Database = {
         Row: {
           accent_color: string | null
           agents_enabled: boolean | null
+          billing_end_date: string | null
+          billing_notes: string | null
+          billing_plan: string
+          billing_start_date: string | null
+          billing_status: string
           business_type: string | null
           company_address: string | null
           company_email: string | null
@@ -481,6 +486,11 @@ export type Database = {
         Insert: {
           accent_color?: string | null
           agents_enabled?: boolean | null
+          billing_end_date?: string | null
+          billing_notes?: string | null
+          billing_plan?: string
+          billing_start_date?: string | null
+          billing_status?: string
           business_type?: string | null
           company_address?: string | null
           company_email?: string | null
@@ -510,6 +520,11 @@ export type Database = {
         Update: {
           accent_color?: string | null
           agents_enabled?: boolean | null
+          billing_end_date?: string | null
+          billing_notes?: string | null
+          billing_plan?: string
+          billing_start_date?: string | null
+          billing_status?: string
           business_type?: string | null
           company_address?: string | null
           company_email?: string | null

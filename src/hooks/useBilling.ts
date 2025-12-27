@@ -23,15 +23,27 @@ export interface UseBillingReturn {
   billingNotes: string | null;
 }
 
+// Extended business profile type with billing fields (auto-generated types may not include these yet)
+interface ExtendedBusinessProfile {
+  billing_plan?: string | null;
+  billing_status?: string | null;
+  billing_notes?: string | null;
+  billing_start_date?: string | null;
+  billing_end_date?: string | null;
+}
+
 /**
  * Hook for billing-aware feature resolution
  * Provides plan info, feature checks, and limits based on tenant's billing status
  */
 export function useBilling(): UseBillingReturn {
   const { businessProfile, loading } = useTenant();
+  
+  // Cast to extended type to access billing fields
+  const extendedProfile = businessProfile as (typeof businessProfile & ExtendedBusinessProfile) | null;
 
-  const plan = (businessProfile?.billing_plan as BillingPlan) || "starter";
-  const status = (businessProfile?.billing_status as BillingStatus) || "inactive";
+  const plan = (extendedProfile?.billing_plan as BillingPlan) || "starter";
+  const status = (extendedProfile?.billing_status as BillingStatus) || "inactive";
   const planConfig = BILLING_PLANS[plan];
   const isActive = isStatusActive(status);
 
@@ -62,8 +74,8 @@ export function useBilling(): UseBillingReturn {
     isFeatureAllowed,
     getLimit,
     getRequiredPlan: getRequiredPlanForFeature,
-    billingStartDate: businessProfile?.billing_start_date ?? null,
-    billingEndDate: businessProfile?.billing_end_date ?? null,
-    billingNotes: businessProfile?.billing_notes ?? null,
+    billingStartDate: extendedProfile?.billing_start_date ?? null,
+    billingEndDate: extendedProfile?.billing_end_date ?? null,
+    billingNotes: extendedProfile?.billing_notes ?? null,
   };
 }

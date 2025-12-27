@@ -9,10 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Building2, Users } from "lucide-react";
+import { Plus, Pencil, Building2, Users, CreditCard } from "lucide-react";
 import { format } from "date-fns";
 import { getBusinessTypeOptions, BusinessType } from "@/lib/business-type-config";
+import { getBillingPlanOptions, getBillingStatusOptions, BillingPlan, BillingStatus, BILLING_PLANS } from "@/lib/billing-plans";
 
 interface Tenant {
   id: string;
@@ -21,6 +23,8 @@ interface Tenant {
   status: string;
   created_at: string;
   user_count?: number;
+  billing_plan?: string;
+  billing_status?: string;
 }
 
 export function TenantManager() {
@@ -29,6 +33,13 @@ export function TenantManager() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
+  const [editingBillingProfile, setEditingBillingProfile] = useState<{
+    billing_plan: BillingPlan;
+    billing_status: BillingStatus;
+    billing_notes: string;
+    billing_start_date: string;
+    billing_end_date: string;
+  } | null>(null);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -38,11 +49,15 @@ export function TenantManager() {
     businessType: "retail" as BusinessType,
     adminEmail: "",
     adminRole: "admin" as "admin" | "manager" | "viewer",
+    billingPlan: "starter" as BillingPlan,
+    billingStatus: "trial" as BillingStatus,
   });
 
   const businessTypeOptions = getBusinessTypeOptions();
+  const billingPlanOptions = getBillingPlanOptions();
+  const billingStatusOptions = getBillingStatusOptions();
 
-  // Fetch all tenants with user counts
+  // Fetch all tenants with user counts and billing info
   const { data: tenants, isLoading } = useQuery({
     queryKey: ["all-tenants"],
     queryFn: async () => {
@@ -53,19 +68,31 @@ export function TenantManager() {
 
       if (error) throw error;
 
-      // Get user counts for each tenant
-      const tenantsWithCounts = await Promise.all(
+      // Get user counts and billing info for each tenant
+      const tenantsWithDetails = await Promise.all(
         (tenantsData || []).map(async (tenant) => {
           const { count } = await supabase
             .from("tenant_users")
             .select("*", { count: "exact", head: true })
             .eq("tenant_id", tenant.id);
           
-          return { ...tenant, user_count: count || 0 };
+          // Get billing info from business_profiles
+          const { data: profile } = await supabase
+            .from("business_profiles")
+            .select("billing_plan, billing_status")
+            .eq("tenant_id", tenant.id)
+            .single();
+          
+          return { 
+            ...tenant, 
+            user_count: count || 0,
+            billing_plan: profile?.billing_plan || 'starter',
+            billing_status: profile?.billing_status || 'inactive',
+          };
         })
       );
 
-      return tenantsWithCounts as Tenant[];
+      return tenantsWithDetails as Tenant[];
     },
   });
 
@@ -85,13 +112,16 @@ export function TenantManager() {
 
       if (tenantError) throw tenantError;
 
-      // 2. Create business profile for tenant with business_type
+      // 2. Create business profile for tenant with business_type and billing info
       const { error: profileError } = await supabase
         .from("business_profiles")
         .insert({
           tenant_id: tenant.id,
           company_name: data.name,
           business_type: data.businessType,
+          billing_plan: data.billingPlan,
+          billing_status: data.billingStatus,
+          billing_start_date: new Date().toISOString().split('T')[0],
         });
 
       if (profileError) throw profileError;
@@ -174,7 +204,94 @@ export function TenantManager() {
       businessType: "retail",
       adminEmail: "",
       adminRole: "admin",
+      billingPlan: "starter",
+      billingStatus: "trial",
     });
+  };
+
+  // Update billing mutation
+  const updateBillingMutation = useMutation({
+    mutationFn: async ({ tenantId, billing }: { 
+      tenantId: string; 
+      billing: {
+        billing_plan: string;
+        billing_status: string;
+        billing_notes: string;
+        billing_start_date: string;
+        billing_end_date: string;
+      }
+    }) => {
+      const { error } = await supabase
+        .from("business_profiles")
+        .update({
+          billing_plan: billing.billing_plan,
+          billing_status: billing.billing_status,
+          billing_notes: billing.billing_notes || null,
+          billing_start_date: billing.billing_start_date || null,
+          billing_end_date: billing.billing_end_date || null,
+        })
+        .eq("tenant_id", tenantId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["all-tenants"] });
+      toast({
+        title: "Billing updated",
+        description: "Tenant billing information has been updated.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error updating billing",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleEditBilling = async (tenant: Tenant) => {
+    // Fetch full billing details
+    const { data: profile } = await supabase
+      .from("business_profiles")
+      .select("billing_plan, billing_status, billing_notes, billing_start_date, billing_end_date")
+      .eq("tenant_id", tenant.id)
+      .single();
+    
+    setEditingTenant(tenant);
+    setEditingBillingProfile({
+      billing_plan: (profile?.billing_plan as BillingPlan) || "starter",
+      billing_status: (profile?.billing_status as BillingStatus) || "inactive",
+      billing_notes: profile?.billing_notes || "",
+      billing_start_date: profile?.billing_start_date || "",
+      billing_end_date: profile?.billing_end_date || "",
+    });
+  };
+
+  const handleSaveBilling = () => {
+    if (!editingTenant || !editingBillingProfile) return;
+    
+    updateBillingMutation.mutate({
+      tenantId: editingTenant.id,
+      billing: editingBillingProfile,
+    });
+    
+    setEditingBillingProfile(null);
+    setEditingTenant(null);
+  };
+
+  const getBillingStatusBadge = (status: string) => {
+    switch (status) {
+      case "active":
+        return <Badge className="bg-green-500">Active</Badge>;
+      case "trial":
+        return <Badge className="bg-blue-500">Trial</Badge>;
+      case "suspended":
+        return <Badge variant="destructive">Suspended</Badge>;
+      case "inactive":
+      default:
+        return <Badge variant="secondary">Inactive</Badge>;
+    }
   };
 
   const generateSlug = (name: string) => {
@@ -334,6 +451,53 @@ export function TenantManager() {
                 </p>
               </div>
               <div className="border-t pt-4 mt-2">
+                <h4 className="font-medium mb-3 flex items-center gap-2">
+                  <CreditCard className="h-4 w-4" />
+                  Billing Plan
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="billingPlan">Plan</Label>
+                    <Select
+                      value={formData.billingPlan}
+                      onValueChange={(value: BillingPlan) => setFormData((prev) => ({ ...prev, billingPlan: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {billingPlanOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            <div className="flex flex-col">
+                              <span>{option.label}</span>
+                              <span className="text-xs text-muted-foreground">{option.description}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="billingStatus">Status</Label>
+                    <Select
+                      value={formData.billingStatus}
+                      onValueChange={(value: BillingStatus) => setFormData((prev) => ({ ...prev, billingStatus: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {billingStatusOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+              <div className="border-t pt-4 mt-2">
                 <h4 className="font-medium mb-3">Initial Admin (Optional)</h4>
                 <div className="space-y-3">
                   <div className="space-y-2">
@@ -389,6 +553,8 @@ export function TenantManager() {
                 <TableHead>Name</TableHead>
                 <TableHead>Slug</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Plan</TableHead>
+                <TableHead>Billing</TableHead>
                 <TableHead>Users</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -401,6 +567,12 @@ export function TenantManager() {
                   <TableCell className="text-muted-foreground">{tenant.slug}</TableCell>
                   <TableCell>{getStatusBadge(tenant.status)}</TableCell>
                   <TableCell>
+                    <Badge variant="outline">
+                      {BILLING_PLANS[tenant.billing_plan as BillingPlan]?.label || tenant.billing_plan}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{getBillingStatusBadge(tenant.billing_status || 'inactive')}</TableCell>
+                  <TableCell>
                     <div className="flex items-center gap-1">
                       <Users className="h-4 w-4 text-muted-foreground" />
                       {tenant.user_count}
@@ -408,13 +580,24 @@ export function TenantManager() {
                   </TableCell>
                   <TableCell>{format(new Date(tenant.created_at), "MMM d, yyyy")}</TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEdit(tenant)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEditBilling(tenant)}
+                        title="Edit Billing"
+                      >
+                        <CreditCard className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEdit(tenant)}
+                        title="Edit Tenant"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -480,6 +663,117 @@ export function TenantManager() {
                 disabled={updateTenantMutation.isPending}
               >
                 {updateTenantMutation.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Billing Edit Dialog */}
+        <Dialog open={!!editingBillingProfile} onOpenChange={(open) => !open && setEditingBillingProfile(null)}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5" />
+                Edit Billing - {editingTenant?.name}
+              </DialogTitle>
+              <DialogDescription>
+                Manage billing plan and status for this tenant
+              </DialogDescription>
+            </DialogHeader>
+            {editingBillingProfile && (
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Billing Plan</Label>
+                    <Select
+                      value={editingBillingProfile.billing_plan}
+                      onValueChange={(value: BillingPlan) => 
+                        setEditingBillingProfile({ ...editingBillingProfile, billing_plan: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {billingPlanOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            <div className="flex flex-col">
+                              <span>{option.label}</span>
+                              <span className="text-xs text-muted-foreground">{option.description}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Billing Status</Label>
+                    <Select
+                      value={editingBillingProfile.billing_status}
+                      onValueChange={(value: BillingStatus) => 
+                        setEditingBillingProfile({ ...editingBillingProfile, billing_status: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {billingStatusOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            <div className="flex flex-col">
+                              <span>{option.label}</span>
+                              <span className="text-xs text-muted-foreground">{option.description}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Start Date</Label>
+                    <Input
+                      type="date"
+                      value={editingBillingProfile.billing_start_date}
+                      onChange={(e) => 
+                        setEditingBillingProfile({ ...editingBillingProfile, billing_start_date: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>End Date (Optional)</Label>
+                    <Input
+                      type="date"
+                      value={editingBillingProfile.billing_end_date}
+                      onChange={(e) => 
+                        setEditingBillingProfile({ ...editingBillingProfile, billing_end_date: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Billing Notes</Label>
+                  <Textarea
+                    placeholder="Internal notes about this tenant's billing..."
+                    value={editingBillingProfile.billing_notes}
+                    onChange={(e) => 
+                      setEditingBillingProfile({ ...editingBillingProfile, billing_notes: e.target.value })
+                    }
+                    rows={3}
+                  />
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditingBillingProfile(null)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSaveBilling}
+                disabled={updateBillingMutation.isPending}
+              >
+                {updateBillingMutation.isPending ? "Saving..." : "Save Billing"}
               </Button>
             </DialogFooter>
           </DialogContent>
