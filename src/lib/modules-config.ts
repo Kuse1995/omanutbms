@@ -6,6 +6,12 @@ import { FeatureKey } from "./feature-config";
 export type ModuleCategory = 'core' | 'addon';
 export type PricingTier = 'free' | 'starter' | 'professional' | 'enterprise';
 
+export interface ModulePricing {
+  tier: 'starter' | 'growth' | 'enterprise';
+  monthlyPriceZMW?: number;
+  description?: string;
+}
+
 export interface ModuleDefinition {
   moduleKey: string;
   displayName: string;
@@ -18,6 +24,8 @@ export interface ModuleDefinition {
   pricingTier: PricingTier;
   coreIncluded: boolean;
   futurePayment: boolean;
+  // Display-only pricing info
+  pricing?: ModulePricing;
 }
 
 /**
@@ -127,6 +135,11 @@ export const addonModules: ModuleDefinition[] = [
     pricingTier: 'starter',
     coreIncluded: false,
     futurePayment: true,
+    pricing: {
+      tier: 'starter',
+      monthlyPriceZMW: 150,
+      description: 'Track products, manage stock levels, and generate inventory reports',
+    },
   },
   {
     moduleKey: 'agents',
@@ -139,6 +152,11 @@ export const addonModules: ModuleDefinition[] = [
     pricingTier: 'professional',
     coreIncluded: false,
     futurePayment: true,
+    pricing: {
+      tier: 'growth',
+      monthlyPriceZMW: 350,
+      description: 'Manage agent applications, inventory allocation, and sales tracking',
+    },
   },
   {
     moduleKey: 'hr_payroll',
@@ -151,6 +169,11 @@ export const addonModules: ModuleDefinition[] = [
     pricingTier: 'starter',
     coreIncluded: false,
     futurePayment: true,
+    pricing: {
+      tier: 'starter',
+      monthlyPriceZMW: 200,
+      description: 'Employee records, attendance tracking, and payroll processing',
+    },
   },
   {
     moduleKey: 'advanced_accounting',
@@ -163,6 +186,11 @@ export const addonModules: ModuleDefinition[] = [
     pricingTier: 'professional',
     coreIncluded: false,
     futurePayment: true,
+    pricing: {
+      tier: 'enterprise',
+      monthlyPriceZMW: 500,
+      description: 'Full double-entry accounting with financial statements and AI insights',
+    },
   },
   {
     moduleKey: 'impact_community',
@@ -175,6 +203,11 @@ export const addonModules: ModuleDefinition[] = [
     pricingTier: 'professional',
     coreIncluded: false,
     futurePayment: true,
+    pricing: {
+      tier: 'growth',
+      monthlyPriceZMW: 250,
+      description: 'Track impact metrics, generate certificates, and manage community engagement',
+    },
   },
   {
     moduleKey: 'website_cms',
@@ -187,6 +220,11 @@ export const addonModules: ModuleDefinition[] = [
     pricingTier: 'starter',
     coreIncluded: false,
     futurePayment: true,
+    pricing: {
+      tier: 'starter',
+      monthlyPriceZMW: 100,
+      description: 'Manage website content, blog posts, and announcements',
+    },
   },
 ];
 

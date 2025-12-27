@@ -263,8 +263,8 @@ const Auth = () => {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[#004B8D] to-[#0077B6] mb-4 shadow-lg">
             <LayoutDashboard className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">Finch BMS</h1>
-          <p className="text-slate-400">AI Control Center</p>
+          <h1 className="text-3xl font-bold text-white mb-2">Omanut BMS</h1>
+          <p className="text-slate-400">Business Management System</p>
         </div>
 
         {/* Auth Card */}
@@ -392,7 +392,7 @@ const Auth = () => {
                 </h2>
               </div>
               <p className="text-slate-400 text-sm mb-6">
-                Create your account with your authorized email. Use password: <span className="text-emerald-400 font-mono">Finch123</span>
+                Create your account with your authorized email.
               </p>
               <form onSubmit={(e) => handleSubmit(e, true)} className="space-y-5">
                 <div className="space-y-2">
@@ -429,7 +429,7 @@ const Auth = () => {
                       type={showPassword ? "text" : "password"}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Enter Finch123"
+                      placeholder="Enter your password"
                       className="pl-11 pr-11 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-[#004B8D] focus:ring-[#004B8D]"
                     />
                     <button

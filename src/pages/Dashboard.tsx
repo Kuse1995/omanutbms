@@ -7,6 +7,8 @@ import { InventoryAgent } from "@/components/dashboard/InventoryAgent";
 import { AccountsAgent } from "@/components/dashboard/AccountsAgent";
 import { HRAgent } from "@/components/dashboard/HRAgent";
 import { SettingsManager } from "@/components/dashboard/SettingsManager";
+import { TenantSettings } from "@/components/dashboard/TenantSettings";
+import { ModulesMarketplace } from "@/components/dashboard/ModulesMarketplace";
 import { CommunityMessagesManagement } from "@/components/dashboard/CommunityMessagesManagement";
 import { WebsiteManager } from "@/components/dashboard/WebsiteManager";
 import { SalesRecorder } from "@/components/dashboard/SalesRecorder";
@@ -15,10 +17,11 @@ import { WASHForumsManagement } from "@/components/dashboard/WASHForumsManagemen
 import { ReceiptsManager } from "@/components/dashboard/ReceiptsManager";
 import { AgentsManager } from "@/components/dashboard/AgentsManager";
 import { WebsiteContactsManagement } from "@/components/dashboard/WebsiteContactsManagement";
+import { PoweredByFooter } from "@/components/dashboard/PoweredByFooter";
 import { useFeatures } from "@/hooks/useFeatures";
 import { useToast } from "@/hooks/use-toast";
 
-export type DashboardTab = "dashboard" | "sales" | "receipts" | "accounts" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings";
+export type DashboardTab = "dashboard" | "sales" | "receipts" | "accounts" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings" | "tenant-settings" | "modules";
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState<DashboardTab>("dashboard");
@@ -80,6 +83,10 @@ const Dashboard = () => {
         return <WebsiteManager />;
       case "settings":
         return <SettingsManager />;
+      case "tenant-settings":
+        return <TenantSettings />;
+      case "modules":
+        return <ModulesMarketplace />;
       default:
         return <DashboardHome />;
     }
