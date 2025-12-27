@@ -36,6 +36,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/hooks/useTenant";
 import { guardTenant } from "@/lib/tenant-utils";
+import { FeatureGuard } from "./FeatureGuard";
 
 interface Agent {
   id: string;

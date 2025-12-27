@@ -96,10 +96,10 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
     <Sidebar className="border-r border-[#003366]/30 bg-gradient-to-b from-[#004B8D] to-[#003366]">
       <SidebarHeader className="p-4 border-b border-white/10">
         <div className="flex items-center gap-3">
-          <img src={finchLogo} alt="Finch" className="h-10 w-auto rounded-lg" />
+          <img src={finchLogo} alt="Omanut" className="h-10 w-auto rounded-lg" />
           <div>
             <h1 className="font-display font-bold text-white text-lg">
-              {companyName || 'Finch BMS'}
+              {companyName || 'Omanut BMS'}
             </h1>
             <p className="text-xs text-white/60">Business Management</p>
           </div>

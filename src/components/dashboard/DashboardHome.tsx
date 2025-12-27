@@ -154,7 +154,7 @@ export function DashboardHome() {
       <div className="mb-6">
         <h2 className="text-2xl font-display font-bold text-[#003366] mb-2">Dashboard Overview</h2>
         <p className="text-[#004B8D]/60">
-          Welcome to {companyName || 'Finch Investments'} Business Management System
+          Welcome to {companyName || 'Omanut'} Business Management System
         </p>
       </div>
 

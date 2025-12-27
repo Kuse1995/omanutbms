@@ -9,7 +9,9 @@ interface Tenant {
   status: string;
 }
 
-interface BusinessProfile {
+export type BusinessType = 'retail' | 'school' | 'ngo' | 'services';
+
+export interface BusinessProfile {
   id: string;
   tenant_id: string;
   company_name: string | null;
@@ -30,7 +32,7 @@ interface BusinessProfile {
   website_enabled: boolean | null;
   primary_color: string | null;
   secondary_color: string | null;
-  business_type: string | null;
+  business_type: BusinessType | null;
 }
 
 interface TenantUser {

@@ -11,11 +11,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
+import { useFeatures } from "@/hooks/useFeatures";
 import { useNavigate } from "react-router-dom";
 import { NotificationsCenter } from "./NotificationsCenter";
 
 export function DashboardHeader() {
   const { user, profile, role, signOut } = useAuth();
+  const { companyName } = useFeatures();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -58,7 +60,7 @@ export function DashboardHeader() {
                 </p>
                 <div className="flex items-center justify-end gap-2">
                   <p className="text-xs text-[#004B8D]/60">
-                    {profile?.department || "Finch Investments"}
+                    {profile?.department || companyName || "Omanut"}
                   </p>
                   {role && (
                     <Badge className={`text-[10px] px-1.5 py-0 ${getRoleBadgeColor(role)}`}>
