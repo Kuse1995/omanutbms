@@ -362,6 +362,95 @@ export type Database = {
         }
         Relationships: []
       }
+      business_profiles: {
+        Row: {
+          agents_enabled: boolean | null
+          business_type: string | null
+          company_address: string | null
+          company_email: string | null
+          company_name: string | null
+          company_phone: string | null
+          country: string | null
+          created_at: string
+          currency: string | null
+          currency_symbol: string | null
+          id: string
+          impact_enabled: boolean | null
+          industry: string | null
+          inventory_enabled: boolean | null
+          logo_url: string | null
+          payroll_enabled: boolean | null
+          primary_color: string | null
+          secondary_color: string | null
+          tagline: string | null
+          tax_enabled: boolean | null
+          tax_rate: number | null
+          tenant_id: string
+          updated_at: string
+          website_enabled: boolean | null
+        }
+        Insert: {
+          agents_enabled?: boolean | null
+          business_type?: string | null
+          company_address?: string | null
+          company_email?: string | null
+          company_name?: string | null
+          company_phone?: string | null
+          country?: string | null
+          created_at?: string
+          currency?: string | null
+          currency_symbol?: string | null
+          id?: string
+          impact_enabled?: boolean | null
+          industry?: string | null
+          inventory_enabled?: boolean | null
+          logo_url?: string | null
+          payroll_enabled?: boolean | null
+          primary_color?: string | null
+          secondary_color?: string | null
+          tagline?: string | null
+          tax_enabled?: boolean | null
+          tax_rate?: number | null
+          tenant_id: string
+          updated_at?: string
+          website_enabled?: boolean | null
+        }
+        Update: {
+          agents_enabled?: boolean | null
+          business_type?: string | null
+          company_address?: string | null
+          company_email?: string | null
+          company_name?: string | null
+          company_phone?: string | null
+          country?: string | null
+          created_at?: string
+          currency?: string | null
+          currency_symbol?: string | null
+          id?: string
+          impact_enabled?: boolean | null
+          industry?: string | null
+          inventory_enabled?: boolean | null
+          logo_url?: string | null
+          payroll_enabled?: boolean | null
+          primary_color?: string | null
+          secondary_color?: string | null
+          tagline?: string | null
+          tax_enabled?: boolean | null
+          tax_rate?: number | null
+          tenant_id?: string
+          updated_at?: string
+          website_enabled?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_profiles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       community_messages: {
         Row: {
           admin_notes: string | null
@@ -1595,6 +1684,150 @@ export type Database = {
           },
         ]
       }
+      tenant_invitations: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string | null
+          role: Database["public"]["Enums"]["app_role"]
+          tenant_id: string
+          token: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          email: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+          tenant_id: string
+          token?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+          tenant_id?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_invitations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_statistics: {
+        Row: {
+          id: string
+          tenant_id: string
+          total_children_impacted: number
+          total_liters_donated: number
+          total_revenue_zmw: number
+          total_sales_count: number
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id: string
+          total_children_impacted?: number
+          total_liters_donated?: number
+          total_revenue_zmw?: number
+          total_sales_count?: number
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string
+          total_children_impacted?: number
+          total_liters_donated?: number
+          total_revenue_zmw?: number
+          total_sales_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_statistics_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_users: {
+        Row: {
+          created_at: string
+          id: string
+          is_owner: boolean | null
+          role: Database["public"]["Enums"]["app_role"]
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_owner?: boolean | null
+          role?: Database["public"]["Enums"]["app_role"]
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_owner?: boolean | null
+          role?: Database["public"]["Enums"]["app_role"]
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_users_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenants: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          slug: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          slug: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          slug?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       transaction_audit_log: {
         Row: {
           action: string
@@ -1826,6 +2059,7 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      get_user_tenant_id: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1833,6 +2067,19 @@ export type Database = {
         }
         Returns: boolean
       }
+      has_tenant_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _tenant_id: string
+        }
+        Returns: boolean
+      }
+      is_tenant_admin: { Args: { _tenant_id: string }; Returns: boolean }
+      is_tenant_admin_or_manager: {
+        Args: { _tenant_id: string }
+        Returns: boolean
+      }
+      user_belongs_to_tenant: { Args: { _tenant_id: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "manager" | "viewer"
