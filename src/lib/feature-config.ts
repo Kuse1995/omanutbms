@@ -19,6 +19,7 @@ export interface BusinessProfile {
   impact_enabled?: boolean | null;
   website_enabled?: boolean | null;
   advanced_accounting_enabled?: boolean | null;
+  white_label_enabled?: boolean | null;
   business_type?: string | null;
 }
 

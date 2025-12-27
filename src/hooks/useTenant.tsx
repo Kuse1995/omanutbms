@@ -20,6 +20,7 @@ export interface BusinessProfile {
   company_address: string | null;
   logo_url: string | null;
   tagline: string | null;
+  slogan?: string | null;
   currency: string | null;
   currency_symbol: string | null;
   country: string | null;
@@ -30,8 +31,11 @@ export interface BusinessProfile {
   agents_enabled: boolean | null;
   impact_enabled: boolean | null;
   website_enabled: boolean | null;
+  advanced_accounting_enabled?: boolean | null;
   primary_color: string | null;
   secondary_color: string | null;
+  accent_color?: string | null;
+  white_label_enabled?: boolean | null;
   business_type: BusinessType | null;
 }
 

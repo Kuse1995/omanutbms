@@ -1,4 +1,4 @@
-import { Package, DollarSign, LayoutDashboard, Settings, HelpCircle, Users, Shield, MessageSquare, Globe, ShoppingCart, Store, Heart, Receipt, Mail } from "lucide-react";
+import { Package, DollarSign, LayoutDashboard, Settings, HelpCircle, Users, Shield, MessageSquare, Globe, ShoppingCart, Store, Heart, Receipt, Mail, Building2, Layers } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -14,9 +14,10 @@ import {
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/useAuth";
 import { useFeatures } from "@/hooks/useFeatures";
+import { useBranding } from "@/hooks/useBranding";
+import { PoweredByFooter } from "./PoweredByFooter";
 import type { DashboardTab } from "@/pages/Dashboard";
 import type { FeatureKey } from "@/lib/feature-config";
-import finchLogo from "@/assets/finch-logo.png";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface DashboardSidebarProps {
@@ -34,11 +35,14 @@ interface MenuItem {
 
 const adminItems = [
   { id: "settings" as DashboardTab, title: "Access Control", icon: Shield },
+  { id: "tenant-settings" as DashboardTab, title: "Tenant Settings", icon: Building2 },
+  { id: "modules" as DashboardTab, title: "Modules & Plans", icon: Layers },
 ];
 
 export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarProps) {
   const { isAdmin } = useAuth();
   const { features, terminology, loading, companyName } = useFeatures();
+  const { logoUrl, primaryColor, tagline } = useBranding();
 
   // Define menu items with feature requirements
   const menuItems: MenuItem[] = [
@@ -96,12 +100,18 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
     <Sidebar className="border-r border-[#003366]/30 bg-gradient-to-b from-[#004B8D] to-[#003366]">
       <SidebarHeader className="p-4 border-b border-white/10">
         <div className="flex items-center gap-3">
-          <img src={finchLogo} alt="Omanut" className="h-10 w-auto rounded-lg" />
+          {logoUrl ? (
+            <img src={logoUrl} alt={companyName || 'Company'} className="h-10 w-10 rounded-lg object-contain bg-white/10" />
+          ) : (
+            <div className="h-10 w-10 rounded-lg bg-white/20 flex items-center justify-center text-white font-bold text-lg">
+              {(companyName || 'O').charAt(0)}
+            </div>
+          )}
           <div>
             <h1 className="font-display font-bold text-white text-lg">
               {companyName || 'Omanut BMS'}
             </h1>
-            <p className="text-xs text-white/60">Business Management</p>
+            <p className="text-xs text-white/60">{tagline || 'Business Management'}</p>
           </div>
         </div>
       </SidebarHeader>
@@ -183,7 +193,8 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-        <SidebarTrigger className="mt-4 w-full text-white/60 hover:text-white" />
+        <PoweredByFooter className="mt-4" variant="light" />
+        <SidebarTrigger className="mt-2 w-full text-white/60 hover:text-white" />
       </SidebarFooter>
     </Sidebar>
   );

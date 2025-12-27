@@ -450,6 +450,7 @@ export type Database = {
       }
       business_profiles: {
         Row: {
+          accent_color: string | null
           agents_enabled: boolean | null
           business_type: string | null
           company_address: string | null
@@ -468,14 +469,17 @@ export type Database = {
           payroll_enabled: boolean | null
           primary_color: string | null
           secondary_color: string | null
+          slogan: string | null
           tagline: string | null
           tax_enabled: boolean | null
           tax_rate: number | null
           tenant_id: string
           updated_at: string
           website_enabled: boolean | null
+          white_label_enabled: boolean | null
         }
         Insert: {
+          accent_color?: string | null
           agents_enabled?: boolean | null
           business_type?: string | null
           company_address?: string | null
@@ -494,14 +498,17 @@ export type Database = {
           payroll_enabled?: boolean | null
           primary_color?: string | null
           secondary_color?: string | null
+          slogan?: string | null
           tagline?: string | null
           tax_enabled?: boolean | null
           tax_rate?: number | null
           tenant_id: string
           updated_at?: string
           website_enabled?: boolean | null
+          white_label_enabled?: boolean | null
         }
         Update: {
+          accent_color?: string | null
           agents_enabled?: boolean | null
           business_type?: string | null
           company_address?: string | null
@@ -520,12 +527,14 @@ export type Database = {
           payroll_enabled?: boolean | null
           primary_color?: string | null
           secondary_color?: string | null
+          slogan?: string | null
           tagline?: string | null
           tax_enabled?: boolean | null
           tax_rate?: number | null
           tenant_id?: string
           updated_at?: string
           website_enabled?: boolean | null
+          white_label_enabled?: boolean | null
         }
         Relationships: [
           {
