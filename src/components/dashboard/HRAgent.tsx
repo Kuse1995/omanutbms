@@ -529,6 +529,7 @@ export function HRAgent() {
             if (!open) setSelectedStaff(null);
           }}
           onSuccess={fetchStaffMembers}
+          isAdmin={true}
         />
       </motion.div>
     </FeatureGuard>
