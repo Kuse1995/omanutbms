@@ -3,6 +3,9 @@ import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, DollarSign, Users, AlertTriangle, TrendingUp, Droplets } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useFeatures } from "@/hooks/useFeatures";
+import { useTenant } from "@/hooks/useTenant";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface DashboardMetrics {
   totalInventoryValue: number;
@@ -19,43 +22,59 @@ export function DashboardHome() {
     lowStockAlerts: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
+  const { features, terminology, loading: featuresLoading, companyName, currencySymbol } = useFeatures();
+  const { tenantId } = useTenant();
 
   useEffect(() => {
     const fetchMetrics = async () => {
-      try {
-        // Fetch inventory data
-        const { data: inventory } = await supabase
-          .from("inventory")
-          .select("current_stock, unit_price, reorder_level");
+      if (!tenantId) {
+        setIsLoading(false);
+        return;
+      }
 
-        // Fetch pending transactions
+      try {
+        // Fetch inventory data (only if inventory is enabled)
+        let inventoryData: { current_stock: number; unit_price: number; reorder_level: number | null }[] = [];
+        if (features.inventory) {
+          const { data } = await supabase
+            .from("inventory")
+            .select("current_stock, unit_price, reorder_level")
+            .eq("tenant_id", tenantId);
+          inventoryData = data || [];
+        }
+
+        // Fetch pending transactions (always fetch - core feature)
         const { data: transactions } = await supabase
           .from("transactions")
           .select("status")
+          .eq("tenant_id", tenantId)
           .eq("status", "pending");
 
-        // Fetch approved agents
-        const { data: agents } = await supabase
-          .from("agent_applications")
-          .select("status")
-          .eq("status", "approved");
-
-        if (inventory) {
-          const totalValue = inventory.reduce(
-            (sum, item) => sum + item.current_stock * Number(item.unit_price),
-            0
-          );
-          const lowStock = inventory.filter(
-            (item) => item.current_stock < (item.reorder_level || 10)
-          ).length;
-
-          setMetrics({
-            totalInventoryValue: totalValue,
-            pendingInvoices: transactions?.length || 0,
-            activeAgents: agents?.length || 0,
-            lowStockAlerts: lowStock,
-          });
+        // Fetch approved agents (only if agents is enabled)
+        let agentsData: { status: string }[] = [];
+        if (features.agents) {
+          const { data } = await supabase
+            .from("agent_applications")
+            .select("status")
+            .eq("tenant_id", tenantId)
+            .eq("status", "approved");
+          agentsData = data || [];
         }
+
+        const totalValue = inventoryData.reduce(
+          (sum, item) => sum + item.current_stock * Number(item.unit_price),
+          0
+        );
+        const lowStock = inventoryData.filter(
+          (item) => item.current_stock < (item.reorder_level || 10)
+        ).length;
+
+        setMetrics({
+          totalInventoryValue: totalValue,
+          pendingInvoices: transactions?.length || 0,
+          activeAgents: agentsData.length,
+          lowStockAlerts: lowStock,
+        });
       } catch (error) {
         console.error("Error fetching metrics:", error);
       } finally {
@@ -63,23 +82,28 @@ export function DashboardHome() {
       }
     };
 
-    fetchMetrics();
-  }, []);
+    if (!featuresLoading) {
+      fetchMetrics();
+    }
+  }, [tenantId, features, featuresLoading]);
 
-  const cards = [
+  // Define cards with feature requirements
+  const allCards = [
     {
-      title: "Total Inventory Value",
-      value: `K ${metrics.totalInventoryValue.toLocaleString()}`,
+      title: `Total ${terminology.inventoryLabel} Value`,
+      value: `${currencySymbol} ${metrics.totalInventoryValue.toLocaleString()}`,
       icon: Package,
       color: "text-[#004B8D]",
       bgColor: "bg-[#004B8D]/10",
+      feature: 'inventory' as const,
     },
     {
-      title: "Pending Invoices",
+      title: `Pending ${terminology.invoicesLabel}`,
       value: metrics.pendingInvoices.toString(),
       icon: DollarSign,
       color: "text-[#0077B6]",
       bgColor: "bg-[#0077B6]/10",
+      feature: null,
     },
     {
       title: "Active Agents",
@@ -87,6 +111,7 @@ export function DashboardHome() {
       icon: Users,
       color: "text-teal-600",
       bgColor: "bg-teal-500/10",
+      feature: 'agents' as const,
     },
     {
       title: "Low Stock Alerts",
@@ -94,8 +119,31 @@ export function DashboardHome() {
       icon: AlertTriangle,
       color: metrics.lowStockAlerts > 0 ? "text-red-500" : "text-gray-400",
       bgColor: metrics.lowStockAlerts > 0 ? "bg-red-500/10" : "bg-gray-200",
+      feature: 'inventory' as const,
     },
   ];
+
+  // Filter cards based on enabled features
+  const visibleCards = allCards.filter(
+    (card) => !card.feature || features[card.feature]
+  );
+
+  // Show loading state while features are loading
+  if (featuresLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="mb-6">
+          <Skeleton className="h-8 w-48 mb-2" />
+          <Skeleton className="h-4 w-64" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-32 rounded-lg" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <motion.div
@@ -105,11 +153,13 @@ export function DashboardHome() {
     >
       <div className="mb-6">
         <h2 className="text-2xl font-display font-bold text-[#003366] mb-2">Dashboard Overview</h2>
-        <p className="text-[#004B8D]/60">Welcome to Finch Investments Business Management System</p>
+        <p className="text-[#004B8D]/60">
+          Welcome to {companyName || 'Finch Investments'} Business Management System
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {cards.map((card, index) => (
+      <div className={`grid grid-cols-1 md:grid-cols-2 ${visibleCards.length >= 4 ? 'lg:grid-cols-4' : `lg:grid-cols-${visibleCards.length}`} gap-4 mb-8`}>
+        {visibleCards.map((card, index) => (
           <motion.div
             key={card.title}
             initial={{ opacity: 0, y: 20 }}
@@ -145,24 +195,26 @@ export function DashboardHome() {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-[#004B8D]/60 text-sm">
-              Navigate to specific sections using the sidebar to manage inventory, accounts, and HR operations.
+              Navigate to specific sections using the sidebar to manage {terminology.inventoryLabel.toLowerCase()}, accounts, and HR operations.
             </p>
           </CardContent>
         </Card>
 
-        <Card className="bg-white border-[#004B8D]/10 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-[#003366] flex items-center gap-2">
-              <Droplets className="h-5 w-5 text-[#0077B6]" />
-              Impact Summary
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-[#004B8D]/60 text-sm">
-              View detailed impact metrics and generate certificates in the Accounts section.
-            </p>
-          </CardContent>
-        </Card>
+        {features.impact && (
+          <Card className="bg-white border-[#004B8D]/10 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-[#003366] flex items-center gap-2">
+                <Droplets className="h-5 w-5 text-[#0077B6]" />
+                Impact Summary
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-[#004B8D]/60 text-sm">
+                View detailed impact metrics and generate certificates in the Accounts section.
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </motion.div>
   );

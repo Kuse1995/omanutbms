@@ -30,6 +30,7 @@ interface BusinessProfile {
   website_enabled: boolean | null;
   primary_color: string | null;
   secondary_color: string | null;
+  business_type: string | null;
 }
 
 interface TenantUser {
