@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Pencil, Building2, Users } from "lucide-react";
 import { format } from "date-fns";
+import { getBusinessTypeOptions, BusinessType } from "@/lib/business-type-config";
 
 interface Tenant {
   id: string;
@@ -34,9 +35,12 @@ export function TenantManager() {
     name: "",
     slug: "",
     status: "active",
+    businessType: "retail" as BusinessType,
     adminEmail: "",
     adminRole: "admin" as "admin" | "manager" | "viewer",
   });
+
+  const businessTypeOptions = getBusinessTypeOptions();
 
   // Fetch all tenants with user counts
   const { data: tenants, isLoading } = useQuery({
@@ -81,12 +85,13 @@ export function TenantManager() {
 
       if (tenantError) throw tenantError;
 
-      // 2. Create business profile for tenant
+      // 2. Create business profile for tenant with business_type
       const { error: profileError } = await supabase
         .from("business_profiles")
         .insert({
           tenant_id: tenant.id,
           company_name: data.name,
+          business_type: data.businessType,
         });
 
       if (profileError) throw profileError;
@@ -166,6 +171,7 @@ export function TenantManager() {
       name: "",
       slug: "",
       status: "active",
+      businessType: "retail",
       adminEmail: "",
       adminRole: "admin",
     });
@@ -302,6 +308,30 @@ export function TenantManager() {
                     <SelectItem value="pending">Pending</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="businessType">Business Type</Label>
+                <Select
+                  value={formData.businessType}
+                  onValueChange={(value: BusinessType) => setFormData((prev) => ({ ...prev, businessType: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {businessTypeOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        <div className="flex flex-col">
+                          <span>{option.label}</span>
+                          <span className="text-xs text-muted-foreground">{option.description}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Determines available features and terminology
+                </p>
               </div>
               <div className="border-t pt-4 mt-2">
                 <h4 className="font-medium mb-3">Initial Admin (Optional)</h4>

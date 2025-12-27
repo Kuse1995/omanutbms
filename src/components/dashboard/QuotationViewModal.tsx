@@ -7,7 +7,7 @@ import { Loader2, Download, Printer, FileCheck } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
-import { DocumentHeader } from "./DocumentHeader";
+import { TenantDocumentHeader } from "./TenantDocumentHeader";
 
 interface Quotation {
   id: string;
@@ -136,7 +136,7 @@ export function QuotationViewModal({ isOpen, onClose, quotation, onConvertToInvo
             <div id="quotation-content" className="bg-white p-6 space-y-6">
               {/* Header */}
               <div className="border-b pb-4">
-                <DocumentHeader 
+                <TenantDocumentHeader 
                   documentType="QUOTATION" 
                   documentNumber={quotation.quotation_number}
                 />

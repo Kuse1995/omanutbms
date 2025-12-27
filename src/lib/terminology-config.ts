@@ -1,7 +1,9 @@
 // Business type terminology mapping for dynamic UI labels
 // Standardized for multi-industry support
+// NOTE: This file is maintained for backward compatibility
+// New code should use business-type-config.ts as the single source of truth
 
-export type BusinessType = 'retail' | 'school' | 'ngo' | 'services';
+export type BusinessType = 'distribution' | 'retail' | 'school' | 'ngo' | 'services';
 
 export interface TerminologyMap {
   // Sales/Transaction-related (unified internally as "transactions")
@@ -37,6 +39,27 @@ export interface TerminologyMap {
 }
 
 const terminologyMaps: Record<BusinessType, TerminologyMap> = {
+  distribution: {
+    salesLabel: 'Distributions',
+    salesDescription: 'Record and manage agent distributions',
+    transactionLabel: 'Distribution',
+    transactionsLabel: 'Distributions',
+    revenueLabel: 'Sales Revenue',
+    customerLabel: 'Agent',
+    customersLabel: 'Agents',
+    customerIdLabel: 'Agent ID',
+    inventoryLabel: 'Inventory',
+    productLabel: 'Product',
+    productsLabel: 'Products',
+    itemTypeLabel: 'Product Type',
+    invoiceLabel: 'Invoice',
+    invoicesLabel: 'Invoices',
+    impactLabel: 'Impact',
+    impactUnitLabel: 'Impact Units',
+    impactDescription: 'Track your distribution impact',
+    communityLabel: 'Community',
+    communitiesLabel: 'Communities',
+  },
   retail: {
     salesLabel: 'Sales',
     salesDescription: 'Record and manage sales transactions',

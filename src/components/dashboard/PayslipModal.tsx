@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Download, Printer } from "lucide-react";
 import { format } from "date-fns";
-import { DocumentHeader } from "./DocumentHeader";
+import { TenantDocumentHeader } from "./TenantDocumentHeader";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -85,7 +85,7 @@ export const PayslipModal = ({ isOpen, onClose, payroll }: PayslipModalProps) =>
         </DialogHeader>
 
         <div ref={printRef} className="bg-white p-6 space-y-6">
-          <DocumentHeader documentType="RECEIPT" documentNumber={`PAYSLIP-${format(new Date(payroll.pay_period_start), "yyyyMM")}`} />
+          <TenantDocumentHeader documentType="PAYSLIP" documentNumber={`PAYSLIP-${format(new Date(payroll.pay_period_start), "yyyyMM")}`} />
 
           <div className="text-center mb-6">
             <h2 className="text-xl font-bold">PAYSLIP</h2>
