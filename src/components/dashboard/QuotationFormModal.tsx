@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus, Trash2, Package, Wrench, Truck, Settings, HardHat } from "lucide-react";
 import { ProductCombobox, ProductOption } from "./ProductCombobox";
 import { Badge } from "@/components/ui/badge";
+import { useTenant } from "@/hooks/useTenant";
 
 interface QuotationItem {
   id?: string;
@@ -64,6 +65,7 @@ export function QuotationFormModal({ isOpen, onClose, onSuccess, quotation }: Qu
     { description: "", quantity: 1, unit_price: 0, amount: 0, item_type: "product" },
   ]);
   const { toast } = useToast();
+  const { tenantId } = useTenant();
 
   useEffect(() => {
     fetchProducts();
