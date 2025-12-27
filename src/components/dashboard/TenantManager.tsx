@@ -1,0 +1,460 @@
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { Plus, Pencil, Building2, Users } from "lucide-react";
+import { format } from "date-fns";
+
+interface Tenant {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+  created_at: string;
+  user_count?: number;
+}
+
+export function TenantManager() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
+  
+  // Form state
+  const [formData, setFormData] = useState({
+    name: "",
+    slug: "",
+    status: "active",
+    adminEmail: "",
+    adminRole: "admin" as "admin" | "manager" | "viewer",
+  });
+
+  // Fetch all tenants with user counts
+  const { data: tenants, isLoading } = useQuery({
+    queryKey: ["all-tenants"],
+    queryFn: async () => {
+      const { data: tenantsData, error } = await supabase
+        .from("tenants")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      // Get user counts for each tenant
+      const tenantsWithCounts = await Promise.all(
+        (tenantsData || []).map(async (tenant) => {
+          const { count } = await supabase
+            .from("tenant_users")
+            .select("*", { count: "exact", head: true })
+            .eq("tenant_id", tenant.id);
+          
+          return { ...tenant, user_count: count || 0 };
+        })
+      );
+
+      return tenantsWithCounts as Tenant[];
+    },
+  });
+
+  // Create tenant mutation
+  const createTenantMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      // 1. Create tenant
+      const { data: tenant, error: tenantError } = await supabase
+        .from("tenants")
+        .insert({
+          name: data.name,
+          slug: data.slug.toLowerCase().replace(/\s+/g, "-"),
+          status: data.status,
+        })
+        .select()
+        .single();
+
+      if (tenantError) throw tenantError;
+
+      // 2. Create business profile for tenant
+      const { error: profileError } = await supabase
+        .from("business_profiles")
+        .insert({
+          tenant_id: tenant.id,
+          company_name: data.name,
+        });
+
+      if (profileError) throw profileError;
+
+      // 3. Create tenant statistics
+      const { error: statsError } = await supabase
+        .from("tenant_statistics")
+        .insert({
+          tenant_id: tenant.id,
+        });
+
+      if (statsError) throw statsError;
+
+      // 4. If admin email provided, add to authorized_emails
+      if (data.adminEmail) {
+        const { error: emailError } = await supabase
+          .from("authorized_emails")
+          .insert({
+            tenant_id: tenant.id,
+            email: data.adminEmail.toLowerCase(),
+            default_role: data.adminRole,
+          });
+
+        if (emailError) throw emailError;
+      }
+
+      return tenant;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["all-tenants"] });
+      setIsCreateOpen(false);
+      resetForm();
+      toast({
+        title: "Tenant created",
+        description: "The new tenant has been created successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error creating tenant",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Update tenant mutation
+  const updateTenantMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<Tenant> }) => {
+      const { error } = await supabase
+        .from("tenants")
+        .update(data)
+        .eq("id", id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["all-tenants"] });
+      setIsEditOpen(false);
+      setEditingTenant(null);
+      toast({
+        title: "Tenant updated",
+        description: "The tenant has been updated successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error updating tenant",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      slug: "",
+      status: "active",
+      adminEmail: "",
+      adminRole: "admin",
+    });
+  };
+
+  const generateSlug = (name: string) => {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .substring(0, 50);
+  };
+
+  const handleNameChange = (name: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      name,
+      slug: generateSlug(name),
+    }));
+  };
+
+  const handleCreate = () => {
+    if (!formData.name || !formData.slug) {
+      toast({
+        title: "Validation error",
+        description: "Name and slug are required.",
+        variant: "destructive",
+      });
+      return;
+    }
+    createTenantMutation.mutate(formData);
+  };
+
+  const handleEdit = (tenant: Tenant) => {
+    setEditingTenant(tenant);
+    setIsEditOpen(true);
+  };
+
+  const handleUpdate = () => {
+    if (!editingTenant) return;
+    updateTenantMutation.mutate({
+      id: editingTenant.id,
+      data: {
+        name: editingTenant.name,
+        slug: editingTenant.slug,
+        status: editingTenant.status,
+      },
+    });
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "active":
+        return <Badge className="bg-green-500">Active</Badge>;
+      case "suspended":
+        return <Badge variant="destructive">Suspended</Badge>;
+      case "pending":
+        return <Badge variant="secondary">Pending</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center">
+          <p className="text-muted-foreground">Loading tenants...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <Building2 className="h-5 w-5" />
+            Tenant Management
+          </CardTitle>
+          <CardDescription>
+            Create and manage organization tenants
+          </CardDescription>
+        </div>
+        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+          <DialogTrigger asChild>
+            <Button className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              Create Tenant
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Create New Tenant</DialogTitle>
+              <DialogDescription>
+                Create a new organization tenant and optionally add an admin user.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Organization Name</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => handleNameChange(e.target.value)}
+                  placeholder="Acme Corporation"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="slug">Slug</Label>
+                <Input
+                  id="slug"
+                  value={formData.slug}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, slug: e.target.value }))}
+                  placeholder="acme-corp"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Unique identifier for the tenant
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="status">Status</Label>
+                <Select
+                  value={formData.status}
+                  onValueChange={(value) => setFormData((prev) => ({ ...prev, status: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="suspended">Suspended</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="border-t pt-4 mt-2">
+                <h4 className="font-medium mb-3">Initial Admin (Optional)</h4>
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="adminEmail">Admin Email</Label>
+                    <Input
+                      id="adminEmail"
+                      type="email"
+                      value={formData.adminEmail}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, adminEmail: e.target.value }))}
+                      placeholder="admin@example.com"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="adminRole">Admin Role</Label>
+                    <Select
+                      value={formData.adminRole}
+                      onValueChange={(value: "admin" | "manager" | "viewer") => 
+                        setFormData((prev) => ({ ...prev, adminRole: value }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="manager">Manager</SelectItem>
+                        <SelectItem value="viewer">Viewer</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleCreate} 
+                disabled={createTenantMutation.isPending}
+              >
+                {createTenantMutation.isPending ? "Creating..." : "Create Tenant"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </CardHeader>
+      <CardContent>
+        {tenants && tenants.length > 0 ? (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Slug</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Users</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {tenants.map((tenant) => (
+                <TableRow key={tenant.id}>
+                  <TableCell className="font-medium">{tenant.name}</TableCell>
+                  <TableCell className="text-muted-foreground">{tenant.slug}</TableCell>
+                  <TableCell>{getStatusBadge(tenant.status)}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                      {tenant.user_count}
+                    </div>
+                  </TableCell>
+                  <TableCell>{format(new Date(tenant.created_at), "MMM d, yyyy")}</TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleEdit(tenant)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : (
+          <div className="text-center py-8">
+            <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+            <p className="text-muted-foreground">No tenants found</p>
+            <p className="text-sm text-muted-foreground">Create your first tenant to get started</p>
+          </div>
+        )}
+
+        {/* Edit Dialog */}
+        <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Tenant</DialogTitle>
+              <DialogDescription>
+                Update tenant details
+              </DialogDescription>
+            </DialogHeader>
+            {editingTenant && (
+              <div className="grid gap-4 py-4">
+                <div className="space-y-2">
+                  <Label>Organization Name</Label>
+                  <Input
+                    value={editingTenant.name}
+                    onChange={(e) => setEditingTenant({ ...editingTenant, name: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Slug</Label>
+                  <Input
+                    value={editingTenant.slug}
+                    onChange={(e) => setEditingTenant({ ...editingTenant, slug: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select
+                    value={editingTenant.status}
+                    onValueChange={(value) => setEditingTenant({ ...editingTenant, status: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="suspended">Suspended</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsEditOpen(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleUpdate}
+                disabled={updateTenantMutation.isPending}
+              >
+                {updateTenantMutation.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </CardContent>
+    </Card>
+  );
+}
