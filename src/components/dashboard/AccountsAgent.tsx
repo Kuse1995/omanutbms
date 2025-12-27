@@ -23,23 +23,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { DollarSign, Droplets, FileText, RefreshCw, Loader2, Receipt, TrendingUp, TrendingDown, FilePlus, FileCheck, BarChart3, BookOpen, Eye, Pencil, Trash2 } from "lucide-react";
+import { DollarSign, FileText, RefreshCw, Loader2, Receipt, TrendingUp, TrendingDown, FilePlus, FileCheck, BarChart3, BookOpen, Eye, Pencil, Trash2, Calculator } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useFeatures } from "@/hooks/useFeatures";
 import { InvoiceModal } from "./InvoiceModal";
 import { ExpenseModal } from "./ExpenseModal";
 import { ExpenseViewModal } from "./ExpenseViewModal";
 import { InvoicesManager } from "./InvoicesManager";
 import { QuotationsManager } from "./QuotationsManager";
 import { FinancialReportGenerator } from "./FinancialReportGenerator";
-import { GeneralLedger } from "./GeneralLedger";
-import { CashBook } from "./CashBook";
-import { TrialBalance } from "./TrialBalance";
-import { ProfitLossStatement } from "./ProfitLossStatement";
-import { BalanceSheet } from "./BalanceSheet";
-import AccountsPayable from "./AccountsPayable";
-import AccountsReceivableAging from "./AccountsReceivableAging";
-import { CreditSalesReport } from "./CreditSalesReport";
+import { BasicAccounting } from "./BasicAccounting";
+import { AdvancedAccounting } from "./AdvancedAccounting";
+import { FeatureGuard } from "./FeatureGuard";
 
 interface Transaction {
   id: string;
@@ -60,8 +56,6 @@ interface Expense {
   created_at?: string;
 }
 
-const LITERS_PER_ZMW = 0.5;
-
 export function AccountsAgent() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -78,8 +72,10 @@ export function AccountsAgent() {
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
   const { role } = useAuth();
+  const { terminology, currencySymbol, isEnabled } = useFeatures();
   
   const canEdit = role === "admin";
+  const showAdvancedAccounting = isEnabled('advanced_accounting');
 
   const fetchTransactions = async () => {
     try {
@@ -166,7 +162,6 @@ export function AccountsAgent() {
   const totalRevenue = paidTransactions.reduce((sum, t) => sum + Number(t.bank_amount), 0);
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount_zmw), 0);
   const netProfit = totalRevenue - totalExpenses;
-  const totalLitersDonated = Math.round(totalRevenue * LITERS_PER_ZMW);
 
   const handleGenerateInvoice = (transaction: Transaction) => {
     setSelectedTransaction(transaction);
@@ -176,7 +171,7 @@ export function AccountsAgent() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-[#004B8D]" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -189,8 +184,8 @@ export function AccountsAgent() {
     >
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-display font-bold text-[#003366] mb-2">Accounts Agent</h2>
-          <p className="text-[#004B8D]/60">Revenue, Expenses & Profit Tracking</p>
+          <h2 className="text-2xl font-display font-bold text-foreground mb-2">Accounts</h2>
+          <p className="text-muted-foreground">{terminology.revenueLabel}, Expenses & Profit Tracking</p>
         </div>
         <div className="flex gap-2">
           <Button
@@ -205,7 +200,6 @@ export function AccountsAgent() {
             size="sm"
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="border-[#004B8D]/20 text-[#004B8D] hover:bg-[#004B8D]/10"
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
             Refresh
@@ -216,16 +210,16 @@ export function AccountsAgent() {
       {/* Financial Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
-          <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
+          <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 dark:from-green-950/30 dark:to-emerald-950/30 dark:border-green-800">
             <CardContent className="py-4">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-full bg-green-100">
-                  <TrendingUp className="h-6 w-6 text-green-600" />
+                <div className="p-2 rounded-full bg-green-100 dark:bg-green-900/50">
+                  <TrendingUp className="h-6 w-6 text-green-600 dark:text-green-400" />
                 </div>
                 <div>
-                  <p className="text-green-700 text-sm font-medium">Total Revenue</p>
-                  <p className="text-2xl font-bold text-green-800">
-                    K {totalRevenue.toLocaleString()}
+                  <p className="text-green-700 dark:text-green-400 text-sm font-medium">Total {terminology.revenueLabel}</p>
+                  <p className="text-2xl font-bold text-green-800 dark:text-green-300">
+                    {currencySymbol} {totalRevenue.toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -234,16 +228,16 @@ export function AccountsAgent() {
         </motion.div>
 
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.1 }}>
-          <Card className="bg-gradient-to-br from-red-50 to-rose-50 border-red-200">
+          <Card className="bg-gradient-to-br from-red-50 to-rose-50 border-red-200 dark:from-red-950/30 dark:to-rose-950/30 dark:border-red-800">
             <CardContent className="py-4">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-full bg-red-100">
-                  <TrendingDown className="h-6 w-6 text-red-600" />
+                <div className="p-2 rounded-full bg-red-100 dark:bg-red-900/50">
+                  <TrendingDown className="h-6 w-6 text-red-600 dark:text-red-400" />
                 </div>
                 <div>
-                  <p className="text-red-700 text-sm font-medium">Total Expenses</p>
-                  <p className="text-2xl font-bold text-red-800">
-                    K {totalExpenses.toLocaleString()}
+                  <p className="text-red-700 dark:text-red-400 text-sm font-medium">Total Expenses</p>
+                  <p className="text-2xl font-bold text-red-800 dark:text-red-300">
+                    {currencySymbol} {totalExpenses.toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -252,16 +246,16 @@ export function AccountsAgent() {
         </motion.div>
 
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.2 }}>
-          <Card className={`bg-gradient-to-br ${netProfit >= 0 ? 'from-blue-50 to-cyan-50 border-blue-200' : 'from-orange-50 to-amber-50 border-orange-200'}`}>
+          <Card className={`bg-gradient-to-br ${netProfit >= 0 ? 'from-blue-50 to-cyan-50 border-blue-200 dark:from-blue-950/30 dark:to-cyan-950/30 dark:border-blue-800' : 'from-orange-50 to-amber-50 border-orange-200 dark:from-orange-950/30 dark:to-amber-950/30 dark:border-orange-800'}`}>
             <CardContent className="py-4">
               <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-full ${netProfit >= 0 ? 'bg-blue-100' : 'bg-orange-100'}`}>
-                  <DollarSign className={`h-6 w-6 ${netProfit >= 0 ? 'text-blue-600' : 'text-orange-600'}`} />
+                <div className={`p-2 rounded-full ${netProfit >= 0 ? 'bg-blue-100 dark:bg-blue-900/50' : 'bg-orange-100 dark:bg-orange-900/50'}`}>
+                  <DollarSign className={`h-6 w-6 ${netProfit >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-orange-600 dark:text-orange-400'}`} />
                 </div>
                 <div>
-                  <p className={`text-sm font-medium ${netProfit >= 0 ? 'text-blue-700' : 'text-orange-700'}`}>Net Profit</p>
-                  <p className={`text-2xl font-bold ${netProfit >= 0 ? 'text-blue-800' : 'text-orange-800'}`}>
-                    K {netProfit.toLocaleString()}
+                  <p className={`text-sm font-medium ${netProfit >= 0 ? 'text-blue-700 dark:text-blue-400' : 'text-orange-700 dark:text-orange-400'}`}>Net Profit</p>
+                  <p className={`text-2xl font-bold ${netProfit >= 0 ? 'text-blue-800 dark:text-blue-300' : 'text-orange-800 dark:text-orange-300'}`}>
+                    {currencySymbol} {netProfit.toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -270,51 +264,33 @@ export function AccountsAgent() {
         </motion.div>
       </div>
 
-      {/* Impact Calculator Card */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="mb-6"
-      >
-        <Card className="bg-gradient-to-br from-[#004B8D]/10 to-[#0077B6]/10 border-[#004B8D]/20">
-          <CardContent className="py-4">
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-full bg-[#004B8D]/10">
-                <Droplets className="h-6 w-6 text-[#0077B6]" />
-              </div>
-              <div>
-                <p className="text-[#004B8D] text-sm font-medium">Impact Calculator</p>
-                <p className="text-2xl font-bold text-[#003366]">
-                  {totalLitersDonated.toLocaleString()} Liters
-                </p>
-                <p className="text-[#004B8D]/60 text-xs">Total Safe Water Donated (Rate: 1 ZMW = {LITERS_PER_ZMW} liters)</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      <Card className="bg-white border-[#004B8D]/10 shadow-sm">
+      <Card className="bg-card border shadow-sm">
         <Tabs defaultValue="invoices-manager" className="w-full">
           <CardHeader className="pb-0">
-            <TabsList className="bg-[#004B8D]/10 flex-wrap h-auto gap-1">
-              <TabsTrigger value="invoices-manager" className="data-[state=active]:bg-[#004B8D] data-[state=active]:text-white">
+            <TabsList className="flex-wrap h-auto gap-1">
+              <TabsTrigger value="invoices-manager" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 <FilePlus className="h-4 w-4 mr-2" />
-                Invoices
+                {terminology.transactionsLabel}
               </TabsTrigger>
-              <TabsTrigger value="quotations" className="data-[state=active]:bg-[#004B8D] data-[state=active]:text-white">
+              <TabsTrigger value="quotations" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 <FileCheck className="h-4 w-4 mr-2" />
                 Quotations
               </TabsTrigger>
-              <TabsTrigger value="books" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-                <BookOpen className="h-4 w-4 mr-2" />
-                Books
+              <TabsTrigger value="basic-books" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
+                <Calculator className="h-4 w-4 mr-2" />
+                Basic Books
               </TabsTrigger>
+              {showAdvancedAccounting && (
+                <TabsTrigger value="advanced-books" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
+                  <BookOpen className="h-4 w-4 mr-2" />
+                  Advanced Books
+                </TabsTrigger>
+              )}
               <TabsTrigger value="reports" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
                 <BarChart3 className="h-4 w-4 mr-2" />
                 AI Reports
               </TabsTrigger>
-              <TabsTrigger value="transactions" className="data-[state=active]:bg-[#004B8D] data-[state=active]:text-white">
+              <TabsTrigger value="transactions" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 <FileText className="h-4 w-4 mr-2" />
                 Transactions ({transactions.length})
               </TabsTrigger>
@@ -331,60 +307,48 @@ export function AccountsAgent() {
             <TabsContent value="quotations" className="mt-0">
               <QuotationsManager />
             </TabsContent>
-            <TabsContent value="books" className="mt-0">
-              <Tabs defaultValue="ledger" className="w-full">
-                <TabsList className="mb-4 flex-wrap h-auto gap-1">
-                  <TabsTrigger value="ledger">General Ledger</TabsTrigger>
-                  <TabsTrigger value="cashbook">Cash Book</TabsTrigger>
-                  <TabsTrigger value="trial">Trial Balance</TabsTrigger>
-                  <TabsTrigger value="balance">Balance Sheet</TabsTrigger>
-                  <TabsTrigger value="pnl">P&L Statement</TabsTrigger>
-                  <TabsTrigger value="receivables">A/R Aging</TabsTrigger>
-                  <TabsTrigger value="payables">A/P Tracking</TabsTrigger>
-                  <TabsTrigger value="credit-sales">Credit Sales</TabsTrigger>
-                </TabsList>
-                <TabsContent value="ledger"><GeneralLedger /></TabsContent>
-                <TabsContent value="cashbook"><CashBook /></TabsContent>
-                <TabsContent value="trial"><TrialBalance /></TabsContent>
-                <TabsContent value="balance"><BalanceSheet /></TabsContent>
-                <TabsContent value="pnl"><ProfitLossStatement /></TabsContent>
-                <TabsContent value="receivables"><AccountsReceivableAging /></TabsContent>
-                <TabsContent value="payables"><AccountsPayable /></TabsContent>
-                <TabsContent value="credit-sales"><CreditSalesReport /></TabsContent>
-              </Tabs>
+            <TabsContent value="basic-books" className="mt-0">
+              <BasicAccounting />
             </TabsContent>
+            {showAdvancedAccounting && (
+              <TabsContent value="advanced-books" className="mt-0">
+                <FeatureGuard feature="advanced_accounting" featureName="Advanced Accounting">
+                  <AdvancedAccounting />
+                </FeatureGuard>
+              </TabsContent>
+            )}
             <TabsContent value="reports" className="mt-0">
               <FinancialReportGenerator />
             </TabsContent>
             <TabsContent value="transactions" className="mt-0">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-[#004B8D]/10 hover:bg-transparent">
-                    <TableHead className="text-[#004B8D]/70">Client Name</TableHead>
-                    <TableHead className="text-[#004B8D]/70">Date</TableHead>
-                    <TableHead className="text-[#004B8D]/70 text-right">Amount (ZMW)</TableHead>
-                    <TableHead className="text-[#004B8D]/70">Status</TableHead>
-                    <TableHead className="text-[#004B8D]/70 text-right">Actions</TableHead>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>{terminology.customerLabel} Name</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {transactions.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-[#004B8D]/50 py-8">
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                         No transactions found
                       </TableCell>
                     </TableRow>
                   ) : (
                     transactions.map((transaction) => (
-                      <TableRow key={transaction.id} className="border-[#004B8D]/10 hover:bg-[#004B8D]/5">
-                        <TableCell className="text-[#003366] font-medium">
-                          {transaction.ai_client || "Unknown Client"}
+                      <TableRow key={transaction.id}>
+                        <TableCell className="font-medium">
+                          {transaction.ai_client || `Unknown ${terminology.customerLabel}`}
                         </TableCell>
-                        <TableCell className="text-[#003366]/70">
+                        <TableCell className="text-muted-foreground">
                           {new Date(transaction.bank_date).toLocaleDateString()}
                         </TableCell>
-                        <TableCell className="text-right text-[#003366]">
-                          K {Number(transaction.bank_amount).toLocaleString()}
+                        <TableCell className="text-right">
+                          {currencySymbol} {Number(transaction.bank_amount).toLocaleString()}
                         </TableCell>
                         <TableCell>
                           {transaction.status === "paid" || transaction.status === "reviewed" ? (
@@ -403,10 +367,9 @@ export function AccountsAgent() {
                               variant="outline"
                               size="sm"
                               onClick={() => handleGenerateInvoice(transaction)}
-                              className="border-[#004B8D]/20 text-[#004B8D] hover:bg-[#004B8D]/10"
                             >
                               <FileText className="h-4 w-4 mr-1" />
-                              Invoice
+                              {terminology.transactionLabel}
                             </Button>
                             {canEdit && (
                               <Button
@@ -428,35 +391,35 @@ export function AccountsAgent() {
             </TabsContent>
 
             <TabsContent value="expenses" className="mt-0">
-              <h3 className="text-lg font-semibold text-[#003366] mb-4">Expense History</h3>
+              <h3 className="text-lg font-semibold mb-4">Expense History</h3>
               <Table>
                 <TableHeader>
-                  <TableRow className="border-[#004B8D]/10 hover:bg-transparent">
-                    <TableHead className="text-[#004B8D]/70">Date</TableHead>
-                    <TableHead className="text-[#004B8D]/70">Category</TableHead>
-                    <TableHead className="text-[#004B8D]/70">Vendor</TableHead>
-                    <TableHead className="text-[#004B8D]/70 text-right">Amount (ZMW)</TableHead>
-                    <TableHead className="text-[#004B8D]/70">Actions</TableHead>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>Date</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Vendor</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {expenses.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-[#004B8D]/50 py-8">
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                         No expenses recorded yet
                       </TableCell>
                     </TableRow>
                   ) : (
                     expenses.map((expense) => (
-                      <TableRow key={expense.id} className="border-[#004B8D]/10 hover:bg-[#004B8D]/5 cursor-pointer" onClick={() => { setSelectedExpense(expense); setIsExpenseViewOpen(true); }}>
-                        <TableCell className="text-[#003366]/70">
+                      <TableRow key={expense.id} className="cursor-pointer" onClick={() => { setSelectedExpense(expense); setIsExpenseViewOpen(true); }}>
+                        <TableCell className="text-muted-foreground">
                           {new Date(expense.date_incurred).toLocaleDateString()}
                         </TableCell>
                         <TableCell>
                           <Badge 
                             variant="outline" 
                             className={
-                              expense.category === "Cost of Goods Sold - Vestergaard" 
+                              expense.category === "Cost of Goods Sold" 
                                 ? "border-purple-300 text-purple-700 bg-purple-50"
                                 : expense.category === "Salaries"
                                 ? "border-blue-300 text-blue-700 bg-blue-50"
@@ -470,11 +433,11 @@ export function AccountsAgent() {
                             {expense.category}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-[#003366] font-medium">
+                        <TableCell className="font-medium">
                           {expense.vendor_name}
                         </TableCell>
                         <TableCell className="text-right text-red-600 font-medium">
-                          K {Number(expense.amount_zmw).toLocaleString()}
+                          {currencySymbol} {Number(expense.amount_zmw).toLocaleString()}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
@@ -482,7 +445,6 @@ export function AccountsAgent() {
                               size="sm"
                               variant="ghost"
                               onClick={(e) => { e.stopPropagation(); setSelectedExpense(expense); setIsExpenseViewOpen(true); }}
-                              className="text-[#004B8D] hover:text-[#003366] hover:bg-[#004B8D]/10"
                             >
                               <Eye className="w-4 h-4" />
                             </Button>
@@ -492,7 +454,6 @@ export function AccountsAgent() {
                                   size="sm"
                                   variant="ghost"
                                   onClick={(e) => { e.stopPropagation(); setExpenseToEdit(expense); setIsExpenseModalOpen(true); }}
-                                  className="text-[#004B8D] hover:text-[#003366] hover:bg-[#004B8D]/10"
                                 >
                                   <Pencil className="w-4 h-4" />
                                 </Button>
@@ -543,7 +504,7 @@ export function AccountsAgent() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Expense</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this expense from {expenseToDelete?.vendor_name} for K {expenseToDelete?.amount_zmw.toLocaleString()}? This action cannot be undone.
+              Are you sure you want to delete this expense from {expenseToDelete?.vendor_name} for {currencySymbol} {expenseToDelete?.amount_zmw.toLocaleString()}? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -577,7 +538,7 @@ export function AccountsAgent() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Transaction</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this transaction for {transactionToDelete?.ai_client || "Unknown Client"} (K {transactionToDelete?.bank_amount.toLocaleString()})? This action cannot be undone.
+              Are you sure you want to delete this transaction for {transactionToDelete?.ai_client || `Unknown ${terminology.customerLabel}`} ({currencySymbol} {transactionToDelete?.bank_amount.toLocaleString()})? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

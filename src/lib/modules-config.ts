@@ -157,9 +157,9 @@ export const addonModules: ModuleDefinition[] = [
     displayName: 'Advanced Accounting',
     description: 'General ledger, trial balance, balance sheet, P&L statements',
     category: 'addon',
-    requiredFeatures: [],
+    requiredFeatures: ['advanced_accounting'],
     icon: 'BookOpen',
-    defaultEnabled: true,
+    defaultEnabled: false,
     pricingTier: 'professional',
     coreIncluded: false,
     futurePayment: true,
@@ -196,9 +196,21 @@ export const addonModules: ModuleDefinition[] = [
 export const allModules: ModuleDefinition[] = [...coreModules, ...addonModules];
 
 /**
- * Get module by key
+ * Module key type for type-safe access
+ */
+export type ModuleKey = typeof allModules[number]['moduleKey'];
+
+/**
+ * Get module by key (alias for getModuleByKey)
  */
 export function getModule(moduleKey: string): ModuleDefinition | undefined {
+  return allModules.find((m) => m.moduleKey === moduleKey);
+}
+
+/**
+ * Get module by key
+ */
+export function getModuleByKey(moduleKey: string): ModuleDefinition | undefined {
   return allModules.find((m) => m.moduleKey === moduleKey);
 }
 
