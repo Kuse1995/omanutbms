@@ -1,82 +1,125 @@
 // Business type terminology mapping for dynamic UI labels
+// Standardized for multi-industry support
 
 export type BusinessType = 'retail' | 'school' | 'ngo' | 'services';
 
 export interface TerminologyMap {
-  // Sales-related
+  // Sales/Transaction-related (unified internally as "transactions")
   salesLabel: string;
   salesDescription: string;
-  
-  // Customer-related
-  customerLabel: string;
-  customersLabel: string;
-  
-  // Transaction-related
   transactionLabel: string;
+  transactionsLabel: string;
   revenueLabel: string;
   
-  // Product/Inventory-related
+  // Customer-related (unified internally as "customers")
+  customerLabel: string;
+  customersLabel: string;
+  customerIdLabel: string;
+  
+  // Product/Inventory-related (supports physical, service, asset types)
   inventoryLabel: string;
   productLabel: string;
   productsLabel: string;
+  itemTypeLabel: string;
   
   // Invoice-related
   invoiceLabel: string;
   invoicesLabel: string;
+  
+  // Impact-related (configurable per tenant)
+  impactLabel: string;
+  impactUnitLabel: string;
+  impactDescription: string;
+  
+  // Community/Outreach-related
+  communityLabel: string;
+  communitiesLabel: string;
 }
 
 const terminologyMaps: Record<BusinessType, TerminologyMap> = {
   retail: {
     salesLabel: 'Sales',
     salesDescription: 'Record and manage sales transactions',
+    transactionLabel: 'Sale',
+    transactionsLabel: 'Sales',
+    revenueLabel: 'Revenue',
     customerLabel: 'Customer',
     customersLabel: 'Customers',
-    transactionLabel: 'Sale',
-    revenueLabel: 'Revenue',
+    customerIdLabel: 'Customer ID',
     inventoryLabel: 'Inventory',
     productLabel: 'Product',
     productsLabel: 'Products',
+    itemTypeLabel: 'Product Type',
     invoiceLabel: 'Invoice',
     invoicesLabel: 'Invoices',
+    impactLabel: 'Impact',
+    impactUnitLabel: 'Units',
+    impactDescription: 'Track your business impact',
+    communityLabel: 'Community',
+    communitiesLabel: 'Communities',
   },
   school: {
     salesLabel: 'Fees',
     salesDescription: 'Record and manage student fee payments',
+    transactionLabel: 'Fee Payment',
+    transactionsLabel: 'Fee Payments',
+    revenueLabel: 'Fee Collections',
     customerLabel: 'Student',
     customersLabel: 'Students',
-    transactionLabel: 'Fee Payment',
-    revenueLabel: 'Fee Collections',
+    customerIdLabel: 'Student ID',
     inventoryLabel: 'Resources',
     productLabel: 'Resource',
     productsLabel: 'Resources',
+    itemTypeLabel: 'Resource Type',
     invoiceLabel: 'Fee Statement',
     invoicesLabel: 'Fee Statements',
+    impactLabel: 'Student Impact',
+    impactUnitLabel: 'Students Served',
+    impactDescription: 'Track student outcomes',
+    communityLabel: 'School',
+    communitiesLabel: 'Schools',
   },
   ngo: {
     salesLabel: 'Contributions',
     salesDescription: 'Record and manage donor contributions',
+    transactionLabel: 'Contribution',
+    transactionsLabel: 'Contributions',
+    revenueLabel: 'Donations',
     customerLabel: 'Donor',
     customersLabel: 'Donors',
-    transactionLabel: 'Contribution',
-    revenueLabel: 'Donations',
+    customerIdLabel: 'Donor ID',
     inventoryLabel: 'Items',
     productLabel: 'Item',
     productsLabel: 'Items',
+    itemTypeLabel: 'Item Type',
     invoiceLabel: 'Pledge',
     invoicesLabel: 'Pledges',
+    impactLabel: 'Impact',
+    impactUnitLabel: 'Impact Units',
+    impactDescription: 'Track your social impact',
+    communityLabel: 'Community',
+    communitiesLabel: 'Communities',
   },
   services: {
     salesLabel: 'Invoices',
     salesDescription: 'Record and manage client invoices',
+    transactionLabel: 'Invoice',
+    transactionsLabel: 'Invoices',
+    revenueLabel: 'Revenue',
     customerLabel: 'Client',
     customersLabel: 'Clients',
-    transactionLabel: 'Invoice',
-    revenueLabel: 'Revenue',
+    customerIdLabel: 'Client ID',
     inventoryLabel: 'Services',
     productLabel: 'Service',
     productsLabel: 'Services',
+    itemTypeLabel: 'Service Type',
     invoiceLabel: 'Invoice',
     invoicesLabel: 'Invoices',
+    impactLabel: 'Impact',
+    impactUnitLabel: 'Hours Delivered',
+    impactDescription: 'Track service delivery',
+    communityLabel: 'Partner',
+    communitiesLabel: 'Partners',
   },
 };
 
