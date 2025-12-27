@@ -10,6 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/useAuth";
 import { useFeatures } from "@/hooks/useFeatures";
 import { useNavigate } from "react-router-dom";
@@ -39,6 +40,7 @@ export function DashboardHeader() {
   return (
     <header className="h-16 border-b border-[#004B8D]/10 bg-white/80 backdrop-blur-sm px-6 flex items-center justify-between shadow-sm">
       <div className="flex items-center gap-4">
+        <SidebarTrigger className="text-[#004B8D] hover:bg-[#004B8D]/10" />
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#004B8D]/50" />
           <Input

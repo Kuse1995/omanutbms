@@ -1,4 +1,4 @@
-import { Package, DollarSign, LayoutDashboard, Settings, HelpCircle, Users, Shield, MessageSquare, Globe, ShoppingCart, Store, Heart, Receipt, Mail, Building2, Layers, Crown } from "lucide-react";
+import { Package, DollarSign, LayoutDashboard, Settings, HelpCircle, Users, Shield, MessageSquare, Globe, ShoppingCart, Store, Heart, Receipt, Mail, Building2, Layers, Crown, LogOut } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -10,8 +10,8 @@ import {
   SidebarMenuItem,
   SidebarHeader,
   SidebarFooter,
-  SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useFeatures } from "@/hooks/useFeatures";
 import { useBranding } from "@/hooks/useBranding";
@@ -40,9 +40,15 @@ const adminItems = [
 ];
 
 export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarProps) {
-  const { isAdmin, isSuperAdmin } = useAuth();
+  const { isAdmin, isSuperAdmin, signOut } = useAuth();
   const { features, terminology, loading, companyName } = useFeatures();
   const { logoUrl, primaryColor, tagline } = useBranding();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/auth");
+  };
 
   // Define menu items with feature requirements
   const menuItems: MenuItem[] = [
@@ -218,9 +224,17 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
               <span>Help & Support</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton 
+              onClick={handleSignOut}
+              className="w-full justify-start gap-3 px-3 py-2 text-red-400 hover:bg-red-500/20 hover:text-red-300 rounded-lg transition-all"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Log Out</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         </SidebarMenu>
         <PoweredByFooter className="mt-4" variant="light" />
-        <SidebarTrigger className="mt-2 w-full text-white/60 hover:text-white" />
       </SidebarFooter>
     </Sidebar>
   );
