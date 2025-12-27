@@ -5,7 +5,7 @@ import { Loader2, Download, Printer } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
-import { DocumentHeader } from "./DocumentHeader";
+import { TenantDocumentHeader } from "./TenantDocumentHeader";
 
 interface SaleItem {
   product_name: string;
@@ -120,7 +120,7 @@ export function SalesReceiptModal({
 
         <div className="flex-1 overflow-y-auto">
           <div id="sales-receipt-content" className="bg-white p-6 space-y-4">
-            <DocumentHeader
+            <TenantDocumentHeader
               documentType="RECEIPT"
               documentNumber={receiptNumber}
               variant="centered"

@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Printer, Loader2, Download } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
-import { DocumentHeader } from "./DocumentHeader";
+import { TenantDocumentHeader } from "./TenantDocumentHeader";
 
 interface Invoice {
   id: string;
@@ -200,7 +200,7 @@ export function InvoiceViewModal({ isOpen, onClose, invoice }: InvoiceViewModalP
           <div className="flex-1 overflow-y-auto pr-1">
             <div ref={invoiceRef} className="p-6 bg-white">
               {/* Header */}
-              <DocumentHeader 
+              <TenantDocumentHeader 
                 documentType="INVOICE" 
                 documentNumber={invoice.invoice_number}
                 sourceReference={sourceQuotation}

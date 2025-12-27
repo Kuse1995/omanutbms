@@ -85,12 +85,12 @@ const zambianProvinces = [
   "Western",
 ];
 
-const productTypes = [
-  { name: "LifeStraw Personal", defaultPrice: 450 },
-  { name: "LifeStraw Go", defaultPrice: 650 },
-  { name: "LifeStraw Family 2.0", defaultPrice: 1200 },
-  { name: "LifeStraw Community", defaultPrice: 4500 },
-  { name: "LifeStraw Max", defaultPrice: 2800 },
+// Product types are now loaded dynamically from inventory
+// This constant is kept only as a fallback when inventory is empty
+const defaultProductTypes = [
+  { name: "Product A", defaultPrice: 100 },
+  { name: "Product B", defaultPrice: 200 },
+  { name: "Product C", defaultPrice: 300 },
 ];
 
 const agentStatuses = [

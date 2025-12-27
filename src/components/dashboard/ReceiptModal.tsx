@@ -13,7 +13,7 @@ import { Loader2, Sparkles, Download, Printer } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
-import { DocumentHeader } from "./DocumentHeader";
+import { TenantDocumentHeader } from "./TenantDocumentHeader";
 
 interface Invoice {
   id: string;
@@ -182,7 +182,7 @@ export function ReceiptModal({ isOpen, onClose, onSuccess, invoice }: ReceiptMod
           <>
             <div className="flex-1 overflow-y-auto">
               <div id="receipt-content" className="bg-white p-6 space-y-4">
-                <DocumentHeader 
+                <TenantDocumentHeader 
                   documentType="RECEIPT" 
                   documentNumber={createdReceipt.receipt_number}
                   variant="centered"
