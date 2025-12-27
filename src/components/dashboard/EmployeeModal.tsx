@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useTenant } from "@/hooks/useTenant";
 
 interface Employee {
   id: string;
@@ -40,6 +41,7 @@ interface EmployeeModalProps {
 
 export const EmployeeModal = ({ isOpen, onClose, employee, onSuccess }: EmployeeModalProps) => {
   const [loading, setLoading] = useState(false);
+  const { tenantId } = useTenant();
   const [formData, setFormData] = useState({
     full_name: "",
     employee_type: "office_staff",
@@ -110,6 +112,11 @@ export const EmployeeModal = ({ isOpen, onClose, employee, onSuccess }: Employee
       toast.error("Employee name is required");
       return;
     }
+    
+    if (!tenantId) {
+      toast.error("Unable to determine your organization. Please log in again.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -127,6 +134,7 @@ export const EmployeeModal = ({ isOpen, onClose, employee, onSuccess }: Employee
         emergency_contact_name: formData.emergency_contact_name || null,
         emergency_contact_phone: formData.emergency_contact_phone || null,
         notes: formData.notes || null,
+        tenant_id: tenantId,
       };
 
       if (employee) {

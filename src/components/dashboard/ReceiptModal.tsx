@@ -7,6 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useTenant } from "@/hooks/useTenant";
+import { guardTenant } from "@/lib/tenant-utils";
 import { Loader2, Sparkles, Download, Printer } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
@@ -39,6 +41,7 @@ export function ReceiptModal({ isOpen, onClose, onSuccess, invoice }: ReceiptMod
   const [thankYouMessage, setThankYouMessage] = useState("");
   const [createdReceipt, setCreatedReceipt] = useState<any>(null);
   const { toast } = useToast();
+  const { tenantId } = useTenant();
 
   useEffect(() => {
     if (invoice && isOpen) {
@@ -72,6 +75,7 @@ export function ReceiptModal({ isOpen, onClose, onSuccess, invoice }: ReceiptMod
     e.preventDefault();
     
     if (!invoice) return;
+    if (!guardTenant(tenantId)) return;
     if (!amountPaid || Number(amountPaid) <= 0) {
       toast({ title: "Error", description: "Please enter a valid amount", variant: "destructive" });
       return;
@@ -95,6 +99,7 @@ export function ReceiptModal({ isOpen, onClose, onSuccess, invoice }: ReceiptMod
           notes: notes || null,
           ai_thank_you_message: thankYouMessage || null,
           created_by: user?.id || null,
+          tenant_id: tenantId,
         })
         .select()
         .single();

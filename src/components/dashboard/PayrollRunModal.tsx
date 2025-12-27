@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { format, startOfMonth, endOfMonth } from "date-fns";
+import { useTenant } from "@/hooks/useTenant";
 
 interface Employee {
   id: string;
@@ -59,6 +60,7 @@ export const PayrollRunModal = ({
   selectedMonth,
 }: PayrollRunModalProps) => {
   const [loading, setLoading] = useState(false);
+  const { tenantId } = useTenant();
   const [entries, setEntries] = useState<PayrollEntry[]>(() =>
     employees.map((emp) => ({
       employee_id: emp.id,
@@ -93,6 +95,11 @@ export const PayrollRunModal = ({
       toast.error("Select at least one employee");
       return;
     }
+    
+    if (!tenantId) {
+      toast.error("Unable to determine your organization. Please log in again.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -119,6 +126,7 @@ export const PayrollRunModal = ({
           total_deductions: totalDeductions,
           net_pay: net,
           status: "draft",
+          tenant_id: tenantId,
         };
       });
 
