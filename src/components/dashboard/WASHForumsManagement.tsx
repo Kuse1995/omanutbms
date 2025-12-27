@@ -11,6 +11,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenant } from "@/hooks/useTenant";
+import { guardTenant } from "@/lib/tenant-utils";
 import { Plus, Users, MapPin, Heart, Loader2, Trash2, Edit, Mail, Phone, Eye, Lock } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
@@ -74,6 +76,7 @@ export function WASHForumsManagement() {
   const [isRequestViewOpen, setIsRequestViewOpen] = useState(false);
   const { toast } = useToast();
   const { canAdd, isAdmin } = useAuth();
+  const { tenantId } = useTenant();
 
   const [newForum, setNewForum] = useState({
     name: "",
@@ -105,6 +108,8 @@ export function WASHForumsManagement() {
   };
 
   const handleAddForum = async () => {
+    if (!guardTenant(tenantId)) return;
+    
     if (!newForum.name || !newForum.province || !newForum.description || !newForum.products_needed) {
       toast({ title: "Error", description: "Please fill in all required fields.", variant: "destructive" });
       return;
@@ -119,6 +124,7 @@ export function WASHForumsManagement() {
       priority: newForum.priority,
       contact_person: newForum.contact_person || null,
       contact_phone: newForum.contact_phone || null,
+      tenant_id: tenantId,
     });
 
     if (error) {

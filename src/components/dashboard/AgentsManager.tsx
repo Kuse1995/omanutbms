@@ -34,6 +34,8 @@ import { AgentPerformanceDashboard } from "./AgentPerformanceDashboard";
 import { AgentTransactionsManager } from "./AgentTransactionsManager";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenant } from "@/hooks/useTenant";
+import { guardTenant } from "@/lib/tenant-utils";
 
 interface Agent {
   id: string;
@@ -117,6 +119,7 @@ export function AgentsManager() {
   });
   const { toast } = useToast();
   const { canEdit } = useAuth();
+  const { tenantId } = useTenant();
 
   // Form state for editing
   const [formData, setFormData] = useState({
@@ -295,6 +298,8 @@ export function AgentsManager() {
   };
 
   const handleAddInventory = async () => {
+    if (!guardTenant(tenantId)) return;
+    
     if (!selectedAgent || !newInventoryItem.product_id || newInventoryItem.quantity <= 0) {
       toast({
         title: "Error",
@@ -336,6 +341,7 @@ export function AgentsManager() {
           quantity: newInventoryItem.quantity,
           unit_price: newInventoryItem.unit_price || selectedProduct.unit_price,
           notes: newInventoryItem.notes || null,
+          tenant_id: tenantId,
         });
 
       if (insertError) throw insertError;

@@ -10,11 +10,13 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Clock, LogIn, LogOut, Calendar, Users, Timer } from "lucide-react";
 import { format, differenceInMinutes, startOfMonth, endOfMonth } from "date-fns";
+import { useTenant } from "@/hooks/useTenant";
 
 export const AttendanceManager = () => {
   const queryClient = useQueryClient();
   const [selectedEmployee, setSelectedEmployee] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), "yyyy-MM"));
+  const { tenantId } = useTenant();
 
   const { data: employees = [] } = useQuery({
     queryKey: ["employees-active"],
@@ -61,6 +63,10 @@ export const AttendanceManager = () => {
 
   const clockInMutation = useMutation({
     mutationFn: async (employeeId: string) => {
+      if (!tenantId) {
+        throw new Error("Unable to determine your organization. Please log in again.");
+      }
+      
       const { data: user } = await supabase.auth.getUser();
       const today = format(new Date(), "yyyy-MM-dd");
       
@@ -83,6 +89,7 @@ export const AttendanceManager = () => {
         date: today,
         status: "clocked_in",
         recorded_by: user?.user?.id,
+        tenant_id: tenantId,
       });
       if (error) throw error;
     },

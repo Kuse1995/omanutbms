@@ -22,6 +22,8 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenant } from "@/hooks/useTenant";
+import { guardTenant } from "@/lib/tenant-utils";
 import { Plus, Edit, Trash2, Eye, Upload, Loader2, FileText, Send, Sparkles, Lock } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -49,6 +51,7 @@ export function BlogManager() {
   const [aiBrief, setAiBrief] = useState("");
   const { toast } = useToast();
   const { canAdd, isAdmin } = useAuth();
+  const { tenantId } = useTenant();
 
   const [formData, setFormData] = useState({
     title: "",
@@ -153,6 +156,8 @@ export function BlogManager() {
   };
 
   const handleSave = async (publish: boolean) => {
+    if (!guardTenant(tenantId)) return;
+    
     if (!formData.title.trim() || !formData.content.trim()) {
       toast({
         title: "Validation Error",
@@ -174,6 +179,7 @@ export function BlogManager() {
       status: publish ? "published" : "draft",
       published_at: publish ? new Date().toISOString() : null,
       author_id: userData.user?.id,
+      tenant_id: tenantId,
     };
 
     try {
