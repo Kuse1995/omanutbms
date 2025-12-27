@@ -39,6 +39,7 @@ interface AuthContextType {
   canEdit: boolean;   // Only admins can UPDATE records (fraud prevention)
   canDelete: boolean; // Only admins can DELETE records
   isAdmin: boolean;
+  isSuperAdmin: boolean; // Platform-level super admin
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -49,6 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -65,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setProfile(null);
           setRole(null);
+          setIsSuperAdmin(false);
           setLoading(false);
         }
       }
@@ -154,6 +157,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (resolvedRole) {
         setRole(resolvedRole);
+      }
+
+      // Check if user is a platform super admin
+      try {
+        const { data: superAdminData } = await supabase
+          .from("platform_admins")
+          .select("id")
+          .eq("user_id", userId)
+          .maybeSingle();
+
+        setIsSuperAdmin(!!superAdminData);
+      } catch (error) {
+        console.error("Error checking super admin status:", error);
+        setIsSuperAdmin(false);
       }
     } catch (error) {
       console.error("Error fetching user data:", error);
@@ -275,6 +292,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         canEdit,
         canDelete,
         isAdmin,
+        isSuperAdmin,
       }}
     >
       {children}

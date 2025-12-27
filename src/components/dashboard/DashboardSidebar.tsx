@@ -1,4 +1,4 @@
-import { Package, DollarSign, LayoutDashboard, Settings, HelpCircle, Users, Shield, MessageSquare, Globe, ShoppingCart, Store, Heart, Receipt, Mail, Building2, Layers } from "lucide-react";
+import { Package, DollarSign, LayoutDashboard, Settings, HelpCircle, Users, Shield, MessageSquare, Globe, ShoppingCart, Store, Heart, Receipt, Mail, Building2, Layers, Crown } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -30,7 +30,7 @@ interface MenuItem {
   title: string;
   icon: React.ComponentType<{ className?: string }>;
   feature: FeatureKey | null;
-  dynamicTitle?: 'sales'; // Flag to use dynamic terminology
+  dynamicTitle?: 'sales';
 }
 
 const adminItems = [
@@ -40,7 +40,7 @@ const adminItems = [
 ];
 
 export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarProps) {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isSuperAdmin } = useAuth();
   const { features, terminology, loading, companyName } = useFeatures();
   const { logoUrl, primaryColor, tagline } = useBranding();
 
@@ -165,6 +165,32 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {/* Super Admin Section */}
+        {isSuperAdmin && (
+          <SidebarGroup className="mt-4">
+            <SidebarGroupLabel className="text-amber-400/80 uppercase text-xs tracking-wider mb-2">
+              Platform Admin
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => setActiveTab("platform-admin")}
+                    className={`w-full justify-start gap-3 px-3 py-2.5 rounded-lg transition-all ${
+                      activeTab === "platform-admin"
+                        ? "bg-amber-500 text-white shadow-md"
+                        : "text-amber-400/80 hover:bg-amber-500/20 hover:text-amber-300"
+                    }`}
+                  >
+                    <Crown className="w-5 h-5" />
+                    <span className="font-medium">Manage Tenants</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

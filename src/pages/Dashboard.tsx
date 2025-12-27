@@ -18,21 +18,35 @@ import { ReceiptsManager } from "@/components/dashboard/ReceiptsManager";
 import { AgentsManager } from "@/components/dashboard/AgentsManager";
 import { WebsiteContactsManagement } from "@/components/dashboard/WebsiteContactsManagement";
 import { PoweredByFooter } from "@/components/dashboard/PoweredByFooter";
+import { SuperAdminPanel } from "@/components/dashboard/SuperAdminPanel";
 import { useFeatures } from "@/hooks/useFeatures";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 
-export type DashboardTab = "dashboard" | "sales" | "receipts" | "accounts" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings" | "tenant-settings" | "modules";
+export type DashboardTab = "dashboard" | "sales" | "receipts" | "accounts" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings" | "tenant-settings" | "modules" | "platform-admin";
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState<DashboardTab>("dashboard");
   const { canAccessTab, loading } = useFeatures();
   const { toast } = useToast();
+  const { isSuperAdmin } = useAuth();
 
   // Route protection: redirect to dashboard if user tries to access disabled feature
   useEffect(() => {
     if (loading) return;
     
-    if (!canAccessTab(activeTab)) {
+    // Super admin can access platform-admin tab
+    if (activeTab === "platform-admin" && !isSuperAdmin) {
+      toast({
+        title: "Access denied",
+        description: "You don't have permission to access this section.",
+        variant: "destructive",
+      });
+      setActiveTab("dashboard");
+      return;
+    }
+    
+    if (activeTab !== "platform-admin" && !canAccessTab(activeTab)) {
       toast({
         title: "Feature not available",
         description: "This feature is not enabled for your organization.",
@@ -40,10 +54,24 @@ const Dashboard = () => {
       });
       setActiveTab("dashboard");
     }
-  }, [activeTab, canAccessTab, loading, toast]);
+  }, [activeTab, canAccessTab, loading, toast, isSuperAdmin]);
 
   // Safe tab setter that checks feature access
   const handleSetActiveTab = (tab: DashboardTab) => {
+    // Super admin can access platform-admin
+    if (tab === "platform-admin") {
+      if (isSuperAdmin) {
+        setActiveTab(tab);
+      } else {
+        toast({
+          title: "Access denied",
+          description: "You don't have permission to access this section.",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+    
     if (canAccessTab(tab)) {
       setActiveTab(tab);
     } else {
@@ -87,6 +115,8 @@ const Dashboard = () => {
         return <TenantSettings />;
       case "modules":
         return <ModulesMarketplace />;
+      case "platform-admin":
+        return <SuperAdminPanel />;
       default:
         return <DashboardHome />;
     }
