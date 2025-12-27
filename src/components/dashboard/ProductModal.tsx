@@ -11,6 +11,7 @@ import { Loader2, Upload, X, ImageIcon, Plus, Trash2, Settings2, FileText, Arrow
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Json } from "@/integrations/supabase/types";
+import { useTenant } from "@/hooks/useTenant";
 
 interface FieldChange {
   field: string;
@@ -78,6 +79,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
   const datasheetInputRef = useRef<HTMLInputElement>(null);
   const manualInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const { tenantId } = useTenant();
   
   const [formData, setFormData] = useState({
     sku: "",
@@ -476,6 +478,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
         datasheet_url: datasheetUrl,
         manual_url: manualUrl,
         technical_specs: validSpecs.length > 0 ? (validSpecs as unknown as Json) : null,
+        tenant_id: tenantId,
       };
 
       if (product) {

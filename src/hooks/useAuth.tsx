@@ -98,26 +98,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(profileData);
       }
 
-      // Fetch role from user_roles table first
+      // First try to get role from tenant_users (new multi-tenant system)
       let resolvedRole: AppRole | null = null;
 
       try {
-        const { data: roleData } = await supabase
-          .from("user_roles")
+        const { data: tenantUserData } = await supabase
+          .from("tenant_users")
           .select("role")
           .eq("user_id", userId)
-          .order("role")
           .limit(1)
-          .single();
+          .maybeSingle();
 
-        if (roleData) {
-          resolvedRole = roleData.role as AppRole;
+        if (tenantUserData?.role) {
+          resolvedRole = tenantUserData.role as AppRole;
         }
       } catch (error) {
-        console.error("Error fetching role from user_roles:", error);
+        console.error("Error fetching role from tenant_users:", error);
       }
 
-      // Fallback: if no role found, try authorized_emails by email
+      // Fallback: try user_roles table (backward compatibility)
+      if (!resolvedRole) {
+        try {
+          const { data: roleData } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", userId)
+            .order("role")
+            .limit(1)
+            .maybeSingle();
+
+          if (roleData?.role) {
+            resolvedRole = roleData.role as AppRole;
+          }
+        } catch (error) {
+          console.error("Error fetching role from user_roles:", error);
+        }
+      }
+
+      // Fallback: try authorized_emails by email
       if (!resolvedRole && email) {
         try {
           const { data: authEmail } = await supabase

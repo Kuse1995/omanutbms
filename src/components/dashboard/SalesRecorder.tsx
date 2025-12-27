@@ -19,6 +19,7 @@ import { format, startOfMonth, endOfMonth, addDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import * as XLSX from "xlsx";
+import { useTenant } from "@/hooks/useTenant";
 
 interface InventoryItem {
   id: string;
@@ -85,6 +86,7 @@ export function SalesRecorder() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const { tenantId } = useTenant();
 
   // Cart state
   const [cart, setCart] = useState<CartItem[]>([]);

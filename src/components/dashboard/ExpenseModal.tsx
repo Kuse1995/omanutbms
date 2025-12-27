@@ -20,6 +20,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { ProductCombobox, ProductOption } from "./ProductCombobox";
+import { useTenant } from "@/hooks/useTenant";
 
 interface ExpenseModalProps {
   isOpen: boolean;
@@ -55,6 +56,7 @@ export function ExpenseModal({ isOpen, onClose, onSuccess, expenseToEdit }: Expe
     notes: "",
   });
   const { toast } = useToast();
+  const { tenantId } = useTenant();
 
   const isEditMode = !!expenseToEdit;
 
@@ -153,6 +155,7 @@ export function ExpenseModal({ isOpen, onClose, onSuccess, expenseToEdit }: Expe
           vendor_name: formData.vendor_name.trim(),
           notes: finalNotes || null,
           recorded_by: userData.user?.id,
+          tenant_id: tenantId,
         });
 
         if (error) throw error;
