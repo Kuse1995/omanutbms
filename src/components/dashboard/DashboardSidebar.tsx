@@ -13,28 +13,24 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/useAuth";
+import { useFeatures } from "@/hooks/useFeatures";
 import type { DashboardTab } from "@/pages/Dashboard";
+import type { FeatureKey } from "@/lib/feature-config";
 import finchLogo from "@/assets/finch-logo.png";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface DashboardSidebarProps {
   activeTab: DashboardTab;
   setActiveTab: (tab: DashboardTab) => void;
 }
 
-const menuItems = [
-  { id: "dashboard" as DashboardTab, title: "Dashboard", icon: LayoutDashboard },
-  { id: "sales" as DashboardTab, title: "Sales", icon: ShoppingCart },
-  { id: "receipts" as DashboardTab, title: "Receipts", icon: Receipt },
-  { id: "accounts" as DashboardTab, title: "Accounts", icon: DollarSign },
-  { id: "hr" as DashboardTab, title: "HR & Payroll", icon: Users },
-  { id: "agents" as DashboardTab, title: "Agents", icon: Users },
-  { id: "inventory" as DashboardTab, title: "Inventory", icon: Package },
-  { id: "shop" as DashboardTab, title: "Shop Manager", icon: Store },
-  { id: "communities" as DashboardTab, title: "Communities", icon: Heart },
-  { id: "messages" as DashboardTab, title: "Community Messages", icon: MessageSquare },
-  { id: "contacts" as DashboardTab, title: "Website Contacts", icon: Mail },
-  { id: "website" as DashboardTab, title: "Website", icon: Globe },
-];
+interface MenuItem {
+  id: DashboardTab;
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  feature: FeatureKey | null;
+  dynamicTitle?: 'sales'; // Flag to use dynamic terminology
+}
 
 const adminItems = [
   { id: "settings" as DashboardTab, title: "Access Control", icon: Shield },
@@ -42,6 +38,59 @@ const adminItems = [
 
 export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarProps) {
   const { isAdmin } = useAuth();
+  const { features, terminology, loading, companyName } = useFeatures();
+
+  // Define menu items with feature requirements
+  const menuItems: MenuItem[] = [
+    { id: "dashboard", title: "Dashboard", icon: LayoutDashboard, feature: null },
+    { id: "sales", title: terminology.salesLabel, icon: ShoppingCart, feature: null, dynamicTitle: 'sales' },
+    { id: "receipts", title: "Receipts", icon: Receipt, feature: null },
+    { id: "accounts", title: "Accounts", icon: DollarSign, feature: null },
+    { id: "hr", title: "HR & Payroll", icon: Users, feature: 'payroll' },
+    { id: "agents", title: "Agents", icon: Users, feature: 'agents' },
+    { id: "inventory", title: terminology.inventoryLabel, icon: Package, feature: 'inventory' },
+    { id: "shop", title: "Shop Manager", icon: Store, feature: 'inventory' },
+    { id: "communities", title: "Communities", icon: Heart, feature: 'impact' },
+    { id: "messages", title: "Community Messages", icon: MessageSquare, feature: 'impact' },
+    { id: "contacts", title: "Website Contacts", icon: Mail, feature: 'website' },
+    { id: "website", title: "Website", icon: Globe, feature: 'website' },
+  ];
+
+  // Filter menu items based on enabled features
+  const visibleMenuItems = menuItems.filter(
+    (item) => !item.feature || features[item.feature]
+  );
+
+  // Show skeleton while loading to prevent flash of content
+  if (loading) {
+    return (
+      <Sidebar className="border-r border-[#003366]/30 bg-gradient-to-b from-[#004B8D] to-[#003366]">
+        <SidebarHeader className="p-4 border-b border-white/10">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-10 w-10 rounded-lg bg-white/20" />
+            <div>
+              <Skeleton className="h-5 w-24 bg-white/20 mb-1" />
+              <Skeleton className="h-3 w-32 bg-white/20" />
+            </div>
+          </div>
+        </SidebarHeader>
+        <SidebarContent className="px-2 py-4">
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-white/50 uppercase text-xs tracking-wider mb-2">
+              Modules
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <div className="space-y-2">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <Skeleton key={i} className="h-10 w-full rounded-lg bg-white/10" />
+                ))}
+              </div>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+      </Sidebar>
+    );
+  }
 
   return (
     <Sidebar className="border-r border-[#003366]/30 bg-gradient-to-b from-[#004B8D] to-[#003366]">
@@ -49,7 +98,9 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
         <div className="flex items-center gap-3">
           <img src={finchLogo} alt="Finch" className="h-10 w-auto rounded-lg" />
           <div>
-            <h1 className="font-display font-bold text-white text-lg">Finch BMS</h1>
+            <h1 className="font-display font-bold text-white text-lg">
+              {companyName || 'Finch BMS'}
+            </h1>
             <p className="text-xs text-white/60">Business Management</p>
           </div>
         </div>
@@ -62,7 +113,7 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
+              {visibleMenuItems.map((item) => (
                 <SidebarMenuItem key={item.id}>
                   <SidebarMenuButton
                     onClick={() => setActiveTab(item.id)}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
@@ -15,11 +15,42 @@ import { WASHForumsManagement } from "@/components/dashboard/WASHForumsManagemen
 import { ReceiptsManager } from "@/components/dashboard/ReceiptsManager";
 import { AgentsManager } from "@/components/dashboard/AgentsManager";
 import { WebsiteContactsManagement } from "@/components/dashboard/WebsiteContactsManagement";
+import { useFeatures } from "@/hooks/useFeatures";
+import { useToast } from "@/hooks/use-toast";
 
 export type DashboardTab = "dashboard" | "sales" | "receipts" | "accounts" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings";
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState<DashboardTab>("dashboard");
+  const { canAccessTab, loading } = useFeatures();
+  const { toast } = useToast();
+
+  // Route protection: redirect to dashboard if user tries to access disabled feature
+  useEffect(() => {
+    if (loading) return;
+    
+    if (!canAccessTab(activeTab)) {
+      toast({
+        title: "Feature not available",
+        description: "This feature is not enabled for your organization.",
+        variant: "destructive",
+      });
+      setActiveTab("dashboard");
+    }
+  }, [activeTab, canAccessTab, loading, toast]);
+
+  // Safe tab setter that checks feature access
+  const handleSetActiveTab = (tab: DashboardTab) => {
+    if (canAccessTab(tab)) {
+      setActiveTab(tab);
+    } else {
+      toast({
+        title: "Feature not available",
+        description: "This feature is not enabled for your organization.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const renderContent = () => {
     switch (activeTab) {
@@ -57,7 +88,7 @@ const Dashboard = () => {
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-gradient-to-br from-[#f0f7fa] to-[#e8f4f8]">
-        <DashboardSidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+        <DashboardSidebar activeTab={activeTab} setActiveTab={handleSetActiveTab} />
         <div className="flex-1 flex flex-col">
           <DashboardHeader />
           <main className="flex-1 p-6 overflow-auto">
