@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { periodStart, periodEnd } = await req.json();
+    const { periodStart, periodEnd, tenantId } = await req.json();
     
     if (!periodStart || !periodEnd) {
       return new Response(
@@ -24,6 +24,24 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Fetch business profile for tenant-specific settings
+    let companyName = "Your Company";
+    let impactEnabled = false;
+    let impactUnitName = "Impact Units";
+    
+    if (tenantId) {
+      const { data: profile } = await supabase
+        .from("business_profiles")
+        .select("company_name, impact_enabled")
+        .eq("tenant_id", tenantId)
+        .single();
+      
+      if (profile) {
+        companyName = profile.company_name || companyName;
+        impactEnabled = profile.impact_enabled ?? false;
+      }
+    }
 
     // Fetch sales data for the period
     const { data: sales, error: salesError } = await supabase
@@ -65,7 +83,11 @@ serve(async (req) => {
     const totalRevenue = (sales || []).reduce((sum, s) => sum + Number(s.total_amount_zmw || 0), 0);
     const totalExpenses = (expenses || []).reduce((sum, e) => sum + Number(e.amount_zmw || 0), 0);
     const netProfit = totalRevenue - totalExpenses;
-    const totalLiters = (sales || []).reduce((sum, s) => sum + Number(s.liters_impact || 0), 0);
+    
+    // Only calculate impact if feature is enabled
+    const totalImpactUnits = impactEnabled 
+      ? (sales || []).reduce((sum, s) => sum + Number(s.liters_impact || 0), 0)
+      : 0;
 
     // Group expenses by category
     const expensesByCategory: Record<string, number> = {};
@@ -91,38 +113,53 @@ serve(async (req) => {
     const invoiceRevenue = paidInvoices.reduce((sum, i) => sum + Number(i.total_amount || 0), 0);
     const pendingAmount = pendingInvoices.reduce((sum, i) => sum + Number(i.total_amount || 0), 0);
 
-    // Build context for AI
-    const context = `
-Financial Report for ${periodStart} to ${periodEnd}:
-- Total Sales Revenue: K ${totalRevenue.toLocaleString()}
-- Total Expenses: K ${totalExpenses.toLocaleString()}
-- Net Profit: K ${netProfit.toLocaleString()}
-- Profit Margin: ${totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : 0}%
-- Total Liters of Safe Water Donated: ${totalLiters.toLocaleString()}
-- Number of Sales Transactions: ${(sales || []).length}
-- Invoice Revenue (Paid): K ${invoiceRevenue.toLocaleString()}
-- Pending Invoice Amount: K ${pendingAmount.toLocaleString()}
+    // Build context for AI - generic, not domain-specific
+    let contextLines = [
+      `Financial Report for ${periodStart} to ${periodEnd}:`,
+      `Company: ${companyName}`,
+      `- Total Sales Revenue: K ${totalRevenue.toLocaleString()}`,
+      `- Total Expenses: K ${totalExpenses.toLocaleString()}`,
+      `- Net Profit: K ${netProfit.toLocaleString()}`,
+      `- Profit Margin: ${totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : 0}%`,
+      `- Number of Sales Transactions: ${(sales || []).length}`,
+      `- Invoice Revenue (Paid): K ${invoiceRevenue.toLocaleString()}`,
+      `- Pending Invoice Amount: K ${pendingAmount.toLocaleString()}`,
+    ];
 
-Top Expense Categories:
-${Object.entries(expensesByCategory)
-  .sort((a, b) => b[1] - a[1])
-  .slice(0, 5)
-  .map(([cat, amt]) => `- ${cat}: K ${amt.toLocaleString()}`)
-  .join("\n")}
+    // Only include impact metrics if enabled
+    if (impactEnabled && totalImpactUnits > 0) {
+      contextLines.push(`- Total ${impactUnitName}: ${totalImpactUnits.toLocaleString()}`);
+    }
 
-Top Products by Revenue:
-${Object.entries(salesByProduct)
-  .sort((a, b) => b[1].revenue - a[1].revenue)
-  .slice(0, 5)
-  .map(([prod, data]) => `- ${prod}: ${data.quantity} units, K ${data.revenue.toLocaleString()}`)
-  .join("\n")}
-`;
+    contextLines.push("");
+    contextLines.push("Top Expense Categories:");
+    contextLines.push(...Object.entries(expensesByCategory)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([cat, amt]) => `- ${cat}: K ${amt.toLocaleString()}`));
+
+    contextLines.push("");
+    contextLines.push("Top Products by Revenue:");
+    contextLines.push(...Object.entries(salesByProduct)
+      .sort((a, b) => b[1].revenue - a[1].revenue)
+      .slice(0, 5)
+      .map(([prod, data]) => `- ${prod}: ${data.quantity} units, K ${data.revenue.toLocaleString()}`));
+
+    const context = contextLines.join("\n");
 
     // Call Lovable AI for summary
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
+
+    // Generic system prompt - no domain-specific references
+    const systemPrompt = `You are a professional financial analyst for ${companyName}. Generate concise, actionable financial insights. Focus on:
+1. Key performance highlights
+2. Areas of concern
+3. Recommendations for improvement
+${impactEnabled ? '4. Social impact metrics (if applicable)' : ''}
+Keep the summary under 300 words, professional but friendly.`;
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -135,12 +172,7 @@ ${Object.entries(salesByProduct)
         messages: [
           {
             role: "system",
-            content: `You are a professional financial analyst for Finch Investments Limited, a LifeStraw water filter distributor in Zambia. Generate concise, actionable financial insights. Focus on:
-1. Key performance highlights
-2. Areas of concern
-3. Recommendations for improvement
-4. Social impact metrics (liters of safe water donated)
-Keep the summary under 300 words, professional but friendly.`,
+            content: systemPrompt,
           },
           {
             role: "user",
@@ -173,12 +205,11 @@ Keep the summary under 300 words, professional but friendly.`,
     const aiSummary = aiData.choices?.[0]?.message?.content || "Unable to generate summary.";
 
     // Build insights object
-    const insights = {
+    const insights: Record<string, unknown> = {
       revenue: totalRevenue,
       expenses: totalExpenses,
       netProfit,
       profitMargin: totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : "0",
-      totalLiters,
       salesCount: (sales || []).length,
       invoiceRevenue,
       pendingAmount,
@@ -187,6 +218,11 @@ Keep the summary under 300 words, professional but friendly.`,
       paidInvoicesCount: paidInvoices.length,
       pendingInvoicesCount: pendingInvoices.length,
     };
+
+    // Only include impact in insights if enabled
+    if (impactEnabled) {
+      insights.totalImpactUnits = totalImpactUnits;
+    }
 
     return new Response(
       JSON.stringify({

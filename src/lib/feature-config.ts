@@ -1,6 +1,7 @@
 // Feature flags and configuration utilities for multi-tenant feature toggling
+// Module registry (modules-config.ts) is the source of truth for module definitions
 
-export type FeatureKey = 'inventory' | 'payroll' | 'agents' | 'impact' | 'website';
+export type FeatureKey = 'inventory' | 'payroll' | 'agents' | 'impact' | 'website' | 'advanced_accounting';
 
 export interface FeatureConfig {
   inventory: boolean;
@@ -8,6 +9,7 @@ export interface FeatureConfig {
   agents: boolean;
   impact: boolean;
   website: boolean;
+  advanced_accounting: boolean;
 }
 
 export interface BusinessProfile {
@@ -16,12 +18,13 @@ export interface BusinessProfile {
   agents_enabled?: boolean | null;
   impact_enabled?: boolean | null;
   website_enabled?: boolean | null;
+  advanced_accounting_enabled?: boolean | null;
   business_type?: string | null;
 }
 
 /**
  * Get feature configuration from business profile
- * Defaults to true if not explicitly disabled
+ * Core modules default to true, add-ons respect explicit flags
  */
 export function getFeatureConfig(businessProfile: BusinessProfile | null): FeatureConfig {
   return {
@@ -30,6 +33,7 @@ export function getFeatureConfig(businessProfile: BusinessProfile | null): Featu
     agents: businessProfile?.agents_enabled ?? true,
     impact: businessProfile?.impact_enabled ?? true,
     website: businessProfile?.website_enabled ?? true,
+    advanced_accounting: businessProfile?.advanced_accounting_enabled ?? false,
   };
 }
 
