@@ -7,8 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useFeatures } from "@/hooks/useFeatures";
+import { useBranding } from "@/hooks/useBranding";
 import { FeatureGuard } from "./FeatureGuard";
-
 interface ImpactMetric {
   id: string;
   metric_type: string;
@@ -31,7 +31,8 @@ export function ImpactReporting() {
   const [generatedCertificate, setGeneratedCertificate] = useState<Certificate | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
-  const { terminology, companyName } = useFeatures();
+  const { terminology } = useFeatures();
+  const { companyName, logoUrl } = useBranding();
 
   const fetchMetrics = async () => {
     try {
@@ -296,10 +297,13 @@ export function ImpactReporting() {
               <div className="mt-4">
                 <div className="bg-white rounded-lg p-8 text-slate-900 border">
                   <div className="text-center border-b-2 border-primary pb-6 mb-6">
+                    {logoUrl && (
+                      <img src={logoUrl} alt={companyName} className="h-12 mx-auto mb-3 object-contain" />
+                    )}
                     <h2 className="text-2xl font-bold text-primary mb-2">
                       Certificate of Impact
                     </h2>
-                    <p className="text-sm text-slate-600">{companyName || 'Omanut BMS'}</p>
+                    <p className="text-sm text-slate-600">{companyName}</p>
                   </div>
 
                   <div className="text-center mb-6">
