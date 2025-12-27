@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Navbar } from "@/components/Navbar";
-import { HeroSection } from "@/components/HeroSection";
-import { VideoShowcase } from "@/components/VideoShowcase";
-import { Footer } from "@/components/Footer";
-import { PageTransition } from "@/components/PageTransition";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
+import { PageTransition } from "@/components/PageTransition";
+import { SaaSNavbar } from "@/components/landing/SaaSNavbar";
+import { SaaSHero } from "@/components/landing/SaaSHero";
+import { WhoItsFor } from "@/components/landing/WhoItsFor";
+import { CoreCapabilities } from "@/components/landing/CoreCapabilities";
+import { ModularDesign } from "@/components/landing/ModularDesign";
+import { WhiteLabelReady } from "@/components/landing/WhiteLabelReady";
+import { FinalCTA } from "@/components/landing/FinalCTA";
+import { SaaSFooter } from "@/components/landing/SaaSFooter";
 
 const Index = () => {
   const [isProcessingAuth, setIsProcessingAuth] = useState(false);
@@ -36,7 +40,7 @@ const Index = () => {
   if (isProcessingAuth) {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center gap-4">
-        <Loader2 className="w-10 h-10 text-[#004B8D] animate-spin" />
+        <Loader2 className="w-10 h-10 text-primary animate-spin" />
         <p className="text-white text-lg">Signing you in...</p>
       </div>
     );
@@ -45,10 +49,18 @@ const Index = () => {
   return (
     <PageTransition>
       <main className="min-h-screen">
-        <Navbar />
-        <HeroSection />
-        <VideoShowcase />
-        <Footer />
+        <SaaSNavbar />
+        <SaaSHero />
+        <div id="features">
+          <WhoItsFor />
+        </div>
+        <CoreCapabilities />
+        <div id="modules">
+          <ModularDesign />
+        </div>
+        <WhiteLabelReady />
+        <FinalCTA />
+        <SaaSFooter />
       </main>
     </PageTransition>
   );
