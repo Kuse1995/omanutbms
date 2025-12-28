@@ -37,6 +37,12 @@ export interface BusinessProfile {
   accent_color?: string | null;
   white_label_enabled?: boolean | null;
   business_type: BusinessType | null;
+  // Billing fields
+  billing_plan: string | null;
+  billing_status: string | null;
+  billing_notes: string | null;
+  billing_start_date: string | null;
+  billing_end_date: string | null;
 }
 
 interface TenantUser {
