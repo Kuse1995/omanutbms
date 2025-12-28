@@ -83,6 +83,13 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true);
 
+      // Auto-provision tenant membership from authorized_emails or invitations
+      try {
+        await supabase.rpc("ensure_tenant_membership");
+      } catch (provisionError) {
+        console.warn("Could not provision tenant membership:", provisionError);
+      }
+
       // Fetch tenant_users entry for current user
       const { data: tenantUserData, error: tenantUserError } = await supabase
         .from("tenant_users")
