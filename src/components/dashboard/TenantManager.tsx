@@ -11,7 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Building2, Users, CreditCard } from "lucide-react";
+import { Plus, Pencil, Building2, Users, CreditCard, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { getBusinessTypeOptions, BusinessType } from "@/lib/business-type-config";
 import { getBillingPlanOptions, getBillingStatusOptions, BillingPlan, BillingStatus, BILLING_PLANS } from "@/lib/billing-plans";
@@ -40,6 +41,7 @@ export function TenantManager() {
     billing_start_date: string;
     billing_end_date: string;
   } | null>(null);
+  const [deletingTenant, setDeletingTenant] = useState<Tenant | null>(null);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -278,6 +280,44 @@ export function TenantManager() {
     
     setEditingBillingProfile(null);
     setEditingTenant(null);
+  };
+
+  // Delete tenant mutation
+  const deleteTenantMutation = useMutation({
+    mutationFn: async (tenantId: string) => {
+      // Delete in order to respect foreign key constraints
+      // 1. Delete tenant_users
+      await supabase.from("tenant_users").delete().eq("tenant_id", tenantId);
+      // 2. Delete authorized_emails
+      await supabase.from("authorized_emails").delete().eq("tenant_id", tenantId);
+      // 3. Delete business_profiles
+      await supabase.from("business_profiles").delete().eq("tenant_id", tenantId);
+      // 4. Delete tenant_statistics
+      await supabase.from("tenant_statistics").delete().eq("tenant_id", tenantId);
+      // 5. Finally delete tenant
+      const { error } = await supabase.from("tenants").delete().eq("id", tenantId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["all-tenants"] });
+      setDeletingTenant(null);
+      toast({
+        title: "Tenant deleted",
+        description: "The tenant and all related data have been permanently deleted.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error deleting tenant",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDeleteTenant = () => {
+    if (!deletingTenant) return;
+    deleteTenantMutation.mutate(deletingTenant.id);
   };
 
   const getBillingStatusBadge = (status: string) => {
@@ -597,6 +637,15 @@ export function TenantManager() {
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDeletingTenant(tenant)}
+                        title="Delete Tenant"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -778,6 +827,34 @@ export function TenantManager() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={!!deletingTenant} onOpenChange={(open) => !open && setDeletingTenant(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-destructive">Delete Tenant</AlertDialogTitle>
+              <AlertDialogDescription className="space-y-2">
+                <p>
+                  Are you sure you want to permanently delete <strong>{deletingTenant?.name}</strong>?
+                </p>
+                <p className="text-destructive font-medium">
+                  This action cannot be undone. All tenant data including users, business profile, 
+                  statistics, and authorized emails will be permanently deleted.
+                </p>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteTenant}
+                disabled={deleteTenantMutation.isPending}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deleteTenantMutation.isPending ? "Deleting..." : "Delete Permanently"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardContent>
     </Card>
   );
