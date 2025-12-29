@@ -203,6 +203,11 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
 
       let invoiceId: string;
 
+      if (!tenantId) {
+        toast({ title: "Error", description: "Organization context missing. Please log in again.", variant: "destructive" });
+        return;
+      }
+
       if (invoice) {
         // Update existing invoice
         const { error } = await supabase
@@ -219,7 +224,7 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
         // Create new invoice
         const { data, error } = await supabase
           .from("invoices")
-          .insert({ ...invoiceData, invoice_number: "" })
+          .insert({ ...invoiceData, invoice_number: "", tenant_id: tenantId })
           .select("id")
           .single();
 
@@ -230,6 +235,7 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
       // Insert items
       const itemsData = items.map(item => ({
         invoice_id: invoiceId,
+        tenant_id: tenantId,
         description: item.description,
         quantity: item.quantity,
         unit_price: item.unit_price,

@@ -21,6 +21,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Upload, FileSpreadsheet, Download, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useTenant } from "@/hooks/useTenant";
 
 interface InventoryImportModalProps {
   open: boolean;
@@ -47,6 +48,7 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
   const [importResults, setImportResults] = useState<{ added: number; updated: number; failed: number } | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const { toast } = useToast();
+  const { tenantId } = useTenant();
 
   const resetState = () => {
     setParsedData([]);
@@ -180,6 +182,15 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
       });
       return;
     }
+    
+    if (!tenantId) {
+      toast({
+        title: "Error",
+        description: "Organization context missing. Please log in again.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsImporting(true);
     setImportProgress(0);
@@ -191,11 +202,12 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
     for (let i = 0; i < validRows.length; i++) {
       const row = validRows[i];
       try {
-        // Check if SKU exists
+        // Check if SKU exists for this tenant
         const { data: existing } = await supabase
           .from("inventory")
           .select("id")
           .eq("sku", row.sku)
+          .eq("tenant_id", tenantId)
           .maybeSingle();
 
         if (existing) {
@@ -218,6 +230,7 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
           const { error } = await supabase
             .from("inventory")
             .insert({
+              tenant_id: tenantId,
               sku: row.sku,
               name: row.name,
               current_stock: row.current_stock,

@@ -34,6 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format, differenceInDays } from "date-fns";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { useTenant } from "@/hooks/useTenant";
 
 interface CreditSale {
   id: string;
@@ -73,6 +74,7 @@ export function CreditSalesReport() {
   const [paymentDate, setPaymentDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const contentRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const { tenantId } = useTenant();
 
   useEffect(() => {
     fetchCreditSales();
@@ -196,6 +198,11 @@ export function CreditSalesReport() {
 
   const handleMarkAsPaid = async () => {
     if (!selectedSale?.invoice) return;
+    
+    if (!tenantId) {
+      toast({ title: "Error", description: "Organization context missing. Please log in again.", variant: "destructive" });
+      return;
+    }
 
     setIsMarkingPaid(true);
     try {
@@ -211,6 +218,7 @@ export function CreditSalesReport() {
       const { error: receiptError } = await supabase
         .from("payment_receipts")
         .insert([{
+          tenant_id: tenantId,
           invoice_id: selectedSale.invoice.id,
           client_name: selectedSale.customer_name || "Unknown",
           client_email: selectedSale.customer_email,

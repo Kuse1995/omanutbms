@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Trash2, FileCheck, ArrowRight, Package, Wrench } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import finchLogo from "@/assets/finch-logo.png";
+import { useTenant } from "@/hooks/useTenant";
 
 interface QuotationItem {
   id: string;
@@ -58,6 +59,7 @@ export function QuotationToInvoiceModal({ isOpen, onClose, onSuccess, quotation 
   const [discountReason, setDiscountReason] = useState("");
   const [notes, setNotes] = useState("");
   const { toast } = useToast();
+  const { tenantId } = useTenant();
 
   useEffect(() => {
     if (quotation && isOpen) {
@@ -143,6 +145,11 @@ export function QuotationToInvoiceModal({ isOpen, onClose, onSuccess, quotation 
   const handleConvert = async () => {
     if (!quotation) return;
     
+    if (!tenantId) {
+      toast({ title: "Error", description: "Organization context missing. Please log in again.", variant: "destructive" });
+      return;
+    }
+    
     setIsSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -151,6 +158,7 @@ export function QuotationToInvoiceModal({ isOpen, onClose, onSuccess, quotation 
       const { data: invoice, error: invoiceError } = await supabase
         .from("invoices")
         .insert({
+          tenant_id: tenantId,
           invoice_number: "",
           client_name: quotation.client_name,
           client_email: quotation.client_email,
@@ -176,6 +184,7 @@ export function QuotationToInvoiceModal({ isOpen, onClose, onSuccess, quotation 
       // Create invoice items with discount tracking
       const invoiceItems = items.map(item => ({
         invoice_id: invoice.id,
+        tenant_id: tenantId,
         description: item.description,
         quantity: item.quantity,
         unit_price: item.adjusted_price,

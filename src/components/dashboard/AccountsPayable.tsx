@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { PayableViewModal } from "./PayableViewModal";
+import { useTenant } from "@/hooks/useTenant";
 
 interface AccountPayable {
   id: string;
@@ -32,6 +33,7 @@ interface AccountPayable {
 
 const AccountsPayable = () => {
   const { user, role } = useAuth();
+  const { tenantId } = useTenant();
   const queryClient = useQueryClient();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -61,7 +63,9 @@ const AccountsPayable = () => {
 
   const addMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
+      if (!tenantId) throw new Error("Organization context missing");
       const { error } = await supabase.from("accounts_payable").insert({
+        tenant_id: tenantId,
         vendor_name: data.vendor_name,
         description: data.description || null,
         amount_zmw: parseFloat(data.amount_zmw),
