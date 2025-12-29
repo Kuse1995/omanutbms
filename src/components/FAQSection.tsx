@@ -6,45 +6,40 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-
-const faqs = [
-  {
-    question: "How long does the LifeStraw filter last?",
-    answer: "The lifespan depends on the product: LifeStraw Personal filters up to 4,000 liters (enough for 1 person for 5 years). LifeStraw Go filters 4,000 liters. LifeStraw Family and Community products can filter up to 18,000 liters. LifeStraw Max filters an impressive 180,000 liters. Filter life may vary based on water turbidity.",
-  },
-  {
-    question: "How do I clean my LifeStraw?",
-    answer: "For personal straws, simply blow air back through the filter to clear any debris after each use. For gravity-fed systems like the Family or Community, backflush using the included syringe or clean water reservoir. Always store your LifeStraw with caps off in a dry location. Detailed cleaning instructions are included with each product's user manual.",
-  },
-  {
-    question: "What contaminants does LifeStraw remove?",
-    answer: "LifeStraw products remove 99.999999% of bacteria (including E.coli, Salmonella), 99.999% of parasites (including Giardia, Cryptosporidium), and 99.999% of microplastics. Advanced models like the LifeStraw Max also remove viruses, chemicals, heavy metals, and improve taste through activated carbon filters.",
-  },
-  {
-    question: "Can I use LifeStraw with any water source?",
-    answer: "LifeStraw is designed to filter freshwater from streams, rivers, lakes, and other natural sources. Do not use it with saltwater, chemically contaminated water (industrial runoff, pesticides), or hot/boiling water. When in doubt about chemical contamination, seek an alternative water source.",
-  },
-  {
-    question: "How do I know when to replace my filter?",
-    answer: "When you can no longer draw water through the filter despite proper cleaning, it's time for a replacement. Some products like LifeStraw Max have filter life indicators. For Community dispensers, track usage against the rated capacity (18,000-25,000 liters depending on model).",
-  },
-  {
-    question: "Is LifeStraw safe for children to use?",
-    answer: "Yes! LifeStraw products are BPA-free and safe for all ages. The LifeStraw Go bottles are particularly popular with children for school use. Our Community dispensers are specifically designed for schools and group settings with child-friendly dispensing.",
-  },
-  {
-    question: "Do you deliver nationwide in Zambia?",
-    answer: "Yes, Finch Investments delivers LifeStraw products throughout Zambia. Delivery times vary by location: Lusaka (1-2 business days), Copperbelt & major cities (3-5 days), rural areas (5-10 days). Contact us for bulk orders or community installations.",
-  },
-  {
-    question: "What is the Give Back program?",
-    answer: "For every LifeStraw product purchased, we donate safe water to a child in need for one full year through our partnership with WASH Forums across Zambia. This 1-for-1 model has helped provide clean water to over 100 communities and counting.",
-  },
-];
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 export function FAQSection() {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
+  const { companyName } = useBusinessConfig();
+
+  // Generic FAQs that work for any business
+  const faqs = [
+    {
+      question: "How do I place an order?",
+      answer: `You can place an order by contacting us directly via phone, email, or through our contact form. Our team at ${companyName || "our company"} will assist you with your purchase and provide all necessary information.`,
+    },
+    {
+      question: "What payment methods do you accept?",
+      answer: "We accept various payment methods including bank transfers, mobile money, and cash payments. For large orders, we can also arrange flexible payment terms.",
+    },
+    {
+      question: "Do you offer delivery services?",
+      answer: `Yes, ${companyName || "we"} offers delivery services. Delivery times vary by location and order size. Contact us for specific delivery information for your area.`,
+    },
+    {
+      question: "What is your return policy?",
+      answer: "We stand behind the quality of our products. If you receive a defective item, please contact us within 7 days of delivery for a replacement or refund. Terms and conditions apply.",
+    },
+    {
+      question: "How can I become a reseller or agent?",
+      answer: "We welcome business partnerships! Visit our Agents page or contact us directly to learn about our agent program and partnership opportunities.",
+    },
+    {
+      question: "Do you offer bulk pricing for large orders?",
+      answer: "Yes, we offer competitive pricing for bulk and wholesale orders. Contact our sales team to discuss your requirements and receive a custom quote.",
+    },
+  ];
 
   return (
     <section className="py-16 bg-secondary/30">
@@ -63,7 +58,7 @@ export function FAQSection() {
             Frequently Asked Questions
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Find answers to common questions about LifeStraw products, maintenance, and our services.
+            Find answers to common questions about our products, services, and policies.
           </p>
         </motion.div>
 

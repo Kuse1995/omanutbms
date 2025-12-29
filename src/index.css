@@ -6,7 +6,7 @@
 
 @layer base {
   :root {
-    /* Clean white palette with LifeStraw blue accents */
+    /* Clean white palette with brand blue accents */
     --background: 0 0% 100%;
     --foreground: 210 20% 20%;
 
@@ -16,7 +16,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 210 20% 20%;
 
-    /* LifeStraw signature blue - Primary brand color */
+    /* Brand primary blue - Main brand color */
     --primary: 200 75% 45%;
     --primary-foreground: 0 0% 100%;
 
@@ -40,11 +40,11 @@
 
     --radius: 0.5rem;
 
-    /* LifeStraw blue palette */
-    --lifestraw-blue: 200 75% 45%;
-    --lifestraw-blue-light: 200 70% 55%;
-    --lifestraw-blue-dark: 200 80% 35%;
-    --lifestraw-teal: 175 60% 40%;
+    /* Brand blue palette */
+    --brand-blue: 200 75% 45%;
+    --brand-blue-light: 200 70% 55%;
+    --brand-blue-dark: 200 80% 35%;
+    --brand-teal: 175 60% 40%;
 
     /* Legacy colors for compatibility */
     --teal: 175 60% 40%;
@@ -71,7 +71,7 @@
     --font-display: 'Playfair Display', serif;
     --font-body: 'Source Sans 3', sans-serif;
 
-    /* BMS Dashboard sidebar - dark blue theme */
+    /* BMS Dashboard sidebar - brand blue theme */
     --sidebar-background: 207 100% 27%;
     --sidebar-foreground: 0 0% 100%;
     --sidebar-primary: 200 75% 55%;
@@ -111,7 +111,7 @@
     --input: 180 15% 20%;
     --ring: 175 45% 45%;
     
-    /* BMS Dashboard - LifeStraw branded sidebar */
+    /* BMS Dashboard - brand sidebar */
     --sidebar-background: 204 100% 20%;
     --sidebar-foreground: 0 0% 100%;
     --sidebar-primary: 200 75% 55%;
@@ -222,7 +222,7 @@
   left: 0;
   width: 100%;
   height: 2px;
-  background: hsl(var(--lifestraw-blue));
+  background: hsl(var(--brand-blue));
   transform: scaleX(0);
   transform-origin: left;
   transition: transform 0.3s ease;

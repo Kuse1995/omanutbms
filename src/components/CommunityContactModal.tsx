@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 interface WashForum {
   id: string;
@@ -29,6 +30,7 @@ const messageSchema = z.object({
 });
 
 export function CommunityContactModal({ forum, open, onOpenChange }: CommunityContactModalProps) {
+  const { companyName } = useBusinessConfig();
   const [formData, setFormData] = useState({
     donorName: "",
     donorEmail: "",
@@ -71,7 +73,7 @@ export function CommunityContactModal({ forum, open, onOpenChange }: CommunityCo
 
       toast({
         title: "Message Sent!",
-        description: "Your message has been sent. Finch Investments will facilitate contact with the community.",
+        description: `Your message has been sent. ${companyName || "We"} will facilitate contact with the community.`,
       });
 
       setFormData({ donorName: "", donorEmail: "", donorPhone: "", message: "" });
@@ -96,7 +98,7 @@ export function CommunityContactModal({ forum, open, onOpenChange }: CommunityCo
             Contact Community
           </DialogTitle>
           <DialogDescription>
-            Send a message to {forum?.name}. Finch Investments will facilitate your connection with the community.
+            Send a message to {forum?.name}. {companyName || "We"} will facilitate your connection with the community.
           </DialogDescription>
         </DialogHeader>
 
