@@ -72,7 +72,9 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
   // Get form field config based on business type
   const formFields = config.formFields;
   const isServiceBusiness = businessType === 'services';
-  
+
+  // Persist draft entries so switching tabs (unmounting this component) doesn't wipe unsaved work
+  const draftKey = !product && tenantId ? `inventory-item-draft:${tenantId}:${businessType}` : null;
   const [formData, setFormData] = useState({
     sku: "",
     name: "",
@@ -143,7 +145,64 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
     setDatasheetFile(null);
     setManualFile(null);
   }, [product, open, formFields]);
-  
+
+  // Restore draft when creating a new item
+  useEffect(() => {
+    if (!open || product || !draftKey) return;
+
+    const raw = sessionStorage.getItem(draftKey);
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw) as {
+        formData?: Partial<typeof formData>;
+        technicalSpecs?: TechnicalSpec[];
+      };
+
+      if (parsed.formData) {
+        setFormData((prev) => ({
+          ...prev,
+          ...parsed.formData,
+          certifications: Array.isArray((parsed.formData as any).certifications)
+            ? ((parsed.formData as any).certifications as string[])
+            : prev.certifications,
+        }));
+
+        // Only restore a previously uploaded image URL (can't restore a local file)
+        if (typeof (parsed.formData as any).image_url === "string" && (parsed.formData as any).image_url) {
+          setImagePreview((parsed.formData as any).image_url);
+        }
+      }
+
+      if (Array.isArray(parsed.technicalSpecs)) {
+        setTechnicalSpecs(parsed.technicalSpecs);
+      }
+    } catch {
+      // Ignore corrupted draft
+    }
+  }, [open, product, draftKey]);
+
+  // Persist draft while typing
+  useEffect(() => {
+    if (!open || product || !draftKey) return;
+
+    try {
+      sessionStorage.setItem(
+        draftKey,
+        JSON.stringify({
+          formData: {
+            ...formData,
+            // Don't attempt to persist File objects (imageFile/datasheetFile/manualFile)
+            image_url: formData.image_url,
+          },
+          technicalSpecs,
+        })
+      );
+    } catch {
+      // Ignore quota errors
+    }
+  }, [open, product, draftKey, formData, technicalSpecs]);
+
   const addSpec = () => {
     setTechnicalSpecs([...technicalSpecs, { label: "", value: "" }]);
   };
@@ -569,6 +628,14 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
           title: `${terminology.product} Added`,
           description: `${formData.name} has been added`,
         });
+      }
+
+      if (!product && draftKey) {
+        try {
+          sessionStorage.removeItem(draftKey);
+        } catch {
+          // ignore
+        }
       }
 
       onSuccess();
