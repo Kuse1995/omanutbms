@@ -304,7 +304,7 @@ export function InvoiceViewModal({ isOpen, onClose, invoice }: InvoiceViewModalP
 
               {/* Footer */}
               <div className="mt-8 text-center text-gray-400 text-xs">
-                <p>Thank you for your business. Together, we're providing safe water to communities across Zambia.</p>
+                <p>Thank you for your business.</p>
               </div>
             </div>
           </div>

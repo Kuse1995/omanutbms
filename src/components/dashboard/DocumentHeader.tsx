@@ -1,4 +1,4 @@
-import finchLogo from "@/assets/finch-investments-logo.png";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 interface DocumentHeaderProps {
   documentType: "INVOICE" | "QUOTATION" | "RECEIPT";
@@ -7,24 +7,35 @@ interface DocumentHeaderProps {
   sourceReference?: string | null;
 }
 
+/**
+ * @deprecated Use TenantDocumentHeader instead for dynamic branding
+ */
 export function DocumentHeader({ 
   documentType, 
   documentNumber, 
   variant = "default",
   sourceReference 
 }: DocumentHeaderProps) {
+  const { companyName, tagline, logoUrl, companyEmail, companyPhone } = useBusinessConfig();
+  
+  const displayName = companyName || "Your Company";
+  const displayTagline = tagline || "";
+  const contactInfo = [companyEmail, companyPhone].filter(Boolean).join(" | ");
+
   if (variant === "centered") {
     return (
       <div className="text-center border-b pb-4">
-        <div className="flex justify-center mb-3">
-          <img src={finchLogo} alt="Finch Investments" className="h-16 w-auto" />
-        </div>
+        {logoUrl && (
+          <div className="flex justify-center mb-3">
+            <img src={logoUrl} alt={displayName} className="h-16 w-auto" />
+          </div>
+        )}
         <h2 className="text-2xl font-bold text-[#004B8D]">{documentType === "RECEIPT" ? "PAYMENT RECEIPT" : documentType}</h2>
         <p className="text-gray-600">{documentNumber}</p>
         <div className="mt-2">
-          <h3 className="font-bold">Finch Investments Limited</h3>
-          <p className="text-sm text-gray-600">LifeStraw Distributor - Zambia</p>
-          <p className="text-xs text-gray-500">info.finchinvestments@gmail.com | +260 956 905 652</p>
+          <h3 className="font-bold">{displayName}</h3>
+          {displayTagline && <p className="text-sm text-gray-600">{displayTagline}</p>}
+          {contactInfo && <p className="text-xs text-gray-500">{contactInfo}</p>}
         </div>
       </div>
     );
@@ -33,11 +44,11 @@ export function DocumentHeader({
   return (
     <div className="flex justify-between items-start mb-8">
       <div className="flex items-center gap-3">
-        <img src={finchLogo} alt="Finch Investments" className="h-16 w-auto" />
+        {logoUrl && <img src={logoUrl} alt={displayName} className="h-16 w-auto" />}
         <div>
-          <h1 className="text-2xl font-bold text-[#004B8D]">Finch Investments Ltd</h1>
-          <p className="text-gray-600 text-sm">LifeStraw Distributor - Zambia</p>
-          <p className="text-gray-500 text-xs">info.finchinvestments@gmail.com | +260 956 905 652</p>
+          <h1 className="text-2xl font-bold text-[#004B8D]">{displayName}</h1>
+          {displayTagline && <p className="text-gray-600 text-sm">{displayTagline}</p>}
+          {contactInfo && <p className="text-gray-500 text-xs">{contactInfo}</p>}
         </div>
       </div>
       <div className="text-right">

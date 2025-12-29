@@ -1,7 +1,8 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Printer, Download } from "lucide-react";
+import { Printer } from "lucide-react";
 import { useRef } from "react";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 interface Transaction {
   id: string;
@@ -19,6 +20,7 @@ interface InvoiceModalProps {
 
 export function InvoiceModal({ isOpen, onClose, transaction }: InvoiceModalProps) {
   const invoiceRef = useRef<HTMLDivElement>(null);
+  const { companyName, tagline } = useBusinessConfig();
 
   if (!transaction) return null;
 
@@ -82,8 +84,8 @@ export function InvoiceModal({ isOpen, onClose, transaction }: InvoiceModalProps
             {/* Header */}
             <div className="flex justify-between items-start mb-8">
               <div>
-                <h1 className="text-2xl font-bold text-[#004B8D]">Finch Investments Ltd</h1>
-                <p className="text-gray-600 text-sm">LifeStraw Distributor - Zambia</p>
+                <h1 className="text-2xl font-bold text-[#004B8D]">{companyName || 'Your Company'}</h1>
+                {tagline && <p className="text-gray-600 text-sm">{tagline}</p>}
               </div>
               <div className="text-right">
                 <h2 className="text-3xl font-light text-gray-800">INVOICE</h2>
@@ -113,7 +115,7 @@ export function InvoiceModal({ isOpen, onClose, transaction }: InvoiceModalProps
               </thead>
               <tbody>
                 <tr className="border-b border-gray-100">
-                  <td className="py-3">LifeStraw Products &amp; Services</td>
+                  <td className="py-3">Products &amp; Services</td>
                   <td className="text-right py-3">K {Number(transaction.bank_amount).toLocaleString()}</td>
                 </tr>
                 <tr className="font-bold text-lg">
@@ -125,20 +127,9 @@ export function InvoiceModal({ isOpen, onClose, transaction }: InvoiceModalProps
               </tbody>
             </table>
 
-            {/* Banking Details */}
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="font-semibold mb-2">Banking Details</h3>
-              <div className="text-sm text-gray-600 space-y-1">
-                <p><span className="font-medium">Bank:</span> Atlas Mara</p>
-                <p><span className="font-medium">Branch:</span> Lusaka Main</p>
-                <p><span className="font-medium">Account Number:</span> 0015997204011</p>
-                <p><span className="font-medium">Account Name:</span> Finch Investments Ltd</p>
-              </div>
-            </div>
-
             {/* Footer */}
             <div className="mt-8 text-center text-gray-400 text-xs">
-              <p>Thank you for your business. Together, we're providing safe water to communities across Zambia.</p>
+              <p>Thank you for your business.</p>
             </div>
           </div>
         </div>

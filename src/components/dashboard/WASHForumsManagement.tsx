@@ -292,7 +292,7 @@ export function WASHForumsManagement() {
                 onChange={(e) => setNewForum({ ...newForum, description: e.target.value })}
               />
               <Textarea
-                placeholder="Products Needed (e.g., 3x LifeStraw Community) *"
+                placeholder="Products Needed (e.g., 3x Water Filter Units) *"
                 value={newForum.products_needed}
                 onChange={(e) => setNewForum({ ...newForum, products_needed: e.target.value })}
               />
@@ -357,7 +357,7 @@ export function WASHForumsManagement() {
                   onChange={(e) => setEditingForum({ ...editingForum, description: e.target.value })}
                 />
                 <Textarea
-                  placeholder="Products Needed (e.g., 3x LifeStraw Community) *"
+                  placeholder="Products Needed (e.g., 3x Water Filter Units) *"
                   value={editingForum.products_needed}
                   onChange={(e) => setEditingForum({ ...editingForum, products_needed: e.target.value })}
                 />

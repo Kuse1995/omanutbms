@@ -7,6 +7,7 @@ import { Heart, User, Mail, Phone, MapPin, Calendar, MessageSquare, Download, Lo
 import { format } from "date-fns";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 interface DonationRequest {
   id: string;
@@ -37,6 +38,7 @@ const statusColors: Record<string, string> = {
 export function DonationRequestViewModal({ request, isOpen, onClose }: DonationRequestViewModalProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const { companyName } = useBusinessConfig();
 
   if (!request) return null;
 
@@ -89,7 +91,7 @@ export function DonationRequestViewModal({ request, isOpen, onClose }: DonationR
         <div ref={contentRef} className="space-y-6 bg-white p-4 rounded-lg">
           {/* Header */}
           <div className="text-center border-b pb-4">
-            <h2 className="text-xl font-bold text-[#004B8D]">Finch Investments Ltd</h2>
+            <h2 className="text-xl font-bold text-[#004B8D]">{companyName || 'Your Company'}</h2>
             <p className="text-sm text-muted-foreground">Donation Request Record</p>
           </div>
 

@@ -58,7 +58,7 @@ export function ReceiptModal({ isOpen, onClose, onSuccess, invoice }: ReceiptMod
     try {
       const response = await supabase.functions.invoke("blog-writer", {
         body: {
-          prompt: `Generate a brief, professional thank-you message (2-3 sentences max) for a payment receipt. Client name: ${invoice.client_name}. Amount paid: K ${Number(amountPaid).toLocaleString()}. Company: Finch Investments Limited (LifeStraw distributor in Zambia). Mention their contribution to providing safe water. Keep it warm but professional.`,
+          prompt: `Generate a brief, professional thank-you message (2-3 sentences max) for a payment receipt. Client name: ${invoice.client_name}. Amount paid: K ${Number(amountPaid).toLocaleString()}. Keep it warm but professional.`,
         },
       });
 

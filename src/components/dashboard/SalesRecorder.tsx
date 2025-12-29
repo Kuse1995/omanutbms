@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import * as XLSX from "xlsx";
 import { useTenant } from "@/hooks/useTenant";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 interface InventoryItem {
   id: string;
@@ -87,6 +88,7 @@ export function SalesRecorder() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const { tenantId } = useTenant();
+  const { isImpactEnabled, impact } = useBusinessConfig();
 
   // Cart state
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -909,10 +911,12 @@ export function SalesRecorder() {
                     <span className="text-[#004B8D]/60">Subtotal:</span>
                     <span className="font-medium">K{cartTotal.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-[#004B8D]/60">Water Impact:</span>
-                    <span className="font-medium text-teal-600">{cartLiters.toLocaleString()}L</span>
-                  </div>
+                  {isImpactEnabled && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-[#004B8D]/60">{impact.unitLabel || 'Impact'}:</span>
+                      <span className="font-medium text-teal-600">{cartLiters.toLocaleString()}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-lg font-bold border-t pt-2">
                     <span className="text-[#003366]">Total:</span>
                     <span className="text-[#0077B6]">K{cartTotal.toLocaleString()}</span>
@@ -1056,7 +1060,7 @@ export function SalesRecorder() {
               <div className="text-center md:text-left">
                 <p className="text-sm text-[#004B8D]/60">Total Amount</p>
                 <p className="text-2xl font-bold text-[#0077B6]">K{cartTotal.toLocaleString()}</p>
-                <p className="text-xs text-teal-600">{cartLiters.toLocaleString()} liters water impact</p>
+                {isImpactEnabled && <p className="text-xs text-teal-600">{cartLiters.toLocaleString()} {impact.unitLabel || 'units'}</p>}
               </div>
               <Button
                 onClick={handleCheckout}
