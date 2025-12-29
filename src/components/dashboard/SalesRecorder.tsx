@@ -489,6 +489,7 @@ export function SalesRecorder() {
         const { error: saleError } = await supabase
           .from('sales_transactions')
           .insert({
+            tenant_id: tenantId,
             transaction_type: 'manual',
             customer_name: customerName.trim() || null,
             customer_email: customerEmail.trim() || null,
@@ -528,6 +529,7 @@ export function SalesRecorder() {
         const { data: invoiceData, error: invoiceError } = await supabase
           .from('invoices')
           .insert([{
+            tenant_id: tenantId,
             client_name: customerName.trim(),
             client_email: customerEmail.trim() || null,
             client_phone: customerPhone.trim() || null,
@@ -555,6 +557,7 @@ export function SalesRecorder() {
           const { error: itemError } = await supabase
             .from('invoice_items')
             .insert({
+              tenant_id: tenantId,
               invoice_id: invoiceData.id,
               description: itemDescription,
               quantity: item.quantity,
