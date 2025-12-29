@@ -32,12 +32,27 @@ export interface ImpactConfig {
   description?: string;
 }
 
+export interface FormFieldConfig {
+  skuPlaceholder: string;
+  namePlaceholder: string;
+  highlightPlaceholder: string;
+  descriptionPlaceholder: string;
+  featuresPlaceholder: string;
+  categories: Array<{ value: string; label: string }>;
+  certificationsLabel: string;
+  certifications: Array<{ value: string; label: string }>;
+  defaultSpecs: Array<{ label: string; value: string }>;
+  hideStock?: boolean;
+  hideLitersPerUnit?: boolean;
+}
+
 export interface BusinessTypeConfig {
   label: string;
   description: string;
   inventory: InventoryConfig;
   terminology: TerminologyConfig;
   impact: ImpactConfig;
+  formFields: FormFieldConfig;
 }
 
 export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
@@ -46,7 +61,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
     description: 'Distribute products through agent networks',
     inventory: {
       enabled: true,
-      seedProfile: 'lifestraw',
+      seedProfile: 'generic',
       allowVariants: true,
     },
     terminology: {
@@ -69,6 +84,35 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       unitLabel: 'Impact Units',
       beneficiariesLabel: 'Lives Impacted',
       description: 'Track your distribution impact',
+    },
+    formFields: {
+      skuPlaceholder: 'e.g., DIST-001',
+      namePlaceholder: 'e.g., Wholesale Item',
+      highlightPlaceholder: 'e.g., Bulk Pack',
+      descriptionPlaceholder: 'Product description for distribution...',
+      featuresPlaceholder: 'Quality assured\nBulk packaging\nFast delivery',
+      categories: [
+        { value: 'primary', label: 'Primary' },
+        { value: 'secondary', label: 'Secondary' },
+        { value: 'bulk', label: 'Bulk' },
+        { value: 'premium', label: 'Premium' },
+        { value: 'wholesale', label: 'Wholesale' },
+      ],
+      certificationsLabel: 'Certifications',
+      certifications: [
+        { value: 'quality', label: 'Quality Certified' },
+        { value: 'eco-friendly', label: 'Eco-Friendly' },
+        { value: 'iso', label: 'ISO Certified' },
+        { value: 'safety', label: 'Safety Tested' },
+        { value: 'organic', label: 'Organic' },
+        { value: 'fair-trade', label: 'Fair Trade' },
+      ],
+      defaultSpecs: [
+        { label: 'Material', value: '' },
+        { label: 'Dimensions', value: '' },
+        { label: 'Weight', value: '' },
+        { label: 'Warranty', value: '' },
+      ],
     },
   },
 
@@ -98,6 +142,36 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
     impact: {
       enabled: false,
     },
+    formFields: {
+      skuPlaceholder: 'e.g., PROD-001',
+      namePlaceholder: 'e.g., Product Name',
+      highlightPlaceholder: 'e.g., Best Seller',
+      descriptionPlaceholder: 'Product description for customers...',
+      featuresPlaceholder: 'High quality materials\nDurable design\n1 year warranty',
+      categories: [
+        { value: 'electronics', label: 'Electronics' },
+        { value: 'clothing', label: 'Clothing' },
+        { value: 'food', label: 'Food & Beverage' },
+        { value: 'household', label: 'Household' },
+        { value: 'health', label: 'Health & Beauty' },
+        { value: 'other', label: 'Other' },
+      ],
+      certificationsLabel: 'Certifications',
+      certifications: [
+        { value: 'quality', label: 'Quality Certified' },
+        { value: 'eco-friendly', label: 'Eco-Friendly' },
+        { value: 'iso', label: 'ISO Certified' },
+        { value: 'safety', label: 'Safety Tested' },
+        { value: 'organic', label: 'Organic' },
+        { value: 'fair-trade', label: 'Fair Trade' },
+      ],
+      defaultSpecs: [
+        { label: 'Material', value: '' },
+        { label: 'Dimensions', value: '' },
+        { label: 'Weight', value: '' },
+        { label: 'Warranty', value: '' },
+      ],
+    },
   },
 
   school: {
@@ -126,6 +200,33 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       unitLabel: 'Students Served',
       beneficiariesLabel: 'Students Impacted',
       description: 'Track student outcomes',
+    },
+    formFields: {
+      skuPlaceholder: 'e.g., FEE-001',
+      namePlaceholder: 'e.g., Tuition Fee',
+      highlightPlaceholder: 'e.g., Term 1',
+      descriptionPlaceholder: 'Fee or resource description...',
+      featuresPlaceholder: 'Includes textbooks\nLab access\nLibrary membership',
+      categories: [
+        { value: 'tuition', label: 'Tuition' },
+        { value: 'supplies', label: 'Supplies' },
+        { value: 'activity', label: 'Activity Fee' },
+        { value: 'uniform', label: 'Uniform' },
+        { value: 'other', label: 'Other' },
+      ],
+      certificationsLabel: 'Accreditations',
+      certifications: [
+        { value: 'accredited', label: 'Accredited' },
+        { value: 'approved', label: 'Government Approved' },
+        { value: 'certified', label: 'Certified Program' },
+      ],
+      defaultSpecs: [
+        { label: 'Duration', value: '' },
+        { label: 'Grade Level', value: '' },
+        { label: 'Term', value: '' },
+      ],
+      hideStock: true,
+      hideLitersPerUnit: true,
     },
   },
 
@@ -157,6 +258,32 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       beneficiariesLabel: 'Lives Changed',
       description: 'Track your social impact',
     },
+    formFields: {
+      skuPlaceholder: 'e.g., AID-001',
+      namePlaceholder: 'e.g., Relief Supplies',
+      highlightPlaceholder: 'e.g., Emergency Kit',
+      descriptionPlaceholder: 'Item description for donors...',
+      featuresPlaceholder: 'Provides clean water\nSupports 1 family\nIncludes training',
+      categories: [
+        { value: 'relief', label: 'Relief Supplies' },
+        { value: 'medical', label: 'Medical' },
+        { value: 'education', label: 'Education' },
+        { value: 'infrastructure', label: 'Infrastructure' },
+        { value: 'emergency', label: 'Emergency' },
+      ],
+      certificationsLabel: 'Compliance',
+      certifications: [
+        { value: 'verified', label: 'Verified' },
+        { value: 'audited', label: 'Audited' },
+        { value: 'transparent', label: 'Transparent' },
+        { value: 'sustainable', label: 'Sustainable' },
+      ],
+      defaultSpecs: [
+        { label: 'Impact Per Unit', value: '' },
+        { label: 'Beneficiaries', value: '' },
+        { label: 'Duration', value: '' },
+      ],
+    },
   },
 
   services: {
@@ -186,8 +313,40 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       unitLabel: 'Hours Delivered',
       description: 'Track service delivery',
     },
+    formFields: {
+      skuPlaceholder: 'e.g., SVC-001',
+      namePlaceholder: 'e.g., Social Media Management',
+      highlightPlaceholder: 'e.g., Full-Service Package',
+      descriptionPlaceholder: 'Describe the service you provide...',
+      featuresPlaceholder: 'Monthly reporting\n24/7 support\nDedicated manager',
+      categories: [
+        { value: 'consultation', label: 'Consultation' },
+        { value: 'project', label: 'Project Work' },
+        { value: 'retainer', label: 'Retainer' },
+        { value: 'training', label: 'Training' },
+        { value: 'support', label: 'Support' },
+        { value: 'package', label: 'Package' },
+      ],
+      certificationsLabel: 'Qualifications',
+      certifications: [
+        { value: 'certified-partner', label: 'Certified Partner' },
+        { value: 'industry-expert', label: 'Industry Expert' },
+        { value: 'licensed', label: 'Licensed Professional' },
+        { value: 'insured', label: 'Fully Insured' },
+        { value: 'award-winning', label: 'Award Winning' },
+        { value: 'verified', label: 'Verified Provider' },
+      ],
+      defaultSpecs: [
+        { label: 'Delivery Time', value: '' },
+        { label: 'Revisions Included', value: '' },
+        { label: 'Support Hours', value: '' },
+        { label: 'Service Guarantee', value: '' },
+      ],
+      hideStock: true,
+      hideLitersPerUnit: true,
+    },
   },
-} as const;
+};
 
 /**
  * Get full business type configuration
@@ -220,16 +379,3 @@ export function isImpactEnabledForType(businessType: string | null | undefined):
   const config = getBusinessTypeConfig(businessType);
   return config.impact.enabled;
 }
-
-// Finch Investments specific configuration (distribution tenant)
-export const FINCH_TENANT_CONFIG = {
-  business_type: 'distribution' as BusinessType,
-  seedProfile: 'lifestraw',
-  company_name: 'Finch Investments Limited',
-  tagline: 'LifeStraw Distributor - Zambia',
-  impact: {
-    enabled: true,
-    unitLabel: 'Liters Filtered',
-    beneficiariesLabel: 'Lives Impacted',
-  },
-};

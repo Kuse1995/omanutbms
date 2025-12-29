@@ -7,11 +7,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Upload, X, ImageIcon, Plus, Trash2, Settings2, FileText, ArrowRight } from "lucide-react";
+import { Loader2, Upload, X, ImageIcon, Plus, Trash2, Settings2, FileText, ArrowRight, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Json } from "@/integrations/supabase/types";
 import { useTenant } from "@/hooks/useTenant";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 interface FieldChange {
   field: string;
@@ -23,22 +24,6 @@ interface TechnicalSpec {
   label: string;
   value: string;
 }
-
-const DEFAULT_SPECS: TechnicalSpec[] = [
-  { label: "Material", value: "High-quality" },
-  { label: "Dimensions", value: "Standard size" },
-  { label: "Weight", value: "Lightweight" },
-  { label: "Warranty", value: "1 year" },
-];
-
-const CERTIFICATION_OPTIONS = [
-  { value: "quality", label: "Quality Certified" },
-  { value: "eco-friendly", label: "Eco-Friendly" },
-  { value: "iso", label: "ISO Certified" },
-  { value: "safety", label: "Safety Tested" },
-  { value: "organic", label: "Organic" },
-  { value: "fair-trade", label: "Fair Trade" },
-];
 
 interface ProductModalProps {
   open: boolean;
@@ -70,6 +55,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
   const [isUploading, setIsUploading] = useState(false);
   const [isUploadingDatasheet, setIsUploadingDatasheet] = useState(false);
   const [isUploadingManual, setIsUploadingManual] = useState(false);
+  const [isSuggesting, setIsSuggesting] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [datasheetFile, setDatasheetFile] = useState<File | null>(null);
@@ -81,6 +67,11 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
   const manualInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { tenantId } = useTenant();
+  const { businessType, terminology, config, companyName } = useBusinessConfig();
+  
+  // Get form field config based on business type
+  const formFields = config.formFields;
+  const isServiceBusiness = businessType === 'services';
   
   const [formData, setFormData] = useState({
     sku: "",
@@ -94,13 +85,13 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
     description: "",
     highlight: "",
     features: "",
-    category: "personal" as "personal" | "community",
+    category: formFields.categories[0]?.value || "other",
     certifications: [] as string[],
     datasheet_url: "",
     manual_url: "",
   });
   
-  const [technicalSpecs, setTechnicalSpecs] = useState<TechnicalSpec[]>(DEFAULT_SPECS);
+  const [technicalSpecs, setTechnicalSpecs] = useState<TechnicalSpec[]>(formFields.defaultSpecs);
 
   useEffect(() => {
     if (product) {
@@ -116,17 +107,16 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
         description: product.description || "",
         highlight: product.highlight || "",
         features: (product.features || []).join("\n"),
-        category: (product.category as "personal" | "community") || "personal",
-        certifications: product.certifications || ["bpa-free"],
+        category: product.category || formFields.categories[0]?.value || "other",
+        certifications: product.certifications || [],
         datasheet_url: product.datasheet_url || "",
         manual_url: product.manual_url || "",
       });
       setImagePreview(product.image_url || null);
-      // Load technical specs from product or use defaults
       if (product.technical_specs && Array.isArray(product.technical_specs) && product.technical_specs.length > 0) {
         setTechnicalSpecs(product.technical_specs);
       } else {
-        setTechnicalSpecs(DEFAULT_SPECS);
+        setTechnicalSpecs(formFields.defaultSpecs);
       }
     } else {
       setFormData({
@@ -141,18 +131,18 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
         description: "",
         highlight: "",
         features: "",
-        category: "personal",
+        category: formFields.categories[0]?.value || "other",
         certifications: [],
         datasheet_url: "",
         manual_url: "",
       });
       setImagePreview(null);
-      setTechnicalSpecs(DEFAULT_SPECS);
+      setTechnicalSpecs(formFields.defaultSpecs);
     }
     setImageFile(null);
     setDatasheetFile(null);
     setManualFile(null);
-  }, [product, open]);
+  }, [product, open, formFields]);
   
   const addSpec = () => {
     setTechnicalSpecs([...technicalSpecs, { label: "", value: "" }]);
@@ -166,6 +156,77 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
     const updated = [...technicalSpecs];
     updated[index][field] = newValue;
     setTechnicalSpecs(updated);
+  };
+
+  const handleAISuggest = async () => {
+    if (!formData.name.trim()) {
+      toast({
+        title: "Name Required",
+        description: `Please enter a ${terminology.product.toLowerCase()} name first`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSuggesting(true);
+    try {
+      const response = await supabase.functions.invoke('suggest-service-details', {
+        body: {
+          businessType,
+          companyName,
+          itemName: formData.name.trim(),
+          category: formData.category,
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message || 'Failed to get AI suggestions');
+      }
+
+      const suggestions = response.data;
+
+      // Apply suggestions to form
+      setFormData(prev => ({
+        ...prev,
+        description: suggestions.description || prev.description,
+        highlight: suggestions.highlight || prev.highlight,
+        features: suggestions.features?.join("\n") || prev.features,
+        unit_price: suggestions.suggestedPrice || prev.unit_price,
+      }));
+
+      // Apply qualifications/certifications if provided
+      if (suggestions.qualifications && Array.isArray(suggestions.qualifications)) {
+        const matchedCerts = formFields.certifications
+          .filter(cert => 
+            suggestions.qualifications.some((q: string) => 
+              cert.label.toLowerCase().includes(q.toLowerCase()) ||
+              q.toLowerCase().includes(cert.label.toLowerCase())
+            )
+          )
+          .map(cert => cert.value);
+        
+        if (matchedCerts.length > 0) {
+          setFormData(prev => ({
+            ...prev,
+            certifications: [...new Set([...prev.certifications, ...matchedCerts])],
+          }));
+        }
+      }
+
+      toast({
+        title: "AI Suggestions Applied",
+        description: "Review and adjust the suggestions as needed",
+      });
+    } catch (error: any) {
+      console.error('AI suggestion error:', error);
+      toast({
+        title: "Suggestion Failed",
+        description: error.message || "Could not generate suggestions",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSuggesting(false);
+    }
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -322,20 +383,19 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
     const changes: FieldChange[] = [];
     const fieldLabels: Record<string, string> = {
       sku: "SKU",
-      name: "Product Name",
+      name: `${terminology.product} Name`,
       current_stock: "Current Stock",
-      unit_price: "Unit Price (ZMW)",
-      original_price: "Original Price (ZMW)",
+      unit_price: `Unit Price`,
+      original_price: `Original Price`,
       reorder_level: "Reorder Level",
       liters_per_unit: "Liters per Unit",
       description: "Description",
       highlight: "Highlight",
-      features: "Features",
+      features: isServiceBusiness ? "What's Included" : "Features",
       category: "Category",
-      certifications: "Certifications",
+      certifications: formFields.certificationsLabel,
     };
 
-    // Compare basic fields
     if (formData.sku.trim() !== product.sku) {
       changes.push({ field: fieldLabels.sku, oldValue: product.sku, newValue: formData.sku.trim() });
     }
@@ -370,8 +430,8 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
       changes.push({ field: fieldLabels.features, oldValue: originalFeatures || "(none)", newValue: currentFeatures || "(none)" });
     }
     
-    if (formData.category !== (product.category || "personal")) {
-      changes.push({ field: fieldLabels.category, oldValue: product.category || "personal", newValue: formData.category });
+    if (formData.category !== (product.category || formFields.categories[0]?.value)) {
+      changes.push({ field: fieldLabels.category, oldValue: product.category || formFields.categories[0]?.value, newValue: formData.category });
     }
     
     const currentCerts = [...formData.certifications].sort().join(", ");
@@ -380,9 +440,8 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
       changes.push({ field: fieldLabels.certifications, oldValue: originalCerts || "(none)", newValue: currentCerts || "(none)" });
     }
 
-    // Check for new file uploads
     if (imageFile) {
-      changes.push({ field: "Product Image", oldValue: product.image_url ? "Existing image" : "(none)", newValue: "New image uploaded" });
+      changes.push({ field: `${terminology.product} Image`, oldValue: product.image_url ? "Existing image" : "(none)", newValue: "New image uploaded" });
     }
     if (datasheetFile) {
       changes.push({ field: "Datasheet PDF", oldValue: product.datasheet_url ? "Existing file" : "(none)", newValue: "New file uploaded" });
@@ -391,7 +450,6 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
       changes.push({ field: "User Manual PDF", oldValue: product.manual_url ? "Existing file" : "(none)", newValue: "New file uploaded" });
     }
 
-    // Check technical specs changes
     const currentSpecs = JSON.stringify(technicalSpecs.filter(s => s.label.trim() && s.value.trim()));
     const originalSpecs = JSON.stringify(product.technical_specs || []);
     if (currentSpecs !== originalSpecs) {
@@ -407,7 +465,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
     if (!formData.sku.trim() || !formData.name.trim()) {
       toast({
         title: "Validation Error",
-        description: "SKU and Product Name are required",
+        description: `SKU and ${terminology.product} Name are required`,
         variant: "destructive",
       });
       return;
@@ -416,13 +474,13 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
     if (formData.unit_price < 0) {
       toast({
         title: "Validation Error",
-        description: "Unit price cannot be negative",
+        description: "Price cannot be negative",
         variant: "destructive",
       });
       return;
     }
 
-    if (formData.current_stock < 0) {
+    if (!formFields.hideStock && formData.current_stock < 0) {
       toast({
         title: "Validation Error",
         description: "Stock cannot be negative",
@@ -431,7 +489,6 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
       return;
     }
 
-    // For editing, show confirmation dialog with changes
     if (product) {
       const changes = getFieldChanges();
       if (changes.length === 0) {
@@ -446,7 +503,6 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
       return;
     }
 
-    // For new products, save directly
     await performSave();
   };
 
@@ -459,17 +515,16 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
       const manualUrl = await uploadPdf(manualFile, formData.manual_url, "manuals", setIsUploadingManual);
       const featuresArray = formData.features.split("\n").map(f => f.trim()).filter(f => f.length > 0);
       
-      // Filter out empty specs
       const validSpecs = technicalSpecs.filter(spec => spec.label.trim() && spec.value.trim());
 
       const productData = {
         sku: formData.sku.trim(),
         name: formData.name.trim(),
-        current_stock: formData.current_stock,
+        current_stock: formFields.hideStock ? 9999 : formData.current_stock,
         unit_price: formData.unit_price,
         original_price: formData.original_price,
-        reorder_level: formData.reorder_level,
-        liters_per_unit: formData.liters_per_unit,
+        reorder_level: formFields.hideStock ? 0 : formData.reorder_level,
+        liters_per_unit: formFields.hideLitersPerUnit ? 0 : formData.liters_per_unit,
         image_url: imageUrl,
         description: formData.description.trim() || null,
         highlight: formData.highlight.trim() || null,
@@ -491,7 +546,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
         if (error) throw error;
 
         toast({
-          title: "Product Updated",
+          title: `${terminology.product} Updated`,
           description: `${formData.name} has been updated successfully`,
         });
       } else {
@@ -502,18 +557,18 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
         if (error) throw error;
 
         toast({
-          title: "Product Added",
-          description: `${formData.name} has been added to inventory`,
+          title: `${terminology.product} Added`,
+          description: `${formData.name} has been added`,
         });
       }
 
       onSuccess();
       onOpenChange(false);
     } catch (error: any) {
-      console.error("Error saving product:", error);
+      console.error("Error saving:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to save product",
+        description: error.message || `Failed to save ${terminology.product.toLowerCase()}`,
         variant: "destructive",
       });
     } finally {
@@ -573,17 +628,17 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
         <DialogContent className="sm:max-w-[650px] bg-white border-[#004B8D]/20 max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-[#003366]">
-            {product ? "Edit Product" : "Add New Product"}
+            {product ? `Edit ${terminology.product}` : `Add New ${terminology.product}`}
           </DialogTitle>
           <DialogDescription className="text-[#004B8D]/60">
-            {product ? "Update product details below" : "Enter product details to add to inventory"}
+            {product ? `Update ${terminology.product.toLowerCase()} details below` : `Enter ${terminology.product.toLowerCase()} details`}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Image Upload */}
           <div className="space-y-2">
-            <Label className="text-[#003366]">Product Image</Label>
+            <Label className="text-[#003366]">{terminology.product} Image</Label>
             <div className="flex items-start gap-4">
               <div
                 className={`relative w-24 h-24 rounded-lg border-2 border-dashed flex items-center justify-center overflow-hidden ${
@@ -594,7 +649,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
                   <>
                     <img
                       src={imagePreview}
-                      alt="Product preview"
+                      alt="Preview"
                       className="w-full h-full object-cover"
                     />
                     <button
@@ -647,21 +702,38 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
                 id="sku"
                 value={formData.sku}
                 onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                placeholder="e.g., LS-PERSONAL"
+                placeholder={formFields.skuPlaceholder}
                 className="bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366]"
                 maxLength={50}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="name" className="text-[#003366]">Product Name *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="e.g., LifeStraw Personal"
-                className="bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366]"
-                maxLength={100}
-              />
+              <Label htmlFor="name" className="text-[#003366]">{terminology.product} Name *</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder={formFields.namePlaceholder}
+                  className="bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366] flex-1"
+                  maxLength={100}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={handleAISuggest}
+                  disabled={isSuggesting || !formData.name.trim()}
+                  className="border-[#004B8D]/20 text-[#004B8D] hover:bg-[#0077B6] hover:text-white shrink-0"
+                  title="Get AI suggestions"
+                >
+                  {isSuggesting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-4 h-4" />
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -670,14 +742,17 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
               <Label htmlFor="category" className="text-[#003366]">Category *</Label>
               <Select
                 value={formData.category}
-                onValueChange={(value: "personal" | "community") => setFormData({ ...formData, category: value })}
+                onValueChange={(value) => setFormData({ ...formData, category: value })}
               >
                 <SelectTrigger className="bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366]">
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="personal">Personal Filter</SelectItem>
-                  <SelectItem value="community">Community Dispenser</SelectItem>
+                  {formFields.categories.map((cat) => (
+                    <SelectItem key={cat.value} value={cat.value}>
+                      {cat.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -687,7 +762,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
                 id="highlight"
                 value={formData.highlight}
                 onChange={(e) => setFormData({ ...formData, highlight: e.target.value })}
-                placeholder="e.g., 180,000L Capacity"
+                placeholder={formFields.highlightPlaceholder}
                 className="bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366]"
                 maxLength={50}
               />
@@ -700,27 +775,29 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
               id="description"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Product description shown on shop page..."
+              placeholder={formFields.descriptionPlaceholder}
               className="bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366] min-h-[80px]"
               maxLength={500}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="features" className="text-[#003366]">Features (one per line)</Label>
+            <Label htmlFor="features" className="text-[#003366]">
+              {isServiceBusiness ? "What's Included (one per line)" : "Features (one per line)"}
+            </Label>
             <Textarea
               id="features"
               value={formData.features}
               onChange={(e) => setFormData({ ...formData, features: e.target.value })}
-              placeholder="Filters up to 4,000 liters&#10;No batteries required&#10;BPA-free materials"
+              placeholder={formFields.featuresPlaceholder}
               className="bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366] min-h-[80px]"
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-[#003366]">Certifications</Label>
+            <Label className="text-[#003366]">{formFields.certificationsLabel}</Label>
             <div className="grid grid-cols-3 gap-2">
-              {CERTIFICATION_OPTIONS.map((cert) => (
+              {formFields.certifications.map((cert) => (
                 <div key={cert.value} className="flex items-center space-x-2">
                   <Checkbox
                     id={`cert-${cert.value}`}
@@ -738,34 +815,39 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="current_stock" className="text-[#003366]">Current Stock</Label>
-              <Input
-                id="current_stock"
-                type="number"
-                min={0}
-                value={formData.current_stock}
-                onChange={(e) => setFormData({ ...formData, current_stock: parseInt(e.target.value) || 0 })}
-                className="bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366]"
-              />
+          {/* Stock fields - hidden for services */}
+          {!formFields.hideStock && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="current_stock" className="text-[#003366]">Current Stock</Label>
+                <Input
+                  id="current_stock"
+                  type="number"
+                  min={0}
+                  value={formData.current_stock}
+                  onChange={(e) => setFormData({ ...formData, current_stock: parseInt(e.target.value) || 0 })}
+                  className="bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366]"
+                />
+              </div>
+              {!formFields.hideLitersPerUnit && (
+                <div className="space-y-2">
+                  <Label htmlFor="liters_per_unit" className="text-[#003366]">Liters per Unit</Label>
+                  <Input
+                    id="liters_per_unit"
+                    type="number"
+                    min={0}
+                    value={formData.liters_per_unit}
+                    onChange={(e) => setFormData({ ...formData, liters_per_unit: parseInt(e.target.value) || 0 })}
+                    className="bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366]"
+                  />
+                </div>
+              )}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="liters_per_unit" className="text-[#003366]">Liters per Unit</Label>
-              <Input
-                id="liters_per_unit"
-                type="number"
-                min={0}
-                value={formData.liters_per_unit}
-                onChange={(e) => setFormData({ ...formData, liters_per_unit: parseInt(e.target.value) || 0 })}
-                className="bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366]"
-              />
-            </div>
-          </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="original_price" className="text-[#003366]">Original Price (ZMW)</Label>
+              <Label htmlFor="original_price" className="text-[#003366]">Original Price</Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#004B8D]/50 text-sm">K</span>
                 <Input
@@ -782,7 +864,9 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
               <p className="text-xs text-[#004B8D]/50">RRP shown with strikethrough</p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="unit_price" className="text-[#003366]">Sale Price (ZMW) *</Label>
+              <Label htmlFor="unit_price" className="text-[#003366]">
+                {isServiceBusiness ? "Service Fee *" : "Sale Price *"}
+              </Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#004B8D]/50 text-sm">K</span>
                 <Input
@@ -813,27 +897,29 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="reorder_level" className="text-[#003366]">Reorder Level</Label>
-              <Input
-                id="reorder_level"
-                type="number"
-                min={0}
-                value={formData.reorder_level}
-                onChange={(e) => setFormData({ ...formData, reorder_level: parseInt(e.target.value) || 0 })}
-                className="bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366]"
-              />
+          {!formFields.hideStock && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="reorder_level" className="text-[#003366]">Reorder Level</Label>
+                <Input
+                  id="reorder_level"
+                  type="number"
+                  min={0}
+                  value={formData.reorder_level}
+                  onChange={(e) => setFormData({ ...formData, reorder_level: parseInt(e.target.value) || 0 })}
+                  className="bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366]"
+                />
+              </div>
+              <div />
             </div>
-            <div />
-          </div>
+          )}
 
           {/* Technical Specifications */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label className="text-[#003366] flex items-center gap-2">
                 <Settings2 className="w-4 h-4" />
-                Technical Specifications
+                {isServiceBusiness ? "Service Details" : "Technical Specifications"}
               </Label>
               <Button
                 type="button"
@@ -843,7 +929,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
                 className="border-[#004B8D]/20 text-[#004B8D] h-7 text-xs"
               >
                 <Plus className="w-3 h-3 mr-1" />
-                Add Spec
+                Add
               </Button>
             </div>
             <div className="space-y-2 bg-[#f0f7fa] p-3 rounded-lg border border-[#004B8D]/10">
@@ -852,14 +938,14 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
                   <Input
                     value={spec.label}
                     onChange={(e) => updateSpec(index, "label", e.target.value)}
-                    placeholder="Label (e.g., Pore Size)"
+                    placeholder="Label"
                     className="bg-white border-[#004B8D]/20 text-[#003366] flex-1"
                     maxLength={30}
                   />
                   <Input
                     value={spec.value}
                     onChange={(e) => updateSpec(index, "value", e.target.value)}
-                    placeholder="Value (e.g., 0.2 microns)"
+                    placeholder="Value"
                     className="bg-white border-[#004B8D]/20 text-[#003366] flex-1"
                     maxLength={50}
                   />
@@ -877,7 +963,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
               ))}
               {technicalSpecs.length === 0 && (
                 <p className="text-sm text-[#004B8D]/50 text-center py-2">
-                  No specifications added. Click "Add Spec" to add one.
+                  No specifications added. Click "Add" to add one.
                 </p>
               )}
             </div>
@@ -887,12 +973,14 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
           <div className="space-y-3">
             <Label className="text-[#003366] flex items-center gap-2">
               <FileText className="w-4 h-4" />
-              Product Documents (PDF)
+              Documents (PDF)
             </Label>
             <div className="grid grid-cols-2 gap-4">
               {/* Datasheet Upload */}
               <div className="space-y-2">
-                <Label className="text-sm text-[#003366]">Performance Datasheet</Label>
+                <Label className="text-sm text-[#003366]">
+                  {isServiceBusiness ? "Service Brochure" : "Performance Datasheet"}
+                </Label>
                 <div className="flex items-center gap-2">
                   <input
                     ref={datasheetInputRef}
@@ -941,14 +1029,16 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
                     className="text-xs text-[#0077B6] hover:underline flex items-center gap-1"
                   >
                     <FileText className="w-3 h-3" />
-                    View current datasheet
+                    View current file
                   </a>
                 )}
               </div>
 
               {/* Manual Upload */}
               <div className="space-y-2">
-                <Label className="text-sm text-[#003366]">User Manual</Label>
+                <Label className="text-sm text-[#003366]">
+                  {isServiceBusiness ? "Service Agreement" : "User Manual"}
+                </Label>
                 <div className="flex items-center gap-2">
                   <input
                     ref={manualInputRef}
@@ -997,12 +1087,12 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
                     className="text-xs text-[#0077B6] hover:underline flex items-center gap-1"
                   >
                     <FileText className="w-3 h-3" />
-                    View current manual
+                    View current file
                   </a>
                 )}
               </div>
             </div>
-            <p className="text-xs text-[#004B8D]/50">Max 10MB per file. These PDFs will be available for download on the product page.</p>
+            <p className="text-xs text-[#004B8D]/50">Max 10MB per file.</p>
           </div>
 
           <DialogFooter className="pt-4">
@@ -1025,7 +1115,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
                   {product ? "Updating..." : "Adding..."}
                 </>
               ) : (
-                product ? "Update Product" : "Add Product"
+                product ? `Update ${terminology.product}` : `Add ${terminology.product}`
               )}
             </Button>
           </DialogFooter>

@@ -1,1 +1,16 @@
 project_id = "pkiajhllkihkuchbwrgz"
+
+[functions.blog-writer]
+verify_jwt = true
+
+[functions.generate-financial-report]
+verify_jwt = true
+
+[functions.reset-user-password]
+verify_jwt = true
+
+[functions.send-invoice-reminder]
+verify_jwt = true
+
+[functions.suggest-service-details]
+verify_jwt = false
