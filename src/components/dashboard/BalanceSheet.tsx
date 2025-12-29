@@ -8,6 +8,7 @@ import { Loader2, FileSpreadsheet, Download, CheckCircle, XCircle } from "lucide
 import { format, endOfMonth } from "date-fns";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import { useTenant } from "@/hooks/useTenant";
 
 interface BalanceSheetData {
   assets: {
@@ -37,33 +38,42 @@ export function BalanceSheet() {
   const [data, setData] = useState<BalanceSheetData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [asOfDate, setAsOfDate] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
+  const { tenantId } = useTenant();
 
   useEffect(() => {
-    fetchBalanceSheetData();
-  }, [asOfDate]);
+    if (tenantId) {
+      fetchBalanceSheetData();
+    }
+  }, [asOfDate, tenantId]);
 
   const fetchBalanceSheetData = async () => {
+    if (!tenantId) return;
     setIsLoading(true);
     try {
       const [salesRes, expensesRes, invoicesRes, inventoryRes, payablesRes] = await Promise.all([
         supabase
           .from("sales_transactions")
           .select("total_amount_zmw, payment_method")
+          .eq("tenant_id", tenantId)
           .lte("created_at", asOfDate + "T23:59:59"),
         supabase
           .from("expenses")
           .select("amount_zmw, category")
+          .eq("tenant_id", tenantId)
           .lte("date_incurred", asOfDate),
         supabase
           .from("invoices")
           .select("total_amount, status")
+          .eq("tenant_id", tenantId)
           .lte("invoice_date", asOfDate),
         supabase
           .from("inventory")
-          .select("current_stock, unit_price"),
+          .select("current_stock, unit_price")
+          .eq("tenant_id", tenantId),
         supabase
           .from("accounts_payable")
           .select("amount_zmw, status, paid_amount")
+          .eq("tenant_id", tenantId)
           .lte("created_at", asOfDate + "T23:59:59"),
       ]);
 

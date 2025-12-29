@@ -27,6 +27,7 @@ import { DollarSign, Receipt, TrendingUp, TrendingDown, Loader2, Eye, Pencil, Tr
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useFeatures } from "@/hooks/useFeatures";
+import { useTenant } from "@/hooks/useTenant";
 import { ExpenseModal } from "./ExpenseModal";
 import { ExpenseViewModal } from "./ExpenseViewModal";
 import { CashBook } from "./CashBook";
@@ -59,14 +60,17 @@ export function BasicAccounting() {
   const { toast } = useToast();
   const { role } = useAuth();
   const { terminology, currencySymbol } = useFeatures();
+  const { tenantId } = useTenant();
   
   const canEdit = role === "admin";
 
   const fetchExpenses = async () => {
+    if (!tenantId) return;
     try {
       const { data, error } = await supabase
         .from("expenses")
         .select("id, date_incurred, category, amount_zmw, vendor_name, notes, receipt_image_url, created_at")
+        .eq("tenant_id", tenantId)
         .order("date_incurred", { ascending: false });
 
       if (error) throw error;
@@ -88,7 +92,9 @@ export function BasicAccounting() {
   };
 
   useEffect(() => {
-    fetchData();
+    if (tenantId) {
+      fetchData();
+    }
 
     const expensesChannel = supabase
       .channel("expenses-basic-changes")
@@ -102,7 +108,7 @@ export function BasicAccounting() {
     return () => {
       supabase.removeChannel(expensesChannel);
     };
-  }, []);
+  }, [tenantId]);
 
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount_zmw), 0);
 

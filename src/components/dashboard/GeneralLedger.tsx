@@ -9,6 +9,7 @@ import { Loader2, BookOpen, Download } from "lucide-react";
 import { format } from "date-fns";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import { useTenant } from "@/hooks/useTenant";
 
 interface LedgerEntry {
   id: string;
@@ -25,19 +26,23 @@ export function GeneralLedger() {
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filterAccount, setFilterAccount] = useState("");
+  const { tenantId } = useTenant();
 
   useEffect(() => {
-    fetchLedgerData();
-  }, []);
+    if (tenantId) {
+      fetchLedgerData();
+    }
+  }, [tenantId]);
 
   const fetchLedgerData = async () => {
+    if (!tenantId) return;
     setIsLoading(true);
     try {
       // Fetch all financial data and combine into ledger format
       const [salesRes, expensesRes, invoicesRes] = await Promise.all([
-        supabase.from("sales_transactions").select("*").order("created_at", { ascending: true }),
-        supabase.from("expenses").select("*").order("date_incurred", { ascending: true }),
-        supabase.from("invoices").select("*").eq("status", "paid").order("invoice_date", { ascending: true }),
+        supabase.from("sales_transactions").select("*").eq("tenant_id", tenantId).order("created_at", { ascending: true }),
+        supabase.from("expenses").select("*").eq("tenant_id", tenantId).order("date_incurred", { ascending: true }),
+        supabase.from("invoices").select("*").eq("tenant_id", tenantId).eq("status", "paid").order("invoice_date", { ascending: true }),
       ]);
 
       const ledgerEntries: LedgerEntry[] = [];

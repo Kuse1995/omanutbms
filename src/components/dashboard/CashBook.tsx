@@ -10,6 +10,7 @@ import { Loader2, Wallet, Download, ArrowUpCircle, ArrowDownCircle } from "lucid
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import { useTenant } from "@/hooks/useTenant";
 
 interface CashEntry {
   id: string;
@@ -26,18 +27,23 @@ export function CashBook() {
   const [isLoading, setIsLoading] = useState(true);
   const [startDate, setStartDate] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
+  const { tenantId } = useTenant();
 
   useEffect(() => {
-    fetchCashData();
-  }, [startDate, endDate]);
+    if (tenantId) {
+      fetchCashData();
+    }
+  }, [startDate, endDate, tenantId]);
 
   const fetchCashData = async () => {
+    if (!tenantId) return;
     setIsLoading(true);
     try {
       const [salesRes, expensesRes, receiptsRes] = await Promise.all([
         supabase
           .from("sales_transactions")
           .select("*")
+          .eq("tenant_id", tenantId)
           .gte("created_at", startDate)
           .lte("created_at", endDate + "T23:59:59")
           .eq("payment_method", "cash")
@@ -45,12 +51,14 @@ export function CashBook() {
         supabase
           .from("expenses")
           .select("*")
+          .eq("tenant_id", tenantId)
           .gte("date_incurred", startDate)
           .lte("date_incurred", endDate)
           .order("date_incurred", { ascending: true }),
         supabase
           .from("payment_receipts")
           .select("*")
+          .eq("tenant_id", tenantId)
           .gte("payment_date", startDate)
           .lte("payment_date", endDate)
           .eq("payment_method", "cash")
