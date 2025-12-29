@@ -243,6 +243,11 @@ export function QuotationFormModal({ isOpen, onClose, onSuccess, quotation }: Qu
 
       let quotationId: string;
 
+      if (!tenantId) {
+        toast({ title: "Error", description: "Organization context missing. Please log in again.", variant: "destructive" });
+        return;
+      }
+
       if (quotation) {
         const { error } = await supabase
           .from("quotations")
@@ -256,7 +261,7 @@ export function QuotationFormModal({ isOpen, onClose, onSuccess, quotation }: Qu
       } else {
         const { data, error } = await supabase
           .from("quotations")
-          .insert({ ...quotationData, quotation_number: "" })
+          .insert({ ...quotationData, quotation_number: "", tenant_id: tenantId })
           .select("id")
           .single();
 
@@ -266,6 +271,7 @@ export function QuotationFormModal({ isOpen, onClose, onSuccess, quotation }: Qu
 
       const itemsData = items.map(item => ({
         quotation_id: quotationId,
+        tenant_id: tenantId,
         description: item.description,
         quantity: item.quantity,
         unit_price: item.unit_price,

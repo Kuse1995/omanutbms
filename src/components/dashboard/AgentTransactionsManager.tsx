@@ -13,6 +13,7 @@ import { Plus, FileText, Package, DollarSign, RotateCcw, Loader2, Eye, MapPin, B
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenant } from "@/hooks/useTenant";
 
 interface Agent {
   id: string;
@@ -47,6 +48,7 @@ const transactionTypeLabels: Record<string, { label: string; icon: React.ReactNo
 
 export const AgentTransactionsManager = () => {
   const { user } = useAuth();
+  const { tenantId } = useTenant();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [transactions, setTransactions] = useState<AgentTransaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,10 +99,16 @@ export const AgentTransactionsManager = () => {
       toast.error("Select an agent");
       return;
     }
+    
+    if (!tenantId) {
+      toast.error("Organization context missing. Please log in again.");
+      return;
+    }
 
     try {
       const { error } = await supabase.from("agent_transactions").insert([
         {
+          tenant_id: tenantId,
           agent_id: transactionForm.agent_id,
           transaction_type: transactionForm.transaction_type,
           amount_zmw: transactionForm.amount_zmw,

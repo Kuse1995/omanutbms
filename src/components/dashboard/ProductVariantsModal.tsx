@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, Plus, Trash2, Palette, Ruler } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useTenant } from "@/hooks/useTenant";
 
 interface ProductVariantsModalProps {
   open: boolean;
@@ -34,6 +35,7 @@ export function ProductVariantsModal({ open, onOpenChange, product, onSuccess }:
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("colors");
   const { toast } = useToast();
+  const { tenantId } = useTenant();
 
   // New variant form state
   const [newColor, setNewColor] = useState({ value: "", display: "", hex: "#000000", price: 0 });
@@ -74,10 +76,16 @@ export function ProductVariantsModal({ open, onOpenChange, product, onSuccess }:
       });
       return;
     }
+    
+    if (!tenantId) {
+      toast({ title: "Error", description: "Organization context missing.", variant: "destructive" });
+      return;
+    }
 
     setIsSaving(true);
     try {
       const { error } = await supabase.from("product_variants").insert({
+        tenant_id: tenantId,
         product_id: product.id,
         variant_type: "color",
         variant_value: newColor.value.trim(),
@@ -112,10 +120,16 @@ export function ProductVariantsModal({ open, onOpenChange, product, onSuccess }:
       });
       return;
     }
+    
+    if (!tenantId) {
+      toast({ title: "Error", description: "Organization context missing.", variant: "destructive" });
+      return;
+    }
 
     setIsSaving(true);
     try {
       const { error } = await supabase.from("product_variants").insert({
+        tenant_id: tenantId,
         product_id: product.id,
         variant_type: "size",
         variant_value: newSize.value.trim(),
