@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, ChevronDown } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import finchLogo from "@/assets/finch-logo.png";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 const navigationItems = [
   {
@@ -42,6 +42,7 @@ export function Navbar() {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [expandedMobileItem, setExpandedMobileItem] = useState<string | null>(null);
   const location = useLocation();
+  const { companyName, logoUrl } = useBusinessConfig();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -74,7 +75,7 @@ export function Navbar() {
       initial={{ y: -100 }}
       animate={{ y: 0 }}
       transition={{ duration: 0.5 }}
-      className={`fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-lifestraw/80 to-lifestraw-dark/80 backdrop-blur-sm transition-shadow duration-300 ${
+      className={`fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-brand/80 to-brand-dark/80 backdrop-blur-sm transition-shadow duration-300 ${
         isScrolled ? "shadow-lg" : ""
       }`}
     >
@@ -82,11 +83,15 @@ export function Navbar() {
       <nav className="container-custom flex items-center justify-between h-16">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-3">
-          <img
-            src={finchLogo}
-            alt="Finch Investments Logo"
-            className="h-10 w-auto object-contain"
-          />
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt={companyName || "Company Logo"}
+              className="h-10 w-auto object-contain"
+            />
+          ) : (
+            <span className="text-white font-bold text-xl">{companyName || "BMS"}</span>
+          )}
         </Link>
 
         {/* Desktop Navigation */}
@@ -130,8 +135,8 @@ export function Navbar() {
                         <Link
                           key={child.href}
                           to={child.href}
-                          className={`block font-nav text-sm px-6 py-3 text-gray-700 hover:bg-muted hover:text-lifestraw transition-colors ${
-                            location.pathname === child.href ? 'text-lifestraw bg-muted' : ''
+                          className={`block font-nav text-sm px-6 py-3 text-gray-700 hover:bg-muted hover:text-brand transition-colors ${
+                            location.pathname === child.href ? 'text-brand bg-muted' : ''
                           }`}
                         >
                           {child.label}
@@ -194,8 +199,8 @@ export function Navbar() {
                             <Link
                               key={child.href}
                               to={child.href}
-                              className={`block font-nav text-sm py-2 px-3 rounded-sm text-gray-600 hover:text-lifestraw hover:bg-muted transition-colors ${
-                                location.pathname === child.href ? 'text-lifestraw bg-muted' : ''
+                              className={`block font-nav text-sm py-2 px-3 rounded-sm text-gray-600 hover:text-brand hover:bg-muted transition-colors ${
+                                location.pathname === child.href ? 'text-brand bg-muted' : ''
                               }`}
                               onClick={() => setIsMobileMenuOpen(false)}
                             >

@@ -25,18 +25,19 @@ interface TechnicalSpec {
 }
 
 const DEFAULT_SPECS: TechnicalSpec[] = [
-  { label: "Pore Size", value: "0.2 microns" },
-  { label: "Filter Life", value: "4,000 liters" },
-  { label: "Removes", value: "99.99% bacteria & parasites" },
-  { label: "Flow Rate", value: "Fast & consistent" },
+  { label: "Material", value: "High-quality" },
+  { label: "Dimensions", value: "Standard size" },
+  { label: "Weight", value: "Lightweight" },
+  { label: "Warranty", value: "1 year" },
 ];
+
 const CERTIFICATION_OPTIONS = [
-  { value: "bpa-free", label: "BPA Free" },
-  { value: "who-2", label: "WHO 2-Star" },
-  { value: "who-3", label: "WHO 3-Star" },
-  { value: "nsf", label: "NSF 42 & 53" },
-  { value: "epa", label: "EPA Registered" },
-  { value: "eco", label: "Eco-Friendly" },
+  { value: "quality", label: "Quality Certified" },
+  { value: "eco-friendly", label: "Eco-Friendly" },
+  { value: "iso", label: "ISO Certified" },
+  { value: "safety", label: "Safety Tested" },
+  { value: "organic", label: "Organic" },
+  { value: "fair-trade", label: "Fair Trade" },
 ];
 
 interface ProductModalProps {
@@ -94,7 +95,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
     highlight: "",
     features: "",
     category: "personal" as "personal" | "community",
-    certifications: ["bpa-free"] as string[],
+    certifications: [] as string[],
     datasheet_url: "",
     manual_url: "",
   });
@@ -141,7 +142,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
         highlight: "",
         features: "",
         category: "personal",
-        certifications: ["bpa-free"],
+        certifications: [],
         datasheet_url: "",
         manual_url: "",
       });

@@ -24,113 +24,96 @@ export interface SeedProduct {
 export function getSeedInventory(businessType: BusinessType): SeedProduct[] {
   switch (businessType) {
     case 'distribution':
-      return getLifeStrawProducts();
+      return getDistributionProducts();
     case 'services':
       return getServiceTemplates();
+    case 'retail':
+      return getRetailProducts();
     default:
       return [];
   }
 }
 
 /**
- * LifeStraw products - Only for distribution business type
+ * Generic distribution products - adaptable for any product line
  */
-function getLifeStrawProducts(): SeedProduct[] {
+function getDistributionProducts(): SeedProduct[] {
   return [
     {
-      sku: 'LS-PERSONAL-001',
-      name: 'LifeStraw Personal',
-      description: 'Award-winning personal water filter for hiking, camping, and emergency preparedness',
-      category: 'personal',
+      sku: 'DIST-001',
+      name: 'Sample Product A',
+      description: 'Primary distribution product',
+      category: 'primary',
       unit_price: 450,
       original_price: 500,
       current_stock: 0,
       reorder_level: 20,
-      liters_per_unit: 4000,
       features: [
-        'Filters up to 4,000 liters of water',
-        'Removes 99.99% of bacteria and parasites',
-        'No batteries or electrical power needed',
-        'Weighs only 57 grams',
+        'High quality',
+        'Durable design',
+        'Easy to use',
       ],
-      certifications: ['NSF P231', 'EPA Guide Standard'],
       highlight: 'Best Seller',
     },
     {
-      sku: 'LS-GO-001',
-      name: 'LifeStraw Go',
-      description: 'Water filter bottle for everyday use and outdoor adventures',
-      category: 'portable',
+      sku: 'DIST-002',
+      name: 'Sample Product B',
+      description: 'Secondary distribution product',
+      category: 'secondary',
       unit_price: 650,
       original_price: 750,
       current_stock: 0,
       reorder_level: 15,
-      liters_per_unit: 4000,
       features: [
-        'Integrated filter in 650ml bottle',
-        'BPA-free Tritan plastic',
-        'Replaceable carbon filter',
-        'Leak-proof design',
+        'Premium quality',
+        'Extended warranty',
+        'Customer favorite',
       ],
-      certifications: ['NSF P231', 'BPA Free'],
       highlight: 'Popular Choice',
     },
     {
-      sku: 'LS-FAMILY-001',
-      name: 'LifeStraw Family 2.0',
-      description: 'High-volume water purifier for family and group use',
-      category: 'family',
+      sku: 'DIST-003',
+      name: 'Sample Product C',
+      description: 'Bulk distribution product',
+      category: 'bulk',
       unit_price: 1200,
       original_price: 1400,
       current_stock: 0,
       reorder_level: 10,
-      liters_per_unit: 18000,
       features: [
-        'Filters 18,000 liters of water',
-        'Gravity-fed system - no pumping',
-        'Removes viruses, bacteria, and parasites',
-        'Ideal for 5+ person households',
+        'Large capacity',
+        'Commercial grade',
+        'Ideal for businesses',
       ],
-      certifications: ['NSF P231', 'NSF P248', 'US EPA'],
-      highlight: 'Family Favorite',
+      highlight: 'Bulk Value',
+    },
+  ];
+}
+
+/**
+ * Generic retail products
+ */
+function getRetailProducts(): SeedProduct[] {
+  return [
+    {
+      sku: 'RET-001',
+      name: 'Retail Item A',
+      description: 'Standard retail product',
+      category: 'general',
+      unit_price: 100,
+      current_stock: 50,
+      reorder_level: 10,
+      features: ['Everyday use', 'Good value'],
     },
     {
-      sku: 'LS-COMMUNITY-001',
-      name: 'LifeStraw Community',
-      description: 'High-capacity purifier for schools, health centers, and community settings',
-      category: 'community',
-      unit_price: 4500,
-      original_price: 5000,
-      current_stock: 0,
+      sku: 'RET-002',
+      name: 'Retail Item B',
+      description: 'Premium retail product',
+      category: 'premium',
+      unit_price: 250,
+      current_stock: 30,
       reorder_level: 5,
-      liters_per_unit: 100000,
-      features: [
-        'Filters 100,000 liters of water',
-        'Serves up to 100 people daily',
-        'Includes educational materials',
-        'Durable design for institutional use',
-      ],
-      certifications: ['NSF P231', 'NSF P248', 'US EPA'],
-      highlight: 'High Impact',
-    },
-    {
-      sku: 'LS-MAX-001',
-      name: 'LifeStraw Max',
-      description: 'High-flow portable water filter for groups and base camps',
-      category: 'portable',
-      unit_price: 2800,
-      original_price: 3200,
-      current_stock: 0,
-      reorder_level: 8,
-      liters_per_unit: 10000,
-      features: [
-        'High-flow rate for groups',
-        'Removes heavy metals including lead',
-        'Backflush cleaning system',
-        'Compact and portable',
-      ],
-      certifications: ['NSF P231', 'NSF 53'],
-      highlight: 'Premium',
+      features: ['Premium quality', 'Gift ready'],
     },
   ];
 }

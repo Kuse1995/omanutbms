@@ -64,11 +64,11 @@ export default {
         terracotta: "hsl(var(--terracotta))",
         brown: "hsl(var(--brown))",
         water: "hsl(var(--water-blue))",
-        lifestraw: {
-          DEFAULT: "hsl(var(--lifestraw-blue))",
-          light: "hsl(var(--lifestraw-blue-light))",
-          dark: "hsl(var(--lifestraw-blue-dark))",
-          teal: "hsl(var(--lifestraw-teal))",
+        brand: {
+          DEFAULT: "hsl(var(--brand-blue))",
+          light: "hsl(var(--brand-blue-light))",
+          dark: "hsl(var(--brand-blue-dark))",
+          teal: "hsl(var(--brand-teal))",
         },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",

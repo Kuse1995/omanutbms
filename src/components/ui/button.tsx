@@ -18,7 +18,7 @@ const buttonVariants = cva(
         hero: "bg-gradient-blue text-primary-foreground shadow-elevated hover:shadow-glow hover:-translate-y-0.5 hover:opacity-95",
         heroOutline: "border-2 border-primary text-primary bg-transparent hover:bg-primary/5",
         accent: "bg-accent text-accent-foreground hover:bg-accent/90 shadow-soft",
-        donate: "bg-gradient-to-r from-lifestraw-teal to-accent text-white shadow-soft hover:shadow-elevated hover:-translate-y-0.5",
+        donate: "bg-gradient-to-r from-brand-teal to-accent text-white shadow-soft hover:shadow-elevated hover:-translate-y-0.5",
       },
       size: {
         default: "h-10 px-4 py-2",
