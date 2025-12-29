@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Receipt, Search, Filter, Eye, Calendar } from "lucide-react";
 import { format } from "date-fns";
 import { SalesReceiptModal } from "./SalesReceiptModal";
+import { useTenant } from "@/hooks/useTenant";
 
 interface ReceiptData {
   id: string;
@@ -43,27 +44,33 @@ export function ReceiptsManager() {
   const [selectedReceipt, setSelectedReceipt] = useState<ReceiptData | null>(null);
   const [receiptItems, setReceiptItems] = useState<SaleItem[]>([]);
   const [isLoadingItems, setIsLoadingItems] = useState(false);
+  const { tenantId } = useTenant();
 
   const { data: receipts = [], isLoading } = useQuery({
-    queryKey: ["all-receipts"],
+    queryKey: ["all-receipts", tenantId],
     queryFn: async () => {
+      if (!tenantId) return [];
       const { data, error } = await supabase
         .from("payment_receipts")
         .select("*")
+        .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
       return data as ReceiptData[];
     },
+    enabled: !!tenantId,
   });
 
   // Fetch items linked to a receipt via sales_transactions
   const fetchReceiptItems = async (receiptNumber: string) => {
+    if (!tenantId) return;
     setIsLoadingItems(true);
     try {
       const { data, error } = await supabase
         .from("sales_transactions")
         .select("product_name, quantity, unit_price_zmw, total_amount_zmw, item_type, selected_color, selected_size, liters_impact, customer_phone")
+        .eq("tenant_id", tenantId)
         .eq("receipt_number", receiptNumber);
 
       if (error) throw error;

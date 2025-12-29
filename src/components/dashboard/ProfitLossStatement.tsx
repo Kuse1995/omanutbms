@@ -8,6 +8,7 @@ import { Loader2, TrendingUp, Download, DollarSign, Minus } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import { useTenant } from "@/hooks/useTenant";
 
 interface PLData {
   revenue: {
@@ -28,28 +29,35 @@ export function ProfitLossStatement() {
   const [isLoading, setIsLoading] = useState(true);
   const [startDate, setStartDate] = useState(format(startOfMonth(subMonths(new Date(), 1)), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState(format(endOfMonth(subMonths(new Date(), 1)), "yyyy-MM-dd"));
+  const { tenantId } = useTenant();
 
   useEffect(() => {
-    fetchPLData();
-  }, [startDate, endDate]);
+    if (tenantId) {
+      fetchPLData();
+    }
+  }, [startDate, endDate, tenantId]);
 
   const fetchPLData = async () => {
+    if (!tenantId) return;
     setIsLoading(true);
     try {
       const [salesRes, expensesRes, invoicesRes] = await Promise.all([
         supabase
           .from("sales_transactions")
           .select("total_amount_zmw")
+          .eq("tenant_id", tenantId)
           .gte("created_at", startDate)
           .lte("created_at", endDate + "T23:59:59"),
         supabase
           .from("expenses")
           .select("category, amount_zmw")
+          .eq("tenant_id", tenantId)
           .gte("date_incurred", startDate)
           .lte("date_incurred", endDate),
         supabase
           .from("invoices")
           .select("total_amount")
+          .eq("tenant_id", tenantId)
           .eq("status", "paid")
           .gte("invoice_date", startDate)
           .lte("invoice_date", endDate),
@@ -66,7 +74,7 @@ export function ProfitLossStatement() {
 
       (expensesRes.data || []).forEach((exp) => {
         const amount = Number(exp.amount_zmw);
-        if (exp.category === "Cost of Goods Sold - Vestergaard") {
+        if (exp.category?.toLowerCase().includes("cost of goods sold")) {
           costOfGoodsSold += amount;
         } else {
           expensesByCategory[exp.category] = (expensesByCategory[exp.category] || 0) + amount;
@@ -202,7 +210,7 @@ export function ProfitLossStatement() {
                   <h4 className="font-semibold text-[#003366] mb-3 border-b pb-2">Cost of Goods Sold</h4>
                   <div className="pl-4">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Product Cost (Vestergaard)</span>
+                      <span className="text-muted-foreground">Cost of Goods Sold</span>
                       <span className="text-red-600">K {plData.costOfGoodsSold.toLocaleString()}</span>
                     </div>
                   </div>

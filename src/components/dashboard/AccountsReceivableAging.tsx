@@ -9,6 +9,7 @@ import { format, differenceInDays } from "date-fns";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { toast } from "sonner";
+import { useTenant } from "@/hooks/useTenant";
 
 interface Invoice {
   id: string;
@@ -36,17 +37,22 @@ const AccountsReceivableAging = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [sendingReminder, setSendingReminder] = useState<string | null>(null);
   const [sendingBulk, setSendingBulk] = useState(false);
+  const { tenantId } = useTenant();
 
   useEffect(() => {
-    fetchInvoices();
-  }, []);
+    if (tenantId) {
+      fetchInvoices();
+    }
+  }, [tenantId]);
 
   const fetchInvoices = async () => {
+    if (!tenantId) return;
     setIsLoading(true);
     try {
       const { data, error } = await supabase
         .from("invoices")
         .select("id, invoice_number, client_name, client_email, invoice_date, due_date, total_amount, status")
+        .eq("tenant_id", tenantId)
         .neq("status", "paid")
         .order("due_date", { ascending: true });
 

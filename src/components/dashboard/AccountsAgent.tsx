@@ -27,6 +27,7 @@ import { DollarSign, FileText, RefreshCw, Loader2, Receipt, TrendingUp, Trending
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useFeatures } from "@/hooks/useFeatures";
+import { useTenant } from "@/hooks/useTenant";
 import { InvoiceModal } from "./InvoiceModal";
 import { ExpenseModal } from "./ExpenseModal";
 import { ExpenseViewModal } from "./ExpenseViewModal";
@@ -73,15 +74,18 @@ export function AccountsAgent() {
   const { toast } = useToast();
   const { role } = useAuth();
   const { terminology, currencySymbol, isEnabled } = useFeatures();
+  const { tenantId } = useTenant();
   
   const canEdit = role === "admin";
   const showAdvancedAccounting = isEnabled('advanced_accounting');
 
   const fetchTransactions = async () => {
+    if (!tenantId) return;
     try {
       const { data, error } = await supabase
         .from("transactions")
         .select("id, ai_client, bank_date, bank_amount, status")
+        .eq("tenant_id", tenantId)
         .order("bank_date", { ascending: false });
 
       if (error) throw error;
@@ -97,10 +101,12 @@ export function AccountsAgent() {
   };
 
   const fetchExpenses = async () => {
+    if (!tenantId) return;
     try {
       const { data, error } = await supabase
         .from("expenses")
         .select("id, date_incurred, category, amount_zmw, vendor_name, notes, receipt_image_url, created_at")
+        .eq("tenant_id", tenantId)
         .order("date_incurred", { ascending: false });
 
       if (error) throw error;
@@ -123,7 +129,9 @@ export function AccountsAgent() {
   };
 
   useEffect(() => {
-    fetchAllData();
+    if (tenantId) {
+      fetchAllData();
+    }
 
     const transactionsChannel = supabase
       .channel("transactions-changes")
@@ -147,7 +155,7 @@ export function AccountsAgent() {
       supabase.removeChannel(transactionsChannel);
       supabase.removeChannel(expensesChannel);
     };
-  }, []);
+  }, [tenantId]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);

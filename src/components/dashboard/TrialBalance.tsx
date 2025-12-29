@@ -9,6 +9,7 @@ import { Loader2, Scale, Download, CheckCircle, XCircle } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import { useTenant } from "@/hooks/useTenant";
 
 interface TrialBalanceAccount {
   accountName: string;
@@ -21,26 +22,33 @@ export function TrialBalance() {
   const [accounts, setAccounts] = useState<TrialBalanceAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [asOfDate, setAsOfDate] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
+  const { tenantId } = useTenant();
 
   useEffect(() => {
-    fetchTrialBalanceData();
-  }, [asOfDate]);
+    if (tenantId) {
+      fetchTrialBalanceData();
+    }
+  }, [asOfDate, tenantId]);
 
   const fetchTrialBalanceData = async () => {
+    if (!tenantId) return;
     setIsLoading(true);
     try {
       const [salesRes, expensesRes, invoicesRes] = await Promise.all([
         supabase
           .from("sales_transactions")
           .select("total_amount_zmw")
+          .eq("tenant_id", tenantId)
           .lte("created_at", asOfDate + "T23:59:59"),
         supabase
           .from("expenses")
           .select("category, amount_zmw")
+          .eq("tenant_id", tenantId)
           .lte("date_incurred", asOfDate),
         supabase
           .from("invoices")
           .select("total_amount, status")
+          .eq("tenant_id", tenantId)
           .lte("invoice_date", asOfDate),
       ]);
 
