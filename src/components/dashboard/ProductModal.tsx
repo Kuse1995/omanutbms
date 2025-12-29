@@ -462,6 +462,15 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!tenantId) {
+      toast({
+        title: "Error",
+        description: "Unable to identify your organization. Please refresh the page.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     if (!formData.sku.trim() || !formData.name.trim()) {
       toast({
         title: "Validation Error",
@@ -565,10 +574,22 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
       onSuccess();
       onOpenChange(false);
     } catch (error: any) {
-      console.error("Error saving:", error);
+      console.error("Error saving product/service:", error);
+      let errorMessage = `Failed to save ${terminology.product.toLowerCase()}`;
+      
+      if (error.message) {
+        errorMessage = error.message;
+      }
+      if (error.code === '42501' || error.message?.includes('row-level security')) {
+        errorMessage = "Permission denied. Please ensure you have admin or manager access.";
+      }
+      if (error.code === '23505') {
+        errorMessage = "A product with this SKU already exists.";
+      }
+      
       toast({
         title: "Error",
-        description: error.message || `Failed to save ${terminology.product.toLowerCase()}`,
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
