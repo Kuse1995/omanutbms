@@ -507,7 +507,7 @@ export function BlogManager() {
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <Input
-                    placeholder="e.g. Impact of LifeStraw Community dispensers in rural schools"
+                    placeholder="e.g. Impact of our community programs in rural schools"
                     value={aiBrief}
                     onChange={(e) => setAiBrief(e.target.value)}
                     className="bg-white/80 border-[#004B8D]/20 text-[#003366]"

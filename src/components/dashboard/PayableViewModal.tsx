@@ -7,6 +7,7 @@ import { Building2, FileText, Calendar, DollarSign, AlertTriangle, CheckCircle, 
 import { format } from "date-fns";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 interface AccountPayable {
   id: string;
@@ -31,6 +32,7 @@ interface PayableViewModalProps {
 export function PayableViewModal({ payable, isOpen, onClose }: PayableViewModalProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const { companyName } = useBusinessConfig();
 
   if (!payable) return null;
 
@@ -99,7 +101,7 @@ export function PayableViewModal({ payable, isOpen, onClose }: PayableViewModalP
         <div ref={contentRef} className="space-y-6 bg-white p-4 rounded-lg">
           {/* Header */}
           <div className="text-center border-b pb-4">
-            <h2 className="text-xl font-bold text-[#004B8D]">Finch Investments Ltd</h2>
+            <h2 className="text-xl font-bold text-[#004B8D]">{companyName || 'Your Company'}</h2>
             <p className="text-sm text-muted-foreground">Accounts Payable Record</p>
           </div>
 

@@ -6,6 +6,7 @@ import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 import { TenantDocumentHeader } from "./TenantDocumentHeader";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 interface SaleItem {
   product_name: string;
@@ -45,6 +46,7 @@ export function SalesReceiptModal({
   litersImpact,
 }: SalesReceiptModalProps) {
   const [isDownloading, setIsDownloading] = useState(false);
+  const { companyName, tagline, isImpactEnabled, impact } = useBusinessConfig();
 
   const formatPaymentMethod = (method: string) => {
     return method.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
@@ -202,21 +204,23 @@ export function SalesReceiptModal({
               </table>
             </div>
 
-            {litersImpact > 0 && (
+            {isImpactEnabled && litersImpact > 0 && (
               <div className="bg-teal-50 text-center py-4 rounded-lg border border-teal-200">
-                <p className="text-sm text-teal-600">Water Impact Generated</p>
+                <p className="text-sm text-teal-600">{impact.unitLabel || 'Impact'} Generated</p>
                 <p className="text-2xl font-bold text-teal-700">
-                  {litersImpact.toLocaleString()} Liters
+                  {litersImpact.toLocaleString()} {impact.unitLabel || 'Units'}
                 </p>
                 <p className="text-xs text-teal-600 mt-1">
-                  Thank you for contributing to safe water access!
+                  Thank you for your contribution!
                 </p>
               </div>
             )}
 
             <div className="text-center text-gray-500 text-xs pt-4 border-t">
               <p>Thank you for your purchase!</p>
-              <p className="mt-1">Finch Investments Limited - LifeStraw Distributor Zambia</p>
+              {(companyName || tagline) && (
+                <p className="mt-1">{[companyName, tagline].filter(Boolean).join(' - ')}</p>
+              )}
             </div>
           </div>
         </div>

@@ -18,7 +18,7 @@ const agents = [
     id: 2,
     name: "The Forecaster",
     icon: TrendingUp,
-    status: "Analyzing 'LifeStraw Community' seasonal demand...",
+    status: "Analyzing seasonal demand patterns...",
     color: "from-violet-500 to-violet-600",
     bgColor: "bg-violet-500/10",
     borderColor: "border-violet-500/30",

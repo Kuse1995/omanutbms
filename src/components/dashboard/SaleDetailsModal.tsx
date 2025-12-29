@@ -2,6 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { User, Mail, Phone, Package, CreditCard, Droplets, Calendar, FileText, Wrench } from "lucide-react";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 interface SaleTransaction {
   id: string;
@@ -29,6 +30,8 @@ interface SaleDetailsModalProps {
 }
 
 export function SaleDetailsModal({ sale, isOpen, onClose }: SaleDetailsModalProps) {
+  const { isImpactEnabled, impact } = useBusinessConfig();
+  
   if (!sale) return null;
 
   const formatDate = (dateString: string) => {
@@ -192,25 +195,25 @@ export function SaleDetailsModal({ sale, isOpen, onClose }: SaleDetailsModalProp
 
           <Separator className="bg-[#004B8D]/10" />
 
-          {/* Impact - only show for products */}
-          {sale.item_type !== "service" && (
+          {/* Impact - only show for products when impact is enabled */}
+          {isImpactEnabled && sale.item_type !== "service" && sale.liters_impact > 0 && (
             <div className="bg-gradient-to-br from-teal-50 to-teal-100/50 rounded-lg p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Droplets className="w-5 h-5 text-teal-600" />
-                  <span className="text-teal-700 font-medium">Impact Generated</span>
+                  <span className="text-teal-700 font-medium">{impact.unitLabel || 'Impact'} Generated</span>
                 </div>
-                <span className="text-teal-600 font-bold text-lg">{sale.liters_impact.toLocaleString()} Liters</span>
+                <span className="text-teal-600 font-bold text-lg">{sale.liters_impact.toLocaleString()} {impact.unitLabel || 'Units'}</span>
               </div>
             </div>
           )}
 
-          {/* No impact notice for services */}
-          {sale.item_type === "service" && (
+          {/* No impact notice for services when impact is enabled */}
+          {isImpactEnabled && sale.item_type === "service" && (
             <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
               <div className="flex items-center gap-2">
                 <Wrench className="w-5 h-5 text-amber-600" />
-                <span className="text-amber-700 text-sm">Services do not generate water impact metrics</span>
+                <span className="text-amber-700 text-sm">Services do not generate impact metrics</span>
               </div>
             </div>
           )}

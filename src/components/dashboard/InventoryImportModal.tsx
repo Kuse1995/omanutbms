@@ -265,9 +265,9 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
 
   const downloadTemplate = () => {
     const template = `sku,name,current_stock,unit_price,reorder_level,liters_per_unit
-LS-PERSONAL-001,LifeStraw Personal,50,450,10,4000
-LS-GO-650,LifeStraw Go 650ml,30,650,10,4000
-LS-COMMUNITY,LifeStraw Community,5,8500,2,100000`;
+PROD-001,Sample Product,50,450,10,0
+PROD-002,Another Product,30,650,10,0
+PROD-003,Premium Product,5,8500,2,0`;
 
     const blob = new Blob([template], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
