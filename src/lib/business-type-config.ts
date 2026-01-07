@@ -23,6 +23,10 @@ export interface TerminologyConfig {
   inventory: string;
   community: string;
   communities: string;
+  // Item type value for database storage (aligns with business type)
+  defaultItemType: 'product' | 'service' | 'item' | 'resource';
+  // Whether this business primarily deals with services (simplifies UI)
+  isServiceBased: boolean;
 }
 
 export interface ImpactConfig {
@@ -78,6 +82,8 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       inventory: 'Inventory',
       community: 'Community',
       communities: 'Communities',
+      defaultItemType: 'product',
+      isServiceBased: false,
     },
     impact: {
       enabled: true,
@@ -138,6 +144,8 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       inventory: 'Inventory',
       community: 'Community',
       communities: 'Communities',
+      defaultItemType: 'product',
+      isServiceBased: false,
     },
     impact: {
       enabled: false,
@@ -194,6 +202,8 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       inventory: 'Resources',
       community: 'School',
       communities: 'Schools',
+      defaultItemType: 'resource',
+      isServiceBased: false,
     },
     impact: {
       enabled: true,
@@ -251,6 +261,8 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       inventory: 'Items',
       community: 'Community',
       communities: 'Communities',
+      defaultItemType: 'item',
+      isServiceBased: false,
     },
     impact: {
       enabled: true,
@@ -307,6 +319,8 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       inventory: 'Services',
       community: 'Partner',
       communities: 'Partners',
+      defaultItemType: 'service',
+      isServiceBased: true,
     },
     impact: {
       enabled: false,

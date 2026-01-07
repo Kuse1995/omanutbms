@@ -24,6 +24,13 @@ export interface TerminologyMap {
   productsLabel: string;
   itemTypeLabel: string;
   
+  // Item type value for database storage (aligns with business type)
+  // This is the default item_type value when creating items/transactions
+  defaultItemType: 'product' | 'service' | 'item' | 'resource';
+  
+  // Whether this business primarily deals with services (hides product/service toggle)
+  isServiceBased: boolean;
+  
   // Invoice-related
   invoiceLabel: string;
   invoicesLabel: string;
@@ -52,6 +59,8 @@ const terminologyMaps: Record<BusinessType, TerminologyMap> = {
     productLabel: 'Product',
     productsLabel: 'Products',
     itemTypeLabel: 'Product Type',
+    defaultItemType: 'product',
+    isServiceBased: false,
     invoiceLabel: 'Invoice',
     invoicesLabel: 'Invoices',
     impactLabel: 'Impact',
@@ -73,6 +82,8 @@ const terminologyMaps: Record<BusinessType, TerminologyMap> = {
     productLabel: 'Product',
     productsLabel: 'Products',
     itemTypeLabel: 'Product Type',
+    defaultItemType: 'product',
+    isServiceBased: false,
     invoiceLabel: 'Invoice',
     invoicesLabel: 'Invoices',
     impactLabel: 'Impact',
@@ -94,6 +105,8 @@ const terminologyMaps: Record<BusinessType, TerminologyMap> = {
     productLabel: 'Resource',
     productsLabel: 'Resources',
     itemTypeLabel: 'Resource Type',
+    defaultItemType: 'resource',
+    isServiceBased: false,
     invoiceLabel: 'Fee Statement',
     invoicesLabel: 'Fee Statements',
     impactLabel: 'Student Impact',
@@ -115,6 +128,8 @@ const terminologyMaps: Record<BusinessType, TerminologyMap> = {
     productLabel: 'Item',
     productsLabel: 'Items',
     itemTypeLabel: 'Item Type',
+    defaultItemType: 'item',
+    isServiceBased: false,
     invoiceLabel: 'Pledge',
     invoicesLabel: 'Pledges',
     impactLabel: 'Impact',
@@ -136,6 +151,8 @@ const terminologyMaps: Record<BusinessType, TerminologyMap> = {
     productLabel: 'Service',
     productsLabel: 'Services',
     itemTypeLabel: 'Service Type',
+    defaultItemType: 'service',
+    isServiceBased: true,
     invoiceLabel: 'Invoice',
     invoicesLabel: 'Invoices',
     impactLabel: 'Impact',
@@ -158,10 +175,10 @@ export function getTerminology(businessType: string | null | undefined): Termino
 /**
  * Get a specific term based on business type
  */
-export function getTerm(
+export function getTerm<K extends keyof TerminologyMap>(
   businessType: string | null | undefined,
-  key: keyof TerminologyMap
-): string {
+  key: K
+): TerminologyMap[K] {
   const terminology = getTerminology(businessType);
   return terminology[key];
 }

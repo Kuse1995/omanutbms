@@ -8,8 +8,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Trash2, FileCheck, ArrowRight, Package, Wrench } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import finchLogo from "@/assets/finch-logo.png";
 import { useTenant } from "@/hooks/useTenant";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
+
+// Item type for database - aligns with business type
+type ItemType = 'product' | 'service' | 'item' | 'resource';
 
 interface QuotationItem {
   id: string;
@@ -17,7 +20,7 @@ interface QuotationItem {
   quantity: number;
   unit_price: number;
   amount: number;
-  item_type?: string;
+  item_type?: ItemType;
 }
 
 interface ConversionItem extends QuotationItem {
@@ -60,6 +63,9 @@ export function QuotationToInvoiceModal({ isOpen, onClose, onSuccess, quotation 
   const [notes, setNotes] = useState("");
   const { toast } = useToast();
   const { tenantId } = useTenant();
+  const { terminology, logoUrl, companyName } = useBusinessConfig();
+  
+  const defaultItemType = terminology.defaultItemType;
 
   useEffect(() => {
     if (quotation && isOpen) {
@@ -89,7 +95,7 @@ export function QuotationToInvoiceModal({ isOpen, onClose, onSuccess, quotation 
         quantity: item.quantity,
         unit_price: Number(item.unit_price),
         amount: Number(item.amount),
-        item_type: "product", // Default, we'll detect services by description
+        item_type: defaultItemType,
         original_amount: Number(item.amount),
         adjusted_price: Number(item.unit_price),
         discount_applied: 0,
@@ -189,7 +195,7 @@ export function QuotationToInvoiceModal({ isOpen, onClose, onSuccess, quotation 
         quantity: item.quantity,
         unit_price: item.adjusted_price,
         amount: item.amount,
-        item_type: item.item_type || "product",
+        item_type: item.item_type || defaultItemType,
         original_amount: item.original_amount,
         discount_applied: item.discount_applied,
       }));
@@ -231,10 +237,10 @@ export function QuotationToInvoiceModal({ isOpen, onClose, onSuccess, quotation 
       <DialogContent className="max-w-4xl bg-white text-gray-900 max-h-[90vh] flex flex-col">
         <DialogHeader>
             <DialogTitle className="flex items-center gap-3 text-gray-900">
-            <img src={finchLogo} alt="Finch Investments" className="h-10 w-auto" />
+            {logoUrl && <img src={logoUrl} alt={companyName || 'Company'} className="h-10 w-auto" />}
             <div className="flex items-center gap-2">
               <FileCheck className="h-5 w-5 text-green-600" />
-              <span>Convert Quotation to Invoice</span>
+              <span>Convert Quotation to {terminology.invoice}</span>
             </div>
           </DialogTitle>
           <DialogDescription className="flex items-center gap-2">
@@ -242,7 +248,7 @@ export function QuotationToInvoiceModal({ isOpen, onClose, onSuccess, quotation 
               {quotation.quotation_number}
             </Badge>
             <ArrowRight className="h-4 w-4 text-muted-foreground" />
-            <span className="text-muted-foreground">New Invoice</span>
+            <span className="text-muted-foreground">New {terminology.invoice}</span>
           </DialogDescription>
         </DialogHeader>
 
