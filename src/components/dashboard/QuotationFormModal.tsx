@@ -10,6 +10,10 @@ import { Loader2, Plus, Trash2, Package, Wrench, Truck, Settings, HardHat } from
 import { ProductCombobox, ProductOption } from "./ProductCombobox";
 import { Badge } from "@/components/ui/badge";
 import { useTenant } from "@/hooks/useTenant";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
+
+// Item type for database - aligns with business type
+type ItemType = 'product' | 'service' | 'item' | 'resource';
 
 interface QuotationItem {
   id?: string;
@@ -18,7 +22,7 @@ interface QuotationItem {
   quantity: number;
   unit_price: number;
   amount: number;
-  item_type: "product" | "service";
+  item_type: ItemType;
 }
 
 interface Quotation {
@@ -61,11 +65,17 @@ export function QuotationFormModal({ isOpen, onClose, onSuccess, quotation }: Qu
   const [validUntil, setValidUntil] = useState("");
   const [taxRate, setTaxRate] = useState(0);
   const [notes, setNotes] = useState("");
-  const [items, setItems] = useState<QuotationItem[]>([
-    { description: "", quantity: 1, unit_price: 0, amount: 0, item_type: "product" },
-  ]);
   const { toast } = useToast();
   const { tenantId } = useTenant();
+  const { terminology } = useBusinessConfig();
+  
+  // Get the default item type from business configuration
+  const defaultItemType = terminology.defaultItemType;
+  const isServiceBased = terminology.isServiceBased;
+  
+  const [items, setItems] = useState<QuotationItem[]>([
+    { description: "", quantity: 1, unit_price: 0, amount: 0, item_type: defaultItemType },
+  ]);
 
   useEffect(() => {
     fetchProducts();
@@ -119,7 +129,7 @@ export function QuotationFormModal({ isOpen, onClose, onSuccess, quotation }: Qu
           quantity: item.quantity,
           unit_price: Number(item.unit_price),
           amount: Number(item.amount),
-          item_type: matchingProduct ? "product" : "service" as "product" | "service",
+          item_type: matchingProduct ? defaultItemType : (isServiceBased ? 'service' : defaultItemType) as ItemType,
         };
       }));
     }
@@ -136,10 +146,10 @@ export function QuotationFormModal({ isOpen, onClose, onSuccess, quotation }: Qu
     setValidUntil(thirtyDaysFromNow.toISOString().split("T")[0]);
     setTaxRate(0);
     setNotes("");
-    setItems([{ description: "", quantity: 1, unit_price: 0, amount: 0, item_type: "product" }]);
+    setItems([{ description: "", quantity: 1, unit_price: 0, amount: 0, item_type: defaultItemType }]);
   };
 
-  const handleAddItem = (type: "product" | "service" = "product") => {
+  const handleAddItem = (type: ItemType = defaultItemType) => {
     setItems([...items, { description: "", quantity: 1, unit_price: 0, amount: 0, item_type: type }]);
   };
 
@@ -159,7 +169,7 @@ export function QuotationFormModal({ isOpen, onClose, onSuccess, quotation }: Qu
     }
   };
 
-  const handleItemTypeChange = (index: number, newType: "product" | "service") => {
+  const handleItemTypeChange = (index: number, newType: ItemType) => {
     const newItems = [...items];
     newItems[index] = {
       ...newItems[index],

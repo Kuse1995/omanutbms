@@ -11,6 +11,10 @@ import { Loader2, Plus, Trash2, Package, Wrench, Truck, Settings, HardHat } from
 import { ProductCombobox, ProductOption } from "./ProductCombobox";
 import { Badge } from "@/components/ui/badge";
 import { useTenant } from "@/hooks/useTenant";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
+
+// Item type for database - aligns with business type
+type ItemType = 'product' | 'service' | 'item' | 'resource';
 
 interface InvoiceItem {
   id?: string;
@@ -19,7 +23,7 @@ interface InvoiceItem {
   quantity: number;
   unit_price: number;
   amount: number;
-  item_type: "product" | "service";
+  item_type: ItemType;
 }
 
 interface Invoice {
@@ -63,11 +67,17 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
   const [status, setStatus] = useState("draft");
   const [taxRate, setTaxRate] = useState(0);
   const [notes, setNotes] = useState("");
-  const [items, setItems] = useState<InvoiceItem[]>([
-    { description: "", quantity: 1, unit_price: 0, amount: 0, item_type: "product" },
-  ]);
   const { toast } = useToast();
   const { tenantId } = useTenant();
+  const { terminology } = useBusinessConfig();
+  
+  // Get the default item type from business configuration
+  const defaultItemType = terminology.defaultItemType;
+  const isServiceBased = terminology.isServiceBased;
+  
+  const [items, setItems] = useState<InvoiceItem[]>([
+    { description: "", quantity: 1, unit_price: 0, amount: 0, item_type: defaultItemType },
+  ]);
 
   useEffect(() => {
     fetchProducts();
@@ -120,7 +130,7 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
         quantity: item.quantity,
         unit_price: Number(item.unit_price),
         amount: Number(item.amount),
-        item_type: (item.item_type as "product" | "service") || "product",
+        item_type: (item.item_type as ItemType) || defaultItemType,
       })));
     }
   };
@@ -134,11 +144,11 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
     setStatus("draft");
     setTaxRate(0);
     setNotes("");
-    setItems([{ description: "", quantity: 1, unit_price: 0, amount: 0, item_type: "product" }]);
+    setItems([{ description: "", quantity: 1, unit_price: 0, amount: 0, item_type: defaultItemType }]);
   };
 
   const handleAddItem = () => {
-    setItems([...items, { description: "", quantity: 1, unit_price: 0, amount: 0, item_type: "product" }]);
+    setItems([...items, { description: "", quantity: 1, unit_price: 0, amount: 0, item_type: defaultItemType }]);
   };
 
   const handleRemoveItem = (index: number) => {
