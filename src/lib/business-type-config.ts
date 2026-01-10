@@ -3,7 +3,7 @@
 
 import type { DashboardTab } from '@/pages/Dashboard';
 
-export type BusinessType = 'distribution' | 'retail' | 'school' | 'ngo' | 'services';
+export type BusinessType = 'distribution' | 'retail' | 'school' | 'ngo' | 'services' | 'agriculture' | 'hospitality' | 'salon' | 'healthcare' | 'autoshop';
 
 export interface InventoryConfig {
   enabled: boolean;
@@ -65,7 +65,7 @@ export interface QuickActionConfig {
 export interface KPICardConfig {
   id: string;
   title: string;
-  metric: 'inventory_value' | 'pending_invoices' | 'active_agents' | 'low_stock' | 'total_revenue' | 'active_clients' | 'students_enrolled' | 'donations_received';
+  metric: 'inventory_value' | 'pending_invoices' | 'active_agents' | 'low_stock' | 'total_revenue' | 'active_clients' | 'students_enrolled' | 'donations_received' | 'bookings_today' | 'appointments_today' | 'patients_today' | 'jobs_in_progress' | 'harvest_value' | 'livestock_count';
   icon: string;
   color: string;
   bgColor: string;
@@ -479,6 +479,385 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       ],
       welcomeMessage: 'Manage client projects, invoices, and service delivery',
       dashboardIcon: 'Briefcase',
+    },
+  },
+
+  agriculture: {
+    label: 'Agriculture / Farming',
+    description: 'Manage farming operations and produce sales',
+    inventory: {
+      enabled: true,
+      seedProfile: 'generic',
+      allowVariants: true,
+    },
+    terminology: {
+      product: 'Produce',
+      products: 'Produce',
+      customer: 'Buyer',
+      customers: 'Buyers',
+      customerId: 'Buyer ID',
+      sale: 'Sale',
+      sales: 'Sales',
+      revenue: 'Farm Revenue',
+      invoice: 'Invoice',
+      invoices: 'Invoices',
+      inventory: 'Farm Inventory',
+      community: 'Cooperative',
+      communities: 'Cooperatives',
+      defaultItemType: 'product',
+      isServiceBased: false,
+    },
+    impact: {
+      enabled: true,
+      unitLabel: 'Kg Produced',
+      beneficiariesLabel: 'Households Fed',
+      description: 'Track your farming impact',
+    },
+    formFields: {
+      skuPlaceholder: 'e.g., CROP-001',
+      namePlaceholder: 'e.g., Maize - Grade A',
+      highlightPlaceholder: 'e.g., Organic',
+      descriptionPlaceholder: 'Describe your produce...',
+      featuresPlaceholder: 'Organically grown\nNo pesticides\nFreshly harvested',
+      categories: [
+        { value: 'crops', label: 'Crops' },
+        { value: 'livestock', label: 'Livestock' },
+        { value: 'poultry', label: 'Poultry' },
+        { value: 'dairy', label: 'Dairy' },
+        { value: 'seeds', label: 'Seeds' },
+        { value: 'feed', label: 'Animal Feed' },
+        { value: 'fertilizer', label: 'Fertilizer' },
+      ],
+      certificationsLabel: 'Certifications',
+      certifications: [
+        { value: 'organic', label: 'Organic' },
+        { value: 'fair-trade', label: 'Fair Trade' },
+        { value: 'zabs', label: 'ZABS Certified' },
+        { value: 'phytosanitary', label: 'Phytosanitary' },
+      ],
+      defaultSpecs: [
+        { label: 'Weight/Volume', value: '' },
+        { label: 'Harvest Date', value: '' },
+        { label: 'Origin', value: '' },
+        { label: 'Storage', value: '' },
+      ],
+    },
+    layout: {
+      defaultTab: 'dashboard',
+      tabOrder: ['dashboard', 'sales', 'receipts', 'inventory', 'accounts', 'hr', 'contacts', 'website'],
+      hiddenTabs: ['agents', 'communities', 'messages', 'shop'],
+      quickActions: [
+        { id: 'record-sale', label: 'Record Sale', icon: 'ShoppingCart', targetTab: 'sales', highlight: true },
+        { id: 'view-produce', label: 'View Produce', icon: 'Package', targetTab: 'inventory' },
+        { id: 'stock-update', label: 'Stock Update', icon: 'TrendingUp', targetTab: 'inventory' },
+      ],
+      kpiCards: [
+        { id: 'harvest-revenue', title: 'Harvest Revenue', metric: 'total_revenue', icon: 'TrendingUp', color: 'text-emerald-600', bgColor: 'bg-emerald-500/10' },
+        { id: 'livestock-count', title: 'Livestock Count', metric: 'livestock_count', icon: 'Users', color: 'text-amber-600', bgColor: 'bg-amber-500/10' },
+        { id: 'produce-stock', title: 'Produce in Stock', metric: 'inventory_value', icon: 'Package', color: 'text-[#004B8D]', bgColor: 'bg-[#004B8D]/10' },
+        { id: 'pending-orders', title: 'Pending Orders', metric: 'pending_invoices', icon: 'Clock', color: 'text-orange-600', bgColor: 'bg-orange-500/10' },
+      ],
+      welcomeMessage: 'Manage your farm operations and produce sales',
+      dashboardIcon: 'Wheat',
+    },
+  },
+
+  hospitality: {
+    label: 'Hospitality Business',
+    description: 'Manage restaurant, lodge, or catering operations',
+    inventory: {
+      enabled: true,
+      seedProfile: 'generic',
+      allowVariants: true,
+    },
+    terminology: {
+      product: 'Menu Item',
+      products: 'Menu Items',
+      customer: 'Guest',
+      customers: 'Guests',
+      customerId: 'Guest ID',
+      sale: 'Order',
+      sales: 'Orders',
+      revenue: 'Revenue',
+      invoice: 'Bill',
+      invoices: 'Bills',
+      inventory: 'Stock',
+      community: 'Venue',
+      communities: 'Venues',
+      defaultItemType: 'product',
+      isServiceBased: false,
+    },
+    impact: {
+      enabled: false,
+    },
+    formFields: {
+      skuPlaceholder: 'e.g., MENU-001',
+      namePlaceholder: 'e.g., Nshima with Chicken',
+      highlightPlaceholder: 'e.g., Chef Special',
+      descriptionPlaceholder: 'Describe the menu item or room...',
+      featuresPlaceholder: 'Freshly prepared\nLocal ingredients\nServed hot',
+      categories: [
+        { value: 'food_beverage', label: 'Food & Beverage' },
+        { value: 'accommodation', label: 'Accommodation' },
+        { value: 'events', label: 'Events' },
+        { value: 'catering', label: 'Catering' },
+        { value: 'bar', label: 'Bar' },
+      ],
+      certificationsLabel: 'Standards',
+      certifications: [
+        { value: 'health-certified', label: 'Health Certified' },
+        { value: 'tourism-graded', label: 'Tourism Graded' },
+        { value: 'halal', label: 'Halal' },
+        { value: 'hygiene', label: 'Hygiene Certified' },
+      ],
+      defaultSpecs: [
+        { label: 'Serving Size', value: '' },
+        { label: 'Preparation Time', value: '' },
+        { label: 'Allergens', value: '' },
+      ],
+    },
+    layout: {
+      defaultTab: 'sales',
+      tabOrder: ['dashboard', 'sales', 'receipts', 'inventory', 'accounts', 'hr', 'contacts', 'website'],
+      hiddenTabs: ['agents', 'communities', 'messages'],
+      quickActions: [
+        { id: 'new-order', label: 'New Order', icon: 'ShoppingCart', targetTab: 'sales', highlight: true },
+        { id: 'room-booking', label: 'Room Booking', icon: 'Calendar', targetTab: 'accounts' },
+        { id: 'menu-items', label: 'Menu Items', icon: 'UtensilsCrossed', targetTab: 'inventory' },
+      ],
+      kpiCards: [
+        { id: 'todays-revenue', title: "Today's Revenue", metric: 'total_revenue', icon: 'DollarSign', color: 'text-emerald-600', bgColor: 'bg-emerald-500/10' },
+        { id: 'bookings-today', title: 'Bookings Today', metric: 'bookings_today', icon: 'Calendar', color: 'text-[#004B8D]', bgColor: 'bg-[#004B8D]/10' },
+        { id: 'food-stock', title: 'Food Stock Value', metric: 'inventory_value', icon: 'Package', color: 'text-teal-600', bgColor: 'bg-teal-500/10' },
+        { id: 'pending-bills', title: 'Pending Bills', metric: 'pending_invoices', icon: 'Clock', color: 'text-amber-600', bgColor: 'bg-amber-500/10' },
+      ],
+      welcomeMessage: 'Manage orders, bookings, and guest services',
+      dashboardIcon: 'UtensilsCrossed',
+    },
+  },
+
+  salon: {
+    label: 'Salon / Beauty',
+    description: 'Manage salon appointments and beauty services',
+    inventory: {
+      enabled: true,
+      seedProfile: 'services',
+    },
+    terminology: {
+      product: 'Service',
+      products: 'Services',
+      customer: 'Client',
+      customers: 'Clients',
+      customerId: 'Client ID',
+      sale: 'Appointment',
+      sales: 'Appointments',
+      revenue: 'Revenue',
+      invoice: 'Receipt',
+      invoices: 'Receipts',
+      inventory: 'Services & Products',
+      community: 'Partner',
+      communities: 'Partners',
+      defaultItemType: 'service',
+      isServiceBased: true,
+    },
+    impact: {
+      enabled: false,
+    },
+    formFields: {
+      skuPlaceholder: 'e.g., SVC-001',
+      namePlaceholder: 'e.g., Braiding - Full Head',
+      highlightPlaceholder: 'e.g., Popular Style',
+      descriptionPlaceholder: 'Describe the service or treatment...',
+      featuresPlaceholder: 'Professional styling\nQuality products used\nComfortable experience',
+      categories: [
+        { value: 'hair', label: 'Hair' },
+        { value: 'nails', label: 'Nails' },
+        { value: 'skincare', label: 'Skincare' },
+        { value: 'makeup', label: 'Makeup' },
+        { value: 'massage', label: 'Massage' },
+        { value: 'bridal', label: 'Bridal' },
+        { value: 'barbering', label: 'Barbering' },
+      ],
+      certificationsLabel: 'Qualifications',
+      certifications: [
+        { value: 'licensed', label: 'Licensed' },
+        { value: 'trained', label: 'Professionally Trained' },
+        { value: 'certified', label: 'Certified Stylist' },
+      ],
+      defaultSpecs: [
+        { label: 'Duration', value: '' },
+        { label: 'Products Used', value: '' },
+        { label: 'Aftercare', value: '' },
+      ],
+      hideStock: true,
+      hideLitersPerUnit: true,
+    },
+    layout: {
+      defaultTab: 'sales',
+      tabOrder: ['dashboard', 'sales', 'receipts', 'inventory', 'accounts', 'hr', 'contacts', 'website'],
+      hiddenTabs: ['agents', 'communities', 'messages', 'shop'],
+      quickActions: [
+        { id: 'new-appointment', label: 'New Appointment', icon: 'Calendar', targetTab: 'sales', highlight: true },
+        { id: 'service-list', label: 'Service List', icon: 'Scissors', targetTab: 'inventory' },
+        { id: 'record-payment', label: 'Record Payment', icon: 'CreditCard', targetTab: 'receipts' },
+      ],
+      kpiCards: [
+        { id: 'todays-revenue', title: "Today's Revenue", metric: 'total_revenue', icon: 'DollarSign', color: 'text-emerald-600', bgColor: 'bg-emerald-500/10' },
+        { id: 'appointments-today', title: 'Appointments Today', metric: 'appointments_today', icon: 'Calendar', color: 'text-[#004B8D]', bgColor: 'bg-[#004B8D]/10' },
+        { id: 'product-stock', title: 'Product Stock', metric: 'inventory_value', icon: 'Package', color: 'text-pink-600', bgColor: 'bg-pink-500/10' },
+        { id: 'outstanding-bills', title: 'Outstanding Bills', metric: 'pending_invoices', icon: 'Clock', color: 'text-amber-600', bgColor: 'bg-amber-500/10' },
+      ],
+      welcomeMessage: 'Manage appointments, services, and client beauty needs',
+      dashboardIcon: 'Scissors',
+    },
+  },
+
+  healthcare: {
+    label: 'Healthcare / Clinic',
+    description: 'Manage patient consultations and medical services',
+    inventory: {
+      enabled: true,
+      seedProfile: 'generic',
+    },
+    terminology: {
+      product: 'Service',
+      products: 'Services',
+      customer: 'Patient',
+      customers: 'Patients',
+      customerId: 'Patient ID',
+      sale: 'Consultation',
+      sales: 'Consultations',
+      revenue: 'Revenue',
+      invoice: 'Bill',
+      invoices: 'Bills',
+      inventory: 'Pharmacy & Services',
+      community: 'Facility',
+      communities: 'Facilities',
+      defaultItemType: 'service',
+      isServiceBased: true,
+    },
+    impact: {
+      enabled: true,
+      unitLabel: 'Patients Served',
+      beneficiariesLabel: 'Lives Improved',
+      description: 'Track healthcare impact',
+    },
+    formFields: {
+      skuPlaceholder: 'e.g., MED-001',
+      namePlaceholder: 'e.g., General Consultation',
+      highlightPlaceholder: 'e.g., Specialist Service',
+      descriptionPlaceholder: 'Describe the service or medication...',
+      featuresPlaceholder: 'Professional care\nQualified staff\nConfidential',
+      categories: [
+        { value: 'consultation_fee', label: 'Consultation' },
+        { value: 'medication', label: 'Medication' },
+        { value: 'lab_test', label: 'Lab Test' },
+        { value: 'procedure', label: 'Procedure' },
+        { value: 'vaccination', label: 'Vaccination' },
+      ],
+      certificationsLabel: 'Accreditations',
+      certifications: [
+        { value: 'hpcz', label: 'HPCZ Registered' },
+        { value: 'moh', label: 'MOH Approved' },
+        { value: 'quality', label: 'Quality Certified' },
+      ],
+      defaultSpecs: [
+        { label: 'Dosage', value: '' },
+        { label: 'Duration', value: '' },
+        { label: 'Instructions', value: '' },
+      ],
+    },
+    layout: {
+      defaultTab: 'dashboard',
+      tabOrder: ['dashboard', 'sales', 'receipts', 'inventory', 'accounts', 'hr', 'contacts', 'website'],
+      hiddenTabs: ['agents', 'communities', 'messages', 'shop'],
+      quickActions: [
+        { id: 'new-consultation', label: 'New Consultation', icon: 'Stethoscope', targetTab: 'sales', highlight: true },
+        { id: 'patient-records', label: 'Patient Records', icon: 'FileText', targetTab: 'accounts' },
+        { id: 'dispense-medication', label: 'Dispense Medication', icon: 'Pill', targetTab: 'inventory' },
+      ],
+      kpiCards: [
+        { id: 'daily-revenue', title: 'Daily Revenue', metric: 'total_revenue', icon: 'DollarSign', color: 'text-emerald-600', bgColor: 'bg-emerald-500/10' },
+        { id: 'patients-today', title: 'Patients Today', metric: 'patients_today', icon: 'Stethoscope', color: 'text-[#004B8D]', bgColor: 'bg-[#004B8D]/10' },
+        { id: 'pharmacy-stock', title: 'Pharmacy Stock', metric: 'inventory_value', icon: 'Package', color: 'text-teal-600', bgColor: 'bg-teal-500/10' },
+        { id: 'pending-bills', title: 'Pending Bills', metric: 'pending_invoices', icon: 'Clock', color: 'text-amber-600', bgColor: 'bg-amber-500/10' },
+      ],
+      welcomeMessage: 'Manage patient consultations and healthcare services',
+      dashboardIcon: 'Stethoscope',
+    },
+  },
+
+  autoshop: {
+    label: 'Auto Shop / Garage',
+    description: 'Manage vehicle repairs and parts inventory',
+    inventory: {
+      enabled: true,
+      seedProfile: 'generic',
+      allowVariants: true,
+    },
+    terminology: {
+      product: 'Part',
+      products: 'Parts',
+      customer: 'Customer',
+      customers: 'Customers',
+      customerId: 'Customer ID',
+      sale: 'Job Card',
+      sales: 'Job Cards',
+      revenue: 'Revenue',
+      invoice: 'Invoice',
+      invoices: 'Invoices',
+      inventory: 'Parts & Services',
+      community: 'Partner',
+      communities: 'Partners',
+      defaultItemType: 'product',
+      isServiceBased: false,
+    },
+    impact: {
+      enabled: false,
+    },
+    formFields: {
+      skuPlaceholder: 'e.g., PART-001',
+      namePlaceholder: 'e.g., Brake Pad Set - Toyota',
+      highlightPlaceholder: 'e.g., OEM Quality',
+      descriptionPlaceholder: 'Describe the part or service...',
+      featuresPlaceholder: 'OEM quality\nWarranty included\nProfessional installation',
+      categories: [
+        { value: 'repair', label: 'Repair' },
+        { value: 'service_auto', label: 'Service' },
+        { value: 'parts', label: 'Parts' },
+        { value: 'tyres', label: 'Tyres' },
+        { value: 'accessories', label: 'Accessories' },
+        { value: 'bodywork', label: 'Body Work' },
+      ],
+      certificationsLabel: 'Certifications',
+      certifications: [
+        { value: 'oem', label: 'OEM Quality' },
+        { value: 'warranty', label: 'Warranty Provided' },
+        { value: 'certified-mechanic', label: 'Certified Mechanics' },
+      ],
+      defaultSpecs: [
+        { label: 'Compatibility', value: '' },
+        { label: 'Warranty Period', value: '' },
+        { label: 'Brand', value: '' },
+      ],
+    },
+    layout: {
+      defaultTab: 'sales',
+      tabOrder: ['dashboard', 'sales', 'receipts', 'inventory', 'accounts', 'hr', 'contacts', 'website'],
+      hiddenTabs: ['agents', 'communities', 'messages'],
+      quickActions: [
+        { id: 'new-job-card', label: 'New Job Card', icon: 'Wrench', targetTab: 'sales', highlight: true },
+        { id: 'parts-inventory', label: 'Parts Inventory', icon: 'Package', targetTab: 'inventory' },
+        { id: 'record-payment', label: 'Record Payment', icon: 'CreditCard', targetTab: 'receipts' },
+      ],
+      kpiCards: [
+        { id: 'jobs-revenue', title: 'Jobs Revenue', metric: 'total_revenue', icon: 'DollarSign', color: 'text-emerald-600', bgColor: 'bg-emerald-500/10' },
+        { id: 'jobs-in-progress', title: 'Jobs In Progress', metric: 'jobs_in_progress', icon: 'Wrench', color: 'text-[#004B8D]', bgColor: 'bg-[#004B8D]/10' },
+        { id: 'parts-stock', title: 'Parts Stock', metric: 'inventory_value', icon: 'Package', color: 'text-teal-600', bgColor: 'bg-teal-500/10' },
+        { id: 'pending-invoices', title: 'Pending Invoices', metric: 'pending_invoices', icon: 'Clock', color: 'text-amber-600', bgColor: 'bg-amber-500/10' },
+      ],
+      welcomeMessage: 'Manage vehicle repairs, parts, and job cards',
+      dashboardIcon: 'Wrench',
     },
   },
 };
