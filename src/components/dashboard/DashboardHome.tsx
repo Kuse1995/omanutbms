@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { 
   Package, DollarSign, Users, AlertTriangle, TrendingUp, Droplets, 
   ShoppingCart, Receipt, FileText, Heart, CreditCard, Clock, 
-  GraduationCap, Briefcase, Truck, type LucideIcon 
+  GraduationCap, Briefcase, Truck, Wheat, UtensilsCrossed, Scissors,
+  Stethoscope, Wrench, Calendar, Pill, Store, type LucideIcon 
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useFeatures } from "@/hooks/useFeatures";
@@ -27,13 +28,20 @@ interface DashboardMetrics {
   activeClients: number;
   studentsEnrolled: number;
   donationsReceived: number;
+  // New metrics for Zambian SME types
+  bookingsToday: number;
+  appointmentsToday: number;
+  patientsToday: number;
+  jobsInProgress: number;
+  livestockCount: number;
 }
 
 // Icon mapping
 const iconMap: Record<string, LucideIcon> = {
   Package, DollarSign, Users, AlertTriangle, TrendingUp, Droplets,
   ShoppingCart, Receipt, FileText, Heart, CreditCard, Clock,
-  GraduationCap, Briefcase, Truck
+  GraduationCap, Briefcase, Truck, Wheat, UtensilsCrossed, Scissors,
+  Stethoscope, Wrench, Calendar, Pill, Store
 };
 
 export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
@@ -46,6 +54,11 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
     activeClients: 0,
     studentsEnrolled: 0,
     donationsReceived: 0,
+    bookingsToday: 0,
+    appointmentsToday: 0,
+    patientsToday: 0,
+    jobsInProgress: 0,
+    livestockCount: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
   const { features, loading: featuresLoading, companyName, currencySymbol } = useFeatures();
@@ -116,6 +129,37 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
         ).length;
         const totalRevenue = salesData?.reduce((sum, sale) => sum + Number(sale.total_amount), 0) || 0;
 
+        // Get today's date for daily metrics
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Fetch today's sales count for appointments/consultations/bookings
+        const { data: todaySalesData } = await supabase
+          .from("sales")
+          .select("id")
+          .eq("tenant_id", tenantId)
+          .gte("sale_date", today.toISOString());
+
+        const todaySalesCount = todaySalesData?.length || 0;
+
+        // Fetch pending/in-progress invoices for jobs in progress
+        const { data: pendingJobs } = await supabase
+          .from("invoices")
+          .select("id")
+          .eq("tenant_id", tenantId)
+          .eq("status", "pending");
+
+        // Fetch livestock count (items in livestock category)
+        let livestockCount = 0;
+        if (features.inventory) {
+          const { data: livestockData } = await supabase
+            .from("inventory")
+            .select("current_stock")
+            .eq("tenant_id", tenantId)
+            .eq("category", "livestock");
+          livestockCount = livestockData?.reduce((sum, item) => sum + item.current_stock, 0) || 0;
+        }
+
         setMetrics({
           inventoryValue: totalValue,
           pendingInvoices: transactions?.length || 0,
@@ -123,8 +167,13 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
           lowStockAlerts: lowStock,
           totalRevenue,
           activeClients: uniqueClients,
-          studentsEnrolled: uniqueClients, // For schools, clients = students
-          donationsReceived: totalRevenue, // For NGOs, revenue = donations
+          studentsEnrolled: uniqueClients,
+          donationsReceived: totalRevenue,
+          bookingsToday: todaySalesCount,
+          appointmentsToday: todaySalesCount,
+          patientsToday: todaySalesCount,
+          jobsInProgress: pendingJobs?.length || 0,
+          livestockCount,
         });
       } catch (error) {
         console.error("Error fetching metrics:", error);
@@ -157,6 +206,18 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
         return metrics.studentsEnrolled.toString();
       case 'donations_received':
         return `${currencySymbol} ${metrics.donationsReceived.toLocaleString()}`;
+      case 'bookings_today':
+        return metrics.bookingsToday.toString();
+      case 'appointments_today':
+        return metrics.appointmentsToday.toString();
+      case 'patients_today':
+        return metrics.patientsToday.toString();
+      case 'jobs_in_progress':
+        return metrics.jobsInProgress.toString();
+      case 'livestock_count':
+        return metrics.livestockCount.toString();
+      case 'harvest_value':
+        return `${currencySymbol} ${metrics.totalRevenue.toLocaleString()}`;
       default:
         return '0';
     }
