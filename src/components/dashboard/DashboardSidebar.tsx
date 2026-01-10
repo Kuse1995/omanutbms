@@ -1,4 +1,8 @@
-import { Package, DollarSign, LayoutDashboard, Settings, HelpCircle, Users, Shield, MessageSquare, Globe, ShoppingCart, Store, Heart, Receipt, Mail, Building2, Layers, Crown, LogOut } from "lucide-react";
+import { 
+  Package, DollarSign, LayoutDashboard, Settings, HelpCircle, Users, Shield, 
+  MessageSquare, Globe, ShoppingCart, Store, Heart, Receipt, Mail, Building2, 
+  Layers, Crown, LogOut, Truck, GraduationCap, Briefcase, type LucideIcon 
+} from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -15,6 +19,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useFeatures } from "@/hooks/useFeatures";
 import { useBranding } from "@/hooks/useBranding";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 import { PoweredByFooter } from "./PoweredByFooter";
 import type { DashboardTab } from "@/pages/Dashboard";
 import type { FeatureKey } from "@/lib/feature-config";
@@ -28,10 +33,32 @@ interface DashboardSidebarProps {
 interface MenuItem {
   id: DashboardTab;
   title: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: LucideIcon;
   feature: FeatureKey | null;
-  dynamicTitle?: 'sales';
+  dynamicTitle?: 'sales' | 'inventory';
 }
+
+// Icon mapping for dashboard icons from config
+const iconMap: Record<string, LucideIcon> = {
+  Truck,
+  Store,
+  GraduationCap,
+  Heart,
+  Briefcase,
+  LayoutDashboard,
+  Package,
+  ShoppingCart,
+  Receipt,
+  DollarSign,
+  Users,
+  MessageSquare,
+  Globe,
+  Mail,
+  Shield,
+  Building2,
+  Layers,
+  Crown,
+};
 
 const adminItems = [
   { id: "settings" as DashboardTab, title: "Access Control", icon: Shield },
@@ -39,10 +66,27 @@ const adminItems = [
   { id: "modules" as DashboardTab, title: "Modules & Plans", icon: Layers },
 ];
 
+// Base menu items with feature requirements
+const baseMenuItems: MenuItem[] = [
+  { id: "dashboard", title: "Dashboard", icon: LayoutDashboard, feature: null },
+  { id: "sales", title: "Sales", icon: ShoppingCart, feature: null, dynamicTitle: 'sales' },
+  { id: "receipts", title: "Receipts", icon: Receipt, feature: null },
+  { id: "accounts", title: "Accounts", icon: DollarSign, feature: null },
+  { id: "hr", title: "HR & Payroll", icon: Users, feature: 'payroll' },
+  { id: "agents", title: "Agents", icon: Users, feature: 'agents' },
+  { id: "inventory", title: "Inventory", icon: Package, feature: 'inventory', dynamicTitle: 'inventory' },
+  { id: "shop", title: "Shop Manager", icon: Store, feature: 'inventory' },
+  { id: "communities", title: "Communities", icon: Heart, feature: 'impact' },
+  { id: "messages", title: "Community Messages", icon: MessageSquare, feature: 'impact' },
+  { id: "contacts", title: "Website Contacts", icon: Mail, feature: 'website' },
+  { id: "website", title: "Website", icon: Globe, feature: 'website' },
+];
+
 export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarProps) {
   const { isAdmin, isSuperAdmin, signOut } = useAuth();
   const { features, terminology, loading, companyName } = useFeatures();
   const { logoUrl, primaryColor, tagline } = useBranding();
+  const { layout, businessType } = useBusinessConfig();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -50,26 +94,39 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
     navigate("/auth");
   };
 
-  // Define menu items with feature requirements
-  const menuItems: MenuItem[] = [
-    { id: "dashboard", title: "Dashboard", icon: LayoutDashboard, feature: null },
-    { id: "sales", title: terminology.salesLabel, icon: ShoppingCart, feature: null, dynamicTitle: 'sales' },
-    { id: "receipts", title: "Receipts", icon: Receipt, feature: null },
-    { id: "accounts", title: "Accounts", icon: DollarSign, feature: null },
-    { id: "hr", title: "HR & Payroll", icon: Users, feature: 'payroll' },
-    { id: "agents", title: "Agents", icon: Users, feature: 'agents' },
-    { id: "inventory", title: terminology.inventoryLabel, icon: Package, feature: 'inventory' },
-    { id: "shop", title: "Shop Manager", icon: Store, feature: 'inventory' },
-    { id: "communities", title: "Communities", icon: Heart, feature: 'impact' },
-    { id: "messages", title: "Community Messages", icon: MessageSquare, feature: 'impact' },
-    { id: "contacts", title: "Website Contacts", icon: Mail, feature: 'website' },
-    { id: "website", title: "Website", icon: Globe, feature: 'website' },
-  ];
+  // Get menu items ordered and filtered by business type layout
+  const getOrderedMenuItems = (): MenuItem[] => {
+    const { tabOrder, hiddenTabs } = layout;
+    
+    // Filter out hidden tabs and items without enabled features
+    const visibleItems = baseMenuItems.filter(item => {
+      // Check if tab is hidden by business type
+      if (hiddenTabs.includes(item.id)) return false;
+      // Check if feature is enabled
+      if (item.feature && !features[item.feature]) return false;
+      return true;
+    });
 
-  // Filter menu items based on enabled features
-  const visibleMenuItems = menuItems.filter(
-    (item) => !item.feature || features[item.feature]
-  );
+    // Sort by tab order from layout config
+    return visibleItems.sort((a, b) => {
+      const aIndex = tabOrder.indexOf(a.id);
+      const bIndex = tabOrder.indexOf(b.id);
+      // Items not in tabOrder go to the end
+      if (aIndex === -1) return 1;
+      if (bIndex === -1) return -1;
+      return aIndex - bIndex;
+    });
+  };
+
+  // Apply dynamic titles based on terminology
+  const getItemTitle = (item: MenuItem): string => {
+    if (item.dynamicTitle === 'sales') return terminology.salesLabel;
+    if (item.dynamicTitle === 'inventory') return terminology.inventoryLabel;
+    return item.title;
+  };
+
+  // Get dashboard icon from layout config
+  const DashboardIcon = iconMap[layout.dashboardIcon] || LayoutDashboard;
 
   // Show skeleton while loading to prevent flash of content
   if (loading) {
@@ -102,6 +159,8 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
     );
   }
 
+  const orderedMenuItems = getOrderedMenuItems();
+
   return (
     <Sidebar className="border-r border-[#003366]/30 bg-gradient-to-b from-[#004B8D] to-[#003366]">
       <SidebarHeader className="p-4 border-b border-white/10">
@@ -109,8 +168,8 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
           {logoUrl ? (
             <img src={logoUrl} alt={companyName || 'Company'} className="h-10 w-10 rounded-lg object-contain bg-white/10" />
           ) : (
-            <div className="h-10 w-10 rounded-lg bg-white/20 flex items-center justify-center text-white font-bold text-lg">
-              {(companyName || 'O').charAt(0)}
+            <div className="h-10 w-10 rounded-lg bg-white/20 flex items-center justify-center text-white">
+              <DashboardIcon className="h-5 w-5" />
             </div>
           )}
           <div>
@@ -129,7 +188,7 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {visibleMenuItems.map((item) => (
+              {orderedMenuItems.map((item) => (
                 <SidebarMenuItem key={item.id}>
                   <SidebarMenuButton
                     onClick={() => setActiveTab(item.id)}
@@ -140,7 +199,7 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
                     }`}
                   >
                     <item.icon className="w-5 h-5" />
-                    <span className="font-medium">{item.title}</span>
+                    <span className="font-medium">{getItemTitle(item)}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}

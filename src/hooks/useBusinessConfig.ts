@@ -5,7 +5,8 @@ import {
   BusinessType,
   TerminologyConfig,
   ImpactConfig,
-  InventoryConfig 
+  InventoryConfig,
+  DashboardLayoutConfig 
 } from '@/lib/business-type-config';
 
 export interface UseBusinessConfigReturn {
@@ -15,6 +16,7 @@ export interface UseBusinessConfigReturn {
   terminology: TerminologyConfig;
   impact: ImpactConfig;
   inventory: InventoryConfig;
+  layout: DashboardLayoutConfig;
   // Tenant branding
   companyName: string | null;
   tagline: string | null;
@@ -45,6 +47,7 @@ export function useBusinessConfig(): UseBusinessConfigReturn {
     terminology: config.terminology,
     impact: config.impact,
     inventory: config.inventory,
+    layout: config.layout,
     // Tenant branding from business profile
     companyName: businessProfile?.company_name ?? null,
     tagline: businessProfile?.tagline ?? null,

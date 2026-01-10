@@ -1,28 +1,55 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Package, DollarSign, Users, AlertTriangle, TrendingUp, Droplets } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { 
+  Package, DollarSign, Users, AlertTriangle, TrendingUp, Droplets, 
+  ShoppingCart, Receipt, FileText, Heart, CreditCard, Clock, 
+  GraduationCap, Briefcase, Truck, type LucideIcon 
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useFeatures } from "@/hooks/useFeatures";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 import { useTenant } from "@/hooks/useTenant";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { DashboardTab } from "@/pages/Dashboard";
+
+interface DashboardHomeProps {
+  setActiveTab?: (tab: DashboardTab) => void;
+}
 
 interface DashboardMetrics {
-  totalInventoryValue: number;
+  inventoryValue: number;
   pendingInvoices: number;
   activeAgents: number;
   lowStockAlerts: number;
+  totalRevenue: number;
+  activeClients: number;
+  studentsEnrolled: number;
+  donationsReceived: number;
 }
 
-export function DashboardHome() {
+// Icon mapping
+const iconMap: Record<string, LucideIcon> = {
+  Package, DollarSign, Users, AlertTriangle, TrendingUp, Droplets,
+  ShoppingCart, Receipt, FileText, Heart, CreditCard, Clock,
+  GraduationCap, Briefcase, Truck
+};
+
+export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
   const [metrics, setMetrics] = useState<DashboardMetrics>({
-    totalInventoryValue: 0,
+    inventoryValue: 0,
     pendingInvoices: 0,
     activeAgents: 0,
     lowStockAlerts: 0,
+    totalRevenue: 0,
+    activeClients: 0,
+    studentsEnrolled: 0,
+    donationsReceived: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
-  const { features, terminology, loading: featuresLoading, companyName, currencySymbol } = useFeatures();
+  const { features, loading: featuresLoading, companyName, currencySymbol } = useFeatures();
+  const { layout, terminology, businessType } = useBusinessConfig();
   const { tenantId } = useTenant();
 
   useEffect(() => {
@@ -43,7 +70,7 @@ export function DashboardHome() {
           inventoryData = data || [];
         }
 
-        // Fetch pending transactions (always fetch - core feature)
+        // Fetch pending transactions
         const { data: transactions } = await supabase
           .from("transactions")
           .select("status")
@@ -61,6 +88,25 @@ export function DashboardHome() {
           agentsData = data || [];
         }
 
+        // Fetch sales for revenue (this month)
+        const startOfMonth = new Date();
+        startOfMonth.setDate(1);
+        startOfMonth.setHours(0, 0, 0, 0);
+        
+        const { data: salesData } = await supabase
+          .from("sales")
+          .select("total_amount")
+          .eq("tenant_id", tenantId)
+          .gte("sale_date", startOfMonth.toISOString());
+
+        // Fetch unique clients from invoices
+        const { data: clientsData } = await supabase
+          .from("invoices")
+          .select("client_email")
+          .eq("tenant_id", tenantId);
+
+        const uniqueClients = new Set(clientsData?.map(c => c.client_email).filter(Boolean)).size;
+
         const totalValue = inventoryData.reduce(
           (sum, item) => sum + item.current_stock * Number(item.unit_price),
           0
@@ -68,12 +114,17 @@ export function DashboardHome() {
         const lowStock = inventoryData.filter(
           (item) => item.current_stock < (item.reorder_level || 10)
         ).length;
+        const totalRevenue = salesData?.reduce((sum, sale) => sum + Number(sale.total_amount), 0) || 0;
 
         setMetrics({
-          totalInventoryValue: totalValue,
+          inventoryValue: totalValue,
           pendingInvoices: transactions?.length || 0,
           activeAgents: agentsData.length,
           lowStockAlerts: lowStock,
+          totalRevenue,
+          activeClients: uniqueClients,
+          studentsEnrolled: uniqueClients, // For schools, clients = students
+          donationsReceived: totalRevenue, // For NGOs, revenue = donations
         });
       } catch (error) {
         console.error("Error fetching metrics:", error);
@@ -87,46 +138,44 @@ export function DashboardHome() {
     }
   }, [tenantId, features, featuresLoading]);
 
-  // Define cards with feature requirements
-  const allCards = [
-    {
-      title: `Total ${terminology.inventoryLabel} Value`,
-      value: `${currencySymbol} ${metrics.totalInventoryValue.toLocaleString()}`,
-      icon: Package,
-      color: "text-[#004B8D]",
-      bgColor: "bg-[#004B8D]/10",
-      feature: 'inventory' as const,
-    },
-    {
-      title: `Pending ${terminology.invoicesLabel}`,
-      value: metrics.pendingInvoices.toString(),
-      icon: DollarSign,
-      color: "text-[#0077B6]",
-      bgColor: "bg-[#0077B6]/10",
-      feature: null,
-    },
-    {
-      title: "Active Agents",
-      value: metrics.activeAgents.toString(),
-      icon: Users,
-      color: "text-teal-600",
-      bgColor: "bg-teal-500/10",
-      feature: 'agents' as const,
-    },
-    {
-      title: "Low Stock Alerts",
-      value: metrics.lowStockAlerts.toString(),
-      icon: AlertTriangle,
-      color: metrics.lowStockAlerts > 0 ? "text-red-500" : "text-gray-400",
-      bgColor: metrics.lowStockAlerts > 0 ? "bg-red-500/10" : "bg-gray-200",
-      feature: 'inventory' as const,
-    },
-  ];
+  // Get metric value based on metric type
+  const getMetricValue = (metric: string): string => {
+    switch (metric) {
+      case 'inventory_value':
+        return `${currencySymbol} ${metrics.inventoryValue.toLocaleString()}`;
+      case 'pending_invoices':
+        return metrics.pendingInvoices.toString();
+      case 'active_agents':
+        return metrics.activeAgents.toString();
+      case 'low_stock':
+        return metrics.lowStockAlerts.toString();
+      case 'total_revenue':
+        return `${currencySymbol} ${metrics.totalRevenue.toLocaleString()}`;
+      case 'active_clients':
+        return metrics.activeClients.toString();
+      case 'students_enrolled':
+        return metrics.studentsEnrolled.toString();
+      case 'donations_received':
+        return `${currencySymbol} ${metrics.donationsReceived.toLocaleString()}`;
+      default:
+        return '0';
+    }
+  };
 
-  // Filter cards based on enabled features
-  const visibleCards = allCards.filter(
-    (card) => !card.feature || features[card.feature]
-  );
+  // Get dynamic color for low stock alerts
+  const getCardColor = (card: typeof layout.kpiCards[0]): string => {
+    if (card.metric === 'low_stock' && metrics.lowStockAlerts > 0) {
+      return 'text-red-500';
+    }
+    return card.color;
+  };
+
+  const getCardBgColor = (card: typeof layout.kpiCards[0]): string => {
+    if (card.metric === 'low_stock' && metrics.lowStockAlerts > 0) {
+      return 'bg-red-500/10';
+    }
+    return card.bgColor;
+  };
 
   // Show loading state while features are loading
   if (featuresLoading) {
@@ -145,6 +194,9 @@ export function DashboardHome() {
     );
   }
 
+  const kpiCards = layout.kpiCards;
+  const quickActions = layout.quickActions;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -154,37 +206,42 @@ export function DashboardHome() {
       <div className="mb-6">
         <h2 className="text-2xl font-display font-bold text-[#003366] mb-2">Dashboard Overview</h2>
         <p className="text-[#004B8D]/60">
-          Welcome to {companyName || 'Omanut'} Business Management System
+          Welcome to {companyName || 'Omanut'} — {layout.welcomeMessage}
         </p>
       </div>
 
-      <div className={`grid grid-cols-1 md:grid-cols-2 ${visibleCards.length >= 4 ? 'lg:grid-cols-4' : `lg:grid-cols-${visibleCards.length}`} gap-4 mb-8`}>
-        {visibleCards.map((card, index) => (
-          <motion.div
-            key={card.title}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: index * 0.1 }}
-          >
-            <Card className="bg-white border-[#004B8D]/10 shadow-sm hover:shadow-md transition-shadow">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-[#004B8D]/70">
-                  {card.title}
-                </CardTitle>
-                <div className={`p-2 rounded-lg ${card.bgColor}`}>
-                  <card.icon className={`h-4 w-4 ${card.color}`} />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-[#003366]">
-                  {isLoading ? "..." : card.value}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        ))}
+      {/* Dynamic KPI Cards */}
+      <div className={`grid grid-cols-1 md:grid-cols-2 ${kpiCards.length >= 4 ? 'lg:grid-cols-4' : `lg:grid-cols-${kpiCards.length}`} gap-4 mb-8`}>
+        {kpiCards.map((card, index) => {
+          const Icon = iconMap[card.icon] || Package;
+          return (
+            <motion.div
+              key={card.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: index * 0.1 }}
+            >
+              <Card className="bg-white border-[#004B8D]/10 shadow-sm hover:shadow-md transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-[#004B8D]/70">
+                    {card.title}
+                  </CardTitle>
+                  <div className={`p-2 rounded-lg ${getCardBgColor(card)}`}>
+                    <Icon className={`h-4 w-4 ${getCardColor(card)}`} />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-[#003366]">
+                    {isLoading ? "..." : getMetricValue(card.metric)}
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          );
+        })}
       </div>
 
+      {/* Quick Actions & Info Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="bg-white border-[#004B8D]/10 shadow-sm">
           <CardHeader>
@@ -194,8 +251,25 @@ export function DashboardHome() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-[#004B8D]/60 text-sm">
-              Navigate to specific sections using the sidebar to manage {terminology.inventoryLabel.toLowerCase()}, accounts, and HR operations.
+            <div className="flex flex-wrap gap-2">
+              {quickActions.map((action) => {
+                const ActionIcon = iconMap[action.icon] || Package;
+                return (
+                  <Button
+                    key={action.id}
+                    variant={action.highlight ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setActiveTab?.(action.targetTab)}
+                    className={action.highlight ? "bg-[#004B8D] hover:bg-[#003366]" : ""}
+                  >
+                    <ActionIcon className="h-4 w-4 mr-2" />
+                    {action.label}
+                  </Button>
+                );
+              })}
+            </div>
+            <p className="text-[#004B8D]/60 text-sm mt-3">
+              Navigate to specific sections using the sidebar to manage your business operations.
             </p>
           </CardContent>
         </Card>
@@ -211,6 +285,22 @@ export function DashboardHome() {
             <CardContent>
               <p className="text-[#004B8D]/60 text-sm">
                 View detailed impact metrics and generate certificates in the Accounts section.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {!features.impact && (
+          <Card className="bg-white border-[#004B8D]/10 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-[#003366] flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-emerald-600" />
+                Performance Tips
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-[#004B8D]/60 text-sm">
+                Use the Accounts section to view detailed financial reports and analytics for your business.
               </p>
             </CardContent>
           </Card>

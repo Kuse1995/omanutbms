@@ -20,13 +20,15 @@ import { WebsiteContactsManagement } from "@/components/dashboard/WebsiteContact
 import { PoweredByFooter } from "@/components/dashboard/PoweredByFooter";
 import { SuperAdminPanel } from "@/components/dashboard/SuperAdminPanel";
 import { useFeatures } from "@/hooks/useFeatures";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
 export type DashboardTab = "dashboard" | "sales" | "receipts" | "accounts" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings" | "tenant-settings" | "modules" | "platform-admin";
 
 const Dashboard = () => {
-  const [activeTab, setActiveTab] = useState<DashboardTab>("dashboard");
+  const { layout, loading: configLoading } = useBusinessConfig();
+  const [activeTab, setActiveTab] = useState<DashboardTab>(layout.defaultTab);
   const { canAccessTab, loading } = useFeatures();
   const { toast } = useToast();
   const { isSuperAdmin } = useAuth();
@@ -86,7 +88,7 @@ const Dashboard = () => {
   const renderContent = () => {
     switch (activeTab) {
       case "dashboard":
-        return <DashboardHome />;
+        return <DashboardHome setActiveTab={handleSetActiveTab} />;
       case "sales":
         return <SalesRecorder />;
       case "receipts":

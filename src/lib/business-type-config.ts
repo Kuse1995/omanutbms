@@ -1,6 +1,8 @@
 // Business Type Configuration - Single Source of Truth
 // All behavior must be derived from the tenant's selected business_type
 
+import type { DashboardTab } from '@/pages/Dashboard';
+
 export type BusinessType = 'distribution' | 'retail' | 'school' | 'ngo' | 'services';
 
 export interface InventoryConfig {
@@ -50,6 +52,36 @@ export interface FormFieldConfig {
   hideLitersPerUnit?: boolean;
 }
 
+// Quick Action configuration
+export interface QuickActionConfig {
+  id: string;
+  label: string;
+  icon: string;
+  targetTab: DashboardTab;
+  highlight?: boolean;
+}
+
+// KPI Card configuration
+export interface KPICardConfig {
+  id: string;
+  title: string;
+  metric: 'inventory_value' | 'pending_invoices' | 'active_agents' | 'low_stock' | 'total_revenue' | 'active_clients' | 'students_enrolled' | 'donations_received';
+  icon: string;
+  color: string;
+  bgColor: string;
+}
+
+// Dashboard Layout configuration per business type
+export interface DashboardLayoutConfig {
+  defaultTab: DashboardTab;
+  tabOrder: DashboardTab[];
+  hiddenTabs: DashboardTab[];
+  quickActions: QuickActionConfig[];
+  kpiCards: KPICardConfig[];
+  welcomeMessage: string;
+  dashboardIcon: string;
+}
+
 export interface BusinessTypeConfig {
   label: string;
   description: string;
@@ -57,6 +89,7 @@ export interface BusinessTypeConfig {
   terminology: TerminologyConfig;
   impact: ImpactConfig;
   formFields: FormFieldConfig;
+  layout: DashboardLayoutConfig;
 }
 
 export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
@@ -120,6 +153,24 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
         { label: 'Warranty', value: '' },
       ],
     },
+    layout: {
+      defaultTab: 'dashboard',
+      tabOrder: ['dashboard', 'agents', 'inventory', 'sales', 'receipts', 'accounts', 'communities', 'messages', 'hr', 'shop', 'contacts', 'website'],
+      hiddenTabs: [],
+      quickActions: [
+        { id: 'new-distribution', label: 'New Distribution', icon: 'Truck', targetTab: 'sales', highlight: true },
+        { id: 'manage-agents', label: 'Manage Agents', icon: 'Users', targetTab: 'agents' },
+        { id: 'view-inventory', label: 'View Inventory', icon: 'Package', targetTab: 'inventory' },
+      ],
+      kpiCards: [
+        { id: 'inventory-value', title: 'Total Inventory Value', metric: 'inventory_value', icon: 'Package', color: 'text-[#004B8D]', bgColor: 'bg-[#004B8D]/10' },
+        { id: 'active-agents', title: 'Active Agents', metric: 'active_agents', icon: 'Users', color: 'text-teal-600', bgColor: 'bg-teal-500/10' },
+        { id: 'pending-invoices', title: 'Pending Invoices', metric: 'pending_invoices', icon: 'DollarSign', color: 'text-[#0077B6]', bgColor: 'bg-[#0077B6]/10' },
+        { id: 'low-stock', title: 'Low Stock Alerts', metric: 'low_stock', icon: 'AlertTriangle', color: 'text-amber-600', bgColor: 'bg-amber-500/10' },
+      ],
+      welcomeMessage: 'Manage your distribution network and agent inventory',
+      dashboardIcon: 'Truck',
+    },
   },
 
   retail: {
@@ -180,6 +231,24 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
         { label: 'Warranty', value: '' },
       ],
     },
+    layout: {
+      defaultTab: 'sales',
+      tabOrder: ['dashboard', 'sales', 'receipts', 'inventory', 'shop', 'accounts', 'hr', 'contacts', 'website'],
+      hiddenTabs: ['agents', 'communities', 'messages'],
+      quickActions: [
+        { id: 'new-sale', label: 'New Sale', icon: 'ShoppingCart', targetTab: 'sales', highlight: true },
+        { id: 'browse-products', label: 'Browse Products', icon: 'Package', targetTab: 'inventory' },
+        { id: 'view-receipts', label: 'View Receipts', icon: 'Receipt', targetTab: 'receipts' },
+      ],
+      kpiCards: [
+        { id: 'total-revenue', title: "Today's Sales", metric: 'total_revenue', icon: 'DollarSign', color: 'text-emerald-600', bgColor: 'bg-emerald-500/10' },
+        { id: 'inventory-value', title: 'Inventory Value', metric: 'inventory_value', icon: 'Package', color: 'text-[#004B8D]', bgColor: 'bg-[#004B8D]/10' },
+        { id: 'pending-invoices', title: 'Pending Invoices', metric: 'pending_invoices', icon: 'FileText', color: 'text-[#0077B6]', bgColor: 'bg-[#0077B6]/10' },
+        { id: 'low-stock', title: 'Low Stock Alerts', metric: 'low_stock', icon: 'AlertTriangle', color: 'text-amber-600', bgColor: 'bg-amber-500/10' },
+      ],
+      welcomeMessage: 'Manage your retail sales and inventory',
+      dashboardIcon: 'Store',
+    },
   },
 
   school: {
@@ -238,6 +307,23 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       hideStock: true,
       hideLitersPerUnit: true,
     },
+    layout: {
+      defaultTab: 'dashboard',
+      tabOrder: ['dashboard', 'sales', 'receipts', 'accounts', 'hr', 'communities', 'contacts', 'website'],
+      hiddenTabs: ['inventory', 'shop', 'agents', 'messages'],
+      quickActions: [
+        { id: 'collect-fee', label: 'Collect Fee', icon: 'CreditCard', targetTab: 'sales', highlight: true },
+        { id: 'fee-statements', label: 'Fee Statements', icon: 'FileText', targetTab: 'accounts' },
+        { id: 'view-students', label: 'Student Records', icon: 'GraduationCap', targetTab: 'communities' },
+      ],
+      kpiCards: [
+        { id: 'fee-collections', title: 'Fee Collections', metric: 'total_revenue', icon: 'CreditCard', color: 'text-emerald-600', bgColor: 'bg-emerald-500/10' },
+        { id: 'students-enrolled', title: 'Students Enrolled', metric: 'students_enrolled', icon: 'GraduationCap', color: 'text-[#004B8D]', bgColor: 'bg-[#004B8D]/10' },
+        { id: 'pending-fees', title: 'Outstanding Fees', metric: 'pending_invoices', icon: 'Clock', color: 'text-amber-600', bgColor: 'bg-amber-500/10' },
+      ],
+      welcomeMessage: 'Manage student fees and academic resources',
+      dashboardIcon: 'GraduationCap',
+    },
   },
 
   ngo: {
@@ -295,6 +381,24 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
         { label: 'Beneficiaries', value: '' },
         { label: 'Duration', value: '' },
       ],
+    },
+    layout: {
+      defaultTab: 'dashboard',
+      tabOrder: ['dashboard', 'communities', 'sales', 'receipts', 'inventory', 'accounts', 'messages', 'hr', 'contacts', 'website'],
+      hiddenTabs: ['shop', 'agents'],
+      quickActions: [
+        { id: 'record-donation', label: 'Record Contribution', icon: 'Heart', targetTab: 'sales', highlight: true },
+        { id: 'donor-report', label: 'Donor Report', icon: 'FileText', targetTab: 'accounts' },
+        { id: 'impact-tracking', label: 'Impact Tracking', icon: 'TrendingUp', targetTab: 'communities' },
+      ],
+      kpiCards: [
+        { id: 'donations', title: 'Donations Received', metric: 'donations_received', icon: 'Heart', color: 'text-rose-600', bgColor: 'bg-rose-500/10' },
+        { id: 'beneficiaries', title: 'Beneficiaries Reached', metric: 'active_clients', icon: 'Users', color: 'text-[#004B8D]', bgColor: 'bg-[#004B8D]/10' },
+        { id: 'inventory-value', title: 'Relief Supplies', metric: 'inventory_value', icon: 'Package', color: 'text-teal-600', bgColor: 'bg-teal-500/10' },
+        { id: 'pending', title: 'Pending Pledges', metric: 'pending_invoices', icon: 'Clock', color: 'text-amber-600', bgColor: 'bg-amber-500/10' },
+      ],
+      welcomeMessage: 'Track donations, beneficiaries, and social impact',
+      dashboardIcon: 'Heart',
     },
   },
 
@@ -358,6 +462,23 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       ],
       hideStock: true,
       hideLitersPerUnit: true,
+    },
+    layout: {
+      defaultTab: 'sales',
+      tabOrder: ['dashboard', 'sales', 'receipts', 'accounts', 'inventory', 'hr', 'contacts', 'website'],
+      hiddenTabs: ['shop', 'agents', 'communities', 'messages'],
+      quickActions: [
+        { id: 'new-invoice', label: 'Create Invoice', icon: 'FileText', targetTab: 'sales', highlight: true },
+        { id: 'client-list', label: 'Client List', icon: 'Users', targetTab: 'accounts' },
+        { id: 'service-catalog', label: 'Service Catalog', icon: 'Briefcase', targetTab: 'inventory' },
+      ],
+      kpiCards: [
+        { id: 'revenue', title: 'Revenue MTD', metric: 'total_revenue', icon: 'TrendingUp', color: 'text-emerald-600', bgColor: 'bg-emerald-500/10' },
+        { id: 'active-clients', title: 'Active Clients', metric: 'active_clients', icon: 'Users', color: 'text-[#004B8D]', bgColor: 'bg-[#004B8D]/10' },
+        { id: 'pending-invoices', title: 'Pending Invoices', metric: 'pending_invoices', icon: 'Clock', color: 'text-amber-600', bgColor: 'bg-amber-500/10' },
+      ],
+      welcomeMessage: 'Manage client projects, invoices, and service delivery',
+      dashboardIcon: 'Briefcase',
     },
   },
 };
