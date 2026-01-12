@@ -19,6 +19,8 @@ import { AgentsManager } from "@/components/dashboard/AgentsManager";
 import { WebsiteContactsManagement } from "@/components/dashboard/WebsiteContactsManagement";
 import { PoweredByFooter } from "@/components/dashboard/PoweredByFooter";
 import { SuperAdminPanel } from "@/components/dashboard/SuperAdminPanel";
+import { OnboardingTour } from "@/components/dashboard/OnboardingTour";
+import { useOnboardingTour } from "@/hooks/useOnboardingTour";
 import { useFeatures } from "@/hooks/useFeatures";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 import { useToast } from "@/hooks/use-toast";
@@ -32,6 +34,7 @@ const Dashboard = () => {
   const { canAccessTab, loading } = useFeatures();
   const { toast } = useToast();
   const { isSuperAdmin } = useAuth();
+  const { runTour, completeTour, isLoading: tourLoading } = useOnboardingTour();
 
   // Route protection: redirect to dashboard if user tries to access disabled feature
   useEffect(() => {
@@ -135,6 +138,11 @@ const Dashboard = () => {
           </main>
         </div>
       </div>
+      
+      {/* Onboarding Tour */}
+      {!tourLoading && (
+        <OnboardingTour run={runTour} onComplete={completeTour} />
+      )}
     </SidebarProvider>
   );
 };

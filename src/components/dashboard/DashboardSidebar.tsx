@@ -162,7 +162,7 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
   const orderedMenuItems = getOrderedMenuItems();
 
   return (
-    <Sidebar className="border-r border-[#003366]/30 bg-gradient-to-b from-[#004B8D] to-[#003366]">
+    <Sidebar className="border-r border-[#003366]/30 bg-gradient-to-b from-[#004B8D] to-[#003366]" data-tour="sidebar">
       <SidebarHeader className="p-4 border-b border-white/10">
         <div className="flex items-center gap-3">
           {logoUrl ? (
@@ -189,7 +189,7 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
           <SidebarGroupContent>
             <SidebarMenu>
               {orderedMenuItems.map((item) => (
-                <SidebarMenuItem key={item.id}>
+                <SidebarMenuItem key={item.id} data-tour={`${item.id}-nav`}>
                   <SidebarMenuButton
                     onClick={() => setActiveTab(item.id)}
                     className={`w-full justify-start gap-3 px-3 py-2.5 rounded-lg transition-all ${
@@ -264,7 +264,7 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
 
       <SidebarFooter className="p-4 border-t border-white/10">
         <SidebarMenu>
-          <SidebarMenuItem>
+          <SidebarMenuItem data-tour="settings-nav">
             <SidebarMenuButton 
               onClick={() => setActiveTab("settings")}
               className={`w-full justify-start gap-3 px-3 py-2 rounded-lg transition-all ${

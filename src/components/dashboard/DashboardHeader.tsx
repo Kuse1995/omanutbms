@@ -57,7 +57,9 @@ export function DashboardHeader() {
         </div>
 
         <div className="flex items-center gap-4">
-          <NotificationsCenter />
+          <div data-tour="header-notifications">
+            <NotificationsCenter />
+          </div>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
