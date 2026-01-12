@@ -263,6 +263,7 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
+      data-tour="dashboard-home"
     >
       <div className="mb-6">
         <h2 className="text-2xl font-display font-bold text-[#003366] mb-2">Dashboard Overview</h2>
@@ -304,7 +305,7 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
 
       {/* Quick Actions & Info Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="bg-white border-[#004B8D]/10 shadow-sm">
+        <Card className="bg-white border-[#004B8D]/10 shadow-sm" data-tour="quick-actions">
           <CardHeader>
             <CardTitle className="text-[#003366] flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-teal-600" />
