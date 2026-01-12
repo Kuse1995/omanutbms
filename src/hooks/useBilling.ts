@@ -21,6 +21,7 @@ export interface UseBillingReturn {
   billingStartDate: string | null;
   billingEndDate: string | null;
   billingNotes: string | null;
+  trialExpiresAt: string | null;
 }
 
 /**
@@ -65,5 +66,6 @@ export function useBilling(): UseBillingReturn {
     billingStartDate: businessProfile?.billing_start_date ?? null,
     billingEndDate: businessProfile?.billing_end_date ?? null,
     billingNotes: businessProfile?.billing_notes ?? null,
+    trialExpiresAt: (businessProfile as any)?.trial_expires_at ?? null,
   };
 }

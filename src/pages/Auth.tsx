@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { z } from "zod";
 import { LayoutDashboard, Mail, Loader2, AlertCircle, Shield, Lock, Eye, EyeOff, ArrowLeft } from "lucide-react";
@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth, checkAuthorizedEmail } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { PlanSelector } from "@/components/auth/PlanSelector";
+import { BillingPlan, BILLING_PLANS } from "@/lib/billing-plans";
 
 interface ForgotPasswordFormProps {
   email: string;
@@ -142,6 +144,7 @@ const authSchema = z.object({
 });
 
 const Auth = () => {
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -149,10 +152,23 @@ const Auth = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState("signin");
   const [forgotPasswordMode, setForgotPasswordMode] = useState(false);
+  
+  // Plan selection for signup
+  const urlPlan = searchParams.get("plan") as BillingPlan | null;
+  const [selectedPlan, setSelectedPlan] = useState<BillingPlan>(
+    urlPlan && BILLING_PLANS[urlPlan] ? urlPlan : "starter"
+  );
 
   const { signIn, signUp, resetPassword, user, loading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // If plan is in URL, switch to signup tab
+  useEffect(() => {
+    if (urlPlan && BILLING_PLANS[urlPlan]) {
+      setActiveTab("signup");
+    }
+  }, [urlPlan]);
 
   useEffect(() => {
     if (!loading && user) {
@@ -388,12 +404,21 @@ const Auth = () => {
               <div className="flex items-center gap-2 mb-4">
                 <Shield className="w-5 h-5 text-emerald-400" />
                 <h2 className="text-lg font-semibold text-white">
-                  First Time Access
+                  Start Your Free Trial
                 </h2>
               </div>
               <p className="text-slate-400 text-sm mb-6">
-                Create your account with your authorized email.
+                Create your account and start your {BILLING_PLANS[selectedPlan].trialDays}-day free trial.
               </p>
+              
+              {/* Plan Selector */}
+              <div className="mb-6">
+                <PlanSelector 
+                  selectedPlan={selectedPlan} 
+                  onSelectPlan={setSelectedPlan} 
+                />
+              </div>
+              
               <form onSubmit={(e) => handleSubmit(e, true)} className="space-y-5">
                 <div className="space-y-2">
                   <Label htmlFor="signup-email" className="text-slate-300">
@@ -459,9 +484,13 @@ const Auth = () => {
                       Creating Account...
                     </>
                   ) : (
-                    "Create Account"
+                    `Start ${BILLING_PLANS[selectedPlan].label} Trial`
                   )}
                 </Button>
+                
+                <p className="text-xs text-center text-slate-500">
+                  No credit card required • Cancel anytime
+                </p>
               </form>
             </TabsContent>
           </Tabs>

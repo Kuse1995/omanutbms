@@ -475,10 +475,13 @@ export type Database = {
           primary_color: string | null
           secondary_color: string | null
           slogan: string | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
           tagline: string | null
           tax_enabled: boolean | null
           tax_rate: number | null
           tenant_id: string
+          trial_expires_at: string | null
           updated_at: string
           website_enabled: boolean | null
           white_label_enabled: boolean | null
@@ -509,10 +512,13 @@ export type Database = {
           primary_color?: string | null
           secondary_color?: string | null
           slogan?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
           tagline?: string | null
           tax_enabled?: boolean | null
           tax_rate?: number | null
           tenant_id: string
+          trial_expires_at?: string | null
           updated_at?: string
           website_enabled?: boolean | null
           white_label_enabled?: boolean | null
@@ -543,10 +549,13 @@ export type Database = {
           primary_color?: string | null
           secondary_color?: string | null
           slogan?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
           tagline?: string | null
           tax_enabled?: boolean | null
           tax_rate?: number | null
           tenant_id?: string
+          trial_expires_at?: string | null
           updated_at?: string
           website_enabled?: boolean | null
           white_label_enabled?: boolean | null
