@@ -9,9 +9,11 @@ export function SaaSFooter() {
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           {/* Brand */}
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-primary rounded flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">O</span>
-            </div>
+            <img 
+              src="/omanut-logo.png" 
+              alt="Omanut BMS" 
+              className="h-6 w-auto object-contain"
+            />
             <span className="text-sm text-muted-foreground">
               © {currentYear} Omanut BMS
             </span>

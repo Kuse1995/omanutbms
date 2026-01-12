@@ -15,7 +15,7 @@ export interface BrandingConfig {
 // Default neutral branding (used when no tenant branding is configured)
 export const DEFAULT_BRANDING: BrandingConfig = {
   companyName: 'Omanut BMS',
-  logoUrl: null,
+  logoUrl: '/omanut-logo.png',
   primaryColor: '#004B8D',
   secondaryColor: '#0077B6',
   accentColor: '#10B981',
