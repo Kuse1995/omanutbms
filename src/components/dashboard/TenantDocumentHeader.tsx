@@ -9,7 +9,7 @@ interface TenantDocumentHeaderProps {
 
 /**
  * Dynamic document header that uses tenant branding from business profile
- * Replaces hard-coded Finch branding with configurable tenant information
+ * Replaces hard-coded branding with configurable tenant information
  */
 export function TenantDocumentHeader({ 
   documentType, 
