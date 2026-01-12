@@ -395,6 +395,81 @@ export type Database = {
           },
         ]
       }
+      billing_plan_configs: {
+        Row: {
+          annual_price: number | null
+          currency: string | null
+          description: string | null
+          feature_advanced_accounting: boolean | null
+          feature_agents: boolean | null
+          feature_impact: boolean | null
+          feature_inventory: boolean | null
+          feature_payroll: boolean | null
+          feature_website: boolean | null
+          highlights: string[] | null
+          id: string
+          is_active: boolean | null
+          is_popular: boolean | null
+          label: string | null
+          max_inventory_items: number | null
+          max_users: number | null
+          monthly_price: number | null
+          plan_key: string
+          tagline: string | null
+          trial_days: number | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          annual_price?: number | null
+          currency?: string | null
+          description?: string | null
+          feature_advanced_accounting?: boolean | null
+          feature_agents?: boolean | null
+          feature_impact?: boolean | null
+          feature_inventory?: boolean | null
+          feature_payroll?: boolean | null
+          feature_website?: boolean | null
+          highlights?: string[] | null
+          id?: string
+          is_active?: boolean | null
+          is_popular?: boolean | null
+          label?: string | null
+          max_inventory_items?: number | null
+          max_users?: number | null
+          monthly_price?: number | null
+          plan_key: string
+          tagline?: string | null
+          trial_days?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          annual_price?: number | null
+          currency?: string | null
+          description?: string | null
+          feature_advanced_accounting?: boolean | null
+          feature_agents?: boolean | null
+          feature_impact?: boolean | null
+          feature_inventory?: boolean | null
+          feature_payroll?: boolean | null
+          feature_website?: boolean | null
+          highlights?: string[] | null
+          id?: string
+          is_active?: boolean | null
+          is_popular?: boolean | null
+          label?: string | null
+          max_inventory_items?: number | null
+          max_users?: number | null
+          monthly_price?: number | null
+          plan_key?: string
+          tagline?: string | null
+          trial_days?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       blog_posts: {
         Row: {
           author_id: string | null
