@@ -3,32 +3,33 @@ import { Footer } from "@/components/Footer";
 import { PageTransition } from "@/components/PageTransition";
 import { motion } from "framer-motion";
 import { Leaf, Recycle, Droplets, Globe, TreePine, Heart } from "lucide-react";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 const initiatives = [
   {
     icon: Droplets,
     title: "Clean Water Access",
-    description: "Every LifeStraw product sold contributes to providing safe drinking water to communities in need across Zambia.",
+    description: "Every product sold contributes to providing safe drinking water to communities in need across the region.",
   },
   {
     icon: Recycle,
     title: "Sustainable Materials",
-    description: "LifeStraw products are designed with durability in mind, reducing single-use plastic bottle consumption by thousands per filter.",
+    description: "Our products are designed with durability in mind, reducing single-use plastic consumption by thousands per filter.",
   },
   {
     icon: TreePine,
     title: "Carbon Footprint Reduction",
-    description: "By eliminating the need for boiling water or purchasing bottled water, LifeStraw helps reduce carbon emissions significantly.",
+    description: "By eliminating the need for boiling water or purchasing bottled water, our products help reduce carbon emissions significantly.",
   },
   {
     icon: Globe,
     title: "Community Health",
-    description: "We partner with local WASH Forums to ensure sustainable water solutions reach the communities that need them most.",
+    description: "We partner with local community forums to ensure sustainable solutions reach the communities that need them most.",
   },
   {
     icon: Heart,
     title: "Give Back Program",
-    description: "A portion of every sale funds our donation program, providing LifeStraw products to schools and vulnerable communities.",
+    description: "A portion of every sale funds our donation program, providing products to schools and vulnerable communities.",
   },
   {
     icon: Leaf,
@@ -38,6 +39,8 @@ const initiatives = [
 ];
 
 export default function Sustainability() {
+  const { companyName } = useBusinessConfig();
+
   return (
     <PageTransition>
       <div className="min-h-screen bg-gradient-to-b from-background via-secondary/30 to-background">
@@ -60,8 +63,8 @@ export default function Sustainability() {
                 Responsibility to <span className="text-green-600">Earth</span>
               </h1>
               <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-                At Finch Investments, we believe that access to clean water and environmental 
-                sustainability go hand in hand. Our mission extends beyond water filtration—we're 
+                At {companyName || "our company"}, we believe that access to clean water and environmental 
+                sustainability go hand in hand. Our mission extends beyond product delivery—we're 
                 committed to protecting our planet for future generations.
               </p>
             </motion.div>
@@ -77,8 +80,8 @@ export default function Sustainability() {
                 <div className="text-4xl font-bold text-green-600 mb-2">1M+</div>
                 <div className="text-muted-foreground">Plastic Bottles Saved</div>
               </div>
-              <div className="bg-lifestraw/10 border border-lifestraw/30 rounded-xl p-8 text-center">
-                <div className="text-4xl font-bold text-lifestraw mb-2">10,000+</div>
+              <div className="bg-primary/10 border border-primary/30 rounded-xl p-8 text-center">
+                <div className="text-4xl font-bold text-primary mb-2">10,000+</div>
                 <div className="text-muted-foreground">Liters Filtered Daily</div>
               </div>
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-8 text-center">
@@ -130,15 +133,15 @@ export default function Sustainability() {
                 Join Our Mission
               </h2>
               <p className="text-green-100 mb-6 max-w-2xl mx-auto">
-                Every LifeStraw purchase contributes to a cleaner, healthier Zambia. 
-                Together, we can make safe water accessible to all while protecting our environment.
+                Every purchase contributes to a cleaner, healthier community. 
+                Together, we can make quality products accessible to all while protecting our environment.
               </p>
               <a
                 href="/donate"
                 className="inline-flex items-center gap-2 bg-white text-green-700 px-6 py-3 rounded-lg font-medium hover:bg-green-50 transition-colors"
               >
                 <Heart className="h-5 w-5" />
-                Donate Water Today
+                Donate Today
               </a>
             </motion.div>
           </div>

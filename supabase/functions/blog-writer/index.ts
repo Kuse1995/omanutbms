@@ -39,12 +39,12 @@ serve(async (req) => {
       {
         role: "system",
         content:
-          "You are a marketing copywriter for Finch Investments, exclusive LifeStraw distributor in Zambia. Write concise, factual blog posts about safe water, LifeStraw products, and impact in Zambian communities. Keep tone professional, clear, and optimistic.",
+          "You are a marketing copywriter for a professional business. Write concise, factual blog posts about the company's products, services, and impact in the community. Keep tone professional, clear, and optimistic.",
       },
       {
         role: "user",
         content:
-          `Write a blog post draft for the Finch LifeStraw blog.\n\nTitle (optional): ${title ?? ""}\nBrief / angle: ${prompt ?? "General safe water and LifeStraw impact story in Zambia"}\n\nReturn JSON with two fields: \\\"content\\\" (full markdown article, 600-900 words) and \\\"excerpt\\\" (1-2 sentence summary under 220 characters).`,
+          `Write a blog post draft for our company blog.\n\nTitle (optional): ${title ?? ""}\nBrief / angle: ${prompt ?? "General company news or product impact story"}\n\nReturn JSON with two fields: \\\"content\\\" (full markdown article, 600-900 words) and \\\"excerpt\\\" (1-2 sentence summary under 220 characters).`,
       },
     ];
 

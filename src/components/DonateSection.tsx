@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { supabase } from "@/integrations/supabase/client";
 import { DonationModal } from "@/components/DonationModal";
 import { CommunityContactModal } from "@/components/CommunityContactModal";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 interface WashForum {
   id: string;
@@ -26,13 +27,6 @@ const priorityConfig = {
   medium: { label: "Medium", color: "bg-primary text-primary-foreground" },
 };
 
-const steps = [
-  { icon: Heart, title: "Choose a Community", description: "Select a WASH Forum from the list below" },
-  { icon: Package, title: "Confirm Your Donation", description: "Provide your details and message" },
-  { icon: Truck, title: "We Handle Delivery", description: "Finch Investments coordinates logistics" },
-  { icon: Award, title: "Receive Impact Certificate", description: "Get proof of your contribution" },
-];
-
 export function DonateSection() {
   const [forums, setForums] = useState<WashForum[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,6 +34,14 @@ export function DonateSection() {
   const [modalOpen, setModalOpen] = useState(false);
   const [contactForum, setContactForum] = useState<WashForum | null>(null);
   const [contactModalOpen, setContactModalOpen] = useState(false);
+  const { companyName } = useBusinessConfig();
+
+  const steps = [
+    { icon: Heart, title: "Choose a Community", description: "Select a community forum from the list below" },
+    { icon: Package, title: "Confirm Your Donation", description: "Provide your details and message" },
+    { icon: Truck, title: "We Handle Delivery", description: `${companyName || "We"} coordinates logistics` },
+    { icon: Award, title: "Receive Impact Certificate", description: "Get proof of your contribution" },
+  ];
 
   useEffect(() => {
     fetchForums();
@@ -81,11 +83,11 @@ export function DonateSection() {
             Call to Action
           </Badge>
           <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-6">
-            Donate Safe Water
+            Donate to Communities
           </h1>
           <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-            Connect directly with WASH Forums (Water, Sanitation, and Hygiene groups) across Zambia. 
-            Finch Investments bridges the gap between generous donors and communities in need.
+            Connect directly with community forums across the region. 
+            {companyName || "We"} bridges the gap between generous donors and communities in need.
           </p>
         </motion.div>
 
@@ -125,12 +127,12 @@ export function DonateSection() {
             Direct Connection. Guaranteed Impact.
           </h3>
           <p className="text-muted-foreground max-w-2xl mx-auto">
-            Finch Investments acts as your direct link to WASH Forums. We handle logistics, delivery, 
+            {companyName || "We"} acts as your direct link to community forums. We handle logistics, delivery, 
             and training—ensuring 100% of your product donation reaches the community in need.
           </p>
         </motion.div>
 
-        {/* WASH Forums Grid */}
+        {/* Forums Grid */}
         <div className="mb-8">
           <h2 className="text-2xl font-semibold mb-6 text-foreground">
             Communities Seeking Support
@@ -150,7 +152,7 @@ export function DonateSection() {
             </div>
           ) : forums.length === 0 ? (
             <Card className="p-8 text-center">
-              <p className="text-muted-foreground">No WASH Forums currently seeking donations.</p>
+              <p className="text-muted-foreground">No communities currently seeking donations.</p>
             </Card>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

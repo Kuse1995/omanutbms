@@ -9,7 +9,9 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
+// Videos can be configured per tenant in the future
 const videos = [
   {
     src: "/videos/lifestraw-ad-1.mp4",
@@ -21,7 +23,7 @@ const videos = [
   },
   {
     src: "/videos/lifestraw-ad-3.mp4",
-    title: "LifeStraw in Action",
+    title: "Products in Action",
   },
 ];
 
@@ -82,6 +84,7 @@ export const VideoShowcase = () => {
   const [api, setApi] = useState<CarouselApi>();
   const [current, setCurrent] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const { companyName } = useBusinessConfig();
 
   useEffect(() => {
     if (!api) return;
@@ -122,12 +125,12 @@ export const VideoShowcase = () => {
             Watch Our Videos
           </span>
           <h2 className="text-3xl md:text-4xl lg:text-5xl font-display font-bold text-foreground mb-4">
-            See LifeStraw
+            See Our Products
             <span className="text-primary block">In Action</span>
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Discover how LifeStraw is transforming access to clean drinking water 
-            across Zambia through our promotional videos.
+            Discover how our products are making a difference 
+            through our promotional videos.
           </p>
         </motion.div>
 

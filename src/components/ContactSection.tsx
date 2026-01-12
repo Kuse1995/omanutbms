@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 const contactSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
@@ -13,36 +14,11 @@ const contactSchema = z.object({
   message: z.string().trim().min(1, "Message is required").max(2000, "Message must be less than 2000 characters"),
 });
 
-const contactInfo = [
-  {
-    icon: MapPin,
-    label: "Address",
-    value: "Klapton Business Park, Stand 10445 Great East Rd, Lusaka 10101",
-  },
-  {
-    icon: Mail,
-    label: "Email",
-    value: "info.finchinvestments@gmail.com",
-    href: "mailto:info.finchinvestments@gmail.com",
-  },
-  {
-    icon: Phone,
-    label: "Mobile",
-    value: "+260 956 905 652",
-    href: "tel:+260956905652",
-  },
-  {
-    icon: Phone,
-    label: "Desk Line",
-    value: "0211 252 546",
-    href: "tel:0211252546",
-  },
-];
-
 export function ContactSection() {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
   const { toast } = useToast();
+  const { companyName, companyEmail, companyPhone, companyAddress } = useBusinessConfig();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState({
@@ -51,6 +27,26 @@ export function ContactSection() {
     phone: "",
     message: "",
   });
+
+  const contactInfo = [
+    {
+      icon: MapPin,
+      label: "Address",
+      value: companyAddress || "Contact us for our address",
+    },
+    {
+      icon: Mail,
+      label: "Email",
+      value: companyEmail || "Contact us",
+      href: companyEmail ? `mailto:${companyEmail}` : undefined,
+    },
+    {
+      icon: Phone,
+      label: "Phone",
+      value: companyPhone || "Contact us",
+      href: companyPhone ? `tel:${companyPhone}` : undefined,
+    },
+  ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,7 +120,7 @@ export function ContactSection() {
             Contact Us
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Ready to bring clean water solutions to your home, school, or community? 
+            Ready to learn more about our products and services? 
             Reach out to us today.
           </p>
         </motion.div>
@@ -191,7 +187,7 @@ export function ContactSection() {
                   required
                   rows={5}
                   className={`w-full px-4 py-3 rounded-lg border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all resize-none ${errors.message ? "border-red-500" : "border-border"}`}
-                  placeholder="Tell us about your water filtration needs..."
+                  placeholder="Tell us about your needs..."
                 />
                 {errors.message && <p className="text-red-500 text-sm mt-1">{errors.message}</p>}
               </div>
@@ -246,15 +242,15 @@ export function ContactSection() {
               </div>
             </div>
 
-            {/* Operating Hours */}
+            {/* Why Choose Us */}
             <div className="bg-gradient-hero rounded-2xl p-8 text-primary-foreground">
               <h3 className="text-xl font-display font-bold mb-4">
-                Why Choose Finch Investments?
+                Why Choose {companyName || "Us"}?
               </h3>
               <ul className="space-y-3">
                 <li className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-water" />
-                  Exclusive LifeStraw distributor in Zambia
+                  Authorized distributor of quality products
                 </li>
                 <li className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-water" />

@@ -1,19 +1,20 @@
 import { motion, useInView } from "framer-motion";
 import { useRef } from "react";
 import { Shield, Droplets, Leaf, Zap } from "lucide-react";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 const technologies = [
   {
     icon: Shield,
-    title: "Membrane Microfilter",
-    description: "Microscopic holes (0.2 micron) that prevent bacteria, parasites, and microplastics from passing through.",
-    stats: "99.999999% bacteria removal",
+    title: "Advanced Filtration",
+    description: "Microscopic filtration technology that removes harmful bacteria, parasites, and contaminants from water.",
+    stats: "99.999% bacteria removal",
   },
   {
     icon: Droplets,
-    title: "Ultrafiltration",
-    description: "Advanced 0.02 micron pore size in community units also removes viruses from contaminated water.",
-    stats: "99.999% virus removal",
+    title: "Purification Technology",
+    description: "Advanced purification systems that remove viruses and other microorganisms from contaminated water.",
+    stats: "99.999% pathogen removal",
   },
   {
     icon: Leaf,
@@ -24,21 +25,22 @@ const technologies = [
   {
     icon: Zap,
     title: "No Power Required",
-    description: "All LifeStraw products work without electricity, batteries, or chemicals – purely mechanical filtration.",
+    description: "Our products work without electricity, batteries, or chemicals – purely mechanical filtration.",
     stats: "Zero running costs",
   },
 ];
 
 const certifications = [
-  "US EPA Standards",
-  "NSF/ANSI P231",
-  "WHO 3-Star Rating",
-  "Climate Neutral Certified",
+  "International Standards",
+  "Quality Certified",
+  "Safety Approved",
+  "Environmental Certified",
 ];
 
 export function TechnologySection() {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
+  const { companyName } = useBusinessConfig();
 
   return (
     <section id="technology" className="section-padding bg-background relative overflow-hidden">
@@ -57,10 +59,10 @@ export function TechnologySection() {
             The Technology
           </span>
           <h2 className="text-3xl md:text-4xl lg:text-5xl font-display font-bold text-foreground mt-4 mb-6">
-            Why Choose LifeStraw?
+            Why Choose Our Products?
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Advanced microfiber membrane technology that makes contaminated water safe to drink, 
+            Advanced filtration technology that ensures safe, clean drinking water, 
             meeting the highest international standards.
           </p>
         </motion.div>
@@ -103,10 +105,10 @@ export function TechnologySection() {
         >
           <div className="text-center mb-8">
             <h3 className="text-2xl md:text-3xl font-display font-bold text-primary-foreground mb-3">
-              LifeStraw Certifications
+              Product Certifications
             </h3>
             <p className="text-primary-foreground/80">
-              LifeStraw products are rigorously tested by independent labs and LifeStraw's own ISO certified lab
+              Our products are rigorously tested and certified by independent laboratories
             </p>
           </div>
           <div className="flex flex-wrap justify-center gap-4">

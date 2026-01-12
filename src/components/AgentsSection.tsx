@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 const zambianProvinces = [
   "Central Province",
@@ -28,26 +29,9 @@ const zambianProvinces = [
   "Western Province",
 ];
 
-const benefits = [
-  {
-    icon: TrendingUp,
-    title: "Competitive Margins",
-    description: "Attractive profit margins on all LifeStraw products",
-  },
-  {
-    icon: Award,
-    title: "Training & Support",
-    description: "Comprehensive product training and ongoing support",
-  },
-  {
-    icon: Users,
-    title: "Marketing Materials",
-    description: "Access to branded marketing and promotional materials",
-  },
-];
-
 const AgentsSection = () => {
   const { toast } = useToast();
+  const { companyName, companyEmail } = useBusinessConfig();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     businessName: "",
@@ -57,6 +41,24 @@ const AgentsSection = () => {
     businessType: "",
     motivation: "",
   });
+
+  const benefits = [
+    {
+      icon: TrendingUp,
+      title: "Competitive Margins",
+      description: "Attractive profit margins on all products",
+    },
+    {
+      icon: Award,
+      title: "Training & Support",
+      description: "Comprehensive product training and ongoing support",
+    },
+    {
+      icon: Users,
+      title: "Marketing Materials",
+      description: "Access to branded marketing and promotional materials",
+    },
+  ];
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -126,11 +128,11 @@ const AgentsSection = () => {
             Partner With Us
           </span>
           <h1 className="text-4xl md:text-5xl font-bold text-foreground mt-4 mb-6">
-            Become a LifeStraw Agent
+            Become an Authorized Agent
           </h1>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Join our network of trusted retailers bringing safe drinking water
-            solutions to communities across Zambia.
+            Join our network of trusted retailers bringing quality products
+            to communities across the region.
           </p>
         </motion.div>
 
@@ -174,7 +176,7 @@ const AgentsSection = () => {
                 <h4 className="font-medium text-foreground">Find an Agent</h4>
               </div>
               <p className="text-sm text-muted-foreground">
-                View our directory of authorized agents across Zambia.
+                View our directory of authorized agents across the region.
               </p>
             </Link>
 
@@ -186,7 +188,7 @@ const AgentsSection = () => {
                 Contact our partnerships team for more information.
               </p>
               <p className="text-sm text-primary font-medium">
-                agents@finchinvestments.co.zm
+                {companyEmail || "Contact us through our website"}
               </p>
             </div>
           </motion.div>
@@ -317,14 +319,14 @@ const AgentsSection = () => {
                     htmlFor="motivation"
                     className="text-sm font-medium text-foreground"
                   >
-                    Why do you want to sell LifeStraw? *
+                    Why do you want to partner with us? *
                   </label>
                   <Textarea
                     id="motivation"
                     name="motivation"
                     value={formData.motivation}
                     onChange={handleInputChange}
-                    placeholder="Tell us about your interest in partnering with LifeStraw..."
+                    placeholder={`Tell us about your interest in partnering with ${companyName || "us"}...`}
                     rows={4}
                     required
                     className="bg-background resize-none"

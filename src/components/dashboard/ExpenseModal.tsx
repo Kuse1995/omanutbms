@@ -37,7 +37,7 @@ interface ExpenseModalProps {
 }
 
 const EXPENSE_CATEGORIES = [
-  "Cost of Goods Sold - Vestergaard",
+  "Cost of Goods Sold - Supplier",
   "Salaries",
   "Marketing",
   "Operations/Rent",
@@ -101,7 +101,7 @@ export function ExpenseModal({ isOpen, onClose, onSuccess, expenseToEdit }: Expe
 
   // Reset product selection when category changes
   useEffect(() => {
-    if (formData.category !== "Cost of Goods Sold - Vestergaard") {
+    if (formData.category !== "Cost of Goods Sold - Supplier") {
       setSelectedProductId("");
     }
   }, [formData.category]);
@@ -125,7 +125,7 @@ export function ExpenseModal({ isOpen, onClose, onSuccess, expenseToEdit }: Expe
       
       // Build notes with product reference if COGS
       let finalNotes = formData.notes.trim() || "";
-      if (formData.category === "Cost of Goods Sold - Vestergaard" && selectedProductId) {
+      if (formData.category === "Cost of Goods Sold - Supplier" && selectedProductId) {
         const product = products.find(p => p.id === selectedProductId);
         if (product) {
           finalNotes = `Product: ${product.name} (${product.sku})${finalNotes ? ` - ${finalNotes}` : ""}`;
@@ -240,7 +240,7 @@ export function ExpenseModal({ isOpen, onClose, onSuccess, expenseToEdit }: Expe
           </div>
 
           {/* Product Selection for COGS */}
-          {formData.category === "Cost of Goods Sold - Vestergaard" && (
+          {formData.category === "Cost of Goods Sold - Supplier" && (
             <div className="space-y-2">
               <Label className="text-[#004B8D]">
                 Link to Product (Optional)
