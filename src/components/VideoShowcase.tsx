@@ -14,15 +14,15 @@ import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 // Videos can be configured per tenant in the future
 const videos = [
   {
-    src: "/videos/lifestraw-ad-1.mp4",
+    src: "/videos/promo-1.mp4",
     title: "Clean Water Anywhere",
   },
   {
-    src: "/videos/lifestraw-ad-2.mp4",
+    src: "/videos/promo-2.mp4",
     title: "Safe Drinking Water",
   },
   {
-    src: "/videos/lifestraw-ad-3.mp4",
+    src: "/videos/promo-3.mp4",
     title: "Products in Action",
   },
 ];

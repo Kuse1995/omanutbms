@@ -72,7 +72,7 @@ const certificationConfig: Record<CertificationType, { icon: typeof ShieldCheck;
   "eco": { icon: Leaf, color: "text-emerald-700", bgColor: "bg-emerald-100" },
 };
 
-// Technical specifications for LifeStraw products
+// Technical specifications for water filtration products
 const technicalSpecs: Record<string, { icon: typeof Beaker; label: string; value: string }[]> = {
   default: [
     { icon: Beaker, label: "Pore Size", value: "0.2 microns" },
@@ -174,7 +174,7 @@ export function ProductQuickViewModal({ product, isOpen, onClose }: ProductQuick
 
             {/* Highlight badge */}
             {product.highlight && (
-              <div className="absolute top-4 right-4 z-20 flex items-center gap-1.5 bg-lifestraw text-white px-2.5 py-1 rounded-full text-xs font-semibold">
+              <div className="absolute top-4 right-4 z-20 flex items-center gap-1.5 bg-primary text-primary-foreground px-2.5 py-1 rounded-full text-xs font-semibold">
                 <Zap className="w-3 h-3" />
                 {product.highlight}
               </div>
@@ -298,7 +298,7 @@ export function ProductQuickViewModal({ product, isOpen, onClose }: ProductQuick
                       onClick={() => setSelectedSize(size.capacity)}
                       className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                         selectedSize === size.capacity
-                          ? "bg-lifestraw text-white"
+                          ? "bg-primary text-primary-foreground"
                           : "bg-muted text-muted-foreground hover:bg-muted/80"
                       }`}
                     >
@@ -321,7 +321,7 @@ export function ProductQuickViewModal({ product, isOpen, onClose }: ProductQuick
                       title={variant.name}
                       className={`w-9 h-9 rounded-full transition-all border-2 ${
                         selectedColor === variant.name
-                          ? "ring-2 ring-offset-2 ring-lifestraw border-lifestraw"
+                          ? "ring-2 ring-offset-2 ring-primary border-primary"
                           : "border-border hover:border-muted-foreground"
                       }`}
                       style={{ backgroundColor: variant.color }}
