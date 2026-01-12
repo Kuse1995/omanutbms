@@ -14,7 +14,7 @@ const faqs = [
   },
   {
     question: "Can I change plans later?",
-    answer: "Yes! You can upgrade your plan at any time. Plan changes are processed by our team to ensure a smooth transition. Contact admin@omanut.co to request a plan change.",
+    answer: "Yes! You can upgrade your plan at any time. Plan changes are processed by our team to ensure a smooth transition. Contact abkanyanta@gmail.com to request a plan change.",
   },
   {
     question: "What payment methods do you accept?",
@@ -34,7 +34,7 @@ const faqs = [
   },
   {
     question: "Do you offer discounts for NGOs or educational institutions?",
-    answer: "Yes! We offer special pricing for non-profits, NGOs, and educational institutions. Contact us at admin@omanut.co with details about your organization.",
+    answer: "Yes! We offer special pricing for non-profits, NGOs, and educational institutions. Contact us at abkanyanta@gmail.com with details about your organization.",
   },
   {
     question: "What's included in Enterprise support?",
@@ -95,7 +95,7 @@ export function PricingFAQ() {
           <p className="text-muted-foreground">
             Still have questions?{" "}
             <a 
-              href="mailto:admin@omanut.co" 
+              href="mailto:abkanyanta@gmail.com" 
               className="text-primary hover:underline font-medium"
             >
               Get in touch

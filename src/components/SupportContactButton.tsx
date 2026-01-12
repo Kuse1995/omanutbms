@@ -6,8 +6,8 @@ import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 export function SupportContactButton() {
   const { companyEmail, companyPhone } = useBusinessConfig();
   
-  const supportEmail = companyEmail || "support@example.com";
-  const supportPhone = companyPhone || "+1 234 567 890";
+  const supportEmail = companyEmail || "abkanyanta@gmail.com";
+  const supportPhone = companyPhone || "+260972064502";
 
   return (
     <section className="py-16 bg-background">
