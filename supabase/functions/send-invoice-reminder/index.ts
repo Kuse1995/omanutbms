@@ -37,9 +37,9 @@ const handler = async (req: Request): Promise<Response> => {
       amount,
       dueDate,
       daysOverdue,
-      companyName = "Your Company",
-      companyEmail = "billing@example.com",
-      companyPhone = "+1 234 567 890",
+      companyName = "Omanut BMS",
+      companyEmail = "abkanyanta@gmail.com",
+      companyPhone = "+260972064502",
     }: InvoiceReminderRequest = await req.json();
 
     console.log(`Sending reminder for invoice ${invoiceNumber} to ${clientEmail}`);
