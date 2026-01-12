@@ -9,6 +9,7 @@ import { WhoItsFor } from "@/components/landing/WhoItsFor";
 import { CoreCapabilities } from "@/components/landing/CoreCapabilities";
 import { ModularDesign } from "@/components/landing/ModularDesign";
 import { WhiteLabelReady } from "@/components/landing/WhiteLabelReady";
+import { PricingSection } from "@/components/landing/PricingSection";
 import { FinalCTA } from "@/components/landing/FinalCTA";
 import { SaaSFooter } from "@/components/landing/SaaSFooter";
 
@@ -59,6 +60,9 @@ const Index = () => {
           <ModularDesign />
         </div>
         <WhiteLabelReady />
+        <div id="pricing">
+          <PricingSection />
+        </div>
         <FinalCTA />
         <SaaSFooter />
       </main>

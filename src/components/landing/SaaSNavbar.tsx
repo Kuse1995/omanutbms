@@ -15,8 +15,7 @@ const navigationItems = [
   },
   {
     label: "Pricing",
-    href: "#",
-    comingSoon: true,
+    href: "/pricing",
   },
 ];
 
@@ -63,25 +62,15 @@ export function SaaSNavbar() {
         {/* Desktop Navigation */}
         <div className="hidden lg:flex items-center gap-6">
           {navigationItems.map((item) => (
-            <div key={item.label} className="relative">
-              {item.comingSoon ? (
-                <span className={`text-sm font-medium cursor-not-allowed ${
-                  isScrolled ? "text-muted-foreground" : "text-white/60"
-                }`}>
-                  {item.label}
-                  <span className="ml-1 text-xs bg-muted px-1.5 py-0.5 rounded">Soon</span>
-                </span>
-              ) : (
-                <Link
-                  to={item.href}
-                  className={`text-sm font-medium transition-colors hover:text-primary ${
-                    isScrolled ? "text-foreground" : "text-white/90 hover:text-white"
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              )}
-            </div>
+            <Link
+              key={item.label}
+              to={item.href}
+              className={`text-sm font-medium transition-colors hover:text-primary ${
+                isScrolled ? "text-foreground" : "text-white/90 hover:text-white"
+              }`}
+            >
+              {item.label}
+            </Link>
           ))}
         </div>
 
@@ -123,22 +112,14 @@ export function SaaSNavbar() {
           >
             <div className="container-custom py-4 space-y-4">
               {navigationItems.map((item) => (
-                <div key={item.label}>
-                  {item.comingSoon ? (
-                    <span className="block text-sm font-medium text-muted-foreground py-2">
-                      {item.label}
-                      <span className="ml-2 text-xs bg-muted px-1.5 py-0.5 rounded">Soon</span>
-                    </span>
-                  ) : (
-                    <Link
-                      to={item.href}
-                      className="block text-sm font-medium text-foreground py-2 hover:text-primary transition-colors"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                    >
-                      {item.label}
-                    </Link>
-                  )}
-                </div>
+                <Link
+                  key={item.label}
+                  to={item.href}
+                  className="block text-sm font-medium text-foreground py-2 hover:text-primary transition-colors"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  {item.label}
+                </Link>
               ))}
               
               <div className="pt-4 border-t border-border flex flex-col gap-3">

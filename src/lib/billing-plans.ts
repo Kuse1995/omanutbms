@@ -22,14 +22,27 @@ export interface PlanFeatures {
 export interface BillingPlanConfig {
   label: string;
   description: string;
+  tagline: string;
+  monthlyPrice: number;
+  annualPrice: number;
+  currency: string;
+  trialDays: number;
+  popular: boolean;
   limits: PlanLimits;
   features: PlanFeatures;
+  highlights: string[];
 }
 
 export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
   starter: {
     label: "Starter",
     description: "For small teams and early businesses",
+    tagline: "Perfect for getting started",
+    monthlyPrice: 499,
+    annualPrice: 4790,
+    currency: "ZMW",
+    trialDays: 14,
+    popular: false,
     limits: {
       users: 3,
       inventoryItems: 100,
@@ -42,11 +55,24 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       advanced_accounting: false,
       website: false,
     },
+    highlights: [
+      "Up to 3 team members",
+      "100 inventory items",
+      "Basic accounting",
+      "Sales & invoicing",
+      "Email support",
+    ],
   },
 
   growth: {
     label: "Growth",
     description: "For growing organizations",
+    tagline: "Most popular for scaling teams",
+    monthlyPrice: 1299,
+    annualPrice: 12470,
+    currency: "ZMW",
+    trialDays: 14,
+    popular: true,
     limits: {
       users: 10,
       inventoryItems: 1000,
@@ -59,11 +85,26 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       advanced_accounting: false,
       website: true,
     },
+    highlights: [
+      "Up to 10 team members",
+      "1,000 inventory items",
+      "HR & Payroll",
+      "Agent network",
+      "Impact reporting",
+      "Website management",
+      "Priority support",
+    ],
   },
 
   enterprise: {
     label: "Enterprise",
     description: "Custom solution for large organizations",
+    tagline: "Full power, unlimited scale",
+    monthlyPrice: 0, // Custom pricing
+    annualPrice: 0,
+    currency: "ZMW",
+    trialDays: 30,
+    popular: false,
     limits: {
       users: Infinity,
       inventoryItems: Infinity,
@@ -76,6 +117,15 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       advanced_accounting: true,
       website: true,
     },
+    highlights: [
+      "Unlimited team members",
+      "Unlimited inventory",
+      "Advanced accounting",
+      "Custom integrations",
+      "White-label options",
+      "Dedicated support",
+      "SLA guarantee",
+    ],
   },
 } as const;
 
@@ -122,4 +172,23 @@ export function getRequiredPlanForFeature(featureKey: keyof PlanFeatures): Billi
   }
   
   return null;
+}
+
+/**
+ * Calculate annual savings percentage
+ */
+export function getAnnualSavingsPercent(plan: BillingPlan): number {
+  const config = BILLING_PLANS[plan];
+  if (config.monthlyPrice === 0) return 0;
+  const monthlyTotal = config.monthlyPrice * 12;
+  const savings = ((monthlyTotal - config.annualPrice) / monthlyTotal) * 100;
+  return Math.round(savings);
+}
+
+/**
+ * Format price for display
+ */
+export function formatPrice(amount: number, currency: string = "ZMW"): string {
+  if (amount === 0) return "Custom";
+  return `K${amount.toLocaleString()}`;
 }
