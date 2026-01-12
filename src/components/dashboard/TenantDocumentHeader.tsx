@@ -1,8 +1,8 @@
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 interface TenantDocumentHeaderProps {
-  documentType: "INVOICE" | "QUOTATION" | "RECEIPT" | "PAYSLIP";
-  documentNumber: string;
+  documentType: "INVOICE" | "QUOTATION" | "RECEIPT" | "PAYSLIP" | "EXPENSE RECORD" | "WASH FORUM RECORD" | string;
+  documentNumber?: string;
   variant?: "default" | "centered";
   sourceReference?: string | null;
 }
@@ -40,7 +40,7 @@ export function TenantDocumentHeader({
         <h2 className="text-2xl font-bold text-[#004B8D]">
           {documentType === "RECEIPT" ? "PAYMENT RECEIPT" : documentType}
         </h2>
-        <p className="text-gray-600">{documentNumber}</p>
+        {documentNumber && <p className="text-gray-600">{documentNumber}</p>}
         <div className="mt-2">
           <h3 className="font-bold">{displayName}</h3>
           {displayTagline && (
@@ -72,7 +72,7 @@ export function TenantDocumentHeader({
       </div>
       <div className="text-right">
         <h2 className="text-3xl font-light text-gray-800">{documentType}</h2>
-        <p className="text-gray-500">{documentNumber}</p>
+        {documentNumber && <p className="text-gray-500">{documentNumber}</p>}
         {sourceReference && (
           <p className="text-xs text-blue-600 mt-1">Converted from: {sourceReference}</p>
         )}

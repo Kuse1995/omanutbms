@@ -1,57 +1,57 @@
 import { motion, useInView } from "framer-motion";
-import { useRef } from "react";
-import { Download, FileText, BookOpen } from "lucide-react";
+import { useRef, useState, useEffect } from "react";
+import { Download, FileText, BookOpen, Loader2, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { supabase } from "@/integrations/supabase/client";
 
-import lifeStrawPersonal from "@/assets/lifestraw-personal.png";
-import lifeStrawGo from "@/assets/lifestraw-go-bottle.png";
-import lifeStrawMax from "@/assets/lifestraw-max.png";
-import lifeStrawCommunity from "@/assets/lifestraw-community.png";
-
-const productResources = [
-  {
-    name: "LifeStraw Personal",
-    image: lifeStrawPersonal,
-    manual: "/resources/lifestraw-personal-manual.pdf",
-    datasheet: "/resources/lifestraw-personal-datasheet.pdf",
-    description: "Compact personal water filter",
-  },
-  {
-    name: "LifeStraw Go",
-    image: lifeStrawGo,
-    manual: "/resources/lifestraw-go-manual.pdf",
-    datasheet: "/resources/lifestraw-go-datasheet.pdf",
-    description: "Portable water filter bottle",
-  },
-  {
-    name: "LifeStraw Max",
-    image: lifeStrawMax,
-    manual: "/resources/lifestraw-max-manual.pdf",
-    datasheet: "/resources/lifestraw-max-datasheet.pdf",
-    description: "High-capacity filtration system",
-  },
-  {
-    name: "LifeStraw Community",
-    image: lifeStrawCommunity,
-    manual: "/resources/lifestraw-community-manual.pdf",
-    datasheet: "/resources/lifestraw-community-datasheet.pdf",
-    evidence: "/resources/lifestraw-community-evidence.pdf",
-    description: "Community-scale water purifier",
-  },
-];
-
-const additionalResources = [
-  {
-    title: "LifeStraw Evidence Dossier",
-    description: "Comprehensive scientific evidence and research documentation",
-    url: "/resources/lifestraw-evidence-dossier.pdf",
-  },
-];
+interface ProductResource {
+  id: string;
+  name: string;
+  image: string;
+  manual: string | null;
+  datasheet: string | null;
+  description: string;
+}
 
 export function ProductResourcesSection() {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
+  const [products, setProducts] = useState<ProductResource[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchProductResources() {
+      try {
+        const { data, error } = await supabase
+          .from("inventory")
+          .select("id, name, image_url, manual_url, datasheet_url, description")
+          .or("manual_url.neq.,datasheet_url.neq.")
+          .order("name");
+
+        if (error) throw error;
+
+        const mappedProducts: ProductResource[] = (data || [])
+          .filter(item => item.manual_url || item.datasheet_url)
+          .map(item => ({
+            id: item.id,
+            name: item.name,
+            image: item.image_url || "/placeholder.svg",
+            manual: item.manual_url,
+            datasheet: item.datasheet_url,
+            description: item.description || "Water filtration product",
+          }));
+
+        setProducts(mappedProducts);
+      } catch (error) {
+        console.error("Error fetching product resources:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchProductResources();
+  }, []);
 
   return (
     <section className="section-padding bg-muted/30">
@@ -70,102 +70,81 @@ export function ProductResourcesSection() {
             Manuals & Documentation
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Download user manuals, datasheets, and technical documentation for all LifeStraw products.
+            Download user manuals, datasheets, and technical documentation for all products.
           </p>
         </motion.div>
 
-        {/* Product Resources Grid */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-          {productResources.map((product, index) => (
-            <motion.div
-              key={product.name}
-              initial={{ opacity: 0, y: 20 }}
-              animate={isInView ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.5, delay: index * 0.1 }}
-            >
-              <Card className="h-full border-border/50 hover:shadow-lg transition-shadow bg-card">
-                <CardContent className="p-6">
-                  <div className="aspect-square relative mb-4 bg-muted/50 rounded-xl overflow-hidden flex items-center justify-center p-4">
-                    <img
-                      src={product.image}
-                      alt={product.name}
-                      className="max-h-full max-w-full object-contain"
-                    />
-                  </div>
-                  <h3 className="font-display font-bold text-foreground text-lg mb-1">
-                    {product.name}
-                  </h3>
-                  <p className="text-sm text-muted-foreground mb-4">{product.description}</p>
-                  <div className="space-y-2">
-                    <a
-                      href={product.manual}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors"
-                    >
-                      <BookOpen className="w-4 h-4" />
-                      <span>User Manual</span>
-                      <Download className="w-3 h-3 ml-auto" />
-                    </a>
-                    <a
-                      href={product.datasheet}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors"
-                    >
-                      <FileText className="w-4 h-4" />
-                      <span>Datasheet</span>
-                      <Download className="w-3 h-3 ml-auto" />
-                    </a>
-                    {product.evidence && (
-                      <a
-                        href={product.evidence}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors"
-                      >
-                        <FileText className="w-4 h-4" />
-                        <span>Evidence Report</span>
-                        <Download className="w-3 h-3 ml-auto" />
-                      </a>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))}
-        </div>
+        {/* Loading State */}
+        {loading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-primary mr-2" />
+            <span className="text-muted-foreground">Loading resources...</span>
+          </div>
+        )}
 
-        {/* Additional Resources */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={isInView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.5, delay: 0.4 }}
-          className="bg-card rounded-2xl border border-border/50 p-6 md:p-8"
-        >
-          <h3 className="font-display font-bold text-foreground text-xl mb-4">
-            Additional Resources
-          </h3>
-          <div className="space-y-4">
-            {additionalResources.map((resource) => (
-              <div
-                key={resource.title}
-                className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-muted/50 rounded-lg"
+        {/* Empty State */}
+        {!loading && products.length === 0 && (
+          <div className="text-center py-12">
+            <Package className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">No product resources available at the moment.</p>
+          </div>
+        )}
+
+        {/* Product Resources Grid */}
+        {!loading && products.length > 0 && (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+            {products.map((product, index) => (
+              <motion.div
+                key={product.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={isInView ? { opacity: 1, y: 0 } : {}}
+                transition={{ duration: 0.5, delay: index * 0.1 }}
               >
-                <div>
-                  <h4 className="font-medium text-foreground">{resource.title}</h4>
-                  <p className="text-sm text-muted-foreground">{resource.description}</p>
-                </div>
-                <Button asChild variant="outline" size="sm" className="shrink-0">
-                  <a href={resource.url} target="_blank" rel="noopener noreferrer">
-                    <Download className="w-4 h-4 mr-2" />
-                    Download PDF
-                  </a>
-                </Button>
-              </div>
+                <Card className="h-full border-border/50 hover:shadow-lg transition-shadow bg-card">
+                  <CardContent className="p-6">
+                    <div className="aspect-square relative mb-4 bg-muted/50 rounded-xl overflow-hidden flex items-center justify-center p-4">
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        className="max-h-full max-w-full object-contain"
+                      />
+                    </div>
+                    <h3 className="font-display font-bold text-foreground text-lg mb-1">
+                      {product.name}
+                    </h3>
+                    <p className="text-sm text-muted-foreground mb-4">{product.description}</p>
+                    <div className="space-y-2">
+                      {product.manual && (
+                        <a
+                          href={product.manual}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors"
+                        >
+                          <BookOpen className="w-4 h-4" />
+                          <span>User Manual</span>
+                          <Download className="w-3 h-3 ml-auto" />
+                        </a>
+                      )}
+                      {product.datasheet && (
+                        <a
+                          href={product.datasheet}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors"
+                        >
+                          <FileText className="w-4 h-4" />
+                          <span>Datasheet</span>
+                          <Download className="w-3 h-3 ml-auto" />
+                        </a>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
             ))}
           </div>
-        </motion.div>
+        )}
       </div>
     </section>
   );

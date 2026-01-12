@@ -7,6 +7,7 @@ import { Receipt, Building2, Calendar, Tag, Image, Download, Loader2 } from "luc
 import { format } from "date-fns";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { TenantDocumentHeader } from "./TenantDocumentHeader";
 
 interface Expense {
   id: string;
@@ -26,7 +27,7 @@ interface ExpenseViewModalProps {
 }
 
 const categoryColors: Record<string, string> = {
-  "Cost of Goods Sold - Vestergaard": "bg-blue-100 text-blue-700 border-blue-200",
+  "Cost of Goods Sold - Supplier": "bg-blue-100 text-blue-700 border-blue-200",
   "Salaries": "bg-purple-100 text-purple-700 border-purple-200",
   "Marketing": "bg-pink-100 text-pink-700 border-pink-200",
   "Operations/Rent": "bg-orange-100 text-orange-700 border-orange-200",
@@ -87,10 +88,10 @@ export function ExpenseViewModal({ expense, isOpen, onClose }: ExpenseViewModalP
 
         <div ref={contentRef} className="space-y-6 bg-white p-4 rounded-lg">
           {/* Header */}
-          <div className="text-center border-b pb-4">
-            <h2 className="text-xl font-bold text-[#004B8D]">Finch Investments Ltd</h2>
-            <p className="text-sm text-muted-foreground">Expense Record</p>
-          </div>
+          <TenantDocumentHeader 
+            documentType="EXPENSE RECORD" 
+            variant="centered"
+          />
 
           {/* Category & Amount */}
           <div className="space-y-3">

@@ -7,7 +7,7 @@ export type BusinessType = 'distribution' | 'retail' | 'school' | 'ngo' | 'servi
 
 export interface InventoryConfig {
   enabled: boolean;
-  seedProfile?: 'lifestraw' | 'generic' | 'services';
+  seedProfile?: 'water_filtration' | 'generic' | 'services';
   allowVariants?: boolean;
 }
 

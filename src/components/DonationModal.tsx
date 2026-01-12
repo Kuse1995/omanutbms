@@ -44,10 +44,10 @@ interface DonationModalProps {
 }
 
 const donationOptions = [
-  { id: "personal-5", label: "5 LifeStraw Personal Filters", value: 5, product: "LifeStraw Personal", impact: "5 families" },
-  { id: "personal-10", label: "10 LifeStraw Personal Filters", value: 10, product: "LifeStraw Personal", impact: "10 families" },
-  { id: "family-1", label: "1 LifeStraw Family 2.0", value: 1, product: "LifeStraw Family 2.0", impact: "1 household (5-7 people)" },
-  { id: "community-1", label: "1 LifeStraw Community Dispenser", value: 1, product: "LifeStraw Community", impact: "100+ people daily" },
+  { id: "personal-5", label: "5 Personal Water Filters", value: 5, product: "Personal Filter", impact: "5 families" },
+  { id: "personal-10", label: "10 Personal Water Filters", value: 10, product: "Personal Filter", impact: "10 families" },
+  { id: "family-1", label: "1 Family Water Filter", value: 1, product: "Family Filter", impact: "1 household (5-7 people)" },
+  { id: "community-1", label: "1 Community Water Dispenser", value: 1, product: "Community Dispenser", impact: "100+ people daily" },
   { id: "custom", label: "Custom Donation", value: 0, product: "Custom", impact: "Discuss with our team" },
 ];
 

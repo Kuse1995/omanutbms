@@ -12,25 +12,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ImageLightbox } from "@/components/ui/image-lightbox";
 import { supabase } from "@/integrations/supabase/client";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
-// Fallback images for products without uploaded images
-import lifeStrawPersonal from "@/assets/lifestraw-personal.png";
-import lifeStrawGoBottle from "@/assets/lifestraw-go-bottle.png";
-import lifeStrawFamily from "@/assets/lifestraw-family.png";
-import lifeStrawCommunity from "@/assets/lifestraw-community.png";
-import lifeStrawMax from "@/assets/lifestraw-max.png";
-import lifeStrawGoStainless from "@/assets/lifestraw-go-stainless.png";
-
-// Fallback image map for products without database images
-const fallbackImages: Record<string, string> = {
-  "lifestraw-personal": lifeStrawPersonal,
-  "lifestraw-go": lifeStrawGoBottle,
-  "lifestraw-go-bottle": lifeStrawGoBottle,
-  "lifestraw-go-stainless": lifeStrawGoStainless,
-  "lifestraw-family": lifeStrawFamily,
-  "lifestraw-community": lifeStrawCommunity,
-  "lifestraw-max": lifeStrawMax,
-};
+// Generic placeholder for products without database images
+const PLACEHOLDER_IMAGE = "/placeholder.svg";
 
 interface ProductSize {
   label: string;
@@ -86,19 +71,8 @@ interface Product {
 }
 
 // Helper to get fallback image based on product name/sku
-function getFallbackImage(name: string, sku: string): string {
-  const key = sku.toLowerCase();
-  if (fallbackImages[key]) return fallbackImages[key];
-  
-  const nameLower = name.toLowerCase();
-  if (nameLower.includes("personal")) return lifeStrawPersonal;
-  if (nameLower.includes("stainless")) return lifeStrawGoStainless;
-  if (nameLower.includes("go")) return lifeStrawGoBottle;
-  if (nameLower.includes("family")) return lifeStrawFamily;
-  if (nameLower.includes("community")) return lifeStrawCommunity;
-  if (nameLower.includes("max")) return lifeStrawMax;
-  
-  return lifeStrawPersonal; // Default fallback
+function getFallbackImage(): string {
+  return PLACEHOLDER_IMAGE;
 }
 
 // Hook to fetch products from database
@@ -185,7 +159,7 @@ function useProducts() {
             : [{ type: "bpa-free", label: "BPA Free" }];
 
           // Get image - use uploaded image or fallback
-          const image = item.image_url || getFallbackImage(item.name, item.sku);
+          const image = item.image_url || getFallbackImage();
 
           // Use database description or generate default
           const description = item.description || `Premium water filtration. SKU: ${item.sku}`;
@@ -294,7 +268,7 @@ function ProductCard({ product, index, isInView, onQuickView }: { product: Produ
 
         {/* Highlight badge */}
         {product.highlight && (
-          <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5 bg-lifestraw text-white px-2.5 py-1 rounded-full text-xs font-semibold">
+          <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5 bg-primary text-primary-foreground px-2.5 py-1 rounded-full text-xs font-semibold">
             <Zap className="w-3 h-3" />
             {product.highlight}
           </div>
@@ -395,7 +369,7 @@ function ProductCard({ product, index, isInView, onQuickView }: { product: Produ
                   onClick={() => setSelectedSize(size.capacity)}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                     selectedSize === size.capacity
-                      ? "bg-lifestraw text-white"
+                      ? "bg-primary text-primary-foreground"
                       : "bg-muted text-muted-foreground hover:bg-muted/80"
                   }`}
                 >
@@ -418,7 +392,7 @@ function ProductCard({ product, index, isInView, onQuickView }: { product: Produ
                   title={variant.name}
                   className={`w-8 h-8 rounded-full transition-all border-2 ${
                     selectedColor === variant.name
-                      ? "ring-2 ring-offset-2 ring-lifestraw border-lifestraw"
+                      ? "ring-2 ring-offset-2 ring-primary border-primary"
                       : "border-border hover:border-muted-foreground"
                   }`}
                   style={{ backgroundColor: variant.color }}
@@ -528,6 +502,7 @@ export function ProductsSection() {
   const isInView = useInView(ref, { once: true, margin: "-100px" });
   const { products, loading } = useProducts();
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
+  const { companyName, terminology } = useBusinessConfig();
 
   const personalProducts = products.filter(p => p.category === "personal");
   const communityProducts = products.filter(p => p.category === "community");
@@ -543,10 +518,10 @@ export function ProductsSection() {
           className="text-center mb-16"
         >
           <span className="text-accent font-semibold tracking-wider uppercase text-sm">
-            Our Products
+            Our {terminology.products}
           </span>
           <h2 className="text-3xl md:text-4xl lg:text-5xl font-display font-bold text-foreground mt-4 mb-6">
-            LifeStraw Water Filters
+            Premium Water Filters
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
             Award-winning water filtration products that employ sustainable, effective, 
