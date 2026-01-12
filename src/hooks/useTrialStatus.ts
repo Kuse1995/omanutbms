@@ -13,9 +13,10 @@ export interface TrialStatusReturn {
 /**
  * Hook for trial status resolution
  * Provides trial period information based on billing status and dates
+ * Uses trial_expires_at if available, falls back to billing_end_date
  */
 export function useTrialStatus(): TrialStatusReturn {
-  const { status, billingEndDate, loading } = useBilling();
+  const { status, billingEndDate, trialExpiresAt, loading } = useBilling();
 
   return useMemo(() => {
     if (loading) {
@@ -31,7 +32,10 @@ export function useTrialStatus(): TrialStatusReturn {
 
     const isTrialing = status === "trial";
     
-    if (!isTrialing || !billingEndDate) {
+    // Use trial_expires_at first, fall back to billing_end_date
+    const expirationDate = trialExpiresAt || billingEndDate;
+    
+    if (!isTrialing || !expirationDate) {
       return {
         isTrialing,
         isExpired: status === "inactive" || status === "suspended",
@@ -43,7 +47,7 @@ export function useTrialStatus(): TrialStatusReturn {
     }
 
     const now = new Date();
-    const endDate = new Date(billingEndDate);
+    const endDate = new Date(expirationDate);
     const diffTime = endDate.getTime() - now.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
@@ -55,5 +59,5 @@ export function useTrialStatus(): TrialStatusReturn {
       trialEndDate: endDate,
       loading: false,
     };
-  }, [status, billingEndDate, loading]);
+  }, [status, billingEndDate, trialExpiresAt, loading]);
 }
