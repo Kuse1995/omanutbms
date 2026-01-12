@@ -5,7 +5,6 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
 import { supabase } from "@/integrations/supabase/client";
-import lifestrawCommunity from "@/assets/lifestraw-community.png";
 import kidDrinkingWater from "@/assets/kid-drinking-water.png";
 
 interface DynamicAnnouncement {
@@ -40,7 +39,7 @@ const staticSlides = [
     headline: "Authorized Distributors",
     headlineAccent: "in the Region",
     description: "We bring world-class water purification to families, schools, and communities across the region.",
-    image: lifestrawCommunity,
+    image: kidDrinkingWater,
     icon: Droplets,
   },
 ];
@@ -150,7 +149,7 @@ export function HeroSection() {
                     <div className="absolute -inset-4 bg-gradient-to-br from-primary/20 to-water/20 rounded-3xl blur-2xl opacity-60" />
                     <img
                       src={(slideContent.data as typeof staticSlides[0]).image}
-                      alt="Child getting clean water from LifeStraw Community"
+                      alt="Child getting clean water"
                       className="relative z-0 max-h-[450px] md:max-h-[500px] w-auto object-cover rounded-2xl shadow-2xl"
                     />
                   </div>
@@ -355,7 +354,7 @@ export function HeroSection() {
                     <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-water/20 rounded-3xl blur-3xl transform scale-110" />
                     <img
                       src={(slideContent.data as typeof staticSlides[1]).image}
-                      alt="LifeStraw Community Dispenser"
+                      alt="Water purification dispenser"
                       className="relative z-10 max-h-[500px] w-auto object-contain drop-shadow-2xl"
                     />
                   </div>
