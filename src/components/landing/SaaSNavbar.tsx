@@ -51,9 +51,11 @@ export function SaaSNavbar() {
       <nav className="container-custom flex items-center justify-between h-16">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-lg">O</span>
-          </div>
+          <img 
+            src="/omanut-logo.png" 
+            alt="Omanut BMS" 
+            className="h-8 w-auto object-contain"
+          />
           <span className={`font-bold text-lg ${isScrolled ? "text-foreground" : "text-white"}`}>
             Omanut BMS
           </span>
