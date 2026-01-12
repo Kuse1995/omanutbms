@@ -178,17 +178,17 @@ export function PlanConfigManager() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <CreditCard className="h-5 w-5" />
+      <CardHeader className="px-4 sm:px-6">
+        <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+          <CreditCard className="h-4 w-4 sm:h-5 sm:w-5" />
           Billing Plan Configuration
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-xs sm:text-sm">
           Customize plan names, prices, features, and limits. Leave fields empty to use defaults.
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="grid gap-4 md:grid-cols-3">
+      <CardContent className="px-4 sm:px-6">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {planConfigs?.map((plan) => {
             const defaults = BILLING_PLANS[plan.plan_key];
             const Icon = planIcons[plan.plan_key];
@@ -306,45 +306,48 @@ export function PlanConfigManager() {
 
         {/* Edit Dialog */}
         <Dialog open={!!editingPlan} onOpenChange={(open) => !open && setEditingPlan(null)}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="w-[95vw] max-w-2xl max-h-[85vh] overflow-y-auto p-4 sm:p-6">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <CreditCard className="h-5 w-5" />
+              <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <CreditCard className="h-4 w-4 sm:h-5 sm:w-5" />
                 Edit {editingPlan?.plan_key?.charAt(0).toUpperCase()}{editingPlan?.plan_key?.slice(1)} Plan
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-xs sm:text-sm">
                 Customize this plan's configuration. Leave fields empty to use defaults.
               </DialogDescription>
             </DialogHeader>
 
             {editingPlan && (
-              <div className="grid gap-6 py-4">
+              <div className="grid gap-4 sm:gap-6 py-2 sm:py-4">
                 {/* Basic Info */}
-                <div className="space-y-4">
-                  <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+                <div className="space-y-3 sm:space-y-4">
+                  <h4 className="font-semibold text-xs sm:text-sm text-muted-foreground uppercase tracking-wide">
                     Basic Information
                   </h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Plan Name</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <Label className="text-xs sm:text-sm">Plan Name</Label>
                       <Input
+                        className="text-sm"
                         value={formData.label || ""}
                         onChange={(e) => setFormData({ ...formData, label: e.target.value || null })}
                         placeholder={BILLING_PLANS[editingPlan.plan_key].label}
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label>Tagline</Label>
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <Label className="text-xs sm:text-sm">Tagline</Label>
                       <Input
+                        className="text-sm"
                         value={formData.tagline || ""}
                         onChange={(e) => setFormData({ ...formData, tagline: e.target.value || null })}
                         placeholder={BILLING_PLANS[editingPlan.plan_key].tagline}
                       />
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Description</Label>
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <Label className="text-xs sm:text-sm">Description</Label>
                     <Textarea
+                      className="text-sm"
                       value={formData.description || ""}
                       onChange={(e) => setFormData({ ...formData, description: e.target.value || null })}
                       placeholder={BILLING_PLANS[editingPlan.plan_key].description}
@@ -354,14 +357,15 @@ export function PlanConfigManager() {
                 </div>
 
                 {/* Pricing */}
-                <div className="space-y-4">
-                  <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+                <div className="space-y-3 sm:space-y-4">
+                  <h4 className="font-semibold text-xs sm:text-sm text-muted-foreground uppercase tracking-wide">
                     Pricing
                   </h4>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label>Monthly Price (K)</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <Label className="text-xs sm:text-sm">Monthly Price (K)</Label>
                       <Input
+                        className="text-sm"
                         type="number"
                         value={formData.monthly_price ?? ""}
                         onChange={(e) => setFormData({ 
@@ -371,9 +375,10 @@ export function PlanConfigManager() {
                         placeholder={String(BILLING_PLANS[editingPlan.plan_key].monthlyPrice)}
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label>Annual Price (K)</Label>
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <Label className="text-xs sm:text-sm">Annual Price (K)</Label>
                       <Input
+                        className="text-sm"
                         type="number"
                         value={formData.annual_price ?? ""}
                         onChange={(e) => setFormData({ 
@@ -383,9 +388,10 @@ export function PlanConfigManager() {
                         placeholder={String(BILLING_PLANS[editingPlan.plan_key].annualPrice)}
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label>Trial Days</Label>
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <Label className="text-xs sm:text-sm">Trial Days</Label>
                       <Input
+                        className="text-sm"
                         type="number"
                         value={formData.trial_days ?? ""}
                         onChange={(e) => setFormData({ 
@@ -399,14 +405,15 @@ export function PlanConfigManager() {
                 </div>
 
                 {/* Limits */}
-                <div className="space-y-4">
-                  <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+                <div className="space-y-3 sm:space-y-4">
+                  <h4 className="font-semibold text-xs sm:text-sm text-muted-foreground uppercase tracking-wide">
                     Usage Limits
                   </h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Max Users (0 = unlimited)</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <Label className="text-xs sm:text-sm">Max Users (0 = unlimited)</Label>
                       <Input
+                        className="text-sm"
                         type="number"
                         value={formData.max_users ?? ""}
                         onChange={(e) => setFormData({ 
@@ -420,9 +427,10 @@ export function PlanConfigManager() {
                         }
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label>Max Inventory Items (0 = unlimited)</Label>
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <Label className="text-xs sm:text-sm">Max Inventory Items (0 = unlimited)</Label>
                       <Input
+                        className="text-sm"
                         type="number"
                         value={formData.max_inventory_items ?? ""}
                         onChange={(e) => setFormData({ 
@@ -431,7 +439,7 @@ export function PlanConfigManager() {
                         })}
                         placeholder={
                           BILLING_PLANS[editingPlan.plan_key].limits.inventoryItems === Infinity 
-                            ? "Unlimited" 
+                            ? "Unlimited"
                             : String(BILLING_PLANS[editingPlan.plan_key].limits.inventoryItems)
                         }
                       />
@@ -440,11 +448,11 @@ export function PlanConfigManager() {
                 </div>
 
                 {/* Features */}
-                <div className="space-y-4">
-                  <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+                <div className="space-y-3 sm:space-y-4">
+                  <h4 className="font-semibold text-xs sm:text-sm text-muted-foreground uppercase tracking-wide">
                     Features Included
                   </h4>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <FeatureToggle
                       label="Inventory Management"
                       checked={formData.feature_inventory ?? false}
@@ -479,11 +487,11 @@ export function PlanConfigManager() {
                 </div>
 
                 {/* Options */}
-                <div className="space-y-4">
-                  <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+                <div className="space-y-3 sm:space-y-4">
+                  <h4 className="font-semibold text-xs sm:text-sm text-muted-foreground uppercase tracking-wide">
                     Display Options
                   </h4>
-                  <div className="flex items-center gap-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
                     <FeatureToggle
                       label="Mark as Popular"
                       checked={formData.is_popular ?? false}
@@ -498,37 +506,47 @@ export function PlanConfigManager() {
                 </div>
 
                 {/* Highlights */}
-                <div className="space-y-4">
-                  <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+                <div className="space-y-3 sm:space-y-4">
+                  <h4 className="font-semibold text-xs sm:text-sm text-muted-foreground uppercase tracking-wide">
                     Highlights (one per line)
                   </h4>
                   <Textarea
+                    className="text-sm"
                     value={(formData.highlights || []).join("\n")}
                     onChange={(e) => setFormData({ 
                       ...formData, 
                       highlights: e.target.value ? e.target.value.split("\n").filter(Boolean) : null 
                     })}
                     placeholder={BILLING_PLANS[editingPlan.plan_key].highlights.join("\n")}
-                    rows={5}
+                    rows={4}
                   />
                 </div>
               </div>
             )}
 
-            <DialogFooter className="flex-col sm:flex-row gap-2">
+            <DialogFooter className="flex-col-reverse sm:flex-row gap-2 pt-2">
               <Button 
                 variant="outline" 
+                size="sm"
+                className="w-full sm:w-auto"
                 onClick={handleResetToDefault}
                 disabled={updatePlanMutation.isPending}
               >
                 Reset to Defaults
               </Button>
-              <div className="flex gap-2 ml-auto">
-                <Button variant="ghost" onClick={() => setEditingPlan(null)}>
+              <div className="flex flex-col-reverse sm:flex-row gap-2 sm:ml-auto w-full sm:w-auto">
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  className="w-full sm:w-auto"
+                  onClick={() => setEditingPlan(null)}
+                >
                   Cancel
                 </Button>
                 <Button 
                   onClick={handleSave}
+                  size="sm"
+                  className="w-full sm:w-auto"
                   disabled={updatePlanMutation.isPending}
                 >
                   {updatePlanMutation.isPending ? (
