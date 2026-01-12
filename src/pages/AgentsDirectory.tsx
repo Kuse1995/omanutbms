@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, MapPin, Search, Phone, Building2, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 interface Agent {
   id: string;
@@ -30,6 +31,7 @@ const AgentsDirectory = () => {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const { companyName } = useBusinessConfig();
 
   useEffect(() => {
     const fetchAgents = async () => {
@@ -79,11 +81,11 @@ const AgentsDirectory = () => {
                 className="text-center max-w-3xl mx-auto"
               >
                 <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-4">
-                  Find a <span className="text-primary">LifeStraw Agent</span>
+                  Find an <span className="text-primary">Authorized Agent</span>
                 </h1>
                 <p className="text-lg text-muted-foreground mb-8">
-                  Locate an authorized LifeStraw distributor near you. Our agents are trained 
-                  to provide genuine products and expert guidance on water purification solutions.
+                  Locate an authorized distributor near you. Our agents are trained 
+                  to provide genuine products and expert guidance.
                 </p>
               </motion.div>
             </div>
@@ -211,10 +213,10 @@ const AgentsDirectory = () => {
           <section className="py-12 bg-muted/30">
             <div className="container mx-auto px-4 text-center">
               <h2 className="text-2xl font-bold text-foreground mb-4">
-                Want to become a LifeStraw Agent?
+                Want to become an Authorized Agent?
               </h2>
               <p className="text-muted-foreground mb-6 max-w-xl mx-auto">
-                Join our network of authorized distributors and help bring clean water to communities across Zambia.
+                Join our network of authorized distributors and help bring quality products to communities across the region.
               </p>
               <a 
                 href="/agents" 

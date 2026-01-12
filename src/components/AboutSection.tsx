@@ -2,33 +2,35 @@ import { motion } from "framer-motion";
 import { useInView } from "framer-motion";
 import { useRef } from "react";
 import { Building2, Users, Target, Award } from "lucide-react";
-
-const features = [
-  {
-    icon: Building2,
-    title: "Zambian Owned",
-    description: "Incorporated in 2021 under the laws of Zambia, we are proudly 100% Zambian owned.",
-  },
-  {
-    icon: Users,
-    title: "Expert Team",
-    description: "Led by experienced professionals who understand the market and client needs.",
-  },
-  {
-    icon: Target,
-    title: "Our Mission",
-    description: "To strive for excellence in service and build lasting, mutually beneficial relationships.",
-  },
-  {
-    icon: Award,
-    title: "Exclusive Dealer",
-    description: "Secured exclusive dealership rights from Vestergaard Frandsen Inc., makers of LifeStraw.",
-  },
-];
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 export function AboutSection() {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
+  const { companyName, tagline } = useBusinessConfig();
+
+  const features = [
+    {
+      icon: Building2,
+      title: "Locally Owned",
+      description: "Proudly established and 100% locally owned, serving our community with dedication.",
+    },
+    {
+      icon: Users,
+      title: "Expert Team",
+      description: "Led by experienced professionals who understand the market and client needs.",
+    },
+    {
+      icon: Target,
+      title: "Our Mission",
+      description: "To strive for excellence in service and build lasting, mutually beneficial relationships.",
+    },
+    {
+      icon: Award,
+      title: "Authorized Dealer",
+      description: "Partnered with leading manufacturers to bring you quality, certified products.",
+    },
+  ];
 
   return (
     <section id="about" className="section-padding bg-background">
@@ -45,18 +47,15 @@ export function AboutSection() {
               About Us
             </span>
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-display font-bold text-foreground mt-4 mb-6">
-              Bringing Clean Water
-              <span className="text-primary block">to Zambia</span>
+              Bringing Quality Products
+              <span className="text-primary block">to Our Community</span>
             </h2>
             <p className="text-muted-foreground text-lg mb-6 leading-relaxed">
-              Finch Investments Limited is a service-focused company that was incorporated on 
-              19th October, 2021 under the Law of Zambia and is wholly Zambian owned.
+              {companyName || "Our company"} is a service-focused business dedicated to delivering 
+              quality products and exceptional customer service to our valued clients.
             </p>
             <p className="text-muted-foreground text-lg leading-relaxed">
-              We are proud to introduce the LifeStraw line of products in Zambia through 
-              secured exclusive dealership rights from Vestergaard Frandsen Inc., the parent 
-              company of LifeStraw. Our head office is in Lusaka, with deliveries dispatched 
-              across the region through our agents in various provinces.
+              {tagline || "We are committed to excellence in everything we do, partnering with trusted suppliers to bring you the best products available."}
             </p>
 
             {/* Decorative line */}
