@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -67,6 +68,7 @@ export function DonationModal({ forum, open, onOpenChange }: DonationModalProps)
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const { toast } = useToast();
+  const { companyName } = useBusinessConfig();
 
   const form = useForm<DonationFormData>({
     resolver: zodResolver(donationSchema),
@@ -470,7 +472,7 @@ export function DonationModal({ forum, open, onOpenChange }: DonationModalProps)
 
         {step < 4 && (
           <p className="text-xs text-muted-foreground text-center mt-2">
-            Finch Investments coordinates all donations with verified WASH Forums.
+            {companyName || 'We'} coordinate all donations with verified WASH Forums.
           </p>
         )}
       </DialogContent>
