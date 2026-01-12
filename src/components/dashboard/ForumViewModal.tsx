@@ -7,6 +7,7 @@ import { Users, MapPin, Phone, User, Package, Calendar, FileText, Download, Load
 import { format } from "date-fns";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { TenantDocumentHeader } from "./TenantDocumentHeader";
 
 interface WashForum {
   id: string;
@@ -94,10 +95,10 @@ export function ForumViewModal({ forum, isOpen, onClose }: ForumViewModalProps) 
 
         <div ref={contentRef} className="space-y-6 bg-white p-4 rounded-lg">
           {/* Header */}
-          <div className="text-center border-b pb-4">
-            <h2 className="text-xl font-bold text-[#004B8D]">Finch Investments Ltd</h2>
-            <p className="text-sm text-muted-foreground">WASH Forum Record</p>
-          </div>
+          <TenantDocumentHeader 
+            documentType="WASH FORUM RECORD" 
+            variant="centered"
+          />
 
           {/* Header with name and badges */}
           <div className="space-y-3">

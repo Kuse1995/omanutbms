@@ -287,12 +287,9 @@ export function InvoiceViewModal({ isOpen, onClose, invoice }: InvoiceViewModalP
               {/* Banking Details */}
               <div className="bg-gray-50 p-4 rounded-lg">
                 <h3 className="font-semibold mb-2">Banking Details</h3>
-                <div className="text-sm text-gray-600 space-y-1">
-                  <p><span className="font-medium">Bank:</span> Atlas Mara</p>
-                  <p><span className="font-medium">Branch:</span> Lusaka Main</p>
-                  <p><span className="font-medium">Account Number:</span> 0015997204011</p>
-                  <p><span className="font-medium">Account Name:</span> Finch Investments Ltd</p>
-                </div>
+                <p className="text-sm text-gray-500 italic">
+                  Contact us for banking details or payment instructions.
+                </p>
               </div>
 
               {invoice.notes && (

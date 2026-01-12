@@ -1,8 +1,14 @@
 import { motion } from "framer-motion";
 import { Headphones, Mail, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 export function SupportContactButton() {
+  const { companyEmail, companyPhone } = useBusinessConfig();
+  
+  const supportEmail = companyEmail || "support@example.com";
+  const supportPhone = companyPhone || "+1 234 567 890";
+
   return (
     <section className="py-16 bg-background">
       <div className="container-custom">
@@ -38,7 +44,7 @@ export function SupportContactButton() {
                   variant="secondary"
                   className="bg-white text-primary hover:bg-white/90 font-semibold"
                 >
-                  <a href="mailto:info.finchinvestments@gmail.com">
+                  <a href={`mailto:${supportEmail}`}>
                     <Mail className="w-5 h-5 mr-2" />
                     Email Support
                   </a>
@@ -49,9 +55,9 @@ export function SupportContactButton() {
                   variant="outline"
                   className="border-white/50 text-primary-foreground hover:bg-white/20 bg-transparent font-semibold"
                 >
-                  <a href="tel:+260956905652">
+                  <a href={`tel:${supportPhone.replace(/\s/g, '')}`}>
                     <Phone className="w-5 h-5 mr-2" />
-                    +260 956 905 652
+                    {supportPhone}
                   </a>
                 </Button>
               </div>
