@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenant } from "@/hooks/useTenant";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,21 +55,36 @@ export function AuthorizedEmailsManager() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const { user, isAdmin, loading: authLoading } = useAuth();
+  const { user, isAdmin, isSuperAdmin, loading: authLoading } = useAuth();
+  const { tenantId, loading: tenantLoading } = useTenant();
   const { toast } = useToast();
 
-  console.log("AuthorizedEmailsManager auth state", { userId: user?.id, email: user?.email, isAdmin, authLoading, roleSource: "authorized_emails_fallback_enabled" });
+  // Super admin email that can see all authorized emails
+  const SUPER_ADMIN_EMAIL = "abkanyanta@gmail.com";
+  const isSuperAdminUser = user?.email === SUPER_ADMIN_EMAIL;
+
+  console.log("AuthorizedEmailsManager auth state", { userId: user?.id, email: user?.email, isAdmin, isSuperAdmin, isSuperAdminUser, tenantId, authLoading, roleSource: "authorized_emails_fallback_enabled" });
 
   useEffect(() => {
-    fetchEmails();
-  }, []);
+    if (tenantId || isSuperAdminUser) {
+      fetchEmails();
+    }
+  }, [tenantId, isSuperAdminUser]);
 
   const fetchEmails = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    
+    let query = supabase
       .from("authorized_emails")
       .select("*")
       .order("created_at", { ascending: false });
+
+    // Only filter by tenant if not super admin - super admin sees all
+    if (!isSuperAdminUser && tenantId) {
+      query = query.eq("tenant_id", tenantId);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("Error fetching authorized emails:", error);
@@ -107,6 +123,7 @@ export function AuthorizedEmailsManager() {
         notes: newNotes.trim() || null,
         added_by: user?.id,
         default_role: newRole,
+        tenant_id: tenantId, // Associate with current tenant
       });
 
     if (error) {
@@ -189,7 +206,7 @@ export function AuthorizedEmailsManager() {
     setDeletingId(null);
   };
 
-  if (authLoading) {
+  if (authLoading || tenantLoading) {
     return (
       <Card className="bg-white border-[#004B8D]/10 shadow-sm">
         <CardContent className="py-12 text-center">
