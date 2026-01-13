@@ -32,6 +32,40 @@ export function GeneralLedger() {
     if (tenantId) {
       fetchLedgerData();
     }
+
+    // Real-time subscriptions for automatic updates
+    const salesChannel = supabase
+      .channel("ledger-sales-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "sales_transactions" },
+        () => fetchLedgerData()
+      )
+      .subscribe();
+
+    const expensesChannel = supabase
+      .channel("ledger-expenses-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "expenses" },
+        () => fetchLedgerData()
+      )
+      .subscribe();
+
+    const invoicesChannel = supabase
+      .channel("ledger-invoices-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "invoices" },
+        () => fetchLedgerData()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(salesChannel);
+      supabase.removeChannel(expensesChannel);
+      supabase.removeChannel(invoicesChannel);
+    };
   }, [tenantId]);
 
   const fetchLedgerData = async () => {

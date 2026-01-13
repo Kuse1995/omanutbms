@@ -44,6 +44,40 @@ export function BalanceSheet() {
     if (tenantId) {
       fetchBalanceSheetData();
     }
+
+    // Real-time subscriptions for automatic updates
+    const salesChannel = supabase
+      .channel("bs-sales-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "sales_transactions" },
+        () => fetchBalanceSheetData()
+      )
+      .subscribe();
+
+    const expensesChannel = supabase
+      .channel("bs-expenses-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "expenses" },
+        () => fetchBalanceSheetData()
+      )
+      .subscribe();
+
+    const invoicesChannel = supabase
+      .channel("bs-invoices-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "invoices" },
+        () => fetchBalanceSheetData()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(salesChannel);
+      supabase.removeChannel(expensesChannel);
+      supabase.removeChannel(invoicesChannel);
+    };
   }, [asOfDate, tenantId]);
 
   const fetchBalanceSheetData = async () => {

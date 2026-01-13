@@ -35,6 +35,40 @@ export function ProfitLossStatement() {
     if (tenantId) {
       fetchPLData();
     }
+
+    // Real-time subscriptions for automatic updates
+    const salesChannel = supabase
+      .channel("pl-sales-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "sales_transactions" },
+        () => fetchPLData()
+      )
+      .subscribe();
+
+    const expensesChannel = supabase
+      .channel("pl-expenses-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "expenses" },
+        () => fetchPLData()
+      )
+      .subscribe();
+
+    const invoicesChannel = supabase
+      .channel("pl-invoices-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "invoices" },
+        () => fetchPLData()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(salesChannel);
+      supabase.removeChannel(expensesChannel);
+      supabase.removeChannel(invoicesChannel);
+    };
   }, [startDate, endDate, tenantId]);
 
   const fetchPLData = async () => {
