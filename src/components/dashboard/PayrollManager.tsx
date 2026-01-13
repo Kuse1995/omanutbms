@@ -11,6 +11,7 @@ import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { PayrollRunModal } from "./PayrollRunModal";
 import { PayslipModal } from "./PayslipModal";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenant } from "@/hooks/useTenant";
 
 interface PayrollRecord {
   id: string;
@@ -53,7 +54,8 @@ const statusColors: Record<string, string> = {
 };
 
 export const PayrollManager = () => {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
+  const { tenantId } = useTenant();
   const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
@@ -126,13 +128,36 @@ export const PayrollManager = () => {
   };
 
   const handleMarkPaid = async (id: string) => {
+    const record = payrollRecords.find((r) => r.id === id);
+    if (!record) return;
+
     try {
+      const paidDate = new Date().toISOString().split("T")[0];
+      
+      // Update payroll status
       const { error } = await supabase
         .from("payroll_records")
-        .update({ status: "paid", paid_date: new Date().toISOString().split("T")[0] })
+        .update({ status: "paid", paid_date: paidDate })
         .eq("id", id);
       if (error) throw error;
-      toast.success("Marked as paid");
+
+      // Record as expense for accounting
+      const { error: expenseError } = await supabase.from("expenses").insert({
+        tenant_id: tenantId,
+        date_incurred: paidDate,
+        category: "Salaries & Wages",
+        amount_zmw: record.net_pay,
+        vendor_name: record.employee_name || "Employee",
+        notes: `Salary payment for ${format(new Date(record.pay_period_start), "MMMM yyyy")} - ${record.employee_name}`,
+        recorded_by: user?.id,
+      });
+
+      if (expenseError) {
+        console.error("Error recording expense:", expenseError);
+        // Don't fail the whole operation if expense recording fails
+      }
+
+      toast.success("Marked as paid and recorded in expenses");
       fetchData();
     } catch (error) {
       console.error("Error marking paid:", error);

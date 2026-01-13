@@ -526,6 +526,7 @@ export type Database = {
       business_profiles: {
         Row: {
           accent_color: string | null
+          advanced_accounting_enabled: boolean | null
           agents_enabled: boolean | null
           billing_end_date: string | null
           billing_notes: string | null
@@ -563,6 +564,7 @@ export type Database = {
         }
         Insert: {
           accent_color?: string | null
+          advanced_accounting_enabled?: boolean | null
           agents_enabled?: boolean | null
           billing_end_date?: string | null
           billing_notes?: string | null
@@ -600,6 +602,7 @@ export type Database = {
         }
         Update: {
           accent_color?: string | null
+          advanced_accounting_enabled?: boolean | null
           agents_enabled?: boolean | null
           billing_end_date?: string | null
           billing_notes?: string | null
