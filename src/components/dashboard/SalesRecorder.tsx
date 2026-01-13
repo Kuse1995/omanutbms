@@ -606,8 +606,12 @@ export function SalesRecorder() {
           });
 
         if (receiptError) {
-          console.error('Error creating receipt:', receiptError);
-          // Don't fail the whole sale if receipt creation fails
+          console.error('Error creating receipt:', receiptError, { tenantId, userId: user?.id });
+          toast({
+            title: "Warning",
+            description: "Sale recorded but receipt could not be saved to database. You can still view it now.",
+            variant: "destructive",
+          });
         }
 
         // Show receipt automatically

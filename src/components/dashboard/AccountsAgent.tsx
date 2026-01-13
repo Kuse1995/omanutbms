@@ -23,7 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { DollarSign, FileText, RefreshCw, Loader2, Receipt, TrendingUp, TrendingDown, FilePlus, FileCheck, BarChart3, BookOpen, Eye, Pencil, Trash2, Calculator } from "lucide-react";
+import { DollarSign, FileText, RefreshCw, Loader2, Receipt, TrendingUp, TrendingDown, FilePlus, FileCheck, BarChart3, BookOpen, Eye, Pencil, Trash2, Calculator, ShoppingCart } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useFeatures } from "@/hooks/useFeatures";
@@ -49,8 +49,13 @@ interface Transaction {
 interface SalesTransaction {
   id: string;
   product_name: string;
+  quantity: number;
+  unit_price_zmw: number;
   total_amount_zmw: number;
   payment_method: string | null;
+  customer_name: string | null;
+  receipt_number: string | null;
+  item_type: string;
   created_at: string;
 }
 
@@ -135,7 +140,7 @@ export function AccountsAgent() {
     try {
       const { data, error } = await supabase
         .from("sales_transactions")
-        .select("id, product_name, total_amount_zmw, payment_method, created_at")
+        .select("id, product_name, quantity, unit_price_zmw, total_amount_zmw, payment_method, customer_name, receipt_number, item_type, created_at")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
 
@@ -349,6 +354,10 @@ export function AccountsAgent() {
                 <BarChart3 className="h-4 w-4 mr-2" />
                 AI Reports
               </TabsTrigger>
+              <TabsTrigger value="sales" className="data-[state=active]:bg-green-600 data-[state=active]:text-white">
+                <ShoppingCart className="h-4 w-4 mr-2" />
+                Sales ({salesTransactions.length})
+              </TabsTrigger>
               <TabsTrigger value="transactions" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 <FileText className="h-4 w-4 mr-2" />
                 Transactions ({transactions.length})
@@ -378,6 +387,67 @@ export function AccountsAgent() {
             )}
             <TabsContent value="reports" className="mt-0">
               <FinancialReportGenerator />
+            </TabsContent>
+            <TabsContent value="sales" className="mt-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>Date</TableHead>
+                    <TableHead>Product/Service</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead className="text-center">Qty</TableHead>
+                    <TableHead className="text-right">Unit Price</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead>Payment</TableHead>
+                    <TableHead>Receipt #</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {salesTransactions.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                        No sales transactions found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    salesTransactions.map((sale) => (
+                      <TableRow key={sale.id}>
+                        <TableCell className="text-muted-foreground">
+                          {new Date(sale.created_at).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{sale.product_name}</p>
+                            <p className="text-xs text-muted-foreground capitalize">{sale.item_type || "product"}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>{sale.customer_name || "Walk-in"}</TableCell>
+                        <TableCell className="text-center">{sale.quantity}</TableCell>
+                        <TableCell className="text-right">
+                          {currencySymbol} {Number(sale.unit_price_zmw).toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold text-green-600">
+                          {currencySymbol} {Number(sale.total_amount_zmw).toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={
+                            sale.payment_method === "cash" ? "bg-green-50 text-green-700 border-green-200" :
+                            sale.payment_method === "mobile_money" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                            sale.payment_method === "card" ? "bg-purple-50 text-purple-700 border-purple-200" :
+                            sale.payment_method === "credit_invoice" ? "bg-amber-50 text-amber-700 border-amber-200" :
+                            ""
+                          }>
+                            {sale.payment_method?.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase()) || "Cash"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {sale.receipt_number || "-"}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
             </TabsContent>
             <TabsContent value="transactions" className="mt-0">
               <Table>
