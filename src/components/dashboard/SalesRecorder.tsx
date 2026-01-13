@@ -590,7 +590,27 @@ export function SalesRecorder() {
         });
         setIsReceiptOpen(true);
       } else {
-        // Cash/other payment - show receipt automatically
+        // Cash/other payment - create payment receipt record
+        const { error: receiptError } = await supabase
+          .from('payment_receipts')
+          .insert({
+            tenant_id: tenantId,
+            receipt_number: receiptNumber,
+            client_name: customerName.trim() || 'Walk-in Customer',
+            client_email: customerEmail.trim() || null,
+            amount_paid: cartTotal,
+            payment_date: format(new Date(), "yyyy-MM-dd"),
+            payment_method: paymentMethod,
+            notes: notes.trim() || null,
+            created_by: user?.id || null,
+          });
+
+        if (receiptError) {
+          console.error('Error creating receipt:', receiptError);
+          // Don't fail the whole sale if receipt creation fails
+        }
+
+        // Show receipt automatically
         setReceiptData({
           receiptNumber,
           customerName: customerName.trim() || null,
