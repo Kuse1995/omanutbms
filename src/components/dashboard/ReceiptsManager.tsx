@@ -23,6 +23,7 @@ interface ReceiptData {
   notes: string | null;
   created_at: string;
   invoice_id: string | null;
+  source: "payment_receipts" | "sales_transactions";
 }
 
 interface SaleItem {
@@ -46,8 +47,9 @@ export function ReceiptsManager() {
   const [isLoadingItems, setIsLoadingItems] = useState(false);
   const { tenantId } = useTenant();
 
-  const { data: receipts = [], isLoading } = useQuery({
-    queryKey: ["all-receipts", tenantId],
+  // Fetch from payment_receipts table
+  const { data: paymentReceipts = [], isLoading: isLoadingPaymentReceipts } = useQuery({
+    queryKey: ["payment-receipts", tenantId],
     queryFn: async () => {
       if (!tenantId) return [];
       const { data, error } = await supabase
@@ -57,10 +59,66 @@ export function ReceiptsManager() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return data as ReceiptData[];
+      return (data || []).map((r) => ({
+        ...r,
+        source: "payment_receipts" as const,
+      }));
     },
     enabled: !!tenantId,
   });
+
+  // Also fetch from sales_transactions grouped by receipt_number
+  const { data: salesReceipts = [], isLoading: isLoadingSalesReceipts } = useQuery({
+    queryKey: ["sales-receipts", tenantId],
+    queryFn: async () => {
+      if (!tenantId) return [];
+      const { data, error } = await supabase
+        .from("sales_transactions")
+        .select("receipt_number, customer_name, customer_email, total_amount_zmw, payment_method, created_at")
+        .eq("tenant_id", tenantId)
+        .not("receipt_number", "is", null)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      // Group by receipt_number
+      const grouped = (data || []).reduce((acc, sale) => {
+        const key = sale.receipt_number;
+        if (!key) return acc;
+        
+        if (!acc[key]) {
+          acc[key] = {
+            id: key,
+            receipt_number: key,
+            client_name: sale.customer_name || "Walk-in Customer",
+            client_email: sale.customer_email,
+            amount_paid: 0,
+            payment_date: sale.created_at.split("T")[0],
+            payment_method: sale.payment_method,
+            notes: null,
+            created_at: sale.created_at,
+            invoice_id: null,
+            source: "sales_transactions" as const,
+          };
+        }
+        acc[key].amount_paid += Number(sale.total_amount_zmw);
+        return acc;
+      }, {} as Record<string, ReceiptData>);
+
+      return Object.values(grouped);
+    },
+    enabled: !!tenantId,
+  });
+
+  // Merge both sources, avoiding duplicates (prefer payment_receipts)
+  const allReceipts = [
+    ...paymentReceipts,
+    ...salesReceipts.filter(
+      (sr) => !paymentReceipts.some((pr) => pr.receipt_number === sr.receipt_number)
+    ),
+  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  const isLoading = isLoadingPaymentReceipts || isLoadingSalesReceipts;
 
   // Fetch items linked to a receipt via sales_transactions
   const fetchReceiptItems = async (receiptNumber: string) => {
@@ -89,7 +147,7 @@ export function ReceiptsManager() {
   };
 
   // Filter receipts
-  const filteredReceipts = receipts.filter((receipt) => {
+  const filteredReceipts = allReceipts.filter((receipt) => {
     const matchesSearch =
       receipt.receipt_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
       receipt.client_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
