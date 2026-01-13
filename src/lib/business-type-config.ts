@@ -49,7 +49,12 @@ export interface FormFieldConfig {
   certifications: Array<{ value: string; label: string }>;
   defaultSpecs: Array<{ label: string; value: string }>;
   hideStock?: boolean;
-  hideLitersPerUnit?: boolean;
+  // Impact units configuration (replaces hardcoded "liters per unit")
+  impactUnitsField?: {
+    enabled: boolean;
+    label: string;
+    placeholder?: string;
+  };
 }
 
 // Quick Action configuration
@@ -152,6 +157,11 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
         { label: 'Weight', value: '' },
         { label: 'Warranty', value: '' },
       ],
+      impactUnitsField: {
+        enabled: true,
+        label: 'Impact Units per Item',
+        placeholder: 'e.g., 1000',
+      },
     },
     layout: {
       defaultTab: 'dashboard',
@@ -230,6 +240,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
         { label: 'Weight', value: '' },
         { label: 'Warranty', value: '' },
       ],
+      impactUnitsField: { enabled: false, label: 'Impact Units' },
     },
     layout: {
       defaultTab: 'sales',
@@ -305,7 +316,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
         { label: 'Term', value: '' },
       ],
       hideStock: true,
-      hideLitersPerUnit: true,
+      impactUnitsField: { enabled: false, label: 'Impact Units' },
     },
     layout: {
       defaultTab: 'dashboard',
@@ -361,7 +372,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       namePlaceholder: 'e.g., Relief Supplies',
       highlightPlaceholder: 'e.g., Emergency Kit',
       descriptionPlaceholder: 'Item description for donors...',
-      featuresPlaceholder: 'Provides clean water\nSupports 1 family\nIncludes training',
+      featuresPlaceholder: 'Provides essential support\nSupports 1 family\nIncludes training',
       categories: [
         { value: 'relief', label: 'Relief Supplies' },
         { value: 'medical', label: 'Medical' },
@@ -381,6 +392,11 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
         { label: 'Beneficiaries', value: '' },
         { label: 'Duration', value: '' },
       ],
+      impactUnitsField: {
+        enabled: true,
+        label: 'Beneficiaries per Unit',
+        placeholder: 'e.g., 5',
+      },
     },
     layout: {
       defaultTab: 'dashboard',
@@ -461,7 +477,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
         { label: 'Service Guarantee', value: '' },
       ],
       hideStock: true,
-      hideLitersPerUnit: true,
+      impactUnitsField: { enabled: false, label: 'Impact Units' },
     },
     layout: {
       defaultTab: 'sales',
@@ -541,6 +557,11 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
         { label: 'Origin', value: '' },
         { label: 'Storage', value: '' },
       ],
+      impactUnitsField: {
+        enabled: true,
+        label: 'Yield per Unit (kg)',
+        placeholder: 'e.g., 50',
+      },
     },
     layout: {
       defaultTab: 'dashboard',
@@ -615,6 +636,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
         { label: 'Preparation Time', value: '' },
         { label: 'Allergens', value: '' },
       ],
+      impactUnitsField: { enabled: false, label: 'Impact Units' },
     },
     layout: {
       defaultTab: 'sales',
@@ -690,7 +712,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
         { label: 'Aftercare', value: '' },
       ],
       hideStock: true,
-      hideLitersPerUnit: true,
+      impactUnitsField: { enabled: false, label: 'Impact Units' },
     },
     layout: {
       defaultTab: 'sales',
@@ -766,6 +788,11 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
         { label: 'Duration', value: '' },
         { label: 'Instructions', value: '' },
       ],
+      impactUnitsField: {
+        enabled: true,
+        label: 'Patients per Treatment',
+        placeholder: 'e.g., 1',
+      },
     },
     layout: {
       defaultTab: 'dashboard',
@@ -840,6 +867,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
         { label: 'Warranty Period', value: '' },
         { label: 'Brand', value: '' },
       ],
+      impactUnitsField: { enabled: false, label: 'Impact Units' },
     },
     layout: {
       defaultTab: 'sales',

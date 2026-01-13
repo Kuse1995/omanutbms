@@ -145,7 +145,7 @@ export function SalesRecorder() {
     ? (selectedInventoryItem?.unit_price || 0) + variantPriceAdjustment
     : servicePrice;
   const itemTotal = unitPrice * quantity;
-  const estimatedLiters = saleType === "product" ? Math.floor(itemTotal / 20) : 0;
+  const estimatedImpact = isImpactEnabled && saleType === "product" ? Math.floor(itemTotal / 20) : 0;
 
   // Cart totals
   const cartTotal = cart.reduce((sum, item) => sum + item.totalPrice, 0);
@@ -287,7 +287,7 @@ export function SalesRecorder() {
           totalPrice: itemTotal,
           selectedColor: selectedColor || undefined,
           selectedSize: selectedSize || undefined,
-          litersImpact: estimatedLiters,
+          litersImpact: estimatedImpact,
           maxStock: selectedInventoryItem.current_stock,
         };
         setCart([...cart, newItem]);
@@ -362,7 +362,7 @@ export function SalesRecorder() {
         'Quantity': sale.quantity,
         'Unit Price (ZMW)': sale.unit_price_zmw,
         'Total Amount (ZMW)': sale.total_amount_zmw,
-        'Liters Impact': sale.liters_impact,
+        [impact?.unitLabel || 'Impact']: sale.liters_impact,
         'Payment Method': formatPaymentMethod(sale.payment_method),
         'Notes': sale.notes || '',
       }));
@@ -424,7 +424,7 @@ export function SalesRecorder() {
         'Quantity': sale.quantity,
         'Unit Price (ZMW)': sale.unit_price_zmw,
         'Total Amount (ZMW)': sale.total_amount_zmw,
-        'Liters Impact': sale.liters_impact,
+        [impact?.unitLabel || 'Impact']: sale.liters_impact,
         'Payment Method': formatPaymentMethod(sale.payment_method),
         'Notes': sale.notes || '',
       }));
@@ -868,7 +868,7 @@ export function SalesRecorder() {
                   </p>
                   <p className="text-sm text-[#004B8D]/60">
                     K{unitPrice.toLocaleString()} each = <span className="font-bold text-[#0077B6]">K{itemTotal.toLocaleString()}</span>
-                    {saleType === "product" && <span className="text-teal-600 ml-2">({estimatedLiters}L impact)</span>}
+                    {isImpactEnabled && saleType === "product" && estimatedImpact > 0 && <span className="text-teal-600 ml-2">({estimatedImpact} {impact?.unitLabel || 'impact'})</span>}
                   </p>
                 </div>
                 <Button
