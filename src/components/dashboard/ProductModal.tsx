@@ -447,7 +447,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
       unit_price: `Unit Price`,
       original_price: `Original Price`,
       reorder_level: "Reorder Level",
-      liters_per_unit: "Liters per Unit",
+      liters_per_unit: formFields.impactUnitsField?.label || "Impact Units",
       description: "Description",
       highlight: "Highlight",
       features: isServiceBusiness ? "What's Included" : "Features",
@@ -592,7 +592,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
         unit_price: formData.unit_price,
         original_price: formData.original_price,
         reorder_level: formFields.hideStock ? 0 : formData.reorder_level,
-        liters_per_unit: formFields.hideLitersPerUnit ? 0 : formData.liters_per_unit,
+        liters_per_unit: formFields.impactUnitsField?.enabled === false ? 0 : formData.liters_per_unit,
         image_url: imageUrl,
         description: formData.description.trim() || null,
         highlight: formData.highlight.trim() || null,
@@ -917,13 +917,16 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
                   className="bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366]"
                 />
               </div>
-              {!formFields.hideLitersPerUnit && (
+              {formFields.impactUnitsField?.enabled && (
                 <div className="space-y-2">
-                  <Label htmlFor="liters_per_unit" className="text-[#003366]">Liters per Unit</Label>
+                  <Label htmlFor="liters_per_unit" className="text-[#003366]">
+                    {formFields.impactUnitsField.label}
+                  </Label>
                   <Input
                     id="liters_per_unit"
                     type="number"
                     min={0}
+                    placeholder={formFields.impactUnitsField.placeholder}
                     value={formData.liters_per_unit}
                     onChange={(e) => setFormData({ ...formData, liters_per_unit: parseInt(e.target.value) || 0 })}
                     className="bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366]"

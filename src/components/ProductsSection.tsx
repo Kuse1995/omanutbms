@@ -123,26 +123,17 @@ function useProducts() {
               }))
             : undefined;
 
-          // Use database category or determine from name/liters
+          // Use database category or determine from name
           const dbCategory = item.category as "personal" | "community" | null;
           const isPersonal = dbCategory === "personal" || 
-            (!dbCategory && (item.liters_per_unit < 10000 || 
+            (!dbCategory && (
               item.name.toLowerCase().includes("personal") ||
               item.name.toLowerCase().includes("go")));
           
-          // Use database features or generate defaults
+          // Use database features or generate generic defaults
           const features: string[] = item.features && item.features.length > 0 
             ? item.features 
-            : (() => {
-                const defaultFeatures: string[] = [];
-                if (item.liters_per_unit > 0) {
-                  defaultFeatures.push(`Filters up to ${item.liters_per_unit.toLocaleString()} liters`);
-                }
-                defaultFeatures.push("Advanced membrane filtration");
-                defaultFeatures.push("No batteries or electricity required");
-                defaultFeatures.push("Easy to use and maintain");
-                return defaultFeatures;
-              })();
+            : ["Quality assured", "Easy to use", "Durable design"];
 
           // Use database certifications or default
           const dbCerts = item.certifications as string[] | null;
@@ -162,7 +153,7 @@ function useProducts() {
           const image = item.image_url || getFallbackImage();
 
           // Use database description or generate default
-          const description = item.description || `Premium water filtration. SKU: ${item.sku}`;
+          const description = item.description || `Premium product. SKU: ${item.sku}`;
 
           // Parse technical specs from database
           const dbTechnicalSpecs = item.technical_specs as unknown as TechnicalSpec[] | null;
