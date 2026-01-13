@@ -33,6 +33,30 @@ export function CashBook() {
     if (tenantId) {
       fetchCashData();
     }
+
+    // Real-time subscriptions for automatic updates
+    const salesChannel = supabase
+      .channel("cashbook-sales-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "sales_transactions" },
+        () => fetchCashData()
+      )
+      .subscribe();
+
+    const expensesChannel = supabase
+      .channel("cashbook-expenses-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "expenses" },
+        () => fetchCashData()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(salesChannel);
+      supabase.removeChannel(expensesChannel);
+    };
   }, [startDate, endDate, tenantId]);
 
   const fetchCashData = async () => {
@@ -67,13 +91,18 @@ export function CashBook() {
 
       const cashEntries: CashEntry[] = [];
 
+      // Get all sales receipt numbers to avoid double-counting
+      const salesReceiptNumbers = new Set(
+        (salesRes.data || []).map((sale) => sale.receipt_number).filter(Boolean)
+      );
+
       // Add cash sales as receipts
       (salesRes.data || []).forEach((sale) => {
         cashEntries.push({
           id: `sale-${sale.id}`,
           date: sale.created_at,
           particulars: `Cash Sale: ${sale.product_name} x${sale.quantity}`,
-          voucherNo: sale.id.slice(0, 8).toUpperCase(),
+          voucherNo: sale.receipt_number || sale.id.slice(0, 8).toUpperCase(),
           receipt: Number(sale.total_amount_zmw),
           payment: 0,
           balance: 0,
@@ -93,8 +122,12 @@ export function CashBook() {
         });
       });
 
-      // Add payment receipts as receipts
+      // Add payment receipts as receipts (excluding those already counted in sales)
       (receiptsRes.data || []).forEach((receipt) => {
+        // Skip if this receipt is already counted from sales_transactions
+        if (salesReceiptNumbers.has(receipt.receipt_number)) {
+          return;
+        }
         cashEntries.push({
           id: `receipt-${receipt.id}`,
           date: receipt.payment_date,

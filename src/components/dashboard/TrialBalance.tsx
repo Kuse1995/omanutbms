@@ -28,6 +28,40 @@ export function TrialBalance() {
     if (tenantId) {
       fetchTrialBalanceData();
     }
+
+    // Real-time subscriptions for automatic updates
+    const salesChannel = supabase
+      .channel("tb-sales-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "sales_transactions" },
+        () => fetchTrialBalanceData()
+      )
+      .subscribe();
+
+    const expensesChannel = supabase
+      .channel("tb-expenses-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "expenses" },
+        () => fetchTrialBalanceData()
+      )
+      .subscribe();
+
+    const invoicesChannel = supabase
+      .channel("tb-invoices-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "invoices" },
+        () => fetchTrialBalanceData()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(salesChannel);
+      supabase.removeChannel(expensesChannel);
+      supabase.removeChannel(invoicesChannel);
+    };
   }, [asOfDate, tenantId]);
 
   const fetchTrialBalanceData = async () => {

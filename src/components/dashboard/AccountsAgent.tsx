@@ -46,6 +46,14 @@ interface Transaction {
   status: string;
 }
 
+interface SalesTransaction {
+  id: string;
+  product_name: string;
+  total_amount_zmw: number;
+  payment_method: string | null;
+  created_at: string;
+}
+
 interface Expense {
   id: string;
   date_incurred: string;
@@ -59,6 +67,7 @@ interface Expense {
 
 export function AccountsAgent() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [salesTransactions, setSalesTransactions] = useState<SalesTransaction[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -121,9 +130,25 @@ export function AccountsAgent() {
     }
   };
 
+  const fetchSalesTransactions = async () => {
+    if (!tenantId) return;
+    try {
+      const { data, error } = await supabase
+        .from("sales_transactions")
+        .select("id, product_name, total_amount_zmw, payment_method, created_at")
+        .eq("tenant_id", tenantId)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setSalesTransactions(data || []);
+    } catch (error) {
+      console.error("Error fetching sales transactions:", error);
+    }
+  };
+
   const fetchAllData = async () => {
     setIsLoading(true);
-    await Promise.all([fetchTransactions(), fetchExpenses()]);
+    await Promise.all([fetchTransactions(), fetchExpenses(), fetchSalesTransactions()]);
     setIsLoading(false);
     setIsRefreshing(false);
   };
@@ -151,9 +176,19 @@ export function AccountsAgent() {
       )
       .subscribe();
 
+    const salesChannel = supabase
+      .channel("sales-transactions-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "sales_transactions" },
+        () => fetchSalesTransactions()
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(transactionsChannel);
       supabase.removeChannel(expensesChannel);
+      supabase.removeChannel(salesChannel);
     };
   }, [tenantId]);
 
@@ -166,8 +201,13 @@ export function AccountsAgent() {
     });
   };
 
+  // Calculate revenue from sales_transactions (primary source)
+  const salesRevenue = salesTransactions.reduce((sum, s) => sum + Number(s.total_amount_zmw), 0);
+  // Also include paid transactions from transactions table as fallback
   const paidTransactions = transactions.filter((t) => t.status === "paid" || t.status === "reviewed");
-  const totalRevenue = paidTransactions.reduce((sum, t) => sum + Number(t.bank_amount), 0);
+  const transactionRevenue = paidTransactions.reduce((sum, t) => sum + Number(t.bank_amount), 0);
+  // Total revenue is from sales_transactions (don't double count if both tables have same data)
+  const totalRevenue = salesRevenue > 0 ? salesRevenue : transactionRevenue;
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount_zmw), 0);
   const netProfit = totalRevenue - totalExpenses;
 
