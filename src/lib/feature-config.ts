@@ -34,7 +34,8 @@ export function getFeatureConfig(businessProfile: BusinessProfile | null): Featu
     agents: businessProfile?.agents_enabled ?? true,
     impact: businessProfile?.impact_enabled ?? true,
     website: businessProfile?.website_enabled ?? true,
-    advanced_accounting: businessProfile?.advanced_accounting_enabled ?? false,
+    // Default to true so billing plan controls this; explicit false in tenant profile disables
+    advanced_accounting: businessProfile?.advanced_accounting_enabled ?? true,
   };
 }
 

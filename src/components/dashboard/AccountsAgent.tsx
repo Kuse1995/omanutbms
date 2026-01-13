@@ -185,10 +185,21 @@ export function AccountsAgent() {
       )
       .subscribe();
 
+    // Listen for payroll changes to update expenses (payroll creates expense entries)
+    const payrollChannel = supabase
+      .channel("payroll-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "payroll_records" },
+        () => fetchExpenses()
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(transactionsChannel);
       supabase.removeChannel(expensesChannel);
       supabase.removeChannel(salesChannel);
+      supabase.removeChannel(payrollChannel);
     };
   }, [tenantId]);
 
