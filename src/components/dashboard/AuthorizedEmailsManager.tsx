@@ -74,18 +74,26 @@ export function AuthorizedEmailsManager() {
   const fetchEmails = async () => {
     setLoading(true);
     
+    // Regular tenant admins should only see their tenant's emails
+    // Super admin sees all emails across all tenants
+    if (!isSuperAdminUser && !tenantId) {
+      setEmails([]);
+      setLoading(false);
+      return;
+    }
+
     let query = supabase
       .from("authorized_emails")
       .select("*")
       .order("created_at", { ascending: false });
 
-    // Only filter by tenant if not super admin - super admin sees all
+    // Only filter by tenant if not super admin
     if (!isSuperAdminUser && tenantId) {
       query = query.eq("tenant_id", tenantId);
     }
 
     const { data, error } = await query;
-
+    
     if (error) {
       console.error("Error fetching authorized emails:", error);
       toast({
@@ -93,11 +101,19 @@ export function AuthorizedEmailsManager() {
         description: "Failed to load authorized emails",
         variant: "destructive",
       });
+      setEmails([]);
     } else {
-      setEmails(data || []);
+      // For non-super-admins, filter out any emails that don't belong to their tenant
+      // This prevents seeing platform admin emails that may not have a tenant_id
+      let filteredData = data || [];
+      if (!isSuperAdminUser && tenantId) {
+        filteredData = filteredData.filter(email => email.tenant_id === tenantId);
+      }
+      setEmails(filteredData);
     }
     setLoading(false);
   };
+
 
   const handleAddEmail = async (e: React.FormEvent) => {
     e.preventDefault();
