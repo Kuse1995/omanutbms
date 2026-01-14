@@ -45,6 +45,7 @@ export function PlanOverview() {
     impact: "Impact Reporting",
     advanced_accounting: "Advanced Accounting",
     website: "Website Management",
+    whatsapp: "WhatsApp Integration",
   };
 
   return (

@@ -17,6 +17,7 @@ export interface PlanFeatures {
   impact: boolean;
   advanced_accounting: boolean;
   website: boolean;
+  whatsapp: boolean;
 }
 
 export interface BillingPlanConfig {
@@ -54,6 +55,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       impact: false,
       advanced_accounting: false,
       website: false,
+      whatsapp: false,
     },
     highlights: [
       "Up to 3 team members",
@@ -84,6 +86,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       impact: true,
       advanced_accounting: false,
       website: true,
+      whatsapp: true,
     },
     highlights: [
       "Up to 10 team members",
@@ -116,6 +119,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       impact: true,
       advanced_accounting: true,
       website: true,
+      whatsapp: true,
     },
     highlights: [
       "Unlimited team members",

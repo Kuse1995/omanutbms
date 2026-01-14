@@ -14,3 +14,12 @@ verify_jwt = true
 
 [functions.suggest-service-details]
 verify_jwt = false
+
+[functions.bms-intent-parser]
+verify_jwt = false
+
+[functions.bms-api-bridge]
+verify_jwt = false
+
+[functions.whatsapp-bms-handler]
+verify_jwt = false
