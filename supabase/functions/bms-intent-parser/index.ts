@@ -19,7 +19,10 @@ SUPPORTED INTENTS:
 5. record_expense - Record a business expense
 6. get_sales_summary - Get sales summary for a period
 7. check_customer - Look up customer information
-8. help - User needs help with commands
+8. send_receipt - Send/get a receipt document
+9. send_invoice - Send/get an invoice document
+10. send_quotation - Send/get a quotation document
+11. help - User needs help with commands
 
 EXTRACTION RULES:
 - Currency is always ZMW (Kwacha), users may say "K500" meaning 500 ZMW
@@ -100,6 +103,50 @@ Response: {
   "entities": {
     "customer_name": "Mutale",
     "payment_method": "cash"
+  },
+  "requires_confirmation": false,
+  "clarification_needed": null
+}
+
+User: "Send me receipt R2025-0042"
+Response: {
+  "intent": "send_receipt",
+  "confidence": "high",
+  "entities": {
+    "document_number": "R2025-0042"
+  },
+  "requires_confirmation": false,
+  "clarification_needed": null
+}
+
+User: "Get my last receipt"
+Response: {
+  "intent": "send_receipt",
+  "confidence": "high",
+  "entities": {
+    "last": true
+  },
+  "requires_confirmation": false,
+  "clarification_needed": null
+}
+
+User: "Send invoice 2025-0015"
+Response: {
+  "intent": "send_invoice",
+  "confidence": "high",
+  "entities": {
+    "document_number": "2025-0015"
+  },
+  "requires_confirmation": false,
+  "clarification_needed": null
+}
+
+User: "Share quotation Q2025-001"
+Response: {
+  "intent": "send_quotation",
+  "confidence": "high",
+  "entities": {
+    "document_number": "Q2025-001"
   },
   "requires_confirmation": false,
   "clarification_needed": null

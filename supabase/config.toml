@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.whatsapp-bms-handler]
 verify_jwt = false
+
+[functions.generate-whatsapp-document]
+verify_jwt = false
