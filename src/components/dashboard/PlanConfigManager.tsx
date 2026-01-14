@@ -31,6 +31,7 @@ interface PlanConfig {
   feature_impact: boolean | null;
   feature_advanced_accounting: boolean | null;
   feature_website: boolean | null;
+  feature_whatsapp: boolean | null;
   highlights: string[] | null;
   is_popular: boolean | null;
   is_active: boolean | null;
@@ -119,6 +120,7 @@ export function PlanConfigManager() {
       feature_impact: plan.feature_impact ?? defaults.features.impact,
       feature_advanced_accounting: plan.feature_advanced_accounting ?? defaults.features.advanced_accounting,
       feature_website: plan.feature_website ?? defaults.features.website,
+      feature_whatsapp: plan.feature_whatsapp ?? defaults.features.whatsapp,
       highlights: plan.highlights ?? defaults.highlights,
       is_popular: plan.is_popular ?? defaults.popular,
       is_active: plan.is_active ?? true,
@@ -154,6 +156,7 @@ export function PlanConfigManager() {
         feature_impact: null,
         feature_advanced_accounting: null,
         feature_website: null,
+        feature_whatsapp: null,
         highlights: null,
         is_popular: null,
       },
@@ -282,6 +285,10 @@ export function PlanConfigManager() {
                       <FeatureCheck 
                         label="Website" 
                         enabled={plan.feature_website ?? defaults.features.website} 
+                      />
+                      <FeatureCheck 
+                        label="WhatsApp" 
+                        enabled={plan.feature_whatsapp ?? defaults.features.whatsapp} 
                       />
                       <FeatureCheck 
                         label="Adv. Acct" 
@@ -477,6 +484,11 @@ export function PlanConfigManager() {
                       label="Website Management"
                       checked={formData.feature_website ?? false}
                       onCheckedChange={(checked) => setFormData({ ...formData, feature_website: checked })}
+                    />
+                    <FeatureToggle
+                      label="WhatsApp Integration"
+                      checked={formData.feature_whatsapp ?? false}
+                      onCheckedChange={(checked) => setFormData({ ...formData, feature_whatsapp: checked })}
                     />
                     <FeatureToggle
                       label="Advanced Accounting"
