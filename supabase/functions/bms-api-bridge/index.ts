@@ -48,8 +48,31 @@ function normalizePaymentMethod(input: unknown): 'Cash' | 'Mobile Money' | 'Card
   return PAYMENT_METHOD_CANONICAL[key] ?? 'Cash';
 }
 
+/**
+ * Escapes SQL LIKE/ILIKE wildcards to prevent injection attacks.
+ * PostgreSQL LIKE special characters: % (match any) and _ (match single)
+ */
+function escapeSqlLikePattern(input: string): string {
+  return input
+    .replace(/\\/g, '\\\\')  // Escape backslashes first
+    .replace(/%/g, '\\%')    // Escape percent signs
+    .replace(/_/g, '\\_');   // Escape underscores
+}
+
+/**
+ * Sanitizes user input for safe use in database queries.
+ * Removes potentially dangerous characters and limits length.
+ */
+function sanitizeUserInput(input: unknown, maxLength = 200): string {
+  const str = String(input ?? '').trim();
+  // Remove null bytes and control characters, limit length
+  return str
+    .replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
+    .substring(0, maxLength);
+}
+
 function normalizeProductQuery(input: unknown): { raw: string; pattern: string } {
-  const raw = String(input ?? '').trim();
+  const raw = sanitizeUserInput(input, 100);
   const tokens = raw
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, ' ')
@@ -58,8 +81,8 @@ function normalizeProductQuery(input: unknown): { raw: string; pattern: string }
     .filter((t) => !['service', 'services', 'product', 'item', 'items'].includes(t));
 
   const patternCore = tokens.length
-    ? tokens.join('%')
-    : raw.toLowerCase().replace(/\s+/g, '%');
+    ? tokens.map(escapeSqlLikePattern).join('%')
+    : escapeSqlLikePattern(raw.toLowerCase().replace(/\s+/g, ' '));
 
   return { raw, pattern: `%${patternCore}%` };
 }
@@ -153,7 +176,10 @@ async function handleCheckStock(supabase: any, entities: Record<string, any>, co
     .eq('tenant_id', context.tenant_id);
 
   if (product) {
-    query = query.ilike('name', `%${product}%`);
+    // Sanitize and escape user input for ILIKE query
+    const sanitizedProduct = sanitizeUserInput(product, 100);
+    const escapedPattern = `%${escapeSqlLikePattern(sanitizedProduct)}%`;
+    query = query.ilike('name', escapedPattern);
   }
 
   const { data, error } = await query.limit(10);
@@ -167,7 +193,7 @@ async function handleCheckStock(supabase: any, entities: Record<string, any>, co
     return { 
       success: true, 
       message: product 
-        ? `No products found matching "${product}".`
+        ? `No products found matching "${sanitizeUserInput(product, 50)}".`
         : 'No products in inventory.',
       data: [] 
     };
@@ -397,12 +423,16 @@ async function handleCheckCustomer(supabase: any, entities: Record<string, any>,
     return { success: false, message: 'Please specify a customer name to search.' };
   }
 
+  // Sanitize and escape user input for ILIKE query
+  const sanitizedName = sanitizeUserInput(customer_name, 100);
+  const escapedPattern = `%${escapeSqlLikePattern(sanitizedName)}%`;
+
   // Search in sales for customer history
   const { data, error } = await supabase
     .from('sales')
     .select('customer_name, total_amount, sale_date')
     .eq('tenant_id', context.tenant_id)
-    .ilike('customer_name', `%${customer_name}%`)
+    .ilike('customer_name', escapedPattern)
     .order('sale_date', { ascending: false })
     .limit(5);
 
@@ -412,7 +442,7 @@ async function handleCheckCustomer(supabase: any, entities: Record<string, any>,
   }
 
   if (!data || data.length === 0) {
-    return { success: true, message: `No records found for customer "${customer_name}".`, data: [] };
+    return { success: true, message: `No records found for customer "${sanitizedName}".`, data: [] };
   }
 
   const totalSpent = data.reduce((sum: number, sale: any) => sum + sale.total_amount, 0);

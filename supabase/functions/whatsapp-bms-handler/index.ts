@@ -70,16 +70,26 @@ serve(async (req) => {
     const body = formData.get('Body')?.toString()?.trim() || '';
     const messageSid = formData.get('MessageSid')?.toString() || '';
 
-    console.log(`Received WhatsApp message from ${from}: ${body}`);
+    console.log(`Received WhatsApp message from ${from}: ${body.substring(0, 100)}`);
 
-    // Extract phone number (remove whatsapp: prefix)
-    const phoneNumber = from.replace('whatsapp:', '');
+    // Extract and validate phone number (remove whatsapp: prefix)
+    const rawPhoneNumber = from.replace('whatsapp:', '');
+    
+    // Validate phone number format (E.164: starts with + followed by 7-15 digits)
+    const phoneNumberRegex = /^\+[1-9]\d{6,14}$/;
+    if (!phoneNumberRegex.test(rawPhoneNumber)) {
+      console.error('Invalid phone number format:', rawPhoneNumber);
+      return createTwiMLResponse('Invalid phone number format.');
+    }
+    
+    const phoneNumber = rawPhoneNumber;
 
-    if (!phoneNumber || !body) {
+    // Validate message body (limit length, reject empty)
+    if (!body || body.length > 1000) {
       return createTwiMLResponse('Invalid message received.');
     }
 
-    // Look up user by phone number
+    // Look up user by phone number (phone number is validated above, safe for eq())
     const { data: mapping, error: mappingError } = await supabase
       .from('whatsapp_user_mappings')
       .select('*')
@@ -90,7 +100,7 @@ serve(async (req) => {
     if (mappingError || !mapping) {
       await logAudit(supabase, {
         whatsapp_number: phoneNumber,
-        original_message: body,
+        original_message: body.substring(0, 500),
         response_message: UNREGISTERED_MESSAGE,
         success: false,
         error_message: 'Unregistered number',
