@@ -2600,6 +2600,53 @@ export type Database = {
           },
         ]
       }
+      whatsapp_conversation_drafts: {
+        Row: {
+          created_at: string
+          entities: Json
+          expires_at: string
+          id: string
+          intent: string
+          last_prompt: string | null
+          tenant_id: string
+          updated_at: string
+          user_id: string
+          whatsapp_number: string
+        }
+        Insert: {
+          created_at?: string
+          entities?: Json
+          expires_at?: string
+          id?: string
+          intent: string
+          last_prompt?: string | null
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+          whatsapp_number: string
+        }
+        Update: {
+          created_at?: string
+          entities?: Json
+          expires_at?: string
+          id?: string
+          intent?: string
+          last_prompt?: string | null
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+          whatsapp_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_conversation_drafts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_pending_actions: {
         Row: {
           confirmation_message: string | null
