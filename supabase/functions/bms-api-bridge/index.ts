@@ -242,7 +242,7 @@ async function handleListProducts(supabase: any, context: ExecutionContext) {
 }
 
 async function handleRecordSale(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
-  const { product, customer_name } = entities;
+  const { product, customer_name, customer_phone, customer_email } = entities;
   const quantity = Number.isFinite(Number(entities.quantity)) ? Number(entities.quantity) : 1;
   const amount = Number(entities.amount);
   const payment_method = normalizePaymentMethod(entities.payment_method);
@@ -260,7 +260,7 @@ async function handleRecordSale(supabase: any, entities: Record<string, any>, co
   // Try to match an inventory item (optional: allow service sales even if not in inventory)
   const { data: products, error: productError } = await supabase
     .from('inventory')
-    .select('id, name, unit_price, current_stock')
+    .select('id, name, unit_price, current_stock, liters_per_unit')
     .eq('tenant_id', context.tenant_id)
     .ilike('name', productPattern)
     .limit(1);
@@ -294,13 +294,20 @@ async function handleRecordSale(supabase: any, entities: Record<string, any>, co
   const nextNum = lastSale && lastSale[0] ? parseInt(lastSale[0].sale_number.split('-')[1]) + 1 : 1;
   const saleNumber = `${yearPrefix}-${String(nextNum).padStart(4, '0')}`;
 
-  // Create sale
+  // Generate receipt number for sales_transactions
+  const receiptPrefix = 'SR' + new Date().getFullYear();
+  const receiptRandom = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+  const receiptNumber = `${receiptPrefix}-${receiptRandom}`;
+
+  // Create sale in sales table
   const { data: sale, error: saleError } = await supabase
     .from('sales')
     .insert({
       tenant_id: context.tenant_id,
       sale_number: saleNumber,
       customer_name: customer_name || 'Walk-in Customer',
+      customer_phone: customer_phone || null,
+      customer_email: customer_email || null,
       payment_method,
       subtotal: amount,
       tax_amount: 0,
@@ -317,6 +324,8 @@ async function handleRecordSale(supabase: any, entities: Record<string, any>, co
 
   const resolvedItemName = productItem?.name ?? productRaw;
   const resolvedUnitPrice = productItem?.unit_price ?? amount / Math.max(1, quantity);
+  const litersPerUnit = productItem?.liters_per_unit ?? 0;
+  const litersImpact = Math.floor(amount / 20); // Default impact calculation
 
   // Create sale item
   const { error: saleItemError } = await supabase.from('sale_items').insert({
@@ -334,6 +343,47 @@ async function handleRecordSale(supabase: any, entities: Record<string, any>, co
     return { success: false, message: 'Sale recorded but failed to add item details.' };
   }
 
+  // ALSO write to sales_transactions for BMS visibility and real-time updates
+  const { error: txError } = await supabase.from('sales_transactions').insert({
+    tenant_id: context.tenant_id,
+    transaction_type: 'whatsapp',
+    customer_name: customer_name || 'Walk-in Customer',
+    customer_phone: customer_phone || null,
+    customer_email: customer_email || null,
+    product_id: productItem?.id ?? null,
+    product_name: resolvedItemName,
+    quantity,
+    unit_price_zmw: resolvedUnitPrice,
+    total_amount_zmw: amount,
+    liters_impact: litersImpact,
+    payment_method: payment_method.toLowerCase().replace(' ', '_'),
+    receipt_number: receiptNumber,
+    recorded_by: context.user_id,
+    item_type: productItem ? 'product' : 'service',
+  });
+
+  if (txError) {
+    console.error('Sales transaction creation error:', txError);
+    // Continue - sale is already recorded in sales table
+  }
+
+  // Create payment receipt for non-credit sales
+  const { error: receiptError } = await supabase.from('payment_receipts').insert({
+    tenant_id: context.tenant_id,
+    receipt_number: receiptNumber,
+    client_name: customer_name || 'Walk-in Customer',
+    client_email: customer_email || null,
+    amount_paid: amount,
+    payment_date: new Date().toISOString().split('T')[0],
+    payment_method: payment_method.toLowerCase().replace(' ', '_'),
+    created_by: context.user_id,
+  });
+
+  if (receiptError) {
+    console.error('Payment receipt creation error:', receiptError);
+    // Continue - the sales_transactions receipt will still work
+  }
+
   // Update inventory (only if linked to inventory)
   if (productItem) {
     const { error: invError } = await supabase
@@ -349,7 +399,12 @@ async function handleRecordSale(supabase: any, entities: Record<string, any>, co
   return {
     success: true,
     message: `✅ Sale recorded!\n📝 ${saleNumber}\n📦 ${quantity}x ${resolvedItemName}\n👤 ${customer_name || 'Walk-in Customer'}\n💰 K${amount.toLocaleString()} (${payment_method})`,
-    data: { sale_number: saleNumber, sale_id: sale.id },
+    data: { 
+      sale_number: saleNumber, 
+      sale_id: sale.id,
+      receipt_number: receiptNumber,
+      tenant_id: context.tenant_id,
+    },
   };
 }
 
