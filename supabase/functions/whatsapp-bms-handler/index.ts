@@ -172,6 +172,16 @@ serve(async (req) => {
     if (lowerBody === 'yes' || lowerBody === 'no' || lowerBody === 'y' || lowerBody === 'n') {
       const pendingResult = await handlePendingConfirmation(supabase, phoneNumber, lowerBody.startsWith('y'), mapping);
       if (pendingResult) {
+        // Check if result contains media URL marker
+        let responseMessage = pendingResult;
+        let mediaUrl: string | null = null;
+        
+        if (pendingResult.includes('__MEDIA_URL__:')) {
+          const parts = pendingResult.split('__MEDIA_URL__:');
+          responseMessage = parts[0].trim();
+          mediaUrl = parts[1]?.trim() || null;
+        }
+
         await logAudit(supabase, {
           tenant_id: mapping.tenant_id,
           whatsapp_number: phoneNumber,
@@ -179,11 +189,15 @@ serve(async (req) => {
           display_name: mapping.display_name,
           intent: 'confirmation',
           original_message: body,
-          response_message: pendingResult,
+          response_message: responseMessage,
           success: true,
           execution_time_ms: Date.now() - startTime,
         });
-        return createTwiMLResponse(pendingResult);
+        
+        if (mediaUrl) {
+          return createTwiMLResponseWithMedia(responseMessage, mediaUrl);
+        }
+        return createTwiMLResponse(responseMessage);
       }
     }
 
@@ -464,7 +478,35 @@ serve(async (req) => {
     });
 
     const bridgeResult = await bridgeResponse.json();
-    const responseMessage = bridgeResult.message || (bridgeResult.success ? '✅ Done!' : '❌ Operation failed.');
+    let responseMessage = bridgeResult.message || (bridgeResult.success ? '✅ Done!' : '❌ Operation failed.');
+    let mediaUrl: string | null = null;
+
+    // Auto-send receipt for successful sales
+    if (bridgeResult.success && parsedIntent.intent === 'record_sale' && bridgeResult.data?.receipt_number) {
+      try {
+        const docResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-whatsapp-document`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            document_type: 'receipt',
+            document_number: bridgeResult.data.receipt_number,
+            tenant_id: mapping.tenant_id,
+          }),
+        });
+
+        const docResult = await docResponse.json();
+        if (docResponse.ok && docResult.success && docResult.url) {
+          mediaUrl = docResult.url;
+          responseMessage += `\n\n📄 Receipt attached below.`;
+        }
+      } catch (docError) {
+        console.error('Auto-receipt generation error:', docError);
+        // Continue without receipt - sale was still successful
+      }
+    }
 
     await logAudit(supabase, {
       tenant_id: mapping.tenant_id,
@@ -479,6 +521,10 @@ serve(async (req) => {
       execution_time_ms: Date.now() - startTime,
     });
 
+    // Return with or without media attachment
+    if (mediaUrl) {
+      return createTwiMLResponseWithMedia(responseMessage, mediaUrl);
+    }
     return createTwiMLResponse(responseMessage);
 
   } catch (error) {
@@ -638,7 +684,35 @@ async function handlePendingConfirmation(supabase: any, phoneNumber: string, con
   });
 
   const result = await bridgeResponse.json();
-  return result.message || (result.success ? '✅ Done!' : '❌ Operation failed.');
+  let responseMessage = result.message || (result.success ? '✅ Done!' : '❌ Operation failed.');
+
+  // Auto-send receipt for confirmed sales
+  if (result.success && pending.intent === 'record_sale' && result.data?.receipt_number) {
+    try {
+      const docResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/generate-whatsapp-document`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          document_type: 'receipt',
+          document_number: result.data.receipt_number,
+          tenant_id: mapping.tenant_id,
+        }),
+      });
+
+      const docResult = await docResponse.json();
+      if (docResponse.ok && docResult.success && docResult.url) {
+        // Return a special marker that the caller can detect
+        return `${responseMessage}\n\n📄 Receipt attached below.\n__MEDIA_URL__:${docResult.url}`;
+      }
+    } catch (docError) {
+      console.error('Auto-receipt generation error (confirmation):', docError);
+    }
+  }
+
+  return responseMessage;
 }
 
 function getConfirmationMessage(intent: string, entities: any): string {
