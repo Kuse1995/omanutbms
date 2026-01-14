@@ -31,6 +31,7 @@ export interface BusinessProfile {
   agents_enabled: boolean | null;
   impact_enabled: boolean | null;
   website_enabled: boolean | null;
+  whatsapp_enabled?: boolean | null;
   advanced_accounting_enabled?: boolean | null;
   primary_color: string | null;
   secondary_color: string | null;
