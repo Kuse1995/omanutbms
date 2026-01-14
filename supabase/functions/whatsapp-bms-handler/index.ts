@@ -19,10 +19,16 @@ const HELP_MESSAGE = `👋 Welcome to Omanut BMS!
 • "Find customer [name]" - Look up customer history
 • "Expense K[amount] for [description]" - Record an expense
 
+📄 Document Commands:
+• "Send receipt [number]" - Get a receipt PDF
+• "Last receipt" - Get your most recent receipt
+• "Send invoice [number]" - Get an invoice PDF
+• "Send quotation [number]" - Get a quotation PDF
+
 💡 Examples:
 "Check stock cement"
 "I sold 5 bags of cement to ABC Hardware for K2500 cash"
-"Sales this week"
+"Send me receipt R2025-0042"
 
 Need help? Reply with "help" anytime.`;
 
@@ -44,6 +50,9 @@ const REQUIRED_FIELDS: Record<string, string[]> = {
   list_products: [],
   get_sales_summary: [],
   check_customer: ['customer_name'],
+  send_receipt: [],
+  send_invoice: [],
+  send_quotation: [],
 };
 
 serve(async (req) => {
@@ -290,6 +299,82 @@ serve(async (req) => {
         execution_time_ms: Date.now() - startTime,
       });
       return createTwiMLResponse(HELP_MESSAGE);
+    }
+
+    // Handle document request intents (send_receipt, send_invoice, send_quotation)
+    if (['send_receipt', 'send_invoice', 'send_quotation'].includes(parsedIntent.intent)) {
+      const docTypeMap: Record<string, string> = {
+        send_receipt: 'receipt',
+        send_invoice: 'invoice',
+        send_quotation: 'quotation',
+      };
+      const documentType = docTypeMap[parsedIntent.intent];
+
+      try {
+        const docResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-whatsapp-document`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            document_type: documentType,
+            document_number: mergedEntities.document_number || null,
+            tenant_id: mapping.tenant_id,
+          }),
+        });
+
+        const docResult = await docResponse.json();
+
+        if (!docResponse.ok || !docResult.success) {
+          const errorMsg = `❌ Could not find that ${documentType}. Please check the number and try again.`;
+          await logAudit(supabase, {
+            tenant_id: mapping.tenant_id,
+            whatsapp_number: phoneNumber,
+            user_id: mapping.user_id,
+            display_name: mapping.display_name,
+            intent: parsedIntent.intent,
+            original_message: body,
+            response_message: errorMsg,
+            success: false,
+            error_message: docResult.error,
+            execution_time_ms: Date.now() - startTime,
+          });
+          return createTwiMLResponse(errorMsg);
+        }
+
+        // Return TwiML with media attachment
+        const successMsg = `📄 Here's your ${documentType} ${docResult.document_number}`;
+        await logAudit(supabase, {
+          tenant_id: mapping.tenant_id,
+          whatsapp_number: phoneNumber,
+          user_id: mapping.user_id,
+          display_name: mapping.display_name,
+          intent: parsedIntent.intent,
+          original_message: body,
+          response_message: successMsg,
+          success: true,
+          execution_time_ms: Date.now() - startTime,
+        });
+        return createTwiMLResponseWithMedia(successMsg, docResult.url);
+
+      } catch (docError) {
+        console.error('Document generation error:', docError);
+        const errorMsg = `⚠️ Error generating ${documentType}. Please try again.`;
+        await logAudit(supabase, {
+          tenant_id: mapping.tenant_id,
+          whatsapp_number: phoneNumber,
+          user_id: mapping.user_id,
+          display_name: mapping.display_name,
+          intent: parsedIntent.intent,
+          original_message: body,
+          response_message: errorMsg,
+          success: false,
+          error_message: docError instanceof Error ? docError.message : 'Unknown error',
+          execution_time_ms: Date.now() - startTime,
+        });
+        return createTwiMLResponse(errorMsg);
+      }
     }
 
     // Check for missing required fields (for new intents without drafts)
@@ -571,6 +656,23 @@ function createTwiMLResponse(message: string): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Message>${escapeXml(message)}</Message>
+</Response>`;
+
+  return new Response(twiml, {
+    headers: { 
+      ...corsHeaders, 
+      'Content-Type': 'text/xml' 
+    },
+  });
+}
+
+function createTwiMLResponseWithMedia(message: string, mediaUrl: string): Response {
+  const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Message>
+    <Body>${escapeXml(message)}</Body>
+    <Media>${escapeXml(mediaUrl)}</Media>
+  </Message>
 </Response>`;
 
   return new Response(twiml, {
