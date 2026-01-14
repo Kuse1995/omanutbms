@@ -20,6 +20,10 @@ interface Employee {
   hire_date: string;
   termination_date: string | null;
   base_salary_zmw: number;
+  pay_type: string;
+  hourly_rate: number;
+  daily_rate: number;
+  shift_rate: number;
   phone: string | null;
   email: string | null;
   avatar_url: string | null;
@@ -51,6 +55,10 @@ export const EmployeeModal = ({ isOpen, onClose, employee, onSuccess }: Employee
     hire_date: new Date().toISOString().split("T")[0],
     termination_date: "",
     base_salary_zmw: 0,
+    pay_type: "monthly" as "monthly" | "hourly" | "daily" | "per_shift",
+    hourly_rate: 0,
+    daily_rate: 0,
+    shift_rate: 0,
     phone: "",
     email: "",
     nrc_number: "",
@@ -73,6 +81,10 @@ export const EmployeeModal = ({ isOpen, onClose, employee, onSuccess }: Employee
         hire_date: employee.hire_date,
         termination_date: employee.termination_date || "",
         base_salary_zmw: employee.base_salary_zmw,
+        pay_type: (employee.pay_type || "monthly") as "monthly" | "hourly" | "daily" | "per_shift",
+        hourly_rate: employee.hourly_rate || 0,
+        daily_rate: employee.daily_rate || 0,
+        shift_rate: employee.shift_rate || 0,
         phone: employee.phone || "",
         email: employee.email || "",
         nrc_number: employee.nrc_number || "",
@@ -93,6 +105,10 @@ export const EmployeeModal = ({ isOpen, onClose, employee, onSuccess }: Employee
         hire_date: new Date().toISOString().split("T")[0],
         termination_date: "",
         base_salary_zmw: 0,
+        pay_type: "monthly",
+        hourly_rate: 0,
+        daily_rate: 0,
+        shift_rate: 0,
         phone: "",
         email: "",
         nrc_number: "",
@@ -301,15 +317,71 @@ export const EmployeeModal = ({ isOpen, onClose, employee, onSuccess }: Employee
                 />
               </div>
               <div>
-                <Label htmlFor="base_salary_zmw">Base Salary (ZMW)</Label>
-                <Input
-                  id="base_salary_zmw"
-                  type="number"
-                  min="0"
-                  value={formData.base_salary_zmw}
-                  onChange={(e) => setFormData({ ...formData, base_salary_zmw: parseFloat(e.target.value) || 0 })}
-                />
+                <Label htmlFor="pay_type">Pay Type</Label>
+                <Select
+                  value={formData.pay_type}
+                  onValueChange={(value) => setFormData({ ...formData, pay_type: value as "monthly" | "hourly" | "daily" | "per_shift" })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="monthly">Monthly Salary</SelectItem>
+                    <SelectItem value="hourly">Hourly Rate</SelectItem>
+                    <SelectItem value="daily">Daily Rate</SelectItem>
+                    <SelectItem value="per_shift">Per Shift</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+              {formData.pay_type === "monthly" && (
+                <div>
+                  <Label htmlFor="base_salary_zmw">Monthly Salary (ZMW)</Label>
+                  <Input
+                    id="base_salary_zmw"
+                    type="number"
+                    min="0"
+                    value={formData.base_salary_zmw}
+                    onChange={(e) => setFormData({ ...formData, base_salary_zmw: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+              )}
+              {formData.pay_type === "hourly" && (
+                <div>
+                  <Label htmlFor="hourly_rate">Hourly Rate (ZMW)</Label>
+                  <Input
+                    id="hourly_rate"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formData.hourly_rate}
+                    onChange={(e) => setFormData({ ...formData, hourly_rate: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+              )}
+              {formData.pay_type === "daily" && (
+                <div>
+                  <Label htmlFor="daily_rate">Daily Rate (ZMW)</Label>
+                  <Input
+                    id="daily_rate"
+                    type="number"
+                    min="0"
+                    value={formData.daily_rate}
+                    onChange={(e) => setFormData({ ...formData, daily_rate: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+              )}
+              {formData.pay_type === "per_shift" && (
+                <div>
+                  <Label htmlFor="shift_rate">Per-Shift Rate (ZMW)</Label>
+                  <Input
+                    id="shift_rate"
+                    type="number"
+                    min="0"
+                    value={formData.shift_rate}
+                    onChange={(e) => setFormData({ ...formData, shift_rate: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+              )}
             </div>
           </div>
 

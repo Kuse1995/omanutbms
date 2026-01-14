@@ -22,6 +22,10 @@ interface Employee {
   hire_date: string;
   termination_date: string | null;
   base_salary_zmw: number;
+  pay_type: string;
+  hourly_rate: number;
+  daily_rate: number;
+  shift_rate: number;
   phone: string | null;
   email: string | null;
   avatar_url: string | null;
