@@ -481,30 +481,56 @@ serve(async (req) => {
     let responseMessage = bridgeResult.message || (bridgeResult.success ? '✅ Done!' : '❌ Operation failed.');
     let mediaUrl: string | null = null;
 
-    // Auto-send receipt for successful sales
-    if (bridgeResult.success && parsedIntent.intent === 'record_sale' && bridgeResult.data?.receipt_number) {
-      try {
-        const docResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-whatsapp-document`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            document_type: 'receipt',
-            document_number: bridgeResult.data.receipt_number,
-            tenant_id: mapping.tenant_id,
-          }),
-        });
+    console.log('[whatsapp-bms-handler] Bridge result:', JSON.stringify({
+      success: bridgeResult.success,
+      intent: parsedIntent.intent,
+      receipt_number: bridgeResult.data?.receipt_number,
+      tenant_id: bridgeResult.data?.tenant_id || mapping.tenant_id,
+    }));
 
-        const docResult = await docResponse.json();
-        if (docResponse.ok && docResult.success && docResult.url) {
-          mediaUrl = docResult.url;
-          responseMessage += `\n\n📄 Receipt attached below.`;
+    // Auto-send receipt for ALL successful WhatsApp sales
+    if (bridgeResult.success && parsedIntent.intent === 'record_sale') {
+      const receiptNumber = bridgeResult.data?.receipt_number;
+      const tenantId = bridgeResult.data?.tenant_id || mapping.tenant_id;
+      
+      if (receiptNumber && tenantId) {
+        console.log('[whatsapp-bms-handler] Generating receipt PDF for:', receiptNumber);
+        
+        try {
+          const docResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-whatsapp-document`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              document_type: 'receipt',
+              document_number: receiptNumber,
+              tenant_id: tenantId,
+            }),
+          });
+
+          const docResult = await docResponse.json();
+          console.log('[whatsapp-bms-handler] Document generation result:', JSON.stringify({
+            ok: docResponse.ok,
+            success: docResult.success,
+            url: docResult.url ? 'present' : 'missing',
+            error: docResult.error,
+          }));
+
+          if (docResponse.ok && docResult.success && docResult.url) {
+            mediaUrl = docResult.url;
+            responseMessage += `\n\n📄 Receipt attached below.`;
+          } else {
+            console.error('[whatsapp-bms-handler] Document generation failed:', docResult.error);
+            responseMessage += `\n\n⚠️ Receipt saved but PDF could not be generated. View in dashboard.`;
+          }
+        } catch (docError) {
+          console.error('[whatsapp-bms-handler] Auto-receipt generation error:', docError);
+          responseMessage += `\n\n⚠️ Receipt saved but PDF generation failed.`;
         }
-      } catch (docError) {
-        console.error('Auto-receipt generation error:', docError);
-        // Continue without receipt - sale was still successful
+      } else {
+        console.warn('[whatsapp-bms-handler] Missing receipt_number or tenant_id for PDF generation');
       }
     }
 
