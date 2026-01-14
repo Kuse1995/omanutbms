@@ -129,12 +129,34 @@ export function ReceiptModal({ isOpen, onClose, onSuccess, invoice }: ReceiptMod
     if (!element) return;
 
     try {
-      const canvas = await html2canvas(element, { scale: 2 });
+      // Clone element for capturing to avoid viewport issues on mobile
+      const clone = element.cloneNode(true) as HTMLElement;
+      clone.style.position = 'absolute';
+      clone.style.left = '-9999px';
+      clone.style.top = '0';
+      clone.style.width = '600px';
+      clone.style.maxWidth = '600px';
+      clone.style.overflow = 'visible';
+      clone.style.height = 'auto';
+      document.body.appendChild(clone);
+
+      const canvas = await html2canvas(clone, { 
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: "#ffffff",
+        logging: false,
+        width: 600,
+        windowWidth: 600,
+      });
+      
+      document.body.removeChild(clone);
+      
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+      pdf.addImage(imgData, "PNG", 10, 10, pdfWidth - 20, pdfHeight);
       pdf.save(`receipt-${createdReceipt?.receipt_number}.pdf`);
     } catch (error) {
       toast({ title: "Error", description: "Failed to generate PDF", variant: "destructive" });
@@ -171,26 +193,26 @@ export function ReceiptModal({ isOpen, onClose, onSuccess, invoice }: ReceiptMod
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg bg-white text-gray-900 max-h-[90vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="text-gray-900">
+      <DialogContent className="w-[95vw] max-w-lg bg-white text-gray-900 max-h-[90vh] flex flex-col p-3 sm:p-6">
+        <DialogHeader className="pb-2">
+          <DialogTitle className="text-gray-900 text-base sm:text-lg">
             {showPreview ? `Receipt ${createdReceipt?.receipt_number}` : "Record Payment & Generate Receipt"}
           </DialogTitle>
         </DialogHeader>
 
         {showPreview && createdReceipt ? (
           <>
-            <div className="flex-1 overflow-y-auto">
-              <div id="receipt-content" className="bg-white p-6 space-y-4">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden -mx-3 px-3 sm:-mx-6 sm:px-6">
+              <div id="receipt-content" className="bg-white p-3 sm:p-6 space-y-3 sm:space-y-4 min-w-0">
                 <TenantDocumentHeader 
                   documentType="RECEIPT" 
                   documentNumber={createdReceipt.receipt_number}
                   variant="centered"
                 />
 
-                <div className="bg-green-50 text-center py-4 rounded-lg">
-                  <p className="text-sm text-gray-600">Amount Received</p>
-                  <p className="text-3xl font-bold text-green-600">K {Number(createdReceipt.amount_paid).toLocaleString()}</p>
+                <div className="bg-green-50 text-center py-3 sm:py-4 rounded-lg">
+                  <p className="text-xs sm:text-sm text-gray-600">Amount Received</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-green-600">K {Number(createdReceipt.amount_paid).toLocaleString()}</p>
                 </div>
 
                 <div className="space-y-2">
@@ -226,16 +248,17 @@ export function ReceiptModal({ isOpen, onClose, onSuccess, invoice }: ReceiptMod
               </div>
             </div>
 
-            <div className="flex justify-between gap-3 pt-4 border-t">
-              <Button variant="outline" onClick={onClose}>Close</Button>
-              <div className="flex gap-2">
-                <Button onClick={handlePrint} variant="outline">
-                  <Printer className="h-4 w-4 mr-2" />
-                  Print
+            <div className="flex flex-col sm:flex-row justify-between gap-2 sm:gap-3 pt-3 sm:pt-4 border-t">
+              <Button variant="outline" onClick={onClose} className="order-last sm:order-first">Close</Button>
+              <div className="flex gap-2 flex-1 sm:flex-none justify-end">
+                <Button onClick={handlePrint} variant="outline" className="flex-1 sm:flex-none">
+                  <Printer className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Print</span>
                 </Button>
-                <Button onClick={handleDownloadPDF} className="bg-[#004B8D] hover:bg-[#003a6d]">
-                  <Download className="h-4 w-4 mr-2" />
-                  Download PDF
+                <Button onClick={handleDownloadPDF} className="bg-[#004B8D] hover:bg-[#003a6d] flex-1 sm:flex-none">
+                  <Download className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Download PDF</span>
+                  <span className="sm:hidden">PDF</span>
                 </Button>
               </div>
             </div>
