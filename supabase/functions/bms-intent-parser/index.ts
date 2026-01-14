@@ -7,9 +7,9 @@ const corsHeaders = {
 
 const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 
-// System prompt for intent parsing
-const SYSTEM_PROMPT = `You are an AI assistant for Omanut BMS (Business Management System) in Zambia. 
-Your job is to parse natural language messages from users and extract structured business operations.
+// System prompt for intent parsing - upgraded for better accuracy
+const SYSTEM_PROMPT = `You are a precise intent parser for Omanut BMS (Business Management System) in Zambia.
+Parse natural language messages and extract structured business operations with HIGH ACCURACY.
 
 SUPPORTED INTENTS:
 1. record_sale - Record a new sale transaction
@@ -24,144 +24,68 @@ SUPPORTED INTENTS:
 10. send_quotation - Send/get a quotation document
 11. help - User needs help with commands
 
-EXTRACTION RULES:
-- Currency is always ZMW (Kwacha), users may say "K500" meaning 500 ZMW
-- Extract quantities, product names, customer names, amounts
-- For dates, "today", "yesterday", "this week", "this month" are valid
-- Payment methods: Cash, Mobile Money, Card
-- Default quantity to 1 if not specified
-- Default payment_method to "Cash" if not specified
-- If the message clearly provides info for a specific field, extract it even if other fields are missing
+CRITICAL EXTRACTION RULES:
+1. Currency is ALWAYS ZMW (Kwacha). "K500" = 500, "K15000" = 15000, "15k" = 15000
+2. ALWAYS extract amounts as numbers (not strings)
+3. Default quantity to 1 if not specified
+4. Payment methods MUST be one of: "Cash", "Mobile Money", "Card"
+   - "cash", "paid cash" → "Cash"
+   - "momo", "mobile money", "airtel money", "mtn money" → "Mobile Money"  
+   - "card", "debit", "credit", "visa" → "Card"
+   - If not specified, default to "Cash"
+5. Extract customer names when mentioned (e.g., "to John", "for ABC Company")
+6. Product names should be extracted as-is, including service names
 
-RESPONSE FORMAT (JSON only):
+RESPONSE FORMAT (JSON only, no other text):
 {
   "intent": "intent_name",
   "confidence": "high" | "medium" | "low",
   "entities": {
     // Extracted entities specific to the intent
   },
-  "requires_confirmation": boolean,
-  "clarification_needed": string | null
+  "requires_confirmation": false,
+  "clarification_needed": null
 }
 
 EXAMPLES:
 
 User: "I sold 5 bags of cement to John for K2500 cash"
-Response: {
-  "intent": "record_sale",
-  "confidence": "high",
-  "entities": {
-    "product": "cement",
-    "quantity": 5,
-    "customer_name": "John",
-    "amount": 2500,
-    "payment_method": "Cash"
-  },
-  "requires_confirmation": false,
-  "clarification_needed": null
-}
-
-User: "Check stock for LifeStraw"
-Response: {
-  "intent": "check_stock",
-  "confidence": "high",
-  "entities": {
-    "product": "LifeStraw"
-  },
-  "requires_confirmation": false,
-  "clarification_needed": null
-}
-
-User: "How much did we sell this week?"
-Response: {
-  "intent": "get_sales_summary",
-  "confidence": "high",
-  "entities": {
-    "period": "this_week"
-  },
-  "requires_confirmation": false,
-  "clarification_needed": null
-}
+Response: {"intent":"record_sale","confidence":"high","entities":{"product":"cement bags","quantity":5,"customer_name":"John","amount":2500,"payment_method":"Cash"},"requires_confirmation":false,"clarification_needed":null}
 
 User: "Software development for K15000"
-Response: {
-  "intent": "record_sale",
-  "confidence": "high",
-  "entities": {
-    "product": "Software development",
-    "quantity": 1,
-    "amount": 15000
-  },
-  "requires_confirmation": false,
-  "clarification_needed": null
-}
+Response: {"intent":"record_sale","confidence":"high","entities":{"product":"Software development","quantity":1,"amount":15000},"requires_confirmation":false,"clarification_needed":null}
 
-User: "The customer was Mutale and paid cash"
-Response: {
-  "intent": "record_sale",
-  "confidence": "high",
-  "entities": {
-    "customer_name": "Mutale",
-    "payment_method": "Cash"
-  },
-  "requires_confirmation": false,
-  "clarification_needed": null
-}
+User: "Sold website design to Mulenga for 8000 mobile money"
+Response: {"intent":"record_sale","confidence":"high","entities":{"product":"website design","quantity":1,"customer_name":"Mulenga","amount":8000,"payment_method":"Mobile Money"},"requires_confirmation":false,"clarification_needed":null}
+
+User: "Check stock for LifeStraw"
+Response: {"intent":"check_stock","confidence":"high","entities":{"product":"LifeStraw"},"requires_confirmation":false,"clarification_needed":null}
+
+User: "How much did we sell this week?"
+Response: {"intent":"get_sales_summary","confidence":"high","entities":{"period":"this_week"},"requires_confirmation":false,"clarification_needed":null}
+
+User: "Sales today"
+Response: {"intent":"get_sales_summary","confidence":"high","entities":{"period":"today"},"requires_confirmation":false,"clarification_needed":null}
 
 User: "Send me receipt R2025-0042"
-Response: {
-  "intent": "send_receipt",
-  "confidence": "high",
-  "entities": {
-    "document_number": "R2025-0042"
-  },
-  "requires_confirmation": false,
-  "clarification_needed": null
-}
+Response: {"intent":"send_receipt","confidence":"high","entities":{"document_number":"R2025-0042"},"requires_confirmation":false,"clarification_needed":null}
 
 User: "Get my last receipt"
-Response: {
-  "intent": "send_receipt",
-  "confidence": "high",
-  "entities": {
-    "last": true
-  },
-  "requires_confirmation": false,
-  "clarification_needed": null
-}
+Response: {"intent":"send_receipt","confidence":"high","entities":{"last":true},"requires_confirmation":false,"clarification_needed":null}
 
 User: "Send invoice 2025-0015"
-Response: {
-  "intent": "send_invoice",
-  "confidence": "high",
-  "entities": {
-    "document_number": "2025-0015"
-  },
-  "requires_confirmation": false,
-  "clarification_needed": null
-}
+Response: {"intent":"send_invoice","confidence":"high","entities":{"document_number":"2025-0015"},"requires_confirmation":false,"clarification_needed":null}
 
-User: "Share quotation Q2025-001"
-Response: {
-  "intent": "send_quotation",
-  "confidence": "high",
-  "entities": {
-    "document_number": "Q2025-001"
-  },
-  "requires_confirmation": false,
-  "clarification_needed": null
-}
+User: "Expense K500 for transport"
+Response: {"intent":"record_expense","confidence":"high","entities":{"description":"transport","amount":500},"requires_confirmation":false,"clarification_needed":null}
 
-User: "hello"
-Response: {
-  "intent": "help",
-  "confidence": "high",
-  "entities": {},
-  "requires_confirmation": false,
-  "clarification_needed": null
-}
+User: "Find customer Mulenga"
+Response: {"intent":"check_customer","confidence":"high","entities":{"customer_name":"Mulenga"},"requires_confirmation":false,"clarification_needed":null}
 
-Always respond with valid JSON only. No other text.`;
+User: "hello" or "help" or "hi"
+Response: {"intent":"help","confidence":"high","entities":{},"requires_confirmation":false,"clarification_needed":null}
+
+IMPORTANT: Respond with valid JSON only. No markdown, no explanations.`;
 
 // System prompt for follow-up messages (when we have an existing draft)
 const FOLLOWUP_SYSTEM_PROMPT = `You are an AI assistant for Omanut BMS. The user is providing additional information to complete a previous request.
@@ -170,16 +94,17 @@ CONTEXT: The user previously started a "{existing_intent}" operation. We already
 
 YOUR TASK: Extract ONLY the new information from this message. Do not change the intent - we're completing the same operation.
 
-EXTRACTION RULES:
-- Currency is ZMW (Kwacha), "K500" means 500 ZMW
-- Extract any quantities, product names, customer names, amounts, payment methods mentioned
-- If user says just a product name, extract it as "product"
-- If user says just an amount like "K15000" or "15000", extract it as "amount"
-- If user says a name, try to determine if it's a customer_name or product based on context
-- Payment methods: Cash, Mobile Money, Card
-- "paid cash" or "cash payment" means payment_method is "Cash"
-- "mobile money" or "momo" means payment_method is "Mobile Money"
-- "card", "debit", or "credit" means payment_method is "Card"
+CRITICAL EXTRACTION RULES:
+1. Currency is ZMW (Kwacha), "K500" = 500 ZMW, "15k" = 15000
+2. Extract amounts as NUMBERS, not strings
+3. Payment methods MUST be one of: "Cash", "Mobile Money", "Card"
+   - "cash", "paid cash" → "Cash"
+   - "momo", "mobile money" → "Mobile Money"  
+   - "card", "debit" → "Card"
+4. If user says just a product name, extract it as "product"
+5. If user says just an amount like "K15000" or "15000", extract it as "amount"
+6. If user says a name, determine if it's customer_name based on context
+
 RESPONSE FORMAT (JSON only):
 {
   "intent": "{existing_intent}",
@@ -193,46 +118,23 @@ RESPONSE FORMAT (JSON only):
 
 EXAMPLES for record_sale follow-ups:
 
-Already have: customer_name: "Mutale", payment_method: "cash"
+Already have: customer_name: "Mutale", payment_method: "Cash"
 User message: "Software development 1 quantity at K15000"
-Response: {
-  "intent": "record_sale",
-  "confidence": "high",
-  "entities": {
-    "product": "Software development",
-    "quantity": 1,
-    "amount": 15000
-  },
-  "requires_confirmation": false,
-  "clarification_needed": null
-}
+Response: {"intent":"record_sale","confidence":"high","entities":{"product":"Software development","quantity":1,"amount":15000},"requires_confirmation":false,"clarification_needed":null}
 
 Already have: product: "Software development", amount: 15000
-User message: "The customer was mutale and they paid cash"
-Response: {
-  "intent": "record_sale",
-  "confidence": "high",
-  "entities": {
-    "customer_name": "Mutale",
-    "payment_method": "Cash"
-  },
-  "requires_confirmation": false,
-  "clarification_needed": null
-}
+User message: "The customer was Mutale and they paid cash"
+Response: {"intent":"record_sale","confidence":"high","entities":{"customer_name":"Mutale","payment_method":"Cash"},"requires_confirmation":false,"clarification_needed":null}
 
 Already have: product: "cement", quantity: 5
 User message: "K2500"
-Response: {
-  "intent": "record_sale",
-  "confidence": "high",
-  "entities": {
-    "amount": 2500
-  },
-  "requires_confirmation": false,
-  "clarification_needed": null
-}
+Response: {"intent":"record_sale","confidence":"high","entities":{"amount":2500},"requires_confirmation":false,"clarification_needed":null}
 
-Always respond with valid JSON only. Extract whatever information you can from the message.`;
+Already have: product: "design services", amount: 8000
+User message: "John paid by mobile money"
+Response: {"intent":"record_sale","confidence":"high","entities":{"customer_name":"John","payment_method":"Mobile Money"},"requires_confirmation":false,"clarification_needed":null}
+
+IMPORTANT: Respond with valid JSON only. Extract whatever information you can from the message.`;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -277,7 +179,7 @@ serve(async (req) => {
       userPrompt = `Parse this message: "${message}"\n\nContext: User role is ${context.role}`;
     }
 
-    // Call Lovable AI Gateway
+    // Call Lovable AI Gateway with upgraded model
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -285,12 +187,13 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-2.5-pro', // Upgraded to more capable model
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        temperature: 0.1, // Low temperature for consistent parsing
+        temperature: 0.05, // Very low temperature for consistent parsing
+        response_format: { type: 'json_object' }, // Request JSON response
       }),
     });
 
@@ -332,6 +235,29 @@ serve(async (req) => {
       // Remove any markdown code blocks if present
       const cleanedContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       parsedIntent = JSON.parse(cleanedContent);
+      
+      // Post-process to ensure correct types
+      if (parsedIntent.entities) {
+        // Ensure amount is a number
+        if (parsedIntent.entities.amount !== undefined) {
+          parsedIntent.entities.amount = Number(parsedIntent.entities.amount);
+        }
+        // Ensure quantity is a number
+        if (parsedIntent.entities.quantity !== undefined) {
+          parsedIntent.entities.quantity = Number(parsedIntent.entities.quantity);
+        }
+        // Normalize payment method
+        if (parsedIntent.entities.payment_method) {
+          const pm = String(parsedIntent.entities.payment_method).toLowerCase();
+          if (pm.includes('mobile') || pm.includes('momo') || pm.includes('airtel') || pm.includes('mtn')) {
+            parsedIntent.entities.payment_method = 'Mobile Money';
+          } else if (pm.includes('card') || pm.includes('debit') || pm.includes('credit') || pm.includes('visa')) {
+            parsedIntent.entities.payment_method = 'Card';
+          } else {
+            parsedIntent.entities.payment_method = 'Cash';
+          }
+        }
+      }
     } catch (parseError) {
       console.error('Failed to parse AI response:', content);
       parsedIntent = {
@@ -344,6 +270,7 @@ serve(async (req) => {
     }
 
     const executionTime = Date.now() - startTime;
+    console.log('[bms-intent-parser] Parsed:', JSON.stringify(parsedIntent), 'in', executionTime, 'ms');
 
     return new Response(
       JSON.stringify({

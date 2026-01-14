@@ -33,7 +33,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Generating ${document_type} document:`, { document_id, document_number, tenant_id });
+    console.log(`[generate-whatsapp-document] Generating ${document_type}:`, { document_id, document_number, tenant_id });
 
     // Fetch the document data based on type
     let documentData: any;
@@ -41,37 +41,100 @@ serve(async (req) => {
     let actualDocNumber: string;
 
     if (document_type === 'receipt') {
-      const query = supabase
+      // First try to find in payment_receipts
+      let query = supabase
         .from('payment_receipts')
         .select('*')
         .eq('tenant_id', tenant_id);
       
       if (document_id) {
-        query.eq('id', document_id);
+        query = query.eq('id', document_id);
       } else if (document_number) {
-        query.ilike('receipt_number', `%${document_number}%`);
+        // Use exact match first, then fallback to ilike
+        query = query.eq('receipt_number', document_number);
       } else {
-        query.order('created_at', { ascending: false }).limit(1);
+        query = query.order('created_at', { ascending: false }).limit(1);
       }
 
-      const { data, error } = await query.single();
-      if (error || !data) {
-        console.error('Receipt not found:', error);
-        return new Response(
-          JSON.stringify({ error: 'Receipt not found', details: error?.message }),
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      documentData = data;
-      actualDocNumber = data.receipt_number;
+      const { data, error } = await query.maybeSingle();
+      
+      if (data) {
+        console.log('[generate-whatsapp-document] Found receipt in payment_receipts:', data.receipt_number);
+        documentData = data;
+        actualDocNumber = data.receipt_number;
 
-      // If receipt is linked to an invoice, get invoice items
-      if (data.invoice_id) {
-        const { data: invoiceItems } = await supabase
-          .from('invoice_items')
+        // If receipt is linked to an invoice, get invoice items
+        if (data.invoice_id) {
+          const { data: invoiceItems } = await supabase
+            .from('invoice_items')
+            .select('*')
+            .eq('invoice_id', data.invoice_id);
+          items = invoiceItems || [];
+        } else {
+          // Try to get items from sales_transactions with same receipt number
+          const { data: salesItems } = await supabase
+            .from('sales_transactions')
+            .select('product_name, quantity, unit_price_zmw, total_amount_zmw')
+            .eq('tenant_id', tenant_id)
+            .eq('receipt_number', data.receipt_number);
+          
+          if (salesItems && salesItems.length > 0) {
+            items = salesItems.map((item: any) => ({
+              description: item.product_name,
+              quantity: item.quantity,
+              unit_price: item.unit_price_zmw,
+              amount: item.total_amount_zmw,
+            }));
+          }
+        }
+      } else {
+        // FALLBACK: Try to find in sales_transactions if no payment_receipt exists
+        console.log('[generate-whatsapp-document] Receipt not found in payment_receipts, trying sales_transactions fallback');
+        
+        let txQuery = supabase
+          .from('sales_transactions')
           .select('*')
-          .eq('invoice_id', data.invoice_id);
-        items = invoiceItems || [];
+          .eq('tenant_id', tenant_id);
+        
+        if (document_number) {
+          txQuery = txQuery.eq('receipt_number', document_number);
+        } else {
+          txQuery = txQuery.order('created_at', { ascending: false }).limit(1);
+        }
+
+        const { data: txData, error: txError } = await txQuery;
+
+        if (txError || !txData || txData.length === 0) {
+          console.error('[generate-whatsapp-document] Receipt not found in any table:', { document_number, error, txError });
+          return new Response(
+            JSON.stringify({ error: 'Receipt not found', details: 'No matching receipt in payment_receipts or sales_transactions' }),
+            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Build receipt data from sales_transactions
+        const firstTx = txData[0];
+        actualDocNumber = firstTx.receipt_number || `TX-${firstTx.id.substring(0, 8)}`;
+        
+        const totalAmount = txData.reduce((sum: number, tx: any) => sum + (tx.total_amount_zmw || 0), 0);
+        
+        documentData = {
+          receipt_number: actualDocNumber,
+          client_name: firstTx.customer_name || 'Walk-in Customer',
+          payment_date: firstTx.created_at,
+          amount_paid: totalAmount,
+          payment_method: firstTx.payment_method,
+          notes: firstTx.notes,
+        };
+
+        items = txData.map((tx: any) => ({
+          description: tx.product_name,
+          quantity: tx.quantity,
+          unit_price: tx.unit_price_zmw,
+          amount: tx.total_amount_zmw,
+        }));
+
+        console.log('[generate-whatsapp-document] Built receipt from sales_transactions:', actualDocNumber);
       }
 
     } else if (document_type === 'invoice') {
@@ -155,14 +218,16 @@ serve(async (req) => {
     const companyAddress = businessProfile?.company_address || '';
     const companyPhone = businessProfile?.company_phone || '';
     const companyEmail = businessProfile?.company_email || '';
+    const logoUrl = businessProfile?.logo_url || null;
 
-    // Generate PDF content as plain text for now (jsPDF has issues in Deno)
-    // We'll create a simple HTML -> PDF approach using a text-based format
+    console.log('[generate-whatsapp-document] Generating PDF for:', actualDocNumber, 'with', items.length, 'items');
+
+    // Generate PDF content
     const pdfContent = generatePDFContent(
       document_type,
       documentData,
       items,
-      { companyName, companyAddress, companyPhone, companyEmail }
+      { companyName, companyAddress, companyPhone, companyEmail, logoUrl }
     );
 
     // Generate unique filename
@@ -190,7 +255,7 @@ serve(async (req) => {
       .from('whatsapp-documents')
       .getPublicUrl(filename);
 
-    console.log('Document generated successfully:', publicUrl.publicUrl);
+    console.log('[generate-whatsapp-document] Document generated successfully:', publicUrl.publicUrl);
 
     return new Response(
       JSON.stringify({
@@ -216,7 +281,7 @@ function generatePDFContent(
   docType: string,
   data: any,
   items: any[],
-  company: { companyName: string; companyAddress: string; companyPhone: string; companyEmail: string }
+  company: { companyName: string; companyAddress: string; companyPhone: string; companyEmail: string; logoUrl?: string | null }
 ): Uint8Array {
   // Create a simple PDF manually (PDF 1.4 format)
   // This is a minimal PDF generator that works in Deno without external dependencies
@@ -246,35 +311,42 @@ function generatePDFContent(
 
   // Build content lines
   const lines: string[] = [
-    company.companyName,
+    '═'.repeat(45),
+    company.companyName.toUpperCase(),
+    '═'.repeat(45),
     company.companyAddress || '',
     company.companyPhone ? `Tel: ${company.companyPhone}` : '',
     company.companyEmail ? `Email: ${company.companyEmail}` : '',
     '',
+    '─'.repeat(45),
     `${title}`,
+    '─'.repeat(45),
     `Number: ${docNumber}`,
     `Date: ${docDate}`,
-    '',
     `Client: ${clientName}`,
     '',
   ];
 
   // Add items
   if (items.length > 0) {
-    lines.push('Items:');
-    lines.push('─'.repeat(40));
+    lines.push('─'.repeat(45));
+    lines.push('ITEMS:');
+    lines.push('─'.repeat(45));
     items.forEach((item, index) => {
       const qty = item.quantity || 1;
       const price = item.unit_price || item.amount || 0;
       const desc = item.description || item.item_name || 'Item';
+      const lineTotal = qty * price;
       lines.push(`${index + 1}. ${desc}`);
-      lines.push(`   ${qty} x K${price.toLocaleString()} = K${(qty * price).toLocaleString()}`);
+      lines.push(`   ${qty} x K${price.toLocaleString()} = K${lineTotal.toLocaleString()}`);
     });
-    lines.push('─'.repeat(40));
+    lines.push('─'.repeat(45));
   }
 
   lines.push('');
+  lines.push('═'.repeat(45));
   lines.push(`TOTAL: K${totalAmount.toLocaleString()}`);
+  lines.push('═'.repeat(45));
   
   if (docType === 'receipt') {
     lines.push('');
@@ -290,7 +362,9 @@ function generatePDFContent(
   }
 
   lines.push('');
-  lines.push(`Generated via WhatsApp on ${new Date().toLocaleString()}`);
+  lines.push('─'.repeat(45));
+  lines.push(`Generated: ${new Date().toLocaleString()}`);
+  lines.push('Powered by Omanut BMS');
 
   // Create PDF content
   const content = lines.filter(l => l !== undefined).join('\n');
@@ -308,7 +382,8 @@ function createSimplePDF(text: string, title: string, docNumber: string): Uint8A
     .replace(/\\/g, '\\\\')
     .replace(/\(/g, '\\(')
     .replace(/\)/g, '\\)')
-    .replace(/─/g, '-');
+    .replace(/─/g, '-')
+    .replace(/═/g, '=');
   
   // Split into lines and format
   const lines = escapedText.split('\n');
@@ -320,7 +395,7 @@ function createSimplePDF(text: string, title: string, docNumber: string): Uint8A
   const textOps = lines.map((line, i) => {
     const y = startY - (i * lineHeight);
     if (y < 50) return ''; // Don't go off page
-    return `BT /F1 11 Tf ${margin} ${y} Td (${line}) Tj ET`;
+    return `BT /F1 10 Tf ${margin} ${y} Td (${line}) Tj ET`;
   }).filter(l => l).join('\n');
 
   const streamContent = `
@@ -349,7 +424,7 @@ ${streamContent}
 endstream
 endobj
 5 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>
 endobj
 xref
 0 6
