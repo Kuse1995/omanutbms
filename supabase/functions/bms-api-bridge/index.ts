@@ -31,6 +31,39 @@ interface ExecutionContext {
   display_name: string;
 }
 
+const PAYMENT_METHOD_CANONICAL: Record<string, 'Cash' | 'Mobile Money' | 'Card'> = {
+  cash: 'Cash',
+  'cash payment': 'Cash',
+  momo: 'Mobile Money',
+  mobile_money: 'Mobile Money',
+  'mobile money': 'Mobile Money',
+  mobilemoney: 'Mobile Money',
+  card: 'Card',
+  debit: 'Card',
+  credit: 'Card',
+};
+
+function normalizePaymentMethod(input: unknown): 'Cash' | 'Mobile Money' | 'Card' {
+  const key = String(input ?? '').trim().toLowerCase();
+  return PAYMENT_METHOD_CANONICAL[key] ?? 'Cash';
+}
+
+function normalizeProductQuery(input: unknown): { raw: string; pattern: string } {
+  const raw = String(input ?? '').trim();
+  const tokens = raw
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((t) => !['service', 'services', 'product', 'item', 'items'].includes(t));
+
+  const patternCore = tokens.length
+    ? tokens.join('%')
+    : raw.toLowerCase().replace(/\s+/g, '%');
+
+  return { raw, pattern: `%${patternCore}%` };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -183,34 +216,43 @@ async function handleListProducts(supabase: any, context: ExecutionContext) {
 }
 
 async function handleRecordSale(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
-  const { product, quantity = 1, customer_name, amount, payment_method = 'cash' } = entities;
+  const { product, customer_name } = entities;
+  const quantity = Number.isFinite(Number(entities.quantity)) ? Number(entities.quantity) : 1;
+  const amount = Number(entities.amount);
+  const payment_method = normalizePaymentMethod(entities.payment_method);
 
-  if (!product || !amount) {
-    return { 
-      success: false, 
-      message: 'Please specify the product and amount. Example: "Sold 5 cement bags to John for K2500 cash"' 
+  if (!product || !Number.isFinite(amount) || amount <= 0) {
+    return {
+      success: false,
+      message:
+        'Please specify the product and amount. Example: "Sold 5 cement bags to John for K2500 cash"',
     };
   }
 
-  // Find the product
+  const { raw: productRaw, pattern: productPattern } = normalizeProductQuery(product);
+
+  // Try to match an inventory item (optional: allow service sales even if not in inventory)
   const { data: products, error: productError } = await supabase
     .from('inventory')
     .select('id, name, unit_price, current_stock')
     .eq('tenant_id', context.tenant_id)
-    .ilike('name', `%${product}%`)
+    .ilike('name', productPattern)
     .limit(1);
 
-  if (productError || !products || products.length === 0) {
-    return { success: false, message: `Product "${product}" not found in inventory.` };
+  if (productError) {
+    console.error('Product lookup error:', productError);
+    return { success: false, message: 'Failed to look up product. Please try again.' };
   }
 
-  const productItem = products[0];
+  const productItem = products?.[0] ?? null;
 
-  if (productItem.current_stock < quantity) {
-    return { 
-      success: false, 
-      message: `Insufficient stock for ${productItem.name}. Available: ${productItem.current_stock} units.` 
-    };
+  if (productItem) {
+    if (productItem.current_stock < quantity) {
+      return {
+        success: false,
+        message: `Insufficient stock for ${productItem.name}. Available: ${productItem.current_stock} units.`,
+      };
+    }
   }
 
   // Generate sale number
@@ -223,9 +265,7 @@ async function handleRecordSale(supabase: any, entities: Record<string, any>, co
     .order('sale_number', { ascending: false })
     .limit(1);
 
-  const nextNum = lastSale && lastSale[0] 
-    ? parseInt(lastSale[0].sale_number.split('-')[1]) + 1 
-    : 1;
+  const nextNum = lastSale && lastSale[0] ? parseInt(lastSale[0].sale_number.split('-')[1]) + 1 : 1;
   const saleNumber = `${yearPrefix}-${String(nextNum).padStart(4, '0')}`;
 
   // Create sale
@@ -235,7 +275,7 @@ async function handleRecordSale(supabase: any, entities: Record<string, any>, co
       tenant_id: context.tenant_id,
       sale_number: saleNumber,
       customer_name: customer_name || 'Walk-in Customer',
-      payment_method: payment_method,
+      payment_method,
       subtotal: amount,
       tax_amount: 0,
       total_amount: amount,
@@ -249,26 +289,40 @@ async function handleRecordSale(supabase: any, entities: Record<string, any>, co
     return { success: false, message: 'Failed to record sale. Please try again.' };
   }
 
+  const resolvedItemName = productItem?.name ?? productRaw;
+  const resolvedUnitPrice = productItem?.unit_price ?? amount / Math.max(1, quantity);
+
   // Create sale item
-  await supabase.from('sale_items').insert({
+  const { error: saleItemError } = await supabase.from('sale_items').insert({
     tenant_id: context.tenant_id,
     sale_id: sale.id,
-    inventory_id: productItem.id,
-    item_name: productItem.name,
+    inventory_id: productItem?.id ?? null,
+    item_name: resolvedItemName,
     quantity,
-    unit_price: productItem.unit_price,
+    unit_price: resolvedUnitPrice,
     total_price: amount,
   });
 
-  // Update inventory
-  await supabase
-    .from('inventory')
-    .update({ current_stock: productItem.current_stock - quantity })
-    .eq('id', productItem.id);
+  if (saleItemError) {
+    console.error('Sale item creation error:', saleItemError);
+    return { success: false, message: 'Sale recorded but failed to add item details.' };
+  }
+
+  // Update inventory (only if linked to inventory)
+  if (productItem) {
+    const { error: invError } = await supabase
+      .from('inventory')
+      .update({ current_stock: productItem.current_stock - quantity })
+      .eq('id', productItem.id);
+
+    if (invError) {
+      console.error('Inventory update error:', invError);
+    }
+  }
 
   return {
     success: true,
-    message: `✅ Sale recorded!\n📝 ${saleNumber}\n📦 ${quantity}x ${productItem.name}\n👤 ${customer_name || 'Walk-in Customer'}\n💰 K${amount.toLocaleString()} (${payment_method})`,
+    message: `✅ Sale recorded!\n📝 ${saleNumber}\n📦 ${quantity}x ${resolvedItemName}\n👤 ${customer_name || 'Walk-in Customer'}\n💰 K${amount.toLocaleString()} (${payment_method})`,
     data: { sale_number: saleNumber, sale_id: sale.id },
   };
 }
@@ -320,14 +374,18 @@ async function handleGetSalesSummary(supabase: any, entities: Record<string, any
 
   const totalSales = data?.length || 0;
   const totalRevenue = data?.reduce((sum: number, sale: any) => sum + sale.total_amount, 0) || 0;
-  const cashSales = data?.filter((s: any) => s.payment_method === 'cash').reduce((sum: number, s: any) => sum + s.total_amount, 0) || 0;
-  const mobileSales = data?.filter((s: any) => s.payment_method === 'mobile_money').reduce((sum: number, s: any) => sum + s.total_amount, 0) || 0;
+  const cashSales =
+    data?.filter((s: any) => s.payment_method === 'Cash').reduce((sum: number, s: any) => sum + s.total_amount, 0) || 0;
+  const mobileSales =
+    data?.filter((s: any) => s.payment_method === 'Mobile Money').reduce((sum: number, s: any) => sum + s.total_amount, 0) || 0;
+  const cardSales =
+    data?.filter((s: any) => s.payment_method === 'Card').reduce((sum: number, s: any) => sum + s.total_amount, 0) || 0;
 
   const periodLabel = period.replace('_', ' ');
 
   return {
     success: true,
-    message: `📊 Sales Summary (${periodLabel}):\n\n📈 Total Sales: ${totalSales}\n💰 Revenue: K${totalRevenue.toLocaleString()}\n💵 Cash: K${cashSales.toLocaleString()}\n📱 Mobile: K${mobileSales.toLocaleString()}`,
+    message: `📊 Sales Summary (${periodLabel}):\n\n📈 Total Sales: ${totalSales}\n💰 Revenue: K${totalRevenue.toLocaleString()}\n💵 Cash: K${cashSales.toLocaleString()}\n📱 Mobile Money: K${mobileSales.toLocaleString()}\n💳 Card: K${cardSales.toLocaleString()}`,
     data: { total_sales: totalSales, total_revenue: totalRevenue },
   };
 }
