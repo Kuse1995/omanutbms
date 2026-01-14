@@ -28,9 +28,9 @@ EXTRACTION RULES:
 - Currency is always ZMW (Kwacha), users may say "K500" meaning 500 ZMW
 - Extract quantities, product names, customer names, amounts
 - For dates, "today", "yesterday", "this week", "this month" are valid
-- Payment methods: cash, mobile_money, bank_transfer, credit
+- Payment methods: Cash, Mobile Money, Card
 - Default quantity to 1 if not specified
-- Default payment_method to "cash" if not specified
+- Default payment_method to "Cash" if not specified
 - If the message clearly provides info for a specific field, extract it even if other fields are missing
 
 RESPONSE FORMAT (JSON only):
@@ -55,7 +55,7 @@ Response: {
     "quantity": 5,
     "customer_name": "John",
     "amount": 2500,
-    "payment_method": "cash"
+    "payment_method": "Cash"
   },
   "requires_confirmation": false,
   "clarification_needed": null
@@ -102,7 +102,7 @@ Response: {
   "confidence": "high",
   "entities": {
     "customer_name": "Mutale",
-    "payment_method": "cash"
+    "payment_method": "Cash"
   },
   "requires_confirmation": false,
   "clarification_needed": null
@@ -176,10 +176,10 @@ EXTRACTION RULES:
 - If user says just a product name, extract it as "product"
 - If user says just an amount like "K15000" or "15000", extract it as "amount"
 - If user says a name, try to determine if it's a customer_name or product based on context
-- Payment methods: cash, mobile_money, mobile money, momo, bank_transfer, credit
-- "paid cash" or "cash payment" means payment_method is "cash"
-- "mobile money" or "momo" means payment_method is "mobile_money"
-
+- Payment methods: Cash, Mobile Money, Card
+- "paid cash" or "cash payment" means payment_method is "Cash"
+- "mobile money" or "momo" means payment_method is "Mobile Money"
+- "card", "debit", or "credit" means payment_method is "Card"
 RESPONSE FORMAT (JSON only):
 {
   "intent": "{existing_intent}",
@@ -214,7 +214,7 @@ Response: {
   "confidence": "high",
   "entities": {
     "customer_name": "Mutale",
-    "payment_method": "cash"
+    "payment_method": "Cash"
   },
   "requires_confirmation": false,
   "clarification_needed": null
