@@ -58,13 +58,29 @@ export function SalesReceiptModal({
 
     setIsDownloading(true);
     try {
-      const canvas = await html2canvas(element, { 
+      // Clone element for capturing to avoid viewport issues on mobile
+      const clone = element.cloneNode(true) as HTMLElement;
+      clone.style.position = 'absolute';
+      clone.style.left = '-9999px';
+      clone.style.top = '0';
+      clone.style.width = '600px'; // Fixed width for consistent PDF
+      clone.style.maxWidth = '600px';
+      clone.style.overflow = 'visible';
+      clone.style.height = 'auto';
+      document.body.appendChild(clone);
+
+      const canvas = await html2canvas(clone, { 
         scale: 2,
         useCORS: true,
         allowTaint: true,
         backgroundColor: "#ffffff",
         logging: false,
+        width: 600,
+        windowWidth: 600,
       });
+      
+      document.body.removeChild(clone);
+      
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -73,7 +89,14 @@ export function SalesReceiptModal({
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       const xOffset = 10; // 10mm left margin
       const yOffset = 10; // 10mm top margin
-      pdf.addImage(imgData, "PNG", xOffset, yOffset, imgWidth, Math.min(imgHeight, pdfHeight - 20));
+      
+      // Handle multi-page if content is too tall
+      if (imgHeight > pdfHeight - 20) {
+        pdf.addImage(imgData, "PNG", xOffset, yOffset, imgWidth, imgHeight);
+      } else {
+        pdf.addImage(imgData, "PNG", xOffset, yOffset, imgWidth, imgHeight);
+      }
+      
       pdf.save(`receipt-${receiptNumber}.pdf`);
     } catch (error) {
       console.error("PDF generation error:", error);
@@ -115,22 +138,22 @@ export function SalesReceiptModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg bg-white text-gray-900 max-h-[90vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="text-gray-900">Sales Receipt</DialogTitle>
+      <DialogContent className="w-[95vw] max-w-lg bg-white text-gray-900 max-h-[90vh] flex flex-col p-3 sm:p-6">
+        <DialogHeader className="pb-2">
+          <DialogTitle className="text-gray-900 text-base sm:text-lg">Sales Receipt</DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto">
-          <div id="sales-receipt-content" className="bg-white p-6 space-y-4">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden -mx-3 px-3 sm:-mx-6 sm:px-6">
+          <div id="sales-receipt-content" className="bg-white p-3 sm:p-6 space-y-3 sm:space-y-4 min-w-0">
             <TenantDocumentHeader
               documentType="RECEIPT"
               documentNumber={receiptNumber}
               variant="centered"
             />
 
-            <div className="bg-green-50 text-center py-4 rounded-lg">
-              <p className="text-sm text-gray-600">Amount Paid</p>
-              <p className="text-3xl font-bold text-green-600">
+            <div className="bg-green-50 text-center py-3 sm:py-4 rounded-lg">
+              <p className="text-xs sm:text-sm text-gray-600">Amount Paid</p>
+              <p className="text-2xl sm:text-3xl font-bold text-green-600">
                 K {totalAmount.toLocaleString()}
               </p>
             </div>
@@ -167,47 +190,53 @@ export function SalesReceiptModal({
             </div>
 
             {/* Items */}
-            <div className="mt-4">
-              <h4 className="font-semibold text-gray-700 mb-2">Items Purchased</h4>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2">Description</th>
-                    <th className="text-center py-2">Qty</th>
-                    <th className="text-right py-2">Price</th>
-                    <th className="text-right py-2">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item, idx) => (
-                    <tr key={idx} className="border-b">
-                      <td className="py-2">
-                        {item.product_name}
-                        {item.selected_color && ` - ${item.selected_color}`}
-                        {item.selected_size && ` (${item.selected_size})`}
-                        {item.item_type === "service" && (
-                          <span className="ml-1 text-xs text-amber-600">[Service]</span>
-                        )}
-                      </td>
-                      <td className="text-center py-2">{item.quantity}</td>
-                      <td className="text-right py-2">K {item.unit_price_zmw.toLocaleString()}</td>
-                      <td className="text-right py-2">K {item.total_amount_zmw.toLocaleString()}</td>
+            <div className="mt-3 sm:mt-4">
+              <h4 className="font-semibold text-gray-700 mb-2 text-sm sm:text-base">Items Purchased</h4>
+              <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
+                <table className="w-full text-xs sm:text-sm min-w-[280px]">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 pr-2">Description</th>
+                      <th className="text-center py-2 px-1 whitespace-nowrap">Qty</th>
+                      <th className="text-right py-2 px-1 whitespace-nowrap">Price</th>
+                      <th className="text-right py-2 pl-1 whitespace-nowrap">Total</th>
                     </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="font-bold">
-                    <td colSpan={3} className="text-right py-2">Total:</td>
-                    <td className="text-right py-2 text-green-600">K {totalAmount.toLocaleString()}</td>
-                  </tr>
-                </tfoot>
-              </table>
+                  </thead>
+                  <tbody>
+                    {items.map((item, idx) => (
+                      <tr key={idx} className="border-b">
+                        <td className="py-2 pr-2 break-words max-w-[120px] sm:max-w-none">
+                          <span className="block truncate sm:whitespace-normal">{item.product_name}</span>
+                          {(item.selected_color || item.selected_size) && (
+                            <span className="text-xs text-gray-500 block">
+                              {item.selected_color && item.selected_color}
+                              {item.selected_size && ` (${item.selected_size})`}
+                            </span>
+                          )}
+                          {item.item_type === "service" && (
+                            <span className="text-xs text-amber-600">[Service]</span>
+                          )}
+                        </td>
+                        <td className="text-center py-2 px-1">{item.quantity}</td>
+                        <td className="text-right py-2 px-1 whitespace-nowrap">K {item.unit_price_zmw.toLocaleString()}</td>
+                        <td className="text-right py-2 pl-1 whitespace-nowrap">K {item.total_amount_zmw.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="font-bold">
+                      <td colSpan={3} className="text-right py-2 pr-1">Total:</td>
+                      <td className="text-right py-2 pl-1 text-green-600 whitespace-nowrap">K {totalAmount.toLocaleString()}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
             </div>
 
             {isImpactEnabled && litersImpact > 0 && (
-              <div className="bg-teal-50 text-center py-4 rounded-lg border border-teal-200">
-                <p className="text-sm text-teal-600">{impact.unitLabel || 'Impact'} Generated</p>
-                <p className="text-2xl font-bold text-teal-700">
+              <div className="bg-teal-50 text-center py-3 sm:py-4 rounded-lg border border-teal-200">
+                <p className="text-xs sm:text-sm text-teal-600">{impact.unitLabel || 'Impact'} Generated</p>
+                <p className="text-xl sm:text-2xl font-bold text-teal-700">
                   {litersImpact.toLocaleString()} {impact.unitLabel || 'Units'}
                 </p>
                 <p className="text-xs text-teal-600 mt-1">
@@ -216,7 +245,7 @@ export function SalesReceiptModal({
               </div>
             )}
 
-            <div className="text-center text-gray-500 text-xs pt-4 border-t">
+            <div className="text-center text-gray-500 text-xs pt-3 sm:pt-4 border-t">
               <p>Thank you for your purchase!</p>
               {(companyName || tagline) && (
                 <p className="mt-1">{[companyName, tagline].filter(Boolean).join(' - ')}</p>
@@ -225,26 +254,27 @@ export function SalesReceiptModal({
           </div>
         </div>
 
-        <div className="flex justify-between gap-3 pt-4 border-t">
-          <Button variant="outline" onClick={onClose}>
+        <div className="flex flex-col sm:flex-row justify-between gap-2 sm:gap-3 pt-3 sm:pt-4 border-t">
+          <Button variant="outline" onClick={onClose} className="order-last sm:order-first">
             Close
           </Button>
-          <div className="flex gap-2">
-            <Button onClick={handlePrint} variant="outline">
-              <Printer className="h-4 w-4 mr-2" />
-              Print
+          <div className="flex gap-2 flex-1 sm:flex-none justify-end">
+            <Button onClick={handlePrint} variant="outline" className="flex-1 sm:flex-none">
+              <Printer className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Print</span>
             </Button>
             <Button
               onClick={handleDownloadPDF}
               disabled={isDownloading}
-              className="bg-[#004B8D] hover:bg-[#003a6d]"
+              className="bg-[#004B8D] hover:bg-[#003a6d] flex-1 sm:flex-none"
             >
               {isDownloading ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" />
               ) : (
-                <Download className="h-4 w-4 mr-2" />
+                <Download className="h-4 w-4 sm:mr-2" />
               )}
-              Download PDF
+              <span className="hidden sm:inline">Download PDF</span>
+              <span className="sm:hidden">PDF</span>
             </Button>
           </div>
         </div>
