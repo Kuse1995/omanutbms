@@ -935,6 +935,7 @@ export type Database = {
           bank_name: string | null
           base_salary_zmw: number
           created_at: string
+          daily_rate: number | null
           department: string | null
           email: string | null
           emergency_contact_name: string | null
@@ -943,11 +944,14 @@ export type Database = {
           employment_status: string
           full_name: string
           hire_date: string
+          hourly_rate: number | null
           id: string
           job_title: string | null
           notes: string | null
           nrc_number: string | null
+          pay_type: string
           phone: string | null
+          shift_rate: number | null
           tenant_id: string | null
           termination_date: string | null
           updated_at: string
@@ -959,6 +963,7 @@ export type Database = {
           bank_name?: string | null
           base_salary_zmw?: number
           created_at?: string
+          daily_rate?: number | null
           department?: string | null
           email?: string | null
           emergency_contact_name?: string | null
@@ -967,11 +972,14 @@ export type Database = {
           employment_status?: string
           full_name: string
           hire_date?: string
+          hourly_rate?: number | null
           id?: string
           job_title?: string | null
           notes?: string | null
           nrc_number?: string | null
+          pay_type?: string
           phone?: string | null
+          shift_rate?: number | null
           tenant_id?: string | null
           termination_date?: string | null
           updated_at?: string
@@ -983,6 +991,7 @@ export type Database = {
           bank_name?: string | null
           base_salary_zmw?: number
           created_at?: string
+          daily_rate?: number | null
           department?: string | null
           email?: string | null
           emergency_contact_name?: string | null
@@ -991,11 +1000,14 @@ export type Database = {
           employment_status?: string
           full_name?: string
           hire_date?: string
+          hourly_rate?: number | null
           id?: string
           job_title?: string | null
           notes?: string | null
           nrc_number?: string | null
+          pay_type?: string
           phone?: string | null
+          shift_rate?: number | null
           tenant_id?: string | null
           termination_date?: string | null
           updated_at?: string
@@ -1560,6 +1572,8 @@ export type Database = {
           employee_id: string | null
           employee_type: string
           gross_pay: number
+          hourly_rate: number | null
+          hours_worked: number | null
           id: string
           loan_deduction: number
           napsa_deduction: number
@@ -1574,6 +1588,8 @@ export type Database = {
           payment_method: string | null
           payment_reference: string | null
           profile_user_id: string | null
+          shift_pay: number | null
+          shifts_worked: number | null
           status: string
           tenant_id: string | null
           total_deductions: number
@@ -1587,6 +1603,8 @@ export type Database = {
           employee_id?: string | null
           employee_type?: string
           gross_pay?: number
+          hourly_rate?: number | null
+          hours_worked?: number | null
           id?: string
           loan_deduction?: number
           napsa_deduction?: number
@@ -1601,6 +1619,8 @@ export type Database = {
           payment_method?: string | null
           payment_reference?: string | null
           profile_user_id?: string | null
+          shift_pay?: number | null
+          shifts_worked?: number | null
           status?: string
           tenant_id?: string | null
           total_deductions?: number
@@ -1614,6 +1634,8 @@ export type Database = {
           employee_id?: string | null
           employee_type?: string
           gross_pay?: number
+          hourly_rate?: number | null
+          hours_worked?: number | null
           id?: string
           loan_deduction?: number
           napsa_deduction?: number
@@ -1628,6 +1650,8 @@ export type Database = {
           payment_method?: string | null
           payment_reference?: string | null
           profile_user_id?: string | null
+          shift_pay?: number | null
+          shifts_worked?: number | null
           status?: string
           tenant_id?: string | null
           total_deductions?: number

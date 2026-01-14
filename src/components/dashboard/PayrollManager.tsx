@@ -45,6 +45,10 @@ interface Employee {
   full_name: string;
   base_salary_zmw: number;
   employee_type: string;
+  pay_type: string;
+  hourly_rate: number;
+  daily_rate: number;
+  shift_rate: number;
 }
 
 const statusColors: Record<string, string> = {
@@ -68,7 +72,7 @@ export const PayrollManager = () => {
     try {
       const [payrollRes, employeesRes] = await Promise.all([
         supabase.from("payroll_records").select("*").order("created_at", { ascending: false }),
-        supabase.from("employees").select("id, full_name, base_salary_zmw, employee_type").eq("employment_status", "active"),
+        supabase.from("employees").select("id, full_name, base_salary_zmw, employee_type, pay_type, hourly_rate, daily_rate, shift_rate").eq("employment_status", "active"),
       ]);
 
       if (payrollRes.error) throw payrollRes.error;

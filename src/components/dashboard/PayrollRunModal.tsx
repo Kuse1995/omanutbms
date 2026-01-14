@@ -16,6 +16,10 @@ interface Employee {
   full_name: string;
   base_salary_zmw: number;
   employee_type: string;
+  pay_type: string;
+  hourly_rate: number;
+  daily_rate: number;
+  shift_rate: number;
 }
 
 interface PayrollRunModalProps {
@@ -29,7 +33,12 @@ interface PayrollRunModalProps {
 interface PayrollEntry {
   employee_id: string;
   selected: boolean;
+  pay_type: string;
   basic_salary: number;
+  hourly_rate: number;
+  hours_worked: number;
+  shifts_worked: number;
+  shift_rate: number;
   allowances: number;
   overtime_pay: number;
   bonus: number;
@@ -65,7 +74,12 @@ export const PayrollRunModal = ({
     employees.map((emp) => ({
       employee_id: emp.id,
       selected: true,
-      basic_salary: emp.base_salary_zmw,
+      pay_type: emp.pay_type || "monthly",
+      basic_salary: emp.base_salary_zmw || 0,
+      hourly_rate: emp.hourly_rate || 0,
+      hours_worked: 0,
+      shifts_worked: 0,
+      shift_rate: emp.shift_rate || 0,
       allowances: 0,
       overtime_pay: 0,
       bonus: 0,
@@ -74,19 +88,33 @@ export const PayrollRunModal = ({
     }))
   );
 
-  const updateEntry = (id: string, field: keyof PayrollEntry, value: number | boolean) => {
+  const updateEntry = (id: string, field: keyof PayrollEntry, value: number | boolean | string) => {
     setEntries((prev) =>
       prev.map((e) => (e.employee_id === id ? { ...e, [field]: value } : e))
     );
   };
 
   const calculateTotals = (entry: PayrollEntry) => {
-    const gross = entry.basic_salary + entry.allowances + entry.overtime_pay + entry.bonus;
+    let basePay = 0;
+    
+    // Calculate base pay based on pay type
+    if (entry.pay_type === "hourly") {
+      basePay = entry.hourly_rate * entry.hours_worked;
+    } else if (entry.pay_type === "per_shift") {
+      basePay = entry.shift_rate * entry.shifts_worked;
+    } else if (entry.pay_type === "daily") {
+      // For daily, hours_worked represents days worked
+      basePay = entry.hourly_rate * entry.hours_worked; // Reusing hourly_rate as daily_rate
+    } else {
+      basePay = entry.basic_salary;
+    }
+    
+    const gross = basePay + entry.allowances + entry.overtime_pay + entry.bonus;
     const napsa = calculateNAPSA(gross);
     const paye = calculatePAYE(gross - napsa);
     const totalDeductions = napsa + paye + entry.loan_deduction + entry.other_deductions;
     const net = gross - totalDeductions;
-    return { gross, napsa, paye, totalDeductions, net };
+    return { basePay, gross, napsa, paye, totalDeductions, net };
   };
 
   const handleSubmit = async () => {
@@ -108,13 +136,17 @@ export const PayrollRunModal = ({
       const payPeriodEnd = format(endOfMonth(monthDate), "yyyy-MM-dd");
 
       const payrollRecords = selectedEntries.map((entry) => {
-        const { gross, napsa, paye, totalDeductions, net } = calculateTotals(entry);
+        const { basePay, gross, napsa, paye, totalDeductions, net } = calculateTotals(entry);
         return {
           employee_id: entry.employee_id,
           employee_type: "employee",
           pay_period_start: payPeriodStart,
           pay_period_end: payPeriodEnd,
-          basic_salary: entry.basic_salary,
+          basic_salary: entry.pay_type === "monthly" ? entry.basic_salary : 0,
+          shift_pay: entry.pay_type !== "monthly" ? basePay : 0,
+          hours_worked: entry.hours_worked,
+          shifts_worked: entry.shifts_worked,
+          hourly_rate: entry.hourly_rate,
           allowances: entry.allowances,
           overtime_pay: entry.overtime_pay,
           bonus: entry.bonus,
@@ -144,7 +176,7 @@ export const PayrollRunModal = ({
     }
   };
 
-  const employeeMap = new Map(employees.map((e) => [e.id, e.full_name]));
+  const employeeMap = new Map(employees.map((e) => [e.id, { name: e.full_name, pay_type: e.pay_type || "monthly" }]));
 
   const grandTotals = entries
     .filter((e) => e.selected)
@@ -175,7 +207,8 @@ export const PayrollRunModal = ({
           <div className="bg-muted/50 p-3 rounded-lg text-sm">
             <p>
               <strong>NAPSA:</strong> 5% of gross (ceiling: K26,055) |{" "}
-              <strong>PAYE:</strong> Progressive tax brackets applied
+              <strong>PAYE:</strong> Progressive tax brackets applied |{" "}
+              <strong>Shift Pay:</strong> Enter hours/shifts for non-monthly workers
             </p>
           </div>
 
@@ -184,11 +217,12 @@ export const PayrollRunModal = ({
               <TableRow>
                 <TableHead className="w-10"></TableHead>
                 <TableHead>Employee</TableHead>
-                <TableHead className="w-24">Basic (K)</TableHead>
-                <TableHead className="w-24">Allowances</TableHead>
-                <TableHead className="w-24">Overtime</TableHead>
-                <TableHead className="w-24">Bonus</TableHead>
-                <TableHead className="w-24">Loans</TableHead>
+                <TableHead className="w-20">Pay Type</TableHead>
+                <TableHead className="w-24">Rate/Salary</TableHead>
+                <TableHead className="w-20">Hrs/Shifts</TableHead>
+                <TableHead className="w-20">Allowances</TableHead>
+                <TableHead className="w-20">Overtime</TableHead>
+                <TableHead className="w-20">Loans</TableHead>
                 <TableHead className="text-right">Gross</TableHead>
                 <TableHead className="text-right">Net</TableHead>
               </TableRow>
@@ -196,6 +230,13 @@ export const PayrollRunModal = ({
             <TableBody>
               {entries.map((entry) => {
                 const { gross, net } = calculateTotals(entry);
+                const empInfo = employeeMap.get(entry.employee_id);
+                const payTypeLabels: Record<string, string> = {
+                  monthly: "Monthly",
+                  hourly: "Hourly",
+                  daily: "Daily",
+                  per_shift: "Per Shift",
+                };
                 return (
                   <TableRow key={entry.employee_id}>
                     <TableCell>
@@ -207,17 +248,75 @@ export const PayrollRunModal = ({
                       />
                     </TableCell>
                     <TableCell className="font-medium">
-                      {employeeMap.get(entry.employee_id)}
+                      {empInfo?.name}
                     </TableCell>
                     <TableCell>
-                      <Input
-                        type="number"
-                        value={entry.basic_salary}
-                        onChange={(e) =>
-                          updateEntry(entry.employee_id, "basic_salary", parseFloat(e.target.value) || 0)
-                        }
-                        className="h-8 w-24"
-                      />
+                      <span className={`text-xs px-2 py-1 rounded ${
+                        entry.pay_type === "monthly" ? "bg-blue-100 text-blue-700" :
+                        entry.pay_type === "hourly" ? "bg-green-100 text-green-700" :
+                        entry.pay_type === "per_shift" ? "bg-purple-100 text-purple-700" :
+                        "bg-amber-100 text-amber-700"
+                      }`}>
+                        {payTypeLabels[entry.pay_type] || "Monthly"}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      {entry.pay_type === "monthly" ? (
+                        <Input
+                          type="number"
+                          value={entry.basic_salary}
+                          onChange={(e) =>
+                            updateEntry(entry.employee_id, "basic_salary", parseFloat(e.target.value) || 0)
+                          }
+                          className="h-8 w-20"
+                        />
+                      ) : entry.pay_type === "hourly" ? (
+                        <Input
+                          type="number"
+                          value={entry.hourly_rate}
+                          onChange={(e) =>
+                            updateEntry(entry.employee_id, "hourly_rate", parseFloat(e.target.value) || 0)
+                          }
+                          className="h-8 w-20"
+                          placeholder="K/hr"
+                        />
+                      ) : (
+                        <Input
+                          type="number"
+                          value={entry.shift_rate}
+                          onChange={(e) =>
+                            updateEntry(entry.employee_id, "shift_rate", parseFloat(e.target.value) || 0)
+                          }
+                          className="h-8 w-20"
+                          placeholder="K/shift"
+                        />
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {entry.pay_type !== "monthly" && (
+                        entry.pay_type === "per_shift" ? (
+                          <Input
+                            type="number"
+                            value={entry.shifts_worked}
+                            onChange={(e) =>
+                              updateEntry(entry.employee_id, "shifts_worked", parseInt(e.target.value) || 0)
+                            }
+                            className="h-8 w-16"
+                            placeholder="Shifts"
+                          />
+                        ) : (
+                          <Input
+                            type="number"
+                            value={entry.hours_worked}
+                            onChange={(e) =>
+                              updateEntry(entry.employee_id, "hours_worked", parseFloat(e.target.value) || 0)
+                            }
+                            className="h-8 w-16"
+                            placeholder="Hours"
+                          />
+                        )
+                      )}
+                      {entry.pay_type === "monthly" && <span className="text-muted-foreground">-</span>}
                     </TableCell>
                     <TableCell>
                       <Input
@@ -226,7 +325,7 @@ export const PayrollRunModal = ({
                         onChange={(e) =>
                           updateEntry(entry.employee_id, "allowances", parseFloat(e.target.value) || 0)
                         }
-                        className="h-8 w-24"
+                        className="h-8 w-20"
                       />
                     </TableCell>
                     <TableCell>
@@ -236,17 +335,7 @@ export const PayrollRunModal = ({
                         onChange={(e) =>
                           updateEntry(entry.employee_id, "overtime_pay", parseFloat(e.target.value) || 0)
                         }
-                        className="h-8 w-24"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        type="number"
-                        value={entry.bonus}
-                        onChange={(e) =>
-                          updateEntry(entry.employee_id, "bonus", parseFloat(e.target.value) || 0)
-                        }
-                        className="h-8 w-24"
+                        className="h-8 w-20"
                       />
                     </TableCell>
                     <TableCell>
@@ -256,7 +345,7 @@ export const PayrollRunModal = ({
                         onChange={(e) =>
                           updateEntry(entry.employee_id, "loan_deduction", parseFloat(e.target.value) || 0)
                         }
-                        className="h-8 w-24"
+                        className="h-8 w-20"
                       />
                     </TableCell>
                     <TableCell className="text-right font-medium">K{gross.toLocaleString()}</TableCell>
