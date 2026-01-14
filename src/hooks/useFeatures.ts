@@ -35,6 +35,7 @@ export function useFeatures(): UseFeaturesReturn {
       impact: isFeatureAllowed('impact') && profileConfig.impact,
       website: isFeatureAllowed('website') && profileConfig.website,
       advanced_accounting: isFeatureAllowed('advanced_accounting') && profileConfig.advanced_accounting,
+      whatsapp: isFeatureAllowed('whatsapp') && profileConfig.whatsapp,
     };
   };
 

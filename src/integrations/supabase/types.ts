@@ -406,6 +406,7 @@ export type Database = {
           feature_inventory: boolean | null
           feature_payroll: boolean | null
           feature_website: boolean | null
+          feature_whatsapp: boolean | null
           highlights: string[] | null
           id: string
           is_active: boolean | null
@@ -430,6 +431,7 @@ export type Database = {
           feature_inventory?: boolean | null
           feature_payroll?: boolean | null
           feature_website?: boolean | null
+          feature_whatsapp?: boolean | null
           highlights?: string[] | null
           id?: string
           is_active?: boolean | null
@@ -454,6 +456,7 @@ export type Database = {
           feature_inventory?: boolean | null
           feature_payroll?: boolean | null
           feature_website?: boolean | null
+          feature_whatsapp?: boolean | null
           highlights?: string[] | null
           id?: string
           is_active?: boolean | null
@@ -560,6 +563,7 @@ export type Database = {
           trial_expires_at: string | null
           updated_at: string
           website_enabled: boolean | null
+          whatsapp_enabled: boolean | null
           white_label_enabled: boolean | null
         }
         Insert: {
@@ -598,6 +602,7 @@ export type Database = {
           trial_expires_at?: string | null
           updated_at?: string
           website_enabled?: boolean | null
+          whatsapp_enabled?: boolean | null
           white_label_enabled?: boolean | null
         }
         Update: {
@@ -636,6 +641,7 @@ export type Database = {
           trial_expires_at?: string | null
           updated_at?: string
           website_enabled?: boolean | null
+          whatsapp_enabled?: boolean | null
           white_label_enabled?: boolean | null
         }
         Relationships: [
@@ -2534,6 +2540,162 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "website_contacts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_audit_logs: {
+        Row: {
+          created_at: string | null
+          display_name: string | null
+          error_message: string | null
+          execution_time_ms: number | null
+          id: string
+          intent: string | null
+          original_message: string | null
+          response_message: string | null
+          success: boolean | null
+          tenant_id: string | null
+          user_id: string | null
+          whatsapp_number: string
+        }
+        Insert: {
+          created_at?: string | null
+          display_name?: string | null
+          error_message?: string | null
+          execution_time_ms?: number | null
+          id?: string
+          intent?: string | null
+          original_message?: string | null
+          response_message?: string | null
+          success?: boolean | null
+          tenant_id?: string | null
+          user_id?: string | null
+          whatsapp_number: string
+        }
+        Update: {
+          created_at?: string | null
+          display_name?: string | null
+          error_message?: string | null
+          execution_time_ms?: number | null
+          id?: string
+          intent?: string | null
+          original_message?: string | null
+          response_message?: string | null
+          success?: boolean | null
+          tenant_id?: string | null
+          user_id?: string | null
+          whatsapp_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_audit_logs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_pending_actions: {
+        Row: {
+          confirmation_message: string | null
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          intent: string
+          intent_data: Json | null
+          message_sid: string | null
+          processed_at: string | null
+          tenant_id: string | null
+          user_id: string | null
+          whatsapp_number: string
+        }
+        Insert: {
+          confirmation_message?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          intent: string
+          intent_data?: Json | null
+          message_sid?: string | null
+          processed_at?: string | null
+          tenant_id?: string | null
+          user_id?: string | null
+          whatsapp_number: string
+        }
+        Update: {
+          confirmation_message?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          intent?: string
+          intent_data?: Json | null
+          message_sid?: string | null
+          processed_at?: string | null
+          tenant_id?: string | null
+          user_id?: string | null
+          whatsapp_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_pending_actions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_user_mappings: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          display_name: string
+          id: string
+          is_active: boolean | null
+          is_verified: boolean | null
+          last_used_at: string | null
+          role: string
+          tenant_id: string
+          updated_at: string | null
+          user_id: string
+          whatsapp_number: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          display_name: string
+          id?: string
+          is_active?: boolean | null
+          is_verified?: boolean | null
+          last_used_at?: string | null
+          role?: string
+          tenant_id: string
+          updated_at?: string | null
+          user_id: string
+          whatsapp_number: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          display_name?: string
+          id?: string
+          is_active?: boolean | null
+          is_verified?: boolean | null
+          last_used_at?: string | null
+          role?: string
+          tenant_id?: string
+          updated_at?: string | null
+          user_id?: string
+          whatsapp_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_user_mappings_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"

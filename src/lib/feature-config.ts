@@ -1,7 +1,7 @@
 // Feature flags and configuration utilities for multi-tenant feature toggling
 // Module registry (modules-config.ts) is the source of truth for module definitions
 
-export type FeatureKey = 'inventory' | 'payroll' | 'agents' | 'impact' | 'website' | 'advanced_accounting';
+export type FeatureKey = 'inventory' | 'payroll' | 'agents' | 'impact' | 'website' | 'advanced_accounting' | 'whatsapp';
 
 export interface FeatureConfig {
   inventory: boolean;
@@ -10,6 +10,7 @@ export interface FeatureConfig {
   impact: boolean;
   website: boolean;
   advanced_accounting: boolean;
+  whatsapp: boolean;
 }
 
 export interface BusinessProfile {
@@ -19,6 +20,7 @@ export interface BusinessProfile {
   impact_enabled?: boolean | null;
   website_enabled?: boolean | null;
   advanced_accounting_enabled?: boolean | null;
+  whatsapp_enabled?: boolean | null;
   white_label_enabled?: boolean | null;
   business_type?: string | null;
 }
@@ -36,6 +38,7 @@ export function getFeatureConfig(businessProfile: BusinessProfile | null): Featu
     website: businessProfile?.website_enabled ?? true,
     // Default to true so billing plan controls this; explicit false in tenant profile disables
     advanced_accounting: businessProfile?.advanced_accounting_enabled ?? true,
+    whatsapp: businessProfile?.whatsapp_enabled ?? true,
   };
 }
 

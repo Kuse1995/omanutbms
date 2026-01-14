@@ -2,16 +2,21 @@ import { AuthorizedEmailsManager } from "./AuthorizedEmailsManager";
 import { PasswordResetManager } from "./PasswordResetManager";
 import { SystemResetManager } from "./SystemResetManager";
 import { AuditLogViewer } from "./AuditLogViewer";
+import { WhatsAppSettings } from "./WhatsAppSettings";
 import { useAuth } from "@/hooks/useAuth";
+import { useFeatures } from "@/hooks/useFeatures";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, KeyRound, AlertTriangle, History, PlayCircle, HelpCircle } from "lucide-react";
+import { Users, KeyRound, AlertTriangle, History, PlayCircle, HelpCircle, MessageCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function SettingsManager() {
   const { isAdmin, user } = useAuth();
+  const { isEnabled } = useFeatures();
   const { toast } = useToast();
+
+  const canAccessWhatsApp = isEnabled('whatsapp');
 
   const handleRestartTour = () => {
     if (user?.id) {
@@ -38,6 +43,12 @@ export function SettingsManager() {
             <KeyRound className="h-4 w-4" />
             Password Reset
           </TabsTrigger>
+          {canAccessWhatsApp && (
+            <TabsTrigger value="whatsapp" className="flex items-center gap-2">
+              <MessageCircle className="h-4 w-4" />
+              WhatsApp
+            </TabsTrigger>
+          )}
           <TabsTrigger value="help" className="flex items-center gap-2">
             <HelpCircle className="h-4 w-4" />
             Help & Tour
@@ -63,6 +74,12 @@ export function SettingsManager() {
         <TabsContent value="passwords">
           <PasswordResetManager />
         </TabsContent>
+
+        {canAccessWhatsApp && (
+          <TabsContent value="whatsapp">
+            <WhatsAppSettings />
+          </TabsContent>
+        )}
 
         <TabsContent value="help">
           <Card>
