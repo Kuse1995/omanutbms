@@ -8,9 +8,6 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const TWILIO_ACCOUNT_SID = Deno.env.get('TWILIO_ACCOUNT_SID');
-const TWILIO_AUTH_TOKEN = Deno.env.get('TWILIO_AUTH_TOKEN');
-const TWILIO_WHATSAPP_NUMBER = Deno.env.get('TWILIO_WHATSAPP_NUMBER');
 
 const HELP_MESSAGE = `👋 Welcome to Omanut BMS!
 
@@ -37,6 +34,17 @@ To use WhatsApp BMS:
 3. Once added, you can start managing your business via WhatsApp!
 
 Questions? Contact support@omanut.co`;
+
+// Required fields for each intent
+const REQUIRED_FIELDS: Record<string, string[]> = {
+  record_sale: ['product', 'amount'],
+  record_expense: ['description', 'amount'],
+  generate_invoice: ['customer_name'],
+  check_stock: [],
+  list_products: [],
+  get_sales_summary: [],
+  check_customer: ['customer_name'],
+};
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -106,6 +114,8 @@ serve(async (req) => {
 
     // Check for help command
     if (body.toLowerCase() === 'help' || body.toLowerCase() === 'hi' || body.toLowerCase() === 'hello') {
+      // Clear any existing draft when user asks for help
+      await clearDraft(supabase, mapping.tenant_id, phoneNumber);
       await logAudit(supabase, {
         tenant_id: mapping.tenant_id,
         whatsapp_number: phoneNumber,
@@ -118,6 +128,24 @@ serve(async (req) => {
         execution_time_ms: Date.now() - startTime,
       });
       return createTwiMLResponse(HELP_MESSAGE);
+    }
+
+    // Check for cancel command
+    if (body.toLowerCase() === 'cancel' || body.toLowerCase() === 'reset' || body.toLowerCase() === 'start over') {
+      await clearDraft(supabase, mapping.tenant_id, phoneNumber);
+      const cancelMessage = '🔄 Cancelled. What would you like to do?';
+      await logAudit(supabase, {
+        tenant_id: mapping.tenant_id,
+        whatsapp_number: phoneNumber,
+        user_id: mapping.user_id,
+        display_name: mapping.display_name,
+        intent: 'cancel',
+        original_message: body,
+        response_message: cancelMessage,
+        success: true,
+        execution_time_ms: Date.now() - startTime,
+      });
+      return createTwiMLResponse(cancelMessage);
     }
 
     // Check for pending confirmation (yes/no responses)
@@ -140,39 +168,113 @@ serve(async (req) => {
       }
     }
 
-    // Call intent parser
-    const intentResponse = await fetch(`${SUPABASE_URL}/functions/v1/bms-intent-parser`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ 
-        message: body,
-        context: { role: mapping.role }
-      }),
-    });
+    // Check for existing draft conversation
+    const existingDraft = await getDraft(supabase, mapping.tenant_id, phoneNumber);
+    
+    let parsedIntent;
+    let mergedEntities;
 
-    if (!intentResponse.ok) {
-      const errorText = await intentResponse.text();
-      console.error('Intent parser error:', errorText);
-      const errorMessage = '⚠️ Sorry, I could not understand your request. Reply "help" for available commands.';
-      await logAudit(supabase, {
-        tenant_id: mapping.tenant_id,
-        whatsapp_number: phoneNumber,
-        user_id: mapping.user_id,
-        display_name: mapping.display_name,
-        original_message: body,
-        response_message: errorMessage,
-        success: false,
-        error_message: 'Intent parser failed',
-        execution_time_ms: Date.now() - startTime,
+    if (existingDraft) {
+      console.log('Found existing draft:', existingDraft);
+      
+      // Parse the follow-up message with context about what we're expecting
+      const intentResponse = await fetch(`${SUPABASE_URL}/functions/v1/bms-intent-parser`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          message: body,
+          context: { 
+            role: mapping.role,
+            existing_intent: existingDraft.intent,
+            existing_entities: existingDraft.entities,
+            last_prompt: existingDraft.last_prompt,
+            is_followup: true
+          }
+        }),
       });
-      return createTwiMLResponse(errorMessage);
-    }
 
-    const parsedIntent = await intentResponse.json();
-    console.log('Parsed intent:', parsedIntent);
+      if (!intentResponse.ok) {
+        console.error('Intent parser error for follow-up');
+        return createTwiMLResponse('⚠️ Sorry, I could not understand. Reply "help" for commands.');
+      }
+
+      const followUpParsed = await intentResponse.json();
+      console.log('Follow-up parsed:', followUpParsed);
+
+      // Merge entities from draft and new message
+      mergedEntities = { ...existingDraft.entities, ...followUpParsed.entities };
+      parsedIntent = {
+        intent: existingDraft.intent,
+        confidence: 'high',
+        entities: mergedEntities,
+        requires_confirmation: false,
+        clarification_needed: null,
+      };
+
+      // Check if we now have all required fields
+      const missingFields = getMissingFields(existingDraft.intent, mergedEntities);
+      
+      if (missingFields.length > 0) {
+        // Still missing fields, update draft and ask again
+        const prompt = generatePromptForMissingFields(existingDraft.intent, missingFields, mergedEntities);
+        await updateDraft(supabase, existingDraft.id, mergedEntities, prompt);
+        
+        await logAudit(supabase, {
+          tenant_id: mapping.tenant_id,
+          whatsapp_number: phoneNumber,
+          user_id: mapping.user_id,
+          display_name: mapping.display_name,
+          intent: existingDraft.intent,
+          original_message: body,
+          response_message: prompt,
+          success: true,
+          execution_time_ms: Date.now() - startTime,
+        });
+        return createTwiMLResponse(prompt);
+      }
+
+      // All fields present, clear draft and proceed
+      await clearDraft(supabase, mapping.tenant_id, phoneNumber);
+      
+    } else {
+      // No existing draft - parse as new intent
+      const intentResponse = await fetch(`${SUPABASE_URL}/functions/v1/bms-intent-parser`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          message: body,
+          context: { role: mapping.role }
+        }),
+      });
+
+      if (!intentResponse.ok) {
+        const errorText = await intentResponse.text();
+        console.error('Intent parser error:', errorText);
+        const errorMessage = '⚠️ Sorry, I could not understand your request. Reply "help" for available commands.';
+        await logAudit(supabase, {
+          tenant_id: mapping.tenant_id,
+          whatsapp_number: phoneNumber,
+          user_id: mapping.user_id,
+          display_name: mapping.display_name,
+          original_message: body,
+          response_message: errorMessage,
+          success: false,
+          error_message: 'Intent parser failed',
+          execution_time_ms: Date.now() - startTime,
+        });
+        return createTwiMLResponse(errorMessage);
+      }
+
+      parsedIntent = await intentResponse.json();
+      console.log('Parsed intent:', parsedIntent);
+      mergedEntities = parsedIntent.entities;
+    }
 
     // Handle help intent
     if (parsedIntent.intent === 'help') {
@@ -190,26 +292,37 @@ serve(async (req) => {
       return createTwiMLResponse(HELP_MESSAGE);
     }
 
-    // Handle low confidence or clarification needed
-    if (parsedIntent.confidence === 'low' || parsedIntent.clarification_needed) {
-      const clarifyMessage = parsedIntent.clarification_needed || 
-        '❓ I\'m not sure what you mean. Could you please rephrase? Reply "help" for examples.';
-      await logAudit(supabase, {
-        tenant_id: mapping.tenant_id,
-        whatsapp_number: phoneNumber,
-        user_id: mapping.user_id,
-        display_name: mapping.display_name,
-        intent: parsedIntent.intent,
-        original_message: body,
-        response_message: clarifyMessage,
-        success: true,
-        execution_time_ms: Date.now() - startTime,
-      });
-      return createTwiMLResponse(clarifyMessage);
+    // Check for missing required fields (for new intents without drafts)
+    if (!existingDraft) {
+      const missingFields = getMissingFields(parsedIntent.intent, mergedEntities);
+      
+      if (missingFields.length > 0) {
+        // Create a draft and ask for missing info
+        const prompt = generatePromptForMissingFields(parsedIntent.intent, missingFields, mergedEntities);
+        await createDraft(supabase, mapping.tenant_id, phoneNumber, mapping.user_id, parsedIntent.intent, mergedEntities, prompt);
+        
+        await logAudit(supabase, {
+          tenant_id: mapping.tenant_id,
+          whatsapp_number: phoneNumber,
+          user_id: mapping.user_id,
+          display_name: mapping.display_name,
+          intent: parsedIntent.intent,
+          original_message: body,
+          response_message: prompt,
+          success: true,
+          execution_time_ms: Date.now() - startTime,
+        });
+        return createTwiMLResponse(prompt);
+      }
     }
 
-    // Check if confirmation is required
-    if (parsedIntent.requires_confirmation) {
+    // Check if confirmation is required for high-value transactions
+    const amount = mergedEntities.amount || 0;
+    const needsConfirmation = (parsedIntent.intent === 'record_sale' && amount >= 10000) ||
+                              (parsedIntent.intent === 'record_expense' && amount >= 5000) ||
+                              parsedIntent.intent === 'generate_invoice';
+
+    if (needsConfirmation) {
       // Store pending action
       await supabase.from('whatsapp_pending_actions').insert({
         tenant_id: mapping.tenant_id,
@@ -217,11 +330,11 @@ serve(async (req) => {
         user_id: mapping.user_id,
         message_sid: messageSid,
         intent: parsedIntent.intent,
-        intent_data: parsedIntent.entities,
+        intent_data: mergedEntities,
         confirmation_message: body,
       });
 
-      const confirmMessage = `⚠️ Please confirm:\n${getConfirmationMessage(parsedIntent)}\n\nReply YES to confirm or NO to cancel.`;
+      const confirmMessage = `⚠️ Please confirm:\n${getConfirmationMessage(parsedIntent.intent, mergedEntities)}\n\nReply YES to confirm or NO to cancel.`;
       await logAudit(supabase, {
         tenant_id: mapping.tenant_id,
         whatsapp_number: phoneNumber,
@@ -245,7 +358,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         intent: parsedIntent.intent,
-        entities: parsedIntent.entities,
+        entities: mergedEntities,
         context: {
           tenant_id: mapping.tenant_id,
           user_id: mapping.user_id,
@@ -279,6 +392,110 @@ serve(async (req) => {
     return createTwiMLResponse(errorMessage);
   }
 });
+
+// Draft management functions
+async function getDraft(supabase: any, tenantId: string, phoneNumber: string) {
+  const { data, error } = await supabase
+    .from('whatsapp_conversation_drafts')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .eq('whatsapp_number', phoneNumber)
+    .gt('expires_at', new Date().toISOString())
+    .single();
+  
+  if (error || !data) return null;
+  return data;
+}
+
+async function createDraft(supabase: any, tenantId: string, phoneNumber: string, userId: string, intent: string, entities: any, lastPrompt: string) {
+  // Upsert to handle race conditions
+  await supabase
+    .from('whatsapp_conversation_drafts')
+    .upsert({
+      tenant_id: tenantId,
+      whatsapp_number: phoneNumber,
+      user_id: userId,
+      intent,
+      entities,
+      last_prompt: lastPrompt,
+      expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(), // 15 minutes
+    }, {
+      onConflict: 'tenant_id,whatsapp_number'
+    });
+}
+
+async function updateDraft(supabase: any, draftId: string, entities: any, lastPrompt: string) {
+  await supabase
+    .from('whatsapp_conversation_drafts')
+    .update({
+      entities,
+      last_prompt: lastPrompt,
+      expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+    })
+    .eq('id', draftId);
+}
+
+async function clearDraft(supabase: any, tenantId: string, phoneNumber: string) {
+  await supabase
+    .from('whatsapp_conversation_drafts')
+    .delete()
+    .eq('tenant_id', tenantId)
+    .eq('whatsapp_number', phoneNumber);
+}
+
+function getMissingFields(intent: string, entities: Record<string, any>): string[] {
+  const required = REQUIRED_FIELDS[intent] || [];
+  return required.filter(field => {
+    const value = entities[field];
+    return value === undefined || value === null || value === '';
+  });
+}
+
+function generatePromptForMissingFields(intent: string, missingFields: string[], currentEntities: Record<string, any>): string {
+  // Build context of what we already have
+  const haveList: string[] = [];
+  if (currentEntities.product) haveList.push(`Product: ${currentEntities.product}`);
+  if (currentEntities.quantity) haveList.push(`Qty: ${currentEntities.quantity}`);
+  if (currentEntities.customer_name) haveList.push(`Customer: ${currentEntities.customer_name}`);
+  if (currentEntities.amount) haveList.push(`Amount: K${currentEntities.amount}`);
+  if (currentEntities.payment_method) haveList.push(`Payment: ${currentEntities.payment_method}`);
+  if (currentEntities.description) haveList.push(`Description: ${currentEntities.description}`);
+
+  const haveText = haveList.length > 0 ? `\n📝 Got: ${haveList.join(', ')}` : '';
+
+  // Generate friendly prompts based on what's missing
+  if (intent === 'record_sale') {
+    if (missingFields.includes('product') && missingFields.includes('amount')) {
+      return `❓ What product did you sell and for how much?${haveText}\n\nExample: "5 bags of cement for K2500"`;
+    }
+    if (missingFields.includes('product')) {
+      return `❓ What product was sold?${haveText}\n\nExample: "5 bags of cement" or "LifeStraw Personal"`;
+    }
+    if (missingFields.includes('amount')) {
+      return `❓ What was the total amount?${haveText}\n\nExample: "K2500" or "2500"`;
+    }
+  }
+
+  if (intent === 'record_expense') {
+    if (missingFields.includes('description') && missingFields.includes('amount')) {
+      return `❓ What was the expense for and how much?${haveText}\n\nExample: "K500 for transport"`;
+    }
+    if (missingFields.includes('description')) {
+      return `❓ What was the expense for?${haveText}\n\nExample: "Transport" or "Office supplies"`;
+    }
+    if (missingFields.includes('amount')) {
+      return `❓ How much was the expense?${haveText}\n\nExample: "K500" or "500"`;
+    }
+  }
+
+  if (intent === 'check_customer') {
+    return `❓ What is the customer's name?${haveText}\n\nExample: "John" or "ABC Company"`;
+  }
+
+  // Generic fallback
+  const fieldNames = missingFields.map(f => f.replace('_', ' ')).join(' and ');
+  return `❓ Please provide the ${fieldNames}.${haveText}`;
+}
 
 async function handlePendingConfirmation(supabase: any, phoneNumber: string, confirmed: boolean, mapping: any) {
   // Check for pending action
@@ -329,9 +546,7 @@ async function handlePendingConfirmation(supabase: any, phoneNumber: string, con
   return result.message || (result.success ? '✅ Done!' : '❌ Operation failed.');
 }
 
-function getConfirmationMessage(parsedIntent: any): string {
-  const { intent, entities } = parsedIntent;
-  
+function getConfirmationMessage(intent: string, entities: any): string {
   switch (intent) {
     case 'record_sale':
       return `Record sale of ${entities.quantity || 1}x ${entities.product} for K${entities.amount?.toLocaleString()} to ${entities.customer_name || 'Walk-in'}?`;

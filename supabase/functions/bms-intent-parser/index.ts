@@ -26,7 +26,9 @@ EXTRACTION RULES:
 - Extract quantities, product names, customer names, amounts
 - For dates, "today", "yesterday", "this week", "this month" are valid
 - Payment methods: cash, mobile_money, bank_transfer, credit
-- If unclear, set confidence to "low"
+- Default quantity to 1 if not specified
+- Default payment_method to "cash" if not specified
+- If the message clearly provides info for a specific field, extract it even if other fields are missing
 
 RESPONSE FORMAT (JSON only):
 {
@@ -78,15 +80,29 @@ Response: {
   "clarification_needed": null
 }
 
-User: "Generate invoice for ABC Company"
+User: "Software development for K15000"
 Response: {
-  "intent": "generate_invoice",
-  "confidence": "medium",
+  "intent": "record_sale",
+  "confidence": "high",
   "entities": {
-    "customer_name": "ABC Company"
+    "product": "Software development",
+    "quantity": 1,
+    "amount": 15000
   },
-  "requires_confirmation": true,
-  "clarification_needed": "What items should be included in the invoice?"
+  "requires_confirmation": false,
+  "clarification_needed": null
+}
+
+User: "The customer was Mutale and paid cash"
+Response: {
+  "intent": "record_sale",
+  "confidence": "high",
+  "entities": {
+    "customer_name": "Mutale",
+    "payment_method": "cash"
+  },
+  "requires_confirmation": false,
+  "clarification_needed": null
 }
 
 User: "hello"
@@ -99,6 +115,77 @@ Response: {
 }
 
 Always respond with valid JSON only. No other text.`;
+
+// System prompt for follow-up messages (when we have an existing draft)
+const FOLLOWUP_SYSTEM_PROMPT = `You are an AI assistant for Omanut BMS. The user is providing additional information to complete a previous request.
+
+CONTEXT: The user previously started a "{existing_intent}" operation. We already have some information and need more details.
+
+YOUR TASK: Extract ONLY the new information from this message. Do not change the intent - we're completing the same operation.
+
+EXTRACTION RULES:
+- Currency is ZMW (Kwacha), "K500" means 500 ZMW
+- Extract any quantities, product names, customer names, amounts, payment methods mentioned
+- If user says just a product name, extract it as "product"
+- If user says just an amount like "K15000" or "15000", extract it as "amount"
+- If user says a name, try to determine if it's a customer_name or product based on context
+- Payment methods: cash, mobile_money, mobile money, momo, bank_transfer, credit
+- "paid cash" or "cash payment" means payment_method is "cash"
+- "mobile money" or "momo" means payment_method is "mobile_money"
+
+RESPONSE FORMAT (JSON only):
+{
+  "intent": "{existing_intent}",
+  "confidence": "high",
+  "entities": {
+    // Only include fields that were mentioned in this message
+  },
+  "requires_confirmation": false,
+  "clarification_needed": null
+}
+
+EXAMPLES for record_sale follow-ups:
+
+Already have: customer_name: "Mutale", payment_method: "cash"
+User message: "Software development 1 quantity at K15000"
+Response: {
+  "intent": "record_sale",
+  "confidence": "high",
+  "entities": {
+    "product": "Software development",
+    "quantity": 1,
+    "amount": 15000
+  },
+  "requires_confirmation": false,
+  "clarification_needed": null
+}
+
+Already have: product: "Software development", amount: 15000
+User message: "The customer was mutale and they paid cash"
+Response: {
+  "intent": "record_sale",
+  "confidence": "high",
+  "entities": {
+    "customer_name": "Mutale",
+    "payment_method": "cash"
+  },
+  "requires_confirmation": false,
+  "clarification_needed": null
+}
+
+Already have: product: "cement", quantity: 5
+User message: "K2500"
+Response: {
+  "intent": "record_sale",
+  "confidence": "high",
+  "entities": {
+    "amount": 2500
+  },
+  "requires_confirmation": false,
+  "clarification_needed": null
+}
+
+Always respond with valid JSON only. Extract whatever information you can from the message.`;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -125,6 +212,24 @@ serve(async (req) => {
 
     const startTime = Date.now();
 
+    // Determine which prompt to use based on context
+    let systemPrompt = SYSTEM_PROMPT;
+    let userPrompt = `Parse this message: "${message}"`;
+
+    if (context?.is_followup && context?.existing_intent) {
+      // Use follow-up prompt for continuing conversations
+      systemPrompt = FOLLOWUP_SYSTEM_PROMPT
+        .replace(/{existing_intent}/g, context.existing_intent);
+      
+      const existingInfo = context.existing_entities 
+        ? `Already collected: ${JSON.stringify(context.existing_entities)}`
+        : '';
+      
+      userPrompt = `${existingInfo}\n\nUser's follow-up message: "${message}"\n\nExtract only the NEW information from this message.`;
+    } else if (context?.role) {
+      userPrompt = `Parse this message: "${message}"\n\nContext: User role is ${context.role}`;
+    }
+
     // Call Lovable AI Gateway
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -135,8 +240,8 @@ serve(async (req) => {
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: `Parse this message: "${message}"${context ? `\n\nContext: ${JSON.stringify(context)}` : ''}` }
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
         ],
         temperature: 0.1, // Low temperature for consistent parsing
       }),
@@ -183,11 +288,11 @@ serve(async (req) => {
     } catch (parseError) {
       console.error('Failed to parse AI response:', content);
       parsedIntent = {
-        intent: 'help',
+        intent: context?.existing_intent || 'help',
         confidence: 'low',
         entities: {},
         requires_confirmation: false,
-        clarification_needed: 'I could not understand your request. Please try again.',
+        clarification_needed: null,
       };
     }
 
