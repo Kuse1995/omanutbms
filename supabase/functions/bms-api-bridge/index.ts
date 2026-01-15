@@ -91,17 +91,23 @@ function normalizeProductQuery(input: unknown): { raw: string; pattern: string }
  * Generates a sequential receipt number in the format RYYYY-XXXX
  * This matches the BMS payment_receipts format exactly.
  */
-async function generateSequentialReceiptNumber(supabase: any, tenantId: string): Promise<string> {
+async function generateSequentialReceiptNumber(supabase: any, tenantId: string, attempt: number = 0): Promise<string> {
+  // Add random jitter to reduce collision probability on retries
+  if (attempt > 0) {
+    await new Promise(resolve => setTimeout(resolve, Math.random() * 100 + 50));
+  }
+  
   const year = new Date().getFullYear();
   const prefix = `R${year}`;
   
   // Get the latest receipt number for this tenant and year
+  // Use created_at for ordering to handle race conditions better
   const { data: lastReceipt } = await supabase
     .from('payment_receipts')
-    .select('receipt_number')
+    .select('receipt_number, created_at')
     .eq('tenant_id', tenantId)
     .like('receipt_number', `${prefix}-%`)
-    .order('receipt_number', { ascending: false })
+    .order('created_at', { ascending: false })
     .limit(1);
 
   let nextNum = 1;
@@ -341,7 +347,7 @@ async function handleRecordSale(supabase: any, entities: Record<string, any>, co
   const saleNumber = `${yearPrefix}-${String(nextNum).padStart(4, '0')}`;
 
   // Generate SEQUENTIAL receipt number matching BMS format (RYYYY-XXXX)
-  const receiptNumber = await generateSequentialReceiptNumber(supabase, context.tenant_id);
+  let receiptNumber = await generateSequentialReceiptNumber(supabase, context.tenant_id);
   console.log('[record_sale] Generated receipt number:', receiptNumber);
 
   // Create sale in sales table
@@ -420,20 +426,41 @@ async function handleRecordSale(supabase: any, entities: Record<string, any>, co
   console.log('[record_sale] Sales transaction created successfully with receipt:', receiptNumber);
 
   // CRITICAL: Create payment receipt for document generation and receipts manager
-  const { error: receiptError } = await supabase.from('payment_receipts').insert({
-    tenant_id: context.tenant_id,
-    receipt_number: receiptNumber,
-    client_name: customer_name || 'Walk-in Customer',
-    client_email: customer_email || null,
-    amount_paid: amount,
-    payment_date: new Date().toISOString().split('T')[0],
-    payment_method, // Use canonical form
-    created_by: context.user_id,
-    notes: `WhatsApp sale: ${saleNumber}`,
-  });
+  // Retry logic to handle race conditions in receipt number generation
+  let receiptCreated = false;
+  let attempts = 0;
+  let receiptError: any = null;
 
-  if (receiptError) {
-    console.error('Payment receipt creation error:', receiptError);
+  while (!receiptCreated && attempts < 3) {
+    const { error } = await supabase.from('payment_receipts').insert({
+      tenant_id: context.tenant_id,
+      receipt_number: receiptNumber,
+      client_name: customer_name || 'Walk-in Customer',
+      client_email: customer_email || null,
+      amount_paid: amount,
+      payment_date: new Date().toISOString().split('T')[0],
+      payment_method, // Use canonical form
+      created_by: context.user_id,
+      notes: `WhatsApp sale: ${saleNumber}`,
+    });
+
+    if (error && error.code === '23505') { // Unique constraint violation
+      console.log(`[record_sale] Receipt number collision detected (${receiptNumber}), retrying... (attempt ${attempts + 1})`);
+      receiptNumber = await generateSequentialReceiptNumber(supabase, context.tenant_id, attempts + 1);
+      attempts++;
+      receiptError = error;
+    } else if (error) {
+      console.error('Payment receipt creation error:', error);
+      receiptError = error;
+      break;
+    } else {
+      receiptCreated = true;
+      receiptError = null;
+    }
+  }
+
+  if (receiptError || !receiptCreated) {
+    console.error('Payment receipt creation failed after retries:', receiptError);
     // This is also critical for PDF generation
     return { 
       success: false, 
@@ -458,30 +485,39 @@ async function handleRecordSale(supabase: any, entities: Record<string, any>, co
   // Format date for receipt
   const receiptDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   
-  // Create professional receipt message
-  const receiptMessage = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-OMANUT BUSINESS CENTRE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // Create professional receipt message matching BMS PDF style
+  const receiptMessage = `
+*PAYMENT RECEIPT*
+${saleNumber}
 
-✅ PAYMENT RECEIPT
-Receipt #: ${receiptNumber}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-💰 Amount Paid: K ${amount.toLocaleString()}
-
-👤 Customer: ${customer_name || 'Walk-in Customer'}
-📅 Date: ${receiptDate}
-💳 Payment: ${payment_method}
-
-📦 Items:
-  • ${resolvedItemName} (${quantity}x) - K ${amount.toLocaleString()}
+*Finch Investments Limited*
+LifeStraw Distributor - Zambia
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Thank you for your business!
+*Amount Paid*
+*K ${amount.toLocaleString()}*
 
-📄 Full receipt PDF will be attached below.`;
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Receipt Number: ${receiptNumber}
+Customer: ${customer_name || 'Walk-in Customer'}
+Payment Date: ${receiptDate}
+Payment Method: ${payment_method}
+
+*Items Purchased*
+
+Description${' '.repeat(20)}Qty${' '.repeat(5)}Total
+${resolvedItemName}${' '.repeat(Math.max(1, 30 - resolvedItemName.length))}${quantity}${' '.repeat(7)}K ${amount.toLocaleString()}
+
+${' '.repeat(35)}━━━━━━━━━━━
+${' '.repeat(29)}Total: *K ${amount.toLocaleString()}*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Thank you for your purchase!
+
+📄 Receipt PDF attached below.`;
 
   return {
     success: true,
