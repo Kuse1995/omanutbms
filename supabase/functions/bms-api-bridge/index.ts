@@ -11,10 +11,10 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 // Role-based permissions
 const ROLE_PERMISSIONS: Record<string, string[]> = {
-  admin: ['record_sale', 'check_stock', 'list_products', 'generate_invoice', 'record_expense', 'get_sales_summary', 'check_customer'],
-  manager: ['record_sale', 'check_stock', 'list_products', 'generate_invoice', 'record_expense', 'get_sales_summary', 'check_customer'],
-  cashier: ['record_sale', 'check_stock', 'list_products', 'check_customer'],
-  viewer: ['check_stock', 'list_products', 'get_sales_summary'],
+  admin: ['record_sale', 'check_stock', 'list_products', 'generate_invoice', 'record_expense', 'get_sales_summary', 'get_sales_details', 'check_customer'],
+  manager: ['record_sale', 'check_stock', 'list_products', 'generate_invoice', 'record_expense', 'get_sales_summary', 'get_sales_details', 'check_customer'],
+  staff: ['record_sale', 'check_stock', 'list_products', 'record_expense', 'get_sales_details'],
+  viewer: ['check_stock', 'list_products', 'get_sales_summary', 'get_sales_details'],
 };
 
 // Confirmation thresholds (in ZMW)
@@ -162,6 +162,9 @@ serve(async (req) => {
         break;
       case 'get_sales_summary':
         result = await handleGetSalesSummary(supabase, entities, context);
+        break;
+      case 'get_sales_details':
+        result = await handleGetSalesDetails(supabase, entities, context);
         break;
       case 'check_customer':
         result = await handleCheckCustomer(supabase, entities, context);
@@ -524,6 +527,79 @@ async function handleGetSalesSummary(supabase: any, entities: Record<string, any
     success: true,
     message: `📊 Sales Summary (${periodLabel}):\n\n📈 Total Sales: ${totalSales}\n💰 Revenue: K${totalRevenue.toLocaleString()}\n💵 Cash: K${cashSales.toLocaleString()}\n📱 Mobile Money: K${mobileSales.toLocaleString()}\n💳 Card: K${cardSales.toLocaleString()}`,
     data: { total_sales: totalSales, total_revenue: totalRevenue },
+  };
+}
+
+async function handleGetSalesDetails(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const { period = 'today' } = entities;
+  
+  let startDate: Date;
+  const endDate = new Date();
+  
+  switch (period) {
+    case 'today':
+      startDate = new Date();
+      startDate.setHours(0, 0, 0, 0);
+      break;
+    case 'yesterday':
+      startDate = new Date();
+      startDate.setDate(startDate.getDate() - 1);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setDate(endDate.getDate() - 1);
+      endDate.setHours(23, 59, 59, 999);
+      break;
+    case 'this_week':
+      startDate = new Date();
+      startDate.setDate(startDate.getDate() - startDate.getDay());
+      startDate.setHours(0, 0, 0, 0);
+      break;
+    case 'this_month':
+      startDate = new Date();
+      startDate.setDate(1);
+      startDate.setHours(0, 0, 0, 0);
+      break;
+    default:
+      startDate = new Date();
+      startDate.setHours(0, 0, 0, 0);
+  }
+
+  // Get individual sales with customer details
+  const { data: sales, error } = await supabase
+    .from('sales')
+    .select('sale_number, customer_name, total_amount, payment_method, sale_date')
+    .eq('tenant_id', context.tenant_id)
+    .gte('sale_date', startDate.toISOString())
+    .lte('sale_date', endDate.toISOString())
+    .order('sale_date', { ascending: false })
+    .limit(20);
+
+  if (error) {
+    console.error('Sales details error:', error);
+    return { success: false, message: 'Failed to get sales details.' };
+  }
+
+  if (!sales || sales.length === 0) {
+    const periodLabel = period.replace('_', ' ');
+    return { 
+      success: true, 
+      message: `📊 No sales found for ${periodLabel}.`,
+      data: [] 
+    };
+  }
+
+  const periodLabel = period.replace('_', ' ');
+  const totalRevenue = sales.reduce((sum: number, sale: any) => sum + sale.total_amount, 0);
+  
+  // Format each sale with customer details
+  const salesList = sales.map((sale: any, index: number) => {
+    const saleDate = new Date(sale.sale_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+    return `${index + 1}. ${sale.sale_number}\n   👤 ${sale.customer_name}\n   💰 K${sale.total_amount.toLocaleString()} (${sale.payment_method})\n   📅 ${saleDate}`;
+  }).join('\n\n');
+
+  return {
+    success: true,
+    message: `📊 Sales Breakdown (${periodLabel}):\n\n${salesList}\n\n━━━━━━━━━━━━━━━━\n💵 Total: K${totalRevenue.toLocaleString()} | ${sales.length} sales`,
+    data: sales,
   };
 }
 

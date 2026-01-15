@@ -18,11 +18,12 @@ SUPPORTED INTENTS:
 4. generate_invoice - Generate a new invoice
 5. record_expense - Record a business expense
 6. get_sales_summary - Get sales summary for a period
-7. check_customer - Look up customer information
-8. send_receipt - Send/get a receipt document
-9. send_invoice - Send/get an invoice document
-10. send_quotation - Send/get a quotation document
-11. help - User needs help with commands
+7. get_sales_details - Get detailed breakdown of sales by customer
+8. check_customer - Look up customer information
+9. send_receipt - Send/get a receipt document
+10. send_invoice - Send/get an invoice document
+11. send_quotation - Send/get a quotation document
+12. help - User needs help with commands
 
 CRITICAL EXTRACTION RULES:
 1. Currency is ALWAYS ZMW (Kwacha). "K500" = 500, "K15000" = 15000, "15k" = 15000
@@ -66,6 +67,12 @@ Response: {"intent":"get_sales_summary","confidence":"high","entities":{"period"
 
 User: "Sales today"
 Response: {"intent":"get_sales_summary","confidence":"high","entities":{"period":"today"},"requires_confirmation":false,"clarification_needed":null}
+
+User: "Break it down by clients" or "Who bought what" or "Show me each sale"
+Response: {"intent":"get_sales_details","confidence":"high","entities":{"period":"today"},"requires_confirmation":false,"clarification_needed":null}
+
+User: "Break down sales by customer this week"
+Response: {"intent":"get_sales_details","confidence":"high","entities":{"period":"this_week"},"requires_confirmation":false,"clarification_needed":null}
 
 User: "Send me receipt R2025-0042"
 Response: {"intent":"send_receipt","confidence":"high","entities":{"document_number":"R2025-0042"},"requires_confirmation":false,"clarification_needed":null}

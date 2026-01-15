@@ -16,6 +16,7 @@ const HELP_MESSAGE = `👋 Welcome to Omanut BMS!
 • "List products" - See all available products
 • "I sold [qty] [product] to [customer] for K[amount]" - Record a sale
 • "Sales today/this week/this month" - Get sales summary
+• "Break down sales by client" - See detailed sales by customer
 • "Find customer [name]" - Look up customer history
 • "Expense K[amount] for [description]" - Record an expense
 
@@ -28,7 +29,10 @@ const HELP_MESSAGE = `👋 Welcome to Omanut BMS!
 💡 Examples:
 "Check stock cement"
 "I sold 5 bags of cement to ABC Hardware for K2500 cash"
+"Break it down by clients" or "Who bought what today"
 "Send me receipt R2025-0042"
+
+⚠️ Important: Record each sale separately for accurate receipts!
 
 Need help? Reply with "help" anytime.`;
 
@@ -49,6 +53,7 @@ const REQUIRED_FIELDS: Record<string, string[]> = {
   check_stock: [],
   list_products: [],
   get_sales_summary: [],
+  get_sales_details: [],
   check_customer: ['customer_name'],
   send_receipt: [],
   send_invoice: [],
