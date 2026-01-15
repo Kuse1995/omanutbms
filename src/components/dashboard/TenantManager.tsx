@@ -114,7 +114,11 @@ export function TenantManager() {
 
       if (tenantError) throw tenantError;
 
-      // 2. Create business profile for tenant with business_type and billing info
+      // 2. Create business profile for tenant with business_type, billing info, and plan features
+      // Enterprise plan gets all features enabled by default
+      const isEnterprise = data.billingPlan === 'enterprise';
+      const isGrowth = data.billingPlan === 'growth';
+      
       const { error: profileError } = await supabase
         .from("business_profiles")
         .insert({
@@ -124,6 +128,14 @@ export function TenantManager() {
           billing_plan: data.billingPlan,
           billing_status: data.billingStatus,
           billing_start_date: new Date().toISOString().split('T')[0],
+          // Enable features based on billing plan
+          inventory_enabled: true, // All plans
+          payroll_enabled: isGrowth || isEnterprise,
+          agents_enabled: isGrowth || isEnterprise,
+          impact_enabled: isGrowth || isEnterprise,
+          website_enabled: isGrowth || isEnterprise,
+          whatsapp_enabled: isGrowth || isEnterprise,
+          advanced_accounting_enabled: isEnterprise, // Enterprise only
         });
 
       if (profileError) throw profileError;
@@ -223,6 +235,10 @@ export function TenantManager() {
         billing_end_date: string;
       }
     }) => {
+      // Determine feature enablement based on plan
+      const isEnterprise = billing.billing_plan === 'enterprise';
+      const isGrowth = billing.billing_plan === 'growth';
+      
       const { error } = await supabase
         .from("business_profiles")
         .update({
@@ -231,6 +247,14 @@ export function TenantManager() {
           billing_notes: billing.billing_notes || null,
           billing_start_date: billing.billing_start_date || null,
           billing_end_date: billing.billing_end_date || null,
+          // Update feature flags based on new plan
+          inventory_enabled: true, // All plans
+          payroll_enabled: isGrowth || isEnterprise,
+          agents_enabled: isGrowth || isEnterprise,
+          impact_enabled: isGrowth || isEnterprise,
+          website_enabled: isGrowth || isEnterprise,
+          whatsapp_enabled: isGrowth || isEnterprise,
+          advanced_accounting_enabled: isEnterprise, // Enterprise only
         })
         .eq("tenant_id", tenantId);
 
@@ -240,7 +264,7 @@ export function TenantManager() {
       queryClient.invalidateQueries({ queryKey: ["all-tenants"] });
       toast({
         title: "Billing updated",
-        description: "Tenant billing information has been updated.",
+        description: "Tenant billing and feature access have been updated.",
       });
     },
     onError: (error: Error) => {

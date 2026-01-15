@@ -61,10 +61,21 @@ export function GeneralLedger() {
       )
       .subscribe();
 
+    // Payroll creates expense entries when marked paid - listen for updates
+    const payrollChannel = supabase
+      .channel("ledger-payroll-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "payroll_records" },
+        () => fetchLedgerData()
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(salesChannel);
       supabase.removeChannel(expensesChannel);
       supabase.removeChannel(invoicesChannel);
+      supabase.removeChannel(payrollChannel);
     };
   }, [tenantId]);
 
