@@ -5,11 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/hooks/useTenant";
 import { guardTenant } from "@/lib/tenant-utils";
-import { Loader2, Sparkles, Download, Printer } from "lucide-react";
+import { Loader2, Sparkles, Download, Printer, AlertCircle } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
@@ -21,6 +22,7 @@ interface Invoice {
   client_name: string;
   client_email: string | null;
   total_amount: number;
+  paid_amount?: number;
 }
 
 interface ReceiptModalProps {
@@ -43,13 +45,19 @@ export function ReceiptModal({ isOpen, onClose, onSuccess, invoice }: ReceiptMod
   const { toast } = useToast();
   const { tenantId } = useTenant();
 
+  // Calculate balance due
+  const previouslyPaid = Number(invoice?.paid_amount || 0);
+  const totalAmount = Number(invoice?.total_amount || 0);
+  const balanceDue = totalAmount - previouslyPaid;
+
   useEffect(() => {
     if (invoice && isOpen) {
-      setAmountPaid(invoice.total_amount.toString());
+      // Default to the balance due, not the total
+      setAmountPaid(balanceDue.toString());
       setShowPreview(false);
       setCreatedReceipt(null);
     }
-  }, [invoice, isOpen]);
+  }, [invoice, isOpen, balanceDue]);
 
   const generateThankYouMessage = async () => {
     if (!invoice) return;
@@ -76,8 +84,20 @@ export function ReceiptModal({ isOpen, onClose, onSuccess, invoice }: ReceiptMod
     
     if (!invoice) return;
     if (!guardTenant(tenantId)) return;
-    if (!amountPaid || Number(amountPaid) <= 0) {
+    
+    const paymentAmount = Number(amountPaid);
+    
+    if (!amountPaid || paymentAmount <= 0) {
       toast({ title: "Error", description: "Please enter a valid amount", variant: "destructive" });
+      return;
+    }
+
+    if (paymentAmount > balanceDue) {
+      toast({ 
+        title: "Error", 
+        description: `Payment amount (K ${paymentAmount.toLocaleString()}) exceeds balance due (K ${balanceDue.toLocaleString()})`, 
+        variant: "destructive" 
+      });
       return;
     }
 
@@ -93,7 +113,7 @@ export function ReceiptModal({ isOpen, onClose, onSuccess, invoice }: ReceiptMod
           invoice_id: invoice.id,
           client_name: invoice.client_name,
           client_email: invoice.client_email,
-          amount_paid: Number(amountPaid),
+          amount_paid: paymentAmount,
           payment_method: paymentMethod,
           payment_date: paymentDate,
           notes: notes || null,
@@ -106,15 +126,30 @@ export function ReceiptModal({ isOpen, onClose, onSuccess, invoice }: ReceiptMod
 
       if (error) throw error;
 
-      // Update invoice status to paid
+      // Calculate new total paid
+      const newTotalPaid = previouslyPaid + paymentAmount;
+      const newBalance = totalAmount - newTotalPaid;
+      
+      // Determine new status: paid if balance is 0, partial if still has balance
+      const newStatus = newBalance <= 0 ? "paid" : "partial";
+
+      // Update invoice with new paid_amount and status
       await supabase
         .from("invoices")
-        .update({ status: "paid" })
+        .update({ 
+          status: newStatus,
+          paid_amount: newTotalPaid
+        })
         .eq("id", invoice.id);
 
-      setCreatedReceipt(data);
+      setCreatedReceipt({ ...data, newBalance, newStatus });
       setShowPreview(true);
-      toast({ title: "Success", description: "Payment receipt created successfully" });
+      toast({ 
+        title: "Success", 
+        description: newStatus === "paid" 
+          ? "Payment recorded - Invoice fully paid!" 
+          : `Partial payment recorded. Remaining balance: K ${newBalance.toLocaleString()}`
+      });
       onSuccess();
     } catch (error: any) {
       console.error("Error creating receipt:", error);
@@ -232,7 +267,27 @@ export function ReceiptModal({ isOpen, onClose, onSuccess, invoice }: ReceiptMod
                     <span className="text-gray-600">For Invoice:</span>
                     <span>{invoice.invoice_number}</span>
                   </div>
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-gray-600">Invoice Total:</span>
+                    <span>K {totalAmount.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-gray-600">Total Paid to Date:</span>
+                    <span className="text-green-600 font-medium">K {(previouslyPaid + Number(createdReceipt.amount_paid)).toLocaleString()}</span>
+                  </div>
+                  {createdReceipt.newBalance > 0 && (
+                    <div className="flex justify-between py-2 border-b bg-amber-50 px-2 rounded">
+                      <span className="text-amber-700 font-medium">Remaining Balance:</span>
+                      <span className="text-amber-700 font-bold">K {createdReceipt.newBalance.toLocaleString()}</span>
+                    </div>
+                  )}
                 </div>
+
+                {createdReceipt.newStatus === "paid" && (
+                  <div className="bg-green-100 p-3 rounded-lg text-center">
+                    <Badge className="bg-green-500 text-white">FULLY PAID</Badge>
+                  </div>
+                )}
 
                 {createdReceipt.ai_thank_you_message && (
                   <div className="bg-blue-50 p-4 rounded-lg italic text-gray-700 text-center">
@@ -268,21 +323,45 @@ export function ReceiptModal({ isOpen, onClose, onSuccess, invoice }: ReceiptMod
             <div className="bg-gray-50 p-4 rounded-lg">
               <p className="text-sm text-gray-600">Recording payment for:</p>
               <p className="font-medium">{invoice.invoice_number} - {invoice.client_name}</p>
-              <p className="text-lg font-bold text-[#004B8D]">K {invoice.total_amount.toLocaleString()}</p>
+              <div className="mt-2 space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span>Invoice Total:</span>
+                  <span className="font-medium">K {totalAmount.toLocaleString()}</span>
+                </div>
+                {previouslyPaid > 0 && (
+                  <div className="flex justify-between text-sm text-green-600">
+                    <span>Previously Paid:</span>
+                    <span>K {previouslyPaid.toLocaleString()}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-sm font-bold text-[#004B8D]">
+                  <span>Balance Due:</span>
+                  <span>K {balanceDue.toLocaleString()}</span>
+                </div>
+              </div>
             </div>
+
+            {previouslyPaid > 0 && (
+              <div className="flex items-center gap-2 text-amber-600 bg-amber-50 p-3 rounded-lg text-sm">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                <span>This invoice has existing payments. Recording a partial payment.</span>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="amountPaid">Amount Paid (ZMW) *</Label>
+                <Label htmlFor="amountPaid">Amount to Pay (ZMW) *</Label>
                 <Input
                   id="amountPaid"
                   type="number"
                   min="0"
+                  max={balanceDue}
                   step="0.01"
                   value={amountPaid}
                   onChange={(e) => setAmountPaid(e.target.value)}
                   required
                 />
+                <p className="text-xs text-gray-500 mt-1">Max: K {balanceDue.toLocaleString()}</p>
               </div>
               <div>
                 <Label htmlFor="paymentMethod">Payment Method</Label>
@@ -353,7 +432,7 @@ export function ReceiptModal({ isOpen, onClose, onSuccess, invoice }: ReceiptMod
               <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
               <Button type="submit" disabled={isLoading} className="bg-green-600 hover:bg-green-700">
                 {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Create Receipt
+                {Number(amountPaid) < balanceDue ? "Record Partial Payment" : "Record Payment"}
               </Button>
             </div>
           </form>

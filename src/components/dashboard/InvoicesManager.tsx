@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,7 +22,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { FileText, Plus, RefreshCw, Loader2, Eye, Pencil, Trash2, Receipt, Lock } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { FileText, Plus, RefreshCw, Loader2, Eye, Pencil, Trash2, Receipt, Lock, ChevronDown, ChevronRight, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { InvoiceFormModal } from "./InvoiceFormModal";
@@ -43,7 +48,16 @@ interface Invoice {
   tax_rate: number | null;
   tax_amount: number | null;
   total_amount: number;
+  paid_amount: number;
   notes: string | null;
+}
+
+interface ClientGroup {
+  clientName: string;
+  invoices: Invoice[];
+  totalAmount: number;
+  paidAmount: number;
+  balance: number;
 }
 
 export function InvoicesManager() {
@@ -55,6 +69,7 @@ export function InvoicesManager() {
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const { canAdd, isAdmin } = useAuth();
 
@@ -96,6 +111,43 @@ export function InvoicesManager() {
       supabase.removeChannel(channel);
     };
   }, []);
+
+  // Group invoices by client name
+  const clientGroups = useMemo((): ClientGroup[] => {
+    const groups: Record<string, Invoice[]> = {};
+    
+    invoices.forEach((invoice) => {
+      const clientName = invoice.client_name || "Unknown Client";
+      if (!groups[clientName]) {
+        groups[clientName] = [];
+      }
+      groups[clientName].push(invoice);
+    });
+
+    return Object.entries(groups).map(([clientName, clientInvoices]) => {
+      const totalAmount = clientInvoices.reduce((sum, inv) => sum + Number(inv.total_amount), 0);
+      const paidAmount = clientInvoices.reduce((sum, inv) => sum + Number(inv.paid_amount || 0), 0);
+      return {
+        clientName,
+        invoices: clientInvoices,
+        totalAmount,
+        paidAmount,
+        balance: totalAmount - paidAmount,
+      };
+    }).sort((a, b) => a.clientName.localeCompare(b.clientName));
+  }, [invoices]);
+
+  const toggleClient = (clientName: string) => {
+    setExpandedClients((prev) => {
+      const next = new Set(prev);
+      if (next.has(clientName)) {
+        next.delete(clientName);
+      } else {
+        next.add(clientName);
+      }
+      return next;
+    });
+  };
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -148,10 +200,21 @@ export function InvoicesManager() {
       draft: "bg-gray-100 text-gray-700 border-gray-200",
       sent: "bg-blue-100 text-blue-700 border-blue-200",
       paid: "bg-green-100 text-green-700 border-green-200",
+      partial: "bg-amber-100 text-amber-700 border-amber-200",
       overdue: "bg-red-100 text-red-700 border-red-200",
       cancelled: "bg-orange-100 text-orange-700 border-orange-200",
     };
     return styles[status] || styles.draft;
+  };
+
+  const getBalanceDisplay = (invoice: Invoice) => {
+    const balance = Number(invoice.total_amount) - Number(invoice.paid_amount || 0);
+    if (balance <= 0) return null;
+    return (
+      <span className="text-xs text-amber-600 block">
+        Balance: K {balance.toLocaleString()}
+      </span>
+    );
   };
 
   if (isLoading) {
@@ -171,7 +234,7 @@ export function InvoicesManager() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-display font-bold text-[#003366] mb-2">Invoices</h2>
-          <p className="text-[#004B8D]/60">Create, view, and manage invoices</p>
+          <p className="text-[#004B8D]/60">Create, view, and manage invoices (grouped by client)</p>
         </div>
         <div className="flex gap-2">
           {canAdd && (
@@ -199,113 +262,153 @@ export function InvoicesManager() {
       <Card className="bg-white border-[#004B8D]/10 shadow-sm">
         <CardHeader>
           <CardTitle className="text-[#003366] flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Invoice List ({invoices.length})
+            <Users className="h-5 w-5" />
+            Invoices by Client ({clientGroups.length} clients, {invoices.length} invoices)
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow className="border-[#004B8D]/10 hover:bg-transparent">
-                <TableHead className="text-[#004B8D]/70">Invoice #</TableHead>
-                <TableHead className="text-[#004B8D]/70">Client</TableHead>
-                <TableHead className="text-[#004B8D]/70">Date</TableHead>
-                <TableHead className="text-[#004B8D]/70 text-right">Amount</TableHead>
-                <TableHead className="text-[#004B8D]/70">Status</TableHead>
-                <TableHead className="text-[#004B8D]/70 text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {invoices.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-[#004B8D]/50 py-8">
-                    No invoices found. Create your first invoice!
-                  </TableCell>
-                </TableRow>
-              ) : (
-                invoices.map((invoice) => (
-                  <TableRow key={invoice.id} className="border-[#004B8D]/10 hover:bg-[#004B8D]/5">
-                    <TableCell className="text-[#003366] font-medium">
-                      {invoice.invoice_number}
-                    </TableCell>
-                    <TableCell className="text-[#003366]">
-                      {invoice.client_name}
-                    </TableCell>
-                    <TableCell className="text-[#003366]/70">
-                      {new Date(invoice.invoice_date).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="text-right text-[#003366] font-medium">
-                      K {Number(invoice.total_amount).toLocaleString()}
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={getStatusBadge(invoice.status)}>
-                        {invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleView(invoice)}
-                          className="h-8 w-8 text-[#004B8D] hover:bg-[#004B8D]/10"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        {invoice.status !== "paid" && canAdd && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleRecordPayment(invoice)}
-                            className="h-8 w-8 text-green-600 hover:bg-green-50"
-                            title="Record Payment"
-                          >
-                            <Receipt className="h-4 w-4" />
-                          </Button>
-                        )}
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleEdit(invoice)}
-                                  className="h-8 w-8 text-amber-600 hover:bg-amber-50"
-                                  disabled={!isAdmin}
-                                >
-                                  {isAdmin ? <Pencil className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-                                </Button>
-                              </span>
-                            </TooltipTrigger>
-                            {!isAdmin && <TooltipContent>Admin access required</TooltipContent>}
-                          </Tooltip>
-                        </TooltipProvider>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => setDeleteId(invoice.id)}
-                                  className="h-8 w-8 text-red-600 hover:bg-red-50"
-                                  disabled={!isAdmin}
-                                >
-                                  {isAdmin ? <Trash2 className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-                                </Button>
-                              </span>
-                            </TooltipTrigger>
-                            {!isAdmin && <TooltipContent>Admin access required</TooltipContent>}
-                          </Tooltip>
-                        </TooltipProvider>
+        <CardContent className="space-y-2">
+          {clientGroups.length === 0 ? (
+            <div className="text-center text-[#004B8D]/50 py-8">
+              No invoices found. Create your first invoice!
+            </div>
+          ) : (
+            clientGroups.map((group) => (
+              <Collapsible
+                key={group.clientName}
+                open={expandedClients.has(group.clientName)}
+                onOpenChange={() => toggleClient(group.clientName)}
+              >
+                <CollapsibleTrigger asChild>
+                  <div className="flex items-center justify-between p-3 bg-[#004B8D]/5 hover:bg-[#004B8D]/10 rounded-lg cursor-pointer transition-colors">
+                    <div className="flex items-center gap-3">
+                      {expandedClients.has(group.clientName) ? (
+                        <ChevronDown className="h-4 w-4 text-[#004B8D]" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-[#004B8D]" />
+                      )}
+                      <div>
+                        <span className="font-medium text-[#003366]">{group.clientName}</span>
+                        <span className="text-xs text-[#004B8D]/60 ml-2">
+                          ({group.invoices.length} invoice{group.invoices.length !== 1 ? "s" : ""})
+                        </span>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                    </div>
+                    <div className="flex items-center gap-4 text-sm">
+                      <div className="text-right">
+                        <span className="text-[#003366] font-medium">K {group.totalAmount.toLocaleString()}</span>
+                        {group.balance > 0 && (
+                          <span className="text-amber-600 ml-2 text-xs">
+                            (Balance: K {group.balance.toLocaleString()})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="mt-2 ml-4 border-l-2 border-[#004B8D]/10 pl-4">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-[#004B8D]/10 hover:bg-transparent">
+                          <TableHead className="text-[#004B8D]/70">Invoice #</TableHead>
+                          <TableHead className="text-[#004B8D]/70">Date</TableHead>
+                          <TableHead className="text-[#004B8D]/70 text-right">Amount</TableHead>
+                          <TableHead className="text-[#004B8D]/70 text-right">Paid</TableHead>
+                          <TableHead className="text-[#004B8D]/70">Status</TableHead>
+                          <TableHead className="text-[#004B8D]/70 text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {group.invoices.map((invoice) => (
+                          <TableRow key={invoice.id} className="border-[#004B8D]/10 hover:bg-[#004B8D]/5">
+                            <TableCell className="text-[#003366] font-medium">
+                              {invoice.invoice_number}
+                            </TableCell>
+                            <TableCell className="text-[#003366]/70">
+                              {new Date(invoice.invoice_date).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell className="text-right text-[#003366] font-medium">
+                              K {Number(invoice.total_amount).toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <span className="text-green-600 font-medium">
+                                K {Number(invoice.paid_amount || 0).toLocaleString()}
+                              </span>
+                              {getBalanceDisplay(invoice)}
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={getStatusBadge(invoice.status)}>
+                                {invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleView(invoice)}
+                                  className="h-8 w-8 text-[#004B8D] hover:bg-[#004B8D]/10"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                                {invoice.status !== "paid" && canAdd && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleRecordPayment(invoice)}
+                                    className="h-8 w-8 text-green-600 hover:bg-green-50"
+                                    title="Record Payment"
+                                  >
+                                    <Receipt className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => handleEdit(invoice)}
+                                          className="h-8 w-8 text-amber-600 hover:bg-amber-50"
+                                          disabled={!isAdmin}
+                                        >
+                                          {isAdmin ? <Pencil className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                                        </Button>
+                                      </span>
+                                    </TooltipTrigger>
+                                    {!isAdmin && <TooltipContent>Admin access required</TooltipContent>}
+                                  </Tooltip>
+                                </TooltipProvider>
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => setDeleteId(invoice.id)}
+                                          className="h-8 w-8 text-red-600 hover:bg-red-50"
+                                          disabled={!isAdmin}
+                                        >
+                                          {isAdmin ? <Trash2 className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                                        </Button>
+                                      </span>
+                                    </TooltipTrigger>
+                                    {!isAdmin && <TooltipContent>Admin access required</TooltipContent>}
+                                  </Tooltip>
+                                </TooltipProvider>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            ))
+          )}
         </CardContent>
       </Card>
 
