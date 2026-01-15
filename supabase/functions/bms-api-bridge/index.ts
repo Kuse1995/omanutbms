@@ -455,9 +455,37 @@ async function handleRecordSale(supabase: any, entities: Record<string, any>, co
     }
   }
 
+  // Format date for receipt
+  const receiptDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  
+  // Create professional receipt message
+  const receiptMessage = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OMANUT BUSINESS CENTRE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ PAYMENT RECEIPT
+Receipt #: ${receiptNumber}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💰 Amount Paid: K ${amount.toLocaleString()}
+
+👤 Customer: ${customer_name || 'Walk-in Customer'}
+📅 Date: ${receiptDate}
+💳 Payment: ${payment_method}
+
+📦 Items:
+  • ${resolvedItemName} (${quantity}x) - K ${amount.toLocaleString()}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Thank you for your business!
+
+📄 Full receipt PDF will be attached below.`;
+
   return {
     success: true,
-    message: `✅ Sale recorded!\n📝 ${saleNumber}\n📦 ${quantity}x ${resolvedItemName}\n👤 ${customer_name || 'Walk-in Customer'}\n💰 K${amount.toLocaleString()} (${payment_method})\n🧾 Receipt: ${receiptNumber}`,
+    message: receiptMessage,
     data: { 
       sale_number: saleNumber, 
       sale_id: sale.id,
