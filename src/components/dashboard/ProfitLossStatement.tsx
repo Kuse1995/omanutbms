@@ -64,10 +64,21 @@ export function ProfitLossStatement() {
       )
       .subscribe();
 
+    // Payroll creates expense entries when marked paid
+    const payrollChannel = supabase
+      .channel("pl-payroll-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "payroll_records" },
+        () => fetchPLData()
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(salesChannel);
       supabase.removeChannel(expensesChannel);
       supabase.removeChannel(invoicesChannel);
+      supabase.removeChannel(payrollChannel);
     };
   }, [startDate, endDate, tenantId]);
 

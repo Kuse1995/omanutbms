@@ -53,9 +53,31 @@ export function CashBook() {
       )
       .subscribe();
 
+    // Payroll creates expense entries when marked paid
+    const payrollChannel = supabase
+      .channel("cashbook-payroll-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "payroll_records" },
+        () => fetchCashData()
+      )
+      .subscribe();
+
+    // Payment receipts also affect cash book
+    const receiptsChannel = supabase
+      .channel("cashbook-receipts-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "payment_receipts" },
+        () => fetchCashData()
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(salesChannel);
       supabase.removeChannel(expensesChannel);
+      supabase.removeChannel(payrollChannel);
+      supabase.removeChannel(receiptsChannel);
     };
   }, [startDate, endDate, tenantId]);
 
