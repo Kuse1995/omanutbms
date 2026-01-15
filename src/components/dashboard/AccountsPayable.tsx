@@ -110,7 +110,7 @@ const AccountsPayable = () => {
         
         // Record as expense in accounting
         const expenseAmount = paid_amount || payable.amount_zmw;
-        const { error: expenseError } = await supabase.from("expenses").insert({
+        const expenseData = {
           tenant_id: tenantId,
           date_incurred: updateData.paid_date as string,
           category: "Other",
@@ -118,12 +118,19 @@ const AccountsPayable = () => {
           vendor_name: payable.vendor_name,
           notes: `Payment for ${payable.description || payable.invoice_reference || 'account payable'}`,
           recorded_by: user?.id,
-        });
+        };
+        
+        console.log("Recording expense for accounts payable:", expenseData);
+        const { error: expenseError } = await supabase.from("expenses").insert(expenseData);
         
         if (expenseError) {
           console.error("Error recording expense:", expenseError);
-          throw new Error("Failed to record expense in accounting system");
+          console.error("Expense data that failed:", expenseData);
+          throw new Error(`Failed to record expense: ${expenseError.message}`);
         }
+        
+        console.log("Expense recorded successfully for accounts payable");
+        toast.success("Payment recorded and expense logged");
       } else {
         // For non-paid status updates, just update the status
         const { error } = await supabase.from("accounts_payable").update(updateData).eq("id", id);

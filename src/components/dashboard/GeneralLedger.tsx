@@ -124,18 +124,23 @@ export function GeneralLedger() {
       });
 
       // Add payment receipts as revenue (actual cash received)
+      // Only include payments linked to invoices to avoid double-counting with sales_transactions
       (paymentsRes.data || []).forEach((payment) => {
-        runningBalance += Number(payment.amount_paid);
-        ledgerEntries.push({
-          id: `payment-${payment.id}`,
-          date: payment.payment_date,
-          description: `Payment Receipt ${payment.receipt_number}: ${payment.client_name}`,
-          account: "Revenue - Invoice Payments",
-          debit: 0,
-          credit: Number(payment.amount_paid),
-          balance: runningBalance,
-          type: "revenue",
-        });
+        // Only show payment receipts that are linked to invoices
+        // Direct sales already appear in sales_transactions
+        if (payment.invoice_id) {
+          runningBalance += Number(payment.amount_paid);
+          ledgerEntries.push({
+            id: `payment-${payment.id}`,
+            date: payment.payment_date,
+            description: `Payment Receipt ${payment.receipt_number}: ${payment.client_name}`,
+            account: "Revenue - Invoice Payments",
+            debit: 0,
+            credit: Number(payment.amount_paid),
+            balance: runningBalance,
+            type: "revenue",
+          });
+        }
       });
 
       // Sort by date
