@@ -158,7 +158,10 @@ export const PayrollManager = () => {
 
       if (expenseError) {
         console.error("Error recording expense:", expenseError);
-        // Don't fail the whole operation if expense recording fails
+        toast.error("Payroll marked as paid but expense recording failed. Please record manually in expenses.");
+        // Still refresh to show the updated payroll status
+        fetchData();
+        return;
       }
 
       toast.success("Marked as paid and recorded in expenses");

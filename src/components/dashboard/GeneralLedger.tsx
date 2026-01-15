@@ -52,11 +52,11 @@ export function GeneralLedger() {
       )
       .subscribe();
 
-    const invoicesChannel = supabase
-      .channel("ledger-invoices-changes")
+    const paymentsChannel = supabase
+      .channel("ledger-payments-changes")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "invoices" },
+        { event: "*", schema: "public", table: "payment_receipts" },
         () => fetchLedgerData()
       )
       .subscribe();
@@ -74,7 +74,7 @@ export function GeneralLedger() {
     return () => {
       supabase.removeChannel(salesChannel);
       supabase.removeChannel(expensesChannel);
-      supabase.removeChannel(invoicesChannel);
+      supabase.removeChannel(paymentsChannel);
       supabase.removeChannel(payrollChannel);
     };
   }, [tenantId]);
@@ -84,10 +84,10 @@ export function GeneralLedger() {
     setIsLoading(true);
     try {
       // Fetch all financial data and combine into ledger format
-      const [salesRes, expensesRes, invoicesRes] = await Promise.all([
+      const [salesRes, expensesRes, paymentsRes] = await Promise.all([
         supabase.from("sales_transactions").select("*").eq("tenant_id", tenantId).order("created_at", { ascending: true }),
         supabase.from("expenses").select("*").eq("tenant_id", tenantId).order("date_incurred", { ascending: true }),
-        supabase.from("invoices").select("*").eq("tenant_id", tenantId).eq("status", "paid").order("invoice_date", { ascending: true }),
+        supabase.from("payment_receipts").select("*").eq("tenant_id", tenantId).order("payment_date", { ascending: true }),
       ]);
 
       const ledgerEntries: LedgerEntry[] = [];
@@ -123,16 +123,16 @@ export function GeneralLedger() {
         });
       });
 
-      // Add paid invoices as revenue
-      (invoicesRes.data || []).forEach((invoice) => {
-        runningBalance += Number(invoice.total_amount);
+      // Add payment receipts as revenue (actual cash received)
+      (paymentsRes.data || []).forEach((payment) => {
+        runningBalance += Number(payment.amount_paid);
         ledgerEntries.push({
-          id: `invoice-${invoice.id}`,
-          date: invoice.invoice_date,
-          description: `Invoice ${invoice.invoice_number}: ${invoice.client_name}`,
+          id: `payment-${payment.id}`,
+          date: payment.payment_date,
+          description: `Payment Receipt ${payment.receipt_number}: ${payment.client_name}`,
           account: "Revenue - Invoice Payments",
           debit: 0,
-          credit: Number(invoice.total_amount),
+          credit: Number(payment.amount_paid),
           balance: runningBalance,
           type: "revenue",
         });

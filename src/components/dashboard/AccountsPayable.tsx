@@ -93,9 +93,42 @@ const AccountsPayable = () => {
       if (status === "paid") {
         updateData.paid_date = new Date().toISOString().split("T")[0];
         if (paid_amount !== undefined) updateData.paid_amount = paid_amount;
+        
+        // Get the payable details first to record as expense
+        const { data: payable, error: fetchError } = await supabase
+          .from("accounts_payable")
+          .select("*")
+          .eq("id", id)
+          .single();
+        
+        if (fetchError) throw fetchError;
+        if (!payable) throw new Error("Payable not found");
+        
+        // Update the payable status
+        const { error: updateError } = await supabase.from("accounts_payable").update(updateData).eq("id", id);
+        if (updateError) throw updateError;
+        
+        // Record as expense in accounting
+        const expenseAmount = paid_amount || payable.amount_zmw;
+        const { error: expenseError } = await supabase.from("expenses").insert({
+          tenant_id: tenantId,
+          date_incurred: updateData.paid_date as string,
+          category: "Other",
+          amount_zmw: expenseAmount,
+          vendor_name: payable.vendor_name,
+          notes: `Payment for ${payable.description || payable.invoice_reference || 'account payable'}`,
+          recorded_by: user?.id,
+        });
+        
+        if (expenseError) {
+          console.error("Error recording expense:", expenseError);
+          throw new Error("Failed to record expense in accounting system");
+        }
+      } else {
+        // For non-paid status updates, just update the status
+        const { error } = await supabase.from("accounts_payable").update(updateData).eq("id", id);
+        if (error) throw error;
       }
-      const { error } = await supabase.from("accounts_payable").update(updateData).eq("id", id);
-      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["accounts-payable"] });
