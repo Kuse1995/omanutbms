@@ -55,7 +55,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       impact: false,
       advanced_accounting: false,
       website: false,
-      whatsapp: false,
+      whatsapp: true, // All plans have WhatsApp with usage limits
     },
     highlights: [
       "Up to 3 team members",

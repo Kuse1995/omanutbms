@@ -32,6 +32,8 @@ interface PlanConfig {
   feature_advanced_accounting: boolean | null;
   feature_website: boolean | null;
   feature_whatsapp: boolean | null;
+  whatsapp_monthly_limit: number | null;
+  whatsapp_limit_enabled: boolean | null;
   highlights: string[] | null;
   is_popular: boolean | null;
   is_active: boolean | null;
@@ -121,6 +123,8 @@ export function PlanConfigManager() {
       feature_advanced_accounting: plan.feature_advanced_accounting ?? defaults.features.advanced_accounting,
       feature_website: plan.feature_website ?? defaults.features.website,
       feature_whatsapp: plan.feature_whatsapp ?? defaults.features.whatsapp,
+      whatsapp_monthly_limit: plan.whatsapp_monthly_limit ?? (plan.plan_key === 'starter' ? 50 : plan.plan_key === 'growth' ? 500 : 0),
+      whatsapp_limit_enabled: plan.whatsapp_limit_enabled ?? (plan.plan_key !== 'enterprise'),
       highlights: plan.highlights ?? defaults.highlights,
       is_popular: plan.is_popular ?? defaults.popular,
       is_active: plan.is_active ?? true,
@@ -157,6 +161,8 @@ export function PlanConfigManager() {
         feature_advanced_accounting: null,
         feature_website: null,
         feature_whatsapp: null,
+        whatsapp_monthly_limit: null,
+        whatsapp_limit_enabled: null,
         highlights: null,
         is_popular: null,
       },
@@ -495,6 +501,35 @@ export function PlanConfigManager() {
                       checked={formData.feature_advanced_accounting ?? false}
                       onCheckedChange={(checked) => setFormData({ ...formData, feature_advanced_accounting: checked })}
                     />
+                  </div>
+                </div>
+
+                {/* WhatsApp Usage Limits */}
+                <div className="space-y-3 sm:space-y-4">
+                  <h4 className="font-semibold text-xs sm:text-sm text-muted-foreground uppercase tracking-wide">
+                    WhatsApp Usage Limits
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <Label className="text-xs sm:text-sm">Monthly Message Limit (0 = unlimited)</Label>
+                      <Input
+                        className="text-sm"
+                        type="number"
+                        value={formData.whatsapp_monthly_limit ?? ""}
+                        onChange={(e) => setFormData({ 
+                          ...formData, 
+                          whatsapp_monthly_limit: e.target.value ? Number(e.target.value) : null 
+                        })}
+                        placeholder="100"
+                      />
+                    </div>
+                    <div className="flex items-center gap-3 pt-5">
+                      <FeatureToggle
+                        label="Enforce Limit"
+                        checked={formData.whatsapp_limit_enabled ?? true}
+                        onCheckedChange={(checked) => setFormData({ ...formData, whatsapp_limit_enabled: checked })}
+                      />
+                    </div>
                   </div>
                 </div>
 

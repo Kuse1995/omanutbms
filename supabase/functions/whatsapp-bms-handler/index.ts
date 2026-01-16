@@ -60,6 +60,102 @@ const REQUIRED_FIELDS: Record<string, string[]> = {
   send_quotation: [],
 };
 
+/**
+ * Check and increment WhatsApp usage for a tenant
+ * Returns whether the action is allowed and the current usage stats
+ */
+async function checkAndIncrementUsage(
+  supabase: any, 
+  tenantId: string, 
+  phoneNumber: string,
+  userId: string | null
+): Promise<{ allowed: boolean; used: number; limit: number }> {
+  try {
+    // Get business profile with billing plan
+    const { data: profile } = await supabase
+      .from('business_profiles')
+      .select('billing_plan, whatsapp_messages_used, whatsapp_usage_reset_date')
+      .eq('tenant_id', tenantId)
+      .single();
+
+    if (!profile) {
+      return { allowed: true, used: 0, limit: 0 }; // Allow if no profile found
+    }
+
+    // Get plan config for limits
+    const { data: planConfig } = await supabase
+      .from('billing_plan_configs')
+      .select('whatsapp_monthly_limit, whatsapp_limit_enabled')
+      .eq('plan_key', profile.billing_plan)
+      .eq('is_active', true)
+      .single();
+
+    // Check if limits are enabled and get the limit
+    const limitEnabled = planConfig?.whatsapp_limit_enabled ?? true;
+    const monthlyLimit = planConfig?.whatsapp_monthly_limit ?? 100;
+
+    // If limits not enabled (enterprise) or limit is 0 (unlimited), allow
+    if (!limitEnabled || monthlyLimit === 0) {
+      // Log usage but don't enforce
+      await supabase.from('whatsapp_usage_logs').insert({
+        tenant_id: tenantId,
+        whatsapp_number: phoneNumber,
+        user_id: userId,
+        message_direction: 'inbound',
+        success: true,
+      });
+      return { allowed: true, used: profile.whatsapp_messages_used || 0, limit: monthlyLimit };
+    }
+
+    // Check if we need to reset the monthly counter
+    const today = new Date().toISOString().split('T')[0];
+    const resetDate = profile.whatsapp_usage_reset_date;
+    let currentUsed = profile.whatsapp_messages_used || 0;
+
+    // Reset counter if it's a new month
+    if (resetDate) {
+      const resetDateObj = new Date(resetDate);
+      const todayObj = new Date(today);
+      if (resetDateObj.getMonth() !== todayObj.getMonth() || resetDateObj.getFullYear() !== todayObj.getFullYear()) {
+        currentUsed = 0;
+        await supabase
+          .from('business_profiles')
+          .update({ whatsapp_messages_used: 0, whatsapp_usage_reset_date: today })
+          .eq('tenant_id', tenantId);
+      }
+    }
+
+    // Check if limit exceeded
+    if (currentUsed >= monthlyLimit) {
+      return { allowed: false, used: currentUsed, limit: monthlyLimit };
+    }
+
+    // Increment usage
+    await supabase
+      .from('business_profiles')
+      .update({ 
+        whatsapp_messages_used: currentUsed + 1,
+        whatsapp_usage_reset_date: profile.whatsapp_usage_reset_date || today
+      })
+      .eq('tenant_id', tenantId);
+
+    // Log the usage
+    await supabase.from('whatsapp_usage_logs').insert({
+      tenant_id: tenantId,
+      whatsapp_number: phoneNumber,
+      user_id: userId,
+      message_direction: 'inbound',
+      success: true,
+    });
+
+    return { allowed: true, used: currentUsed + 1, limit: monthlyLimit };
+  } catch (error) {
+    console.error('Error checking usage limit:', error);
+    // On error, allow the action to proceed
+    return { allowed: true, used: 0, limit: 0 };
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -128,6 +224,34 @@ serve(async (req) => {
         execution_time_ms: Date.now() - startTime,
       });
       return createTwiMLResponse(inactiveMessage);
+    }
+
+    // Check WhatsApp usage limits
+    const usageLimitResult = await checkAndIncrementUsage(supabase, mapping.tenant_id, phoneNumber, mapping.user_id);
+    if (!usageLimitResult.allowed) {
+      const limitMessage = `⚠️ WhatsApp message limit reached for this month.
+
+Your plan allows ${usageLimitResult.limit} messages/month.
+Used: ${usageLimitResult.used}/${usageLimitResult.limit}
+
+💡 To continue using WhatsApp BMS:
+• Ask your admin to upgrade the plan
+• Wait for next month's reset
+
+Contact support@omanut.co for help.`;
+      
+      await logAudit(supabase, {
+        tenant_id: mapping.tenant_id,
+        whatsapp_number: phoneNumber,
+        user_id: mapping.user_id,
+        display_name: mapping.display_name,
+        original_message: body,
+        response_message: limitMessage,
+        success: false,
+        error_message: 'Usage limit exceeded',
+        execution_time_ms: Date.now() - startTime,
+      });
+      return createTwiMLResponse(limitMessage);
     }
 
     // Update last_used_at

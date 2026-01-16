@@ -420,6 +420,8 @@ export type Database = {
           trial_days: number | null
           updated_at: string
           updated_by: string | null
+          whatsapp_limit_enabled: boolean | null
+          whatsapp_monthly_limit: number | null
         }
         Insert: {
           annual_price?: number | null
@@ -445,6 +447,8 @@ export type Database = {
           trial_days?: number | null
           updated_at?: string
           updated_by?: string | null
+          whatsapp_limit_enabled?: boolean | null
+          whatsapp_monthly_limit?: number | null
         }
         Update: {
           annual_price?: number | null
@@ -470,6 +474,8 @@ export type Database = {
           trial_days?: number | null
           updated_at?: string
           updated_by?: string | null
+          whatsapp_limit_enabled?: boolean | null
+          whatsapp_monthly_limit?: number | null
         }
         Relationships: []
       }
@@ -564,6 +570,8 @@ export type Database = {
           updated_at: string
           website_enabled: boolean | null
           whatsapp_enabled: boolean | null
+          whatsapp_messages_used: number | null
+          whatsapp_usage_reset_date: string | null
           white_label_enabled: boolean | null
         }
         Insert: {
@@ -603,6 +611,8 @@ export type Database = {
           updated_at?: string
           website_enabled?: boolean | null
           whatsapp_enabled?: boolean | null
+          whatsapp_messages_used?: number | null
+          whatsapp_usage_reset_date?: string | null
           white_label_enabled?: boolean | null
         }
         Update: {
@@ -642,6 +652,8 @@ export type Database = {
           updated_at?: string
           website_enabled?: boolean | null
           whatsapp_enabled?: boolean | null
+          whatsapp_messages_used?: number | null
+          whatsapp_usage_reset_date?: string | null
           white_label_enabled?: boolean | null
         }
         Relationships: [
@@ -1030,6 +1042,7 @@ export type Database = {
           date_incurred: string
           id: string
           notes: string | null
+          payroll_record_id: string | null
           receipt_image_url: string | null
           recorded_by: string | null
           tenant_id: string | null
@@ -1043,6 +1056,7 @@ export type Database = {
           date_incurred?: string
           id?: string
           notes?: string | null
+          payroll_record_id?: string | null
           receipt_image_url?: string | null
           recorded_by?: string | null
           tenant_id?: string | null
@@ -1056,6 +1070,7 @@ export type Database = {
           date_incurred?: string
           id?: string
           notes?: string | null
+          payroll_record_id?: string | null
           receipt_image_url?: string | null
           recorded_by?: string | null
           tenant_id?: string | null
@@ -1063,6 +1078,13 @@ export type Database = {
           vendor_name?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "expenses_payroll_record_id_fkey"
+            columns: ["payroll_record_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_records"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "expenses_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -2717,6 +2739,47 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "whatsapp_pending_actions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_usage_logs: {
+        Row: {
+          created_at: string
+          id: string
+          intent: string | null
+          message_direction: string
+          success: boolean | null
+          tenant_id: string | null
+          user_id: string | null
+          whatsapp_number: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          intent?: string | null
+          message_direction?: string
+          success?: boolean | null
+          tenant_id?: string | null
+          user_id?: string | null
+          whatsapp_number: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          intent?: string | null
+          message_direction?: string
+          success?: boolean | null
+          tenant_id?: string | null
+          user_id?: string | null
+          whatsapp_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_usage_logs_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
