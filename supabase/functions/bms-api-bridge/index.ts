@@ -401,7 +401,13 @@ async function handleRecordSale(supabase: any, entities: Record<string, any>, co
 
   if (saleError || !sale) {
     console.error('Sale creation error:', saleError);
-    return { success: false, message: 'Failed to record sale. Please try again.' };
+    console.error('Sale error details:', JSON.stringify(saleError, null, 2));
+    const errorMsg = saleError?.message || 'Unknown error';
+    const errorCode = saleError?.code || 'N/A';
+    return { 
+      success: false, 
+      message: `Failed to record sale: ${errorMsg} (Code: ${errorCode}). Please contact support if this persists.` 
+    };
   }
 
   const resolvedItemName = productItem?.name ?? productRaw;
