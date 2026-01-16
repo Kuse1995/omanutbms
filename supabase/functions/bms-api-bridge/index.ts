@@ -121,6 +121,37 @@ async function generateSequentialReceiptNumber(supabase: any, tenantId: string, 
   return `${prefix}-${String(nextNum).padStart(4, '0')}`;
 }
 
+/**
+ * Generates a sequential sale number in the format SYYYY-XXXX.
+ * Uses created_at ordering + jittered retries to reduce race-condition collisions.
+ */
+async function generateSequentialSaleNumber(supabase: any, tenantId: string, attempt: number = 0): Promise<string> {
+  if (attempt > 0) {
+    await new Promise(resolve => setTimeout(resolve, Math.random() * 100 + 50));
+  }
+
+  const year = new Date().getFullYear();
+  const prefix = `S${year}`;
+
+  const { data: lastSale } = await supabase
+    .from('sales')
+    .select('sale_number, created_at')
+    .eq('tenant_id', tenantId)
+    .like('sale_number', `${prefix}-%`)
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  let nextNum = 1;
+  if (lastSale && lastSale[0]?.sale_number) {
+    const match = String(lastSale[0].sale_number).match(/S\d{4}-(\d+)/);
+    if (match) {
+      nextNum = parseInt(match[1], 10) + 1;
+    }
+  }
+
+  return `${prefix}-${String(nextNum).padStart(4, '0')}`;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -333,42 +364,48 @@ async function handleRecordSale(supabase: any, entities: Record<string, any>, co
     }
   }
 
-  // Generate sale number
-  const yearPrefix = 'S' + new Date().getFullYear();
-  const { data: lastSale } = await supabase
-    .from('sales')
-    .select('sale_number')
-    .eq('tenant_id', context.tenant_id)
-    .like('sale_number', `${yearPrefix}-%`)
-    .order('sale_number', { ascending: false })
-    .limit(1);
-
-  const nextNum = lastSale && lastSale[0] ? parseInt(lastSale[0].sale_number.split('-')[1]) + 1 : 1;
-  const saleNumber = `${yearPrefix}-${String(nextNum).padStart(4, '0')}`;
+  // Generate SEQUENTIAL sale number (SYYYY-XXXX)
+  let saleNumber = await generateSequentialSaleNumber(supabase, context.tenant_id);
 
   // Generate SEQUENTIAL receipt number matching BMS format (RYYYY-XXXX)
   let receiptNumber = await generateSequentialReceiptNumber(supabase, context.tenant_id);
   console.log('[record_sale] Generated receipt number:', receiptNumber);
 
-  // Create sale in sales table
-  const { data: sale, error: saleError } = await supabase
-    .from('sales')
-    .insert({
-      tenant_id: context.tenant_id,
-      sale_number: saleNumber,
-      customer_name: customer_name || 'Walk-in Customer',
-      customer_phone: customer_phone || null,
-      customer_email: customer_email || null,
-      payment_method,
-      subtotal: amount,
-      tax_amount: 0,
-      total_amount: amount,
-      recorded_by: context.user_id,
-    })
-    .select()
-    .single();
+  // Create sale in sales table (retry on sale_number collisions)
+  let sale: any = null;
+  let saleError: any = null;
 
-  if (saleError) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { data, error } = await supabase
+      .from('sales')
+      .insert({
+        tenant_id: context.tenant_id,
+        sale_number: saleNumber,
+        customer_name: customer_name || 'Walk-in Customer',
+        customer_phone: customer_phone || null,
+        customer_email: customer_email || null,
+        payment_method,
+        subtotal: amount,
+        tax_amount: 0,
+        total_amount: amount,
+        recorded_by: context.user_id,
+      })
+      .select()
+      .single();
+
+    if (error?.code === '23505') {
+      console.log(`[record_sale] Sale number collision detected (${saleNumber}), retrying... (attempt ${attempt + 1})`);
+      saleNumber = await generateSequentialSaleNumber(supabase, context.tenant_id, attempt + 1);
+      saleError = error;
+      continue;
+    }
+
+    sale = data;
+    saleError = error;
+    break;
+  }
+
+  if (saleError || !sale) {
     console.error('Sale creation error:', saleError);
     return { success: false, message: 'Failed to record sale. Please try again.' };
   }
