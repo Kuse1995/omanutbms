@@ -138,33 +138,20 @@ export const PayrollManager = () => {
     try {
       const paidDate = new Date().toISOString().split("T")[0];
       
-      // Update payroll status
+      // Update payroll status - the database trigger will automatically create 
+      // the linked expense record in the accounting system
       const { error } = await supabase
         .from("payroll_records")
-        .update({ status: "paid", paid_date: paidDate })
+        .update({ 
+          status: "paid", 
+          paid_date: paidDate,
+          approved_by: user?.id 
+        })
         .eq("id", id);
+      
       if (error) throw error;
 
-      // Record as expense for accounting
-      const { error: expenseError } = await supabase.from("expenses").insert({
-        tenant_id: tenantId,
-        date_incurred: paidDate,
-        category: "Salaries & Wages",
-        amount_zmw: record.net_pay,
-        vendor_name: record.employee_name || "Employee",
-        notes: `Salary payment for ${format(new Date(record.pay_period_start), "MMMM yyyy")} - ${record.employee_name}`,
-        recorded_by: user?.id,
-      });
-
-      if (expenseError) {
-        console.error("Error recording expense:", expenseError);
-        toast.error("Payroll marked as paid but expense recording failed. Please record manually in expenses.");
-        // Still refresh to show the updated payroll status
-        fetchData();
-        return;
-      }
-
-      toast.success("Marked as paid and recorded in expenses");
+      toast.success("Marked as paid and recorded in accounting");
       fetchData();
     } catch (error) {
       console.error("Error marking paid:", error);
