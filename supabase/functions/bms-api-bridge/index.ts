@@ -91,23 +91,17 @@ function normalizeProductQuery(input: unknown): { raw: string; pattern: string }
  * Generates a sequential receipt number in the format RYYYY-XXXX
  * This matches the BMS payment_receipts format exactly.
  */
-async function generateSequentialReceiptNumber(supabase: any, tenantId: string, attempt: number = 0): Promise<string> {
-  // Add random jitter to reduce collision probability on retries
-  if (attempt > 0) {
-    await new Promise(resolve => setTimeout(resolve, Math.random() * 100 + 50));
-  }
-  
+async function generateSequentialReceiptNumber(supabase: any, tenantId: string): Promise<string> {
   const year = new Date().getFullYear();
   const prefix = `R${year}`;
   
   // Get the latest receipt number for this tenant and year
-  // Use created_at for ordering to handle race conditions better
   const { data: lastReceipt } = await supabase
     .from('payment_receipts')
-    .select('receipt_number, created_at')
+    .select('receipt_number')
     .eq('tenant_id', tenantId)
     .like('receipt_number', `${prefix}-%`)
-    .order('created_at', { ascending: false })
+    .order('receipt_number', { ascending: false })
     .limit(1);
 
   let nextNum = 1;
@@ -463,45 +457,24 @@ async function handleRecordSale(supabase: any, entities: Record<string, any>, co
   console.log('[record_sale] Sales transaction created successfully with receipt:', receiptNumber);
 
   // CRITICAL: Create payment receipt for document generation and receipts manager
-  // Retry logic to handle race conditions in receipt number generation
-  let receiptCreated = false;
-  let attempts = 0;
-  let receiptError: any = null;
+  const { error: receiptError } = await supabase.from('payment_receipts').insert({
+    tenant_id: context.tenant_id,
+    receipt_number: receiptNumber,
+    client_name: customer_name || 'Walk-in Customer',
+    client_email: customer_email || null,
+    amount_paid: amount,
+    payment_date: new Date().toISOString().split('T')[0],
+    payment_method, // Use canonical form
+    created_by: context.user_id,
+    notes: `WhatsApp sale: ${saleNumber}`,
+  });
 
-  while (!receiptCreated && attempts < 3) {
-    const { error } = await supabase.from('payment_receipts').insert({
-      tenant_id: context.tenant_id,
-      receipt_number: receiptNumber,
-      client_name: customer_name || 'Walk-in Customer',
-      client_email: customer_email || null,
-      amount_paid: amount,
-      payment_date: new Date().toISOString().split('T')[0],
-      payment_method, // Use canonical form
-      created_by: context.user_id,
-      notes: `WhatsApp sale: ${saleNumber}`,
-    });
-
-    if (error && error.code === '23505') { // Unique constraint violation
-      console.log(`[record_sale] Receipt number collision detected (${receiptNumber}), retrying... (attempt ${attempts + 1})`);
-      receiptNumber = await generateSequentialReceiptNumber(supabase, context.tenant_id, attempts + 1);
-      attempts++;
-      receiptError = error;
-    } else if (error) {
-      console.error('Payment receipt creation error:', error);
-      receiptError = error;
-      break;
-    } else {
-      receiptCreated = true;
-      receiptError = null;
-    }
-  }
-
-  if (receiptError || !receiptCreated) {
-    console.error('Payment receipt creation failed after retries:', receiptError);
+  if (receiptError) {
+    console.error('Payment receipt creation error:', receiptError);
     // This is also critical for PDF generation
     return { 
       success: false, 
-      message: `Sale recorded (${saleNumber}) but receipt creation failed. Please generate receipt manually.` 
+      message: `Sale recorded (${saleNumber}) but receipt creation failed: ${receiptError.message}. Please try again.` 
     };
   }
 
