@@ -100,26 +100,29 @@ export function HRAgent() {
       // Query tenant_users for users belonging to this tenant
       const { data: tenantUsers, error: tenantUsersError } = await supabase
         .from("tenant_users")
-        .select(`
-          id,
-          user_id,
-          role,
-          is_owner,
-          profiles:user_id (
-            id,
-            full_name,
-            title,
-            department,
-            avatar_url,
-            last_login
-          )
-        `)
+        .select("id, user_id, role, is_owner")
         .eq("tenant_id", tenantId);
 
       if (tenantUsersError) throw tenantUsersError;
 
+      // Get user_ids to fetch profiles
+      const userIds = (tenantUsers || []).map(tu => tu.user_id);
+      
+      // Fetch profiles for these users
+      let profilesMap = new Map<string, any>();
+      if (userIds.length > 0) {
+        const { data: profiles, error: profilesError } = await supabase
+          .from("profiles")
+          .select("id, user_id, full_name, title, department, avatar_url, last_login")
+          .in("user_id", userIds);
+        
+        if (!profilesError && profiles) {
+          profiles.forEach(p => profilesMap.set(p.user_id, p));
+        }
+      }
+
       const staffWithRoles: StaffMember[] = (tenantUsers || []).map((tu) => {
-        const profile = tu.profiles as any;
+        const profile = profilesMap.get(tu.user_id);
         return {
           id: profile?.id || tu.id,
           user_id: tu.user_id,
