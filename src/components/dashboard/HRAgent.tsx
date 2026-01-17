@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/useAuth";
 import { useFeatures } from "@/hooks/useFeatures";
+import { useTenant } from "@/hooks/useTenant";
 import { StaffProfileModal } from "./StaffProfileModal";
 import { EmployeeManager } from "./EmployeeManager";
 import { PayrollManager } from "./PayrollManager";
@@ -65,6 +66,7 @@ export function HRAgent() {
   const { toast } = useToast();
   const { isAdmin } = useAuth();
   const { isEnabled, terminology } = useFeatures();
+  const { tenantId } = useTenant();
 
   const showAgents = isEnabled('agents');
 
@@ -90,34 +92,53 @@ export function HRAgent() {
   };
 
   const fetchStaffMembers = async () => {
+    if (!tenantId) return;
+    
     try {
       setStaffLoading(true);
       
-      const { data: profiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select("id, user_id, full_name, title, department, avatar_url, last_login");
+      // Query tenant_users for users belonging to this tenant
+      const { data: tenantUsers, error: tenantUsersError } = await supabase
+        .from("tenant_users")
+        .select(`
+          id,
+          user_id,
+          role,
+          is_owner,
+          profiles:user_id (
+            id,
+            full_name,
+            title,
+            department,
+            avatar_url,
+            last_login
+          )
+        `)
+        .eq("tenant_id", tenantId);
 
-      if (profilesError) throw profilesError;
+      if (tenantUsersError) throw tenantUsersError;
 
-      const { data: roles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("user_id, role");
-
-      if (rolesError) throw rolesError;
-
-      const staffWithRoles: StaffMember[] = (profiles || []).map((profile) => {
-        const userRole = roles?.find((r) => r.user_id === profile.user_id);
+      const staffWithRoles: StaffMember[] = (tenantUsers || []).map((tu) => {
+        const profile = tu.profiles as any;
         return {
-          ...profile,
-          role: (userRole?.role as "admin" | "manager" | "viewer") || "viewer",
+          id: profile?.id || tu.id,
+          user_id: tu.user_id,
+          full_name: profile?.full_name || null,
+          title: profile?.title || null,
+          department: profile?.department || null,
+          avatar_url: profile?.avatar_url || null,
+          last_login: profile?.last_login || null,
+          role: tu.role as "admin" | "manager" | "viewer",
         };
       });
 
       setStaffMembers(staffWithRoles);
 
+      // Fetch authorized emails for this tenant
       const { data: authorizedEmails, error: authError } = await supabase
         .from("authorized_emails")
-        .select("*");
+        .select("*")
+        .eq("tenant_id", tenantId);
 
       if (authError) throw authError;
       setPendingUsers(authorizedEmails || []);
@@ -135,7 +156,9 @@ export function HRAgent() {
 
   useEffect(() => {
     fetchApplications();
-    fetchStaffMembers();
+    if (tenantId) {
+      fetchStaffMembers();
+    }
 
     const channel = supabase
       .channel("applications-changes")
@@ -149,7 +172,7 @@ export function HRAgent() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [tenantId]);
 
   const handleApprove = async (application: AgentApplication) => {
     try {

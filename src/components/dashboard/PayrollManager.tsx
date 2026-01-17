@@ -69,11 +69,12 @@ export const PayrollManager = () => {
   const [selectedPayslip, setSelectedPayslip] = useState<PayrollRecord | null>(null);
 
   const fetchData = async () => {
+    if (!tenantId) return;
     setLoading(true);
     try {
       const [payrollRes, employeesRes] = await Promise.all([
-        supabase.from("payroll_records").select("*").order("created_at", { ascending: false }),
-        supabase.from("employees").select("id, full_name, base_salary_zmw, employee_type, pay_type, hourly_rate, daily_rate, shift_rate").eq("employment_status", "active"),
+        supabase.from("payroll_records").select("*").eq("tenant_id", tenantId).order("created_at", { ascending: false }),
+        supabase.from("employees").select("id, full_name, base_salary_zmw, employee_type, pay_type, hourly_rate, daily_rate, shift_rate").eq("employment_status", "active").eq("tenant_id", tenantId),
       ]);
 
       if (payrollRes.error) throw payrollRes.error;
@@ -97,8 +98,10 @@ export const PayrollManager = () => {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (tenantId) {
+      fetchData();
+    }
+  }, [tenantId]);
 
   const getMonthOptions = () => {
     const options = [];
@@ -166,9 +169,10 @@ export const PayrollManager = () => {
       deductions: acc.deductions + r.total_deductions,
       net: acc.net + r.net_pay,
       napsa: acc.napsa + r.napsa_deduction,
+      nhima: acc.nhima + (r.nhima_deduction || 0),
       paye: acc.paye + r.paye_deduction,
     }),
-    { gross: 0, deductions: 0, net: 0, napsa: 0, paye: 0 }
+    { gross: 0, deductions: 0, net: 0, napsa: 0, nhima: 0, paye: 0 }
   );
 
   if (loading) {
@@ -211,10 +215,13 @@ export const PayrollManager = () => {
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <div className="text-lg font-bold text-orange-600">
+            <div className="text-sm font-bold text-orange-600">
               NAPSA: K{totals.napsa.toLocaleString()}
             </div>
-            <div className="text-sm text-purple-600">
+            <div className="text-sm font-bold text-teal-600">
+              NHIMA: K{totals.nhima.toLocaleString()}
+            </div>
+            <div className="text-sm font-bold text-purple-600">
               PAYE: K{totals.paye.toLocaleString()}
             </div>
           </CardContent>
