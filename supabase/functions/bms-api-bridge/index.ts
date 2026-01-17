@@ -126,7 +126,7 @@ async function generateSequentialReceiptNumber(supabase: any, tenantId: string, 
 
 /**
  * Generates a sequential sale number in the format SYYYY-XXXX.
- * Uses created_at ordering + jittered retries to reduce race-condition collisions.
+ * Uses MAX numeric extraction + attempt offset to reduce race-condition collisions.
  */
 async function generateSequentialSaleNumber(supabase: any, tenantId: string, attempt: number = 0): Promise<string> {
   if (attempt > 0) {
@@ -136,22 +136,28 @@ async function generateSequentialSaleNumber(supabase: any, tenantId: string, att
   const year = new Date().getFullYear();
   const prefix = `S${year}`;
 
-  const { data: lastSale } = await supabase
+  // Get the latest sale numbers for this tenant and year
+  const { data: lastSales } = await supabase
     .from('sales')
     .select('sale_number, created_at')
     .eq('tenant_id', tenantId)
     .like('sale_number', `${prefix}-%`)
     .order('created_at', { ascending: false })
-    .limit(1);
+    .limit(10);
 
-  let nextNum = 1;
-  if (lastSale && lastSale[0]?.sale_number) {
-    const match = String(lastSale[0].sale_number).match(/S\d{4}-(\d+)/);
-    if (match) {
-      nextNum = parseInt(match[1], 10) + 1;
+  let maxNum = 0;
+  if (lastSales) {
+    for (const sale of lastSales) {
+      const match = String(sale.sale_number || '').match(/S\d{4}-(\d+)/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxNum) maxNum = num;
+      }
     }
   }
 
+  // Add attempt offset to avoid collision on retry
+  const nextNum = maxNum + 1 + attempt;
   return `${prefix}-${String(nextNum).padStart(4, '0')}`;
 }
 
