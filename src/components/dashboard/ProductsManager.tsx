@@ -47,6 +47,20 @@ interface Product {
   datasheet_url?: string | null;
   manual_url?: string | null;
   technical_specs?: TechnicalSpec[] | null;
+  item_type?: string | null;
+}
+
+// Categories that are considered services (no stock tracking)
+const SERVICE_CATEGORIES = [
+  'consultation', 'project', 'retainer', 'training', 'support', 'package',
+  'treatment', 'haircut', 'styling', 'coloring', 'spa', 'bridal', 'barbering',
+  'consultation_fee', 'lab_test', 'procedure', 'vaccination',
+  'repair', 'maintenance', 'diagnostics', 'service', 'services',
+  'maintenance_service'
+];
+
+function isServiceItem(product: Product): boolean {
+  return product.item_type === 'service' || SERVICE_CATEGORIES.includes(product.category || '');
 }
 
 export function ProductsManager() {
@@ -230,7 +244,11 @@ export function ProductsManager() {
                       K{product.unit_price.toLocaleString()}
                     </TableCell>
                     <TableCell className="text-[#003366]">
-                      {product.current_stock}
+                      {isServiceItem(product) ? (
+                        <span className="text-[#004B8D]/50 italic">N/A</span>
+                      ) : (
+                        product.current_stock
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -252,18 +270,27 @@ export function ProductsManager() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={
-                          product.status === "healthy"
-                            ? "border-green-300 text-green-600 bg-green-50"
-                            : product.status === "warning"
-                            ? "border-amber-300 text-amber-600 bg-amber-50"
-                            : "border-red-300 text-red-600 bg-red-50"
-                        }
-                      >
-                        {product.status}
-                      </Badge>
+                      {isServiceItem(product) ? (
+                        <Badge
+                          variant="outline"
+                          className="border-purple-300 text-purple-600 bg-purple-50"
+                        >
+                          Service
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className={
+                            product.status === "healthy"
+                              ? "border-green-300 text-green-600 bg-green-50"
+                              : product.status === "warning"
+                              ? "border-amber-300 text-amber-600 bg-amber-50"
+                              : "border-red-300 text-red-600 bg-red-50"
+                          }
+                        >
+                          {product.status}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">

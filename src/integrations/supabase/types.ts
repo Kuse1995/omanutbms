@@ -1514,6 +1514,7 @@ export type Database = {
           highlight: string | null
           id: string
           image_url: string | null
+          item_type: string
           liters_per_unit: number
           manual_url: string | null
           name: string
@@ -1540,6 +1541,7 @@ export type Database = {
           highlight?: string | null
           id?: string
           image_url?: string | null
+          item_type?: string
           liters_per_unit?: number
           manual_url?: string | null
           name: string
@@ -1566,6 +1568,7 @@ export type Database = {
           highlight?: string | null
           id?: string
           image_url?: string | null
+          item_type?: string
           liters_per_unit?: number
           manual_url?: string | null
           name?: string
