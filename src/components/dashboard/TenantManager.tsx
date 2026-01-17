@@ -312,15 +312,22 @@ export function TenantManager() {
   const deleteTenantMutation = useMutation({
     mutationFn: async (tenantId: string) => {
       // Delete in order to respect foreign key constraints
-      // 1. Delete tenant_users
+      // Some tables use SET NULL instead of CASCADE, so we delete them explicitly
+      
+      // WhatsApp tables (whatsapp_audit_logs uses SET NULL)
+      await supabase.from("whatsapp_audit_logs").delete().eq("tenant_id", tenantId);
+      await supabase.from("whatsapp_usage_logs").delete().eq("tenant_id", tenantId);
+      await supabase.from("whatsapp_pending_actions").delete().eq("tenant_id", tenantId);
+      await supabase.from("whatsapp_conversation_drafts").delete().eq("tenant_id", tenantId);
+      await supabase.from("whatsapp_user_mappings").delete().eq("tenant_id", tenantId);
+      
+      // Core tenant tables
       await supabase.from("tenant_users").delete().eq("tenant_id", tenantId);
-      // 2. Delete authorized_emails
       await supabase.from("authorized_emails").delete().eq("tenant_id", tenantId);
-      // 3. Delete business_profiles
       await supabase.from("business_profiles").delete().eq("tenant_id", tenantId);
-      // 4. Delete tenant_statistics
       await supabase.from("tenant_statistics").delete().eq("tenant_id", tenantId);
-      // 5. Finally delete tenant
+      
+      // Finally delete tenant (CASCADE will handle remaining tables)
       const { error } = await supabase.from("tenants").delete().eq("id", tenantId);
       if (error) throw error;
     },
