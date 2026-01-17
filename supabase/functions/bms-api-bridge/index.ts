@@ -538,10 +538,20 @@ async function handleRecordSale(supabase: any, entities: Record<string, any>, co
     .from('business_profiles')
     .select('company_name, slogan, tagline')
     .eq('tenant_id', context.tenant_id)
-    .single();
+    .maybeSingle();
 
-  const companyName = businessProfile?.company_name || 'Your Business';
-  const companyTagline = businessProfile?.slogan || businessProfile?.tagline || '';
+  // Prefer business profile company name; fallback to tenant name; then generic
+  let companyName = (businessProfile?.company_name ?? '').trim();
+  if (!companyName) {
+    const { data: tenantRow } = await supabase
+      .from('tenants')
+      .select('name')
+      .eq('id', context.tenant_id)
+      .maybeSingle();
+    companyName = (tenantRow?.name ?? '').trim() || 'Your Business';
+  }
+
+  const companyTagline = (businessProfile?.slogan ?? businessProfile?.tagline ?? '').trim();
   
   // Create concise receipt message (PDF has full details)
   const receiptMessage = `✅ *Sale Recorded!*
