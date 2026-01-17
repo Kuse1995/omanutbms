@@ -9,41 +9,29 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-const HELP_MESSAGE = `👋 Welcome to Omanut BMS!
+// Simplified, conversational help message
+const HELP_MESSAGE = `👋 Hi! I'm your BMS assistant.
 
-📋 Available Commands:
-• "Check stock [product]" - View inventory levels
-• "List products" - See all available products
-• "I sold [qty] [product] to [customer] for K[amount]" - Record a sale
-• "Sales today/this week/this month" - Get sales summary
-• "Break down sales by client" - See detailed sales by customer
-• "Find customer [name]" - Look up customer history
-• "Expense K[amount] for [description]" - Record an expense
+📌 Quick Examples:
+• "sold 5 cement 2500 cash" - Record sale
+• "chk stock cement" - Check stock
+• "sales today" - Today's total
+• "break down by clients" - Sales details
+• "exp 200 transport" - Log expense
+• "last receipt" - Get receipt
 
-📄 Document Commands:
-• "Send receipt [number]" - Get a receipt PDF
-• "Last receipt" - Get your most recent receipt
-• "Send invoice [number]" - Get an invoice PDF
-• "Send quotation [number]" - Get a quotation PDF
+💡 Just tell me what happened!
+I understand broken English & shorthand.
 
-💡 Examples:
-"Check stock cement"
-"I sold 5 bags of cement to ABC Hardware for K2500 cash"
-"Break it down by clients" or "Who bought what today"
-"Send me receipt R2025-0042"
+Type "help" anytime. Say "cancel" to start over.`;
 
-⚠️ Important: Record each sale separately for accurate receipts!
-
-Need help? Reply with "help" anytime.`;
-
-const UNREGISTERED_MESSAGE = `❌ This WhatsApp number is not registered with Omanut BMS.
+const UNREGISTERED_MESSAGE = `❌ This number is not registered.
 
 To use WhatsApp BMS:
-1. Contact your company administrator
-2. Ask them to add your WhatsApp number in Settings → WhatsApp
-3. Once added, you can start managing your business via WhatsApp!
+1. Contact your admin
+2. Ask them to add your number in Settings → WhatsApp
 
-Questions? Contact support@omanut.co`;
+Questions? support@omanut.co`;
 
 // Required fields for each intent
 const REQUIRED_FIELDS: Record<string, string[]> = {
@@ -62,7 +50,6 @@ const REQUIRED_FIELDS: Record<string, string[]> = {
 
 /**
  * Check and increment WhatsApp usage for a tenant
- * Returns whether the action is allowed and the current usage stats
  */
 async function checkAndIncrementUsage(
   supabase: any, 
@@ -71,7 +58,6 @@ async function checkAndIncrementUsage(
   userId: string | null
 ): Promise<{ allowed: boolean; used: number; limit: number }> {
   try {
-    // Get business profile with billing plan
     const { data: profile } = await supabase
       .from('business_profiles')
       .select('billing_plan, whatsapp_messages_used, whatsapp_usage_reset_date')
@@ -79,10 +65,9 @@ async function checkAndIncrementUsage(
       .single();
 
     if (!profile) {
-      return { allowed: true, used: 0, limit: 0 }; // Allow if no profile found
+      return { allowed: true, used: 0, limit: 0 };
     }
 
-    // Get plan config for limits
     const { data: planConfig } = await supabase
       .from('billing_plan_configs')
       .select('whatsapp_monthly_limit, whatsapp_limit_enabled')
@@ -90,13 +75,10 @@ async function checkAndIncrementUsage(
       .eq('is_active', true)
       .single();
 
-    // Check if limits are enabled and get the limit
     const limitEnabled = planConfig?.whatsapp_limit_enabled ?? true;
     const monthlyLimit = planConfig?.whatsapp_monthly_limit ?? 100;
 
-    // If limits not enabled (enterprise) or limit is 0 (unlimited), allow
     if (!limitEnabled || monthlyLimit === 0) {
-      // Log usage but don't enforce
       await supabase.from('whatsapp_usage_logs').insert({
         tenant_id: tenantId,
         whatsapp_number: phoneNumber,
@@ -107,12 +89,10 @@ async function checkAndIncrementUsage(
       return { allowed: true, used: profile.whatsapp_messages_used || 0, limit: monthlyLimit };
     }
 
-    // Check if we need to reset the monthly counter
     const today = new Date().toISOString().split('T')[0];
     const resetDate = profile.whatsapp_usage_reset_date;
     let currentUsed = profile.whatsapp_messages_used || 0;
 
-    // Reset counter if it's a new month
     if (resetDate) {
       const resetDateObj = new Date(resetDate);
       const todayObj = new Date(today);
@@ -125,12 +105,10 @@ async function checkAndIncrementUsage(
       }
     }
 
-    // Check if limit exceeded
     if (currentUsed >= monthlyLimit) {
       return { allowed: false, used: currentUsed, limit: monthlyLimit };
     }
 
-    // Increment usage
     await supabase
       .from('business_profiles')
       .update({ 
@@ -139,7 +117,6 @@ async function checkAndIncrementUsage(
       })
       .eq('tenant_id', tenantId);
 
-    // Log the usage
     await supabase.from('whatsapp_usage_logs').insert({
       tenant_id: tenantId,
       whatsapp_number: phoneNumber,
@@ -151,7 +128,6 @@ async function checkAndIncrementUsage(
     return { allowed: true, used: currentUsed + 1, limit: monthlyLimit };
   } catch (error) {
     console.error('Error checking usage limit:', error);
-    // On error, allow the action to proceed
     return { allowed: true, used: 0, limit: 0 };
   }
 }
@@ -173,31 +149,27 @@ serve(async (req) => {
 
     console.log(`Received WhatsApp message from ${from}: ${body.substring(0, 100)}`);
 
-    // Extract and validate phone number (remove whatsapp: prefix)
+    // Extract and validate phone number
     const rawPhoneNumber = from.replace('whatsapp:', '');
-    
-    // Validate phone number format (E.164: starts with + followed by 7-15 digits)
     const phoneNumberRegex = /^\+[1-9]\d{6,14}$/;
     if (!phoneNumberRegex.test(rawPhoneNumber)) {
       console.error('Invalid phone number format:', rawPhoneNumber);
-      return createTwiMLResponse('Invalid phone number format.');
+      return createTwiMLResponse('Invalid phone number.');
     }
     
     const phoneNumber = rawPhoneNumber;
 
-    // Validate message body (limit length, reject empty)
     if (!body || body.length > 1000) {
-      return createTwiMLResponse('Invalid message received.');
+      return createTwiMLResponse('Message too long or empty.');
     }
 
-    // Look up user by phone number (phone number is validated above, safe for eq())
+    // Look up user by phone number
     const { data: mapping, error: mappingError } = await supabase
       .from('whatsapp_user_mappings')
       .select('*')
       .eq('whatsapp_number', phoneNumber)
       .single();
 
-    // Handle unregistered or inactive users
     if (mappingError || !mapping) {
       await logAudit(supabase, {
         whatsapp_number: phoneNumber,
@@ -211,7 +183,7 @@ serve(async (req) => {
     }
 
     if (!mapping.is_active) {
-      const inactiveMessage = '⚠️ Your WhatsApp access has been disabled. Please contact your administrator.';
+      const inactiveMessage = '⚠️ Your access is disabled. Contact your admin.';
       await logAudit(supabase, {
         tenant_id: mapping.tenant_id,
         whatsapp_number: phoneNumber,
@@ -226,19 +198,13 @@ serve(async (req) => {
       return createTwiMLResponse(inactiveMessage);
     }
 
-    // Check WhatsApp usage limits
+    // Check usage limits
     const usageLimitResult = await checkAndIncrementUsage(supabase, mapping.tenant_id, phoneNumber, mapping.user_id);
     if (!usageLimitResult.allowed) {
-      const limitMessage = `⚠️ WhatsApp message limit reached for this month.
+      const limitMessage = `⚠️ Monthly limit reached (${usageLimitResult.used}/${usageLimitResult.limit}).
 
-Your plan allows ${usageLimitResult.limit} messages/month.
-Used: ${usageLimitResult.used}/${usageLimitResult.limit}
-
-💡 To continue using WhatsApp BMS:
-• Ask your admin to upgrade the plan
-• Wait for next month's reset
-
-Contact support@omanut.co for help.`;
+Upgrade your plan or wait for reset.
+Contact: support@omanut.co`;
       
       await logAudit(supabase, {
         tenant_id: mapping.tenant_id,
@@ -260,9 +226,12 @@ Contact support@omanut.co for help.`;
       .update({ last_used_at: new Date().toISOString() })
       .eq('id', mapping.id);
 
-    // Check for help command
-    if (body.toLowerCase() === 'help' || body.toLowerCase() === 'hi' || body.toLowerCase() === 'hello') {
-      // Clear any existing draft when user asks for help
+    // Normalize message for command detection
+    const lowerBody = body.toLowerCase().trim();
+
+    // Check for help command (expanded patterns)
+    const helpPatterns = ['help', 'hi', 'hello', 'menu', '?', 'helo', 'hlp', 'start', 'hey'];
+    if (helpPatterns.includes(lowerBody)) {
       await clearDraft(supabase, mapping.tenant_id, phoneNumber);
       await logAudit(supabase, {
         tenant_id: mapping.tenant_id,
@@ -278,10 +247,11 @@ Contact support@omanut.co for help.`;
       return createTwiMLResponse(HELP_MESSAGE);
     }
 
-    // Check for cancel command
-    if (body.toLowerCase() === 'cancel' || body.toLowerCase() === 'reset' || body.toLowerCase() === 'start over') {
+    // Check for cancel command (expanded patterns)
+    const cancelPatterns = ['cancel', 'reset', 'start over', 'stop', 'quit', 'exit', 'clear', 'nevermind', 'nvm'];
+    if (cancelPatterns.includes(lowerBody)) {
       await clearDraft(supabase, mapping.tenant_id, phoneNumber);
-      const cancelMessage = '🔄 Cancelled. What would you like to do?';
+      const cancelMessage = '🔄 OK, cancelled. What next?';
       await logAudit(supabase, {
         tenant_id: mapping.tenant_id,
         whatsapp_number: phoneNumber,
@@ -296,12 +266,16 @@ Contact support@omanut.co for help.`;
       return createTwiMLResponse(cancelMessage);
     }
 
-    // Check for pending confirmation (yes/no responses)
-    const lowerBody = body.toLowerCase();
-    if (lowerBody === 'yes' || lowerBody === 'no' || lowerBody === 'y' || lowerBody === 'n') {
-      const pendingResult = await handlePendingConfirmation(supabase, phoneNumber, lowerBody.startsWith('y'), mapping);
+    // Check for yes/no confirmations (expanded patterns)
+    const yesPatterns = ['yes', 'y', 'yep', 'yeah', 'ok', 'okay', 'sure', 'confirm', 'proceed', 'do it', 'go ahead', 'correct', 'right'];
+    const noPatterns = ['no', 'n', 'nope', 'nah', 'wrong', 'cancel', 'stop'];
+    
+    const isYes = yesPatterns.some(p => lowerBody === p || lowerBody.startsWith(p + ' '));
+    const isNo = noPatterns.some(p => lowerBody === p);
+
+    if (isYes || isNo) {
+      const pendingResult = await handlePendingConfirmation(supabase, phoneNumber, isYes, mapping);
       if (pendingResult) {
-        // Check if result contains media URL marker
         let responseMessage = pendingResult;
         let mediaUrl: string | null = null;
         
@@ -339,7 +313,10 @@ Contact support@omanut.co for help.`;
     if (existingDraft) {
       console.log('Found existing draft:', existingDraft);
       
-      // Parse the follow-up message with context about what we're expecting
+      // Get missing fields to provide better context
+      const currentMissing = getMissingFields(existingDraft.intent, existingDraft.entities);
+      
+      // Parse the follow-up message with enhanced context
       const intentResponse = await fetch(`${SUPABASE_URL}/functions/v1/bms-intent-parser`, {
         method: 'POST',
         headers: {
@@ -352,6 +329,7 @@ Contact support@omanut.co for help.`;
             role: mapping.role,
             existing_intent: existingDraft.intent,
             existing_entities: existingDraft.entities,
+            missing_fields: currentMissing,
             last_prompt: existingDraft.last_prompt,
             is_followup: true
           }
@@ -360,7 +338,7 @@ Contact support@omanut.co for help.`;
 
       if (!intentResponse.ok) {
         console.error('Intent parser error for follow-up');
-        return createTwiMLResponse('⚠️ Sorry, I could not understand. Reply "help" for commands.');
+        return createTwiMLResponse('⚠️ Sorry, didn\'t get that. Try again or say "help".');
       }
 
       const followUpParsed = await intentResponse.json();
@@ -380,7 +358,6 @@ Contact support@omanut.co for help.`;
       const missingFields = getMissingFields(existingDraft.intent, mergedEntities);
       
       if (missingFields.length > 0) {
-        // Still missing fields, update draft and ask again
         const prompt = generatePromptForMissingFields(existingDraft.intent, missingFields, mergedEntities);
         await updateDraft(supabase, existingDraft.id, mergedEntities, prompt);
         
@@ -418,7 +395,7 @@ Contact support@omanut.co for help.`;
       if (!intentResponse.ok) {
         const errorText = await intentResponse.text();
         console.error('Intent parser error:', errorText);
-        const errorMessage = '⚠️ Sorry, I could not understand your request. Reply "help" for available commands.';
+        const errorMessage = '⚠️ Didn\'t understand. Say "help" for examples.';
         await logAudit(supabase, {
           tenant_id: mapping.tenant_id,
           whatsapp_number: phoneNumber,
@@ -454,7 +431,7 @@ Contact support@omanut.co for help.`;
       return createTwiMLResponse(HELP_MESSAGE);
     }
 
-    // Handle document request intents (send_receipt, send_invoice, send_quotation)
+    // Handle document request intents
     if (['send_receipt', 'send_invoice', 'send_quotation'].includes(parsedIntent.intent)) {
       const docTypeMap: Record<string, string> = {
         send_receipt: 'receipt',
@@ -480,7 +457,7 @@ Contact support@omanut.co for help.`;
         const docResult = await docResponse.json();
 
         if (!docResponse.ok || !docResult.success) {
-          const errorMsg = `❌ Could not find that ${documentType}. Please check the number and try again.`;
+          const errorMsg = `❌ ${documentType} not found. Check number?`;
           await logAudit(supabase, {
             tenant_id: mapping.tenant_id,
             whatsapp_number: phoneNumber,
@@ -496,8 +473,7 @@ Contact support@omanut.co for help.`;
           return createTwiMLResponse(errorMsg);
         }
 
-        // Return TwiML with media attachment
-        const successMsg = `📄 Here's your ${documentType} ${docResult.document_number}`;
+        const successMsg = `📄 Here's ${documentType} ${docResult.document_number}`;
         await logAudit(supabase, {
           tenant_id: mapping.tenant_id,
           whatsapp_number: phoneNumber,
@@ -513,7 +489,7 @@ Contact support@omanut.co for help.`;
 
       } catch (docError) {
         console.error('Document generation error:', docError);
-        const errorMsg = `⚠️ Error generating ${documentType}. Please try again.`;
+        const errorMsg = `⚠️ Error getting ${documentType}. Try again.`;
         await logAudit(supabase, {
           tenant_id: mapping.tenant_id,
           whatsapp_number: phoneNumber,
@@ -535,7 +511,6 @@ Contact support@omanut.co for help.`;
       const missingFields = getMissingFields(parsedIntent.intent, mergedEntities);
       
       if (missingFields.length > 0) {
-        // Create a draft and ask for missing info
         const prompt = generatePromptForMissingFields(parsedIntent.intent, missingFields, mergedEntities);
         await createDraft(supabase, mapping.tenant_id, phoneNumber, mapping.user_id, parsedIntent.intent, mergedEntities, prompt);
         
@@ -561,7 +536,6 @@ Contact support@omanut.co for help.`;
                               parsedIntent.intent === 'generate_invoice';
 
     if (needsConfirmation) {
-      // Store pending action
       await supabase.from('whatsapp_pending_actions').insert({
         tenant_id: mapping.tenant_id,
         whatsapp_number: phoneNumber,
@@ -572,7 +546,7 @@ Contact support@omanut.co for help.`;
         confirmation_message: body,
       });
 
-      const confirmMessage = `⚠️ Please confirm:\n${getConfirmationMessage(parsedIntent.intent, mergedEntities)}\n\nReply YES to confirm or NO to cancel.`;
+      const confirmMessage = getConfirmationMessage(parsedIntent.intent, mergedEntities);
       await logAudit(supabase, {
         tenant_id: mapping.tenant_id,
         whatsapp_number: phoneNumber,
@@ -607,7 +581,7 @@ Contact support@omanut.co for help.`;
     });
 
     const bridgeResult = await bridgeResponse.json();
-    let responseMessage = bridgeResult.message || (bridgeResult.success ? '✅ Done!' : '❌ Operation failed.');
+    let responseMessage = bridgeResult.message || (bridgeResult.success ? '✅ Done!' : '❌ Failed.');
     let mediaUrl: string | null = null;
 
     console.log('[whatsapp-bms-handler] Bridge result:', JSON.stringify({
@@ -649,14 +623,13 @@ Contact support@omanut.co for help.`;
 
           if (docResponse.ok && docResult.success && docResult.url) {
             mediaUrl = docResult.url;
-            // PDF is sent above the message, no duplicate text needed
           } else {
             console.error('[whatsapp-bms-handler] Document generation failed:', docResult.error);
-            responseMessage += `\n\n⚠️ Receipt saved but PDF could not be generated. View in dashboard.`;
+            responseMessage += `\n\n⚠️ Receipt saved. PDF failed.`;
           }
         } catch (docError) {
           console.error('[whatsapp-bms-handler] Auto-receipt generation error:', docError);
-          responseMessage += `\n\n⚠️ Receipt saved but PDF generation failed.`;
+          responseMessage += `\n\n⚠️ Receipt saved. PDF failed.`;
         }
       } else {
         console.warn('[whatsapp-bms-handler] Missing receipt_number or tenant_id for PDF generation');
@@ -676,7 +649,6 @@ Contact support@omanut.co for help.`;
       execution_time_ms: Date.now() - startTime,
     });
 
-    // Return with or without media attachment
     if (mediaUrl) {
       return createTwiMLResponseWithMedia(responseMessage, mediaUrl);
     }
@@ -684,7 +656,7 @@ Contact support@omanut.co for help.`;
 
   } catch (error) {
     console.error('WhatsApp handler error:', error);
-    const errorMessage = '⚠️ An error occurred. Please try again later.';
+    const errorMessage = '⚠️ Error. Try again.';
     return createTwiMLResponse(errorMessage);
   }
 });
@@ -704,7 +676,6 @@ async function getDraft(supabase: any, tenantId: string, phoneNumber: string) {
 }
 
 async function createDraft(supabase: any, tenantId: string, phoneNumber: string, userId: string, intent: string, entities: any, lastPrompt: string) {
-  // Upsert to handle race conditions
   await supabase
     .from('whatsapp_conversation_drafts')
     .upsert({
@@ -714,7 +685,7 @@ async function createDraft(supabase: any, tenantId: string, phoneNumber: string,
       intent,
       entities,
       last_prompt: lastPrompt,
-      expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(), // 15 minutes
+      expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
     }, {
       onConflict: 'tenant_id,whatsapp_number'
     });
@@ -747,54 +718,54 @@ function getMissingFields(intent: string, entities: Record<string, any>): string
   });
 }
 
+// Simplified, friendlier prompts for missing fields
 function generatePromptForMissingFields(intent: string, missingFields: string[], currentEntities: Record<string, any>): string {
-  // Build context of what we already have
+  // Build what we have so far
   const haveList: string[] = [];
-  if (currentEntities.product) haveList.push(`Product: ${currentEntities.product}`);
-  if (currentEntities.quantity) haveList.push(`Qty: ${currentEntities.quantity}`);
-  if (currentEntities.customer_name) haveList.push(`Customer: ${currentEntities.customer_name}`);
-  if (currentEntities.amount) haveList.push(`Amount: K${currentEntities.amount}`);
-  if (currentEntities.payment_method) haveList.push(`Payment: ${currentEntities.payment_method}`);
-  if (currentEntities.description) haveList.push(`Description: ${currentEntities.description}`);
+  if (currentEntities.product) haveList.push(`📦 ${currentEntities.product}`);
+  if (currentEntities.quantity && currentEntities.quantity > 1) haveList.push(`x${currentEntities.quantity}`);
+  if (currentEntities.customer_name) haveList.push(`👤 ${currentEntities.customer_name}`);
+  if (currentEntities.amount) haveList.push(`💰 K${currentEntities.amount}`);
+  if (currentEntities.payment_method) haveList.push(`💳 ${currentEntities.payment_method}`);
+  if (currentEntities.description) haveList.push(`📝 ${currentEntities.description}`);
 
-  const haveText = haveList.length > 0 ? `\n📝 Got: ${haveList.join(', ')}` : '';
+  const haveText = haveList.length > 0 ? `\n✅ Got: ${haveList.join(' • ')}` : '';
 
-  // Generate friendly prompts based on what's missing
+  // Simplified prompts based on what's missing
   if (intent === 'record_sale') {
     if (missingFields.includes('product') && missingFields.includes('amount')) {
-      return `❓ What product did you sell and for how much?${haveText}\n\nExample: "5 bags of cement for K2500"`;
+      return `❓ What did you sell and for how much?${haveText}\n\nExample: "5 bags cement 2500"`;
     }
     if (missingFields.includes('product')) {
-      return `❓ What product was sold?${haveText}\n\nExample: "5 bags of cement" or "LifeStraw Personal"`;
+      return `❓ What item?${haveText}\n\nExample: "cement" or "5 bags"`;
     }
     if (missingFields.includes('amount')) {
-      return `❓ What was the total amount?${haveText}\n\nExample: "K2500" or "2500"`;
+      return `❓ How much? (K)${haveText}\n\nExample: "2500" or "2k"`;
     }
   }
 
   if (intent === 'record_expense') {
     if (missingFields.includes('description') && missingFields.includes('amount')) {
-      return `❓ What was the expense for and how much?${haveText}\n\nExample: "K500 for transport"`;
+      return `❓ What expense and how much?${haveText}\n\nExample: "500 transport"`;
     }
     if (missingFields.includes('description')) {
-      return `❓ What was the expense for?${haveText}\n\nExample: "Transport" or "Office supplies"`;
+      return `❓ What for?${haveText}\n\nExample: "fuel" or "supplies"`;
     }
     if (missingFields.includes('amount')) {
-      return `❓ How much was the expense?${haveText}\n\nExample: "K500" or "500"`;
+      return `❓ How much? (K)${haveText}\n\nExample: "500"`;
     }
   }
 
   if (intent === 'check_customer') {
-    return `❓ What is the customer's name?${haveText}\n\nExample: "John" or "ABC Company"`;
+    return `❓ Customer name?${haveText}\n\nExample: "John" or "ABC Shop"`;
   }
 
   // Generic fallback
-  const fieldNames = missingFields.map(f => f.replace('_', ' ')).join(' and ');
-  return `❓ Please provide the ${fieldNames}.${haveText}`;
+  const fieldNames = missingFields.map(f => f.replace('_', ' ')).join(' & ');
+  return `❓ Need: ${fieldNames}${haveText}`;
 }
 
 async function handlePendingConfirmation(supabase: any, phoneNumber: string, confirmed: boolean, mapping: any) {
-  // Check for pending action
   const { data: pending, error } = await supabase
     .from('whatsapp_pending_actions')
     .select('*')
@@ -806,20 +777,18 @@ async function handlePendingConfirmation(supabase: any, phoneNumber: string, con
     .single();
 
   if (error || !pending) {
-    return null; // No pending action
+    return null;
   }
 
-  // Mark as processed
   await supabase
     .from('whatsapp_pending_actions')
     .update({ processed_at: new Date().toISOString() })
     .eq('id', pending.id);
 
   if (!confirmed) {
-    return '❌ Action cancelled.';
+    return '❌ Cancelled.';
   }
 
-  // Execute the confirmed action
   const bridgeResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/bms-api-bridge`, {
     method: 'POST',
     headers: {
@@ -839,7 +808,7 @@ async function handlePendingConfirmation(supabase: any, phoneNumber: string, con
   });
 
   const result = await bridgeResponse.json();
-  let responseMessage = result.message || (result.success ? '✅ Done!' : '❌ Operation failed.');
+  let responseMessage = result.message || (result.success ? '✅ Done!' : '❌ Failed.');
 
   // Auto-send receipt for confirmed sales
   if (result.success && pending.intent === 'record_sale' && result.data?.receipt_number) {
@@ -859,7 +828,6 @@ async function handlePendingConfirmation(supabase: any, phoneNumber: string, con
 
       const docResult = await docResponse.json();
       if (docResponse.ok && docResult.success && docResult.url) {
-        // Return a special marker that the caller can detect
         return `${responseMessage}\n__MEDIA_URL__:${docResult.url}`;
       }
     } catch (docError) {
@@ -870,16 +838,22 @@ async function handlePendingConfirmation(supabase: any, phoneNumber: string, con
   return responseMessage;
 }
 
+// Simplified confirmation messages
 function getConfirmationMessage(intent: string, entities: any): string {
+  const qty = entities.quantity || 1;
+  const product = entities.product || 'item';
+  const amount = entities.amount?.toLocaleString() || '0';
+  const customer = entities.customer_name || 'Walk-in';
+
   switch (intent) {
     case 'record_sale':
-      return `Record sale of ${entities.quantity || 1}x ${entities.product} for K${entities.amount?.toLocaleString()} to ${entities.customer_name || 'Walk-in'}?`;
+      return `⚠️ Confirm sale:\n${qty}x ${product} → K${amount}\nCustomer: ${customer}\n\nReply Y or N`;
     case 'record_expense':
-      return `Record expense of K${entities.amount?.toLocaleString()} for "${entities.description}"?`;
+      return `⚠️ Confirm expense:\nK${amount} for "${entities.description}"\n\nReply Y or N`;
     case 'generate_invoice':
-      return `Generate invoice for ${entities.customer_name}?`;
+      return `⚠️ Create invoice for ${customer}?\n\nReply Y or N`;
     default:
-      return `Proceed with ${intent.replace('_', ' ')}?`;
+      return `⚠️ Confirm ${intent.replace('_', ' ')}?\n\nReply Y or N`;
   }
 }
 
