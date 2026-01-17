@@ -264,6 +264,7 @@ export const PayrollManager = () => {
                   <TableHead className="text-right">Allowances</TableHead>
                   <TableHead className="text-right">Gross</TableHead>
                   <TableHead className="text-right">NAPSA</TableHead>
+                  <TableHead className="text-right">NHIMA</TableHead>
                   <TableHead className="text-right">PAYE</TableHead>
                   <TableHead className="text-right">Net Pay</TableHead>
                   <TableHead>Status</TableHead>
@@ -278,6 +279,7 @@ export const PayrollManager = () => {
                     <TableCell className="text-right">K{record.allowances.toLocaleString()}</TableCell>
                     <TableCell className="text-right font-medium">K{record.gross_pay.toLocaleString()}</TableCell>
                     <TableCell className="text-right text-orange-600">K{record.napsa_deduction.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">K{record.nhima_deduction.toLocaleString()}</TableCell>
                     <TableCell className="text-right text-purple-600">K{record.paye_deduction.toLocaleString()}</TableCell>
                     <TableCell className="text-right font-bold text-primary">K{record.net_pay.toLocaleString()}</TableCell>
                     <TableCell>
