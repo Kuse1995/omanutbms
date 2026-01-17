@@ -11,7 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Building2, Users, CreditCard, Trash2 } from "lucide-react";
+import { Plus, Pencil, Building2, Users, CreditCard, Trash2, Package } from "lucide-react";
+import { TenantAddonsDialog } from "./TenantAddonsDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { getBusinessTypeOptions, BusinessType } from "@/lib/business-type-config";
@@ -42,6 +43,7 @@ export function TenantManager() {
     billing_end_date: string;
   } | null>(null);
   const [deletingTenant, setDeletingTenant] = useState<Tenant | null>(null);
+  const [addonsDialogTenant, setAddonsDialogTenant] = useState<Tenant | null>(null);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -628,6 +630,7 @@ export function TenantManager() {
                 <TableHead>Status</TableHead>
                 <TableHead>Plan</TableHead>
                 <TableHead>Billing</TableHead>
+                <TableHead>Add-ons</TableHead>
                 <TableHead>Users</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -645,6 +648,17 @@ export function TenantManager() {
                     </Badge>
                   </TableCell>
                   <TableCell>{getBillingStatusBadge(tenant.billing_status || 'inactive')}</TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setAddonsDialogTenant(tenant)}
+                      className="gap-1 text-xs"
+                    >
+                      <Package className="h-3 w-3" />
+                      Manage
+                    </Button>
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <Users className="h-4 w-4 text-muted-foreground" />
@@ -888,6 +902,17 @@ export function TenantManager() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Tenant Add-ons Dialog */}
+        {addonsDialogTenant && (
+          <TenantAddonsDialog
+            tenantId={addonsDialogTenant.id}
+            tenantName={addonsDialogTenant.name}
+            billingPlan={addonsDialogTenant.billing_plan || "starter"}
+            open={!!addonsDialogTenant}
+            onOpenChange={(open) => !open && setAddonsDialogTenant(null)}
+          />
+        )}
       </CardContent>
     </Card>
   );
