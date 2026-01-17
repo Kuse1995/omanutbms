@@ -7,10 +7,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Search, Users, Briefcase, Car, Sparkles, Edit, Trash2, Phone, Mail, Loader2, Clock, Calendar, FileText } from "lucide-react";
+import { Plus, Search, Users, Briefcase, Car, Sparkles, Edit, Trash2, Phone, Mail, Loader2, Clock, Calendar, FileText, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { EmployeeModal } from "./EmployeeModal";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenant } from "@/hooks/useTenant";
+import { useBranch } from "@/hooks/useBranch";
 
 interface Employee {
   id: string;
@@ -36,6 +38,7 @@ interface Employee {
   emergency_contact_name: string | null;
   emergency_contact_phone: string | null;
   notes: string | null;
+  branch_id: string | null;
 }
 
 const employeeTypeIcons: Record<string, React.ReactNode> = {
@@ -66,6 +69,8 @@ const statusColors: Record<string, string> = {
 
 export const EmployeeManager = () => {
   const { isAdmin } = useAuth();
+  const { tenantId } = useTenant();
+  const { currentBranch, isMultiBranchEnabled, branches } = useBranch();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -74,13 +79,29 @@ export const EmployeeManager = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
 
+  // Helper to get branch name
+  const getBranchName = (branchId: string | null): string => {
+    if (!branchId) return "Unassigned";
+    const branch = branches.find(b => b.id === branchId);
+    return branch?.name || "Unknown";
+  };
+
   const fetchEmployees = async () => {
+    if (!tenantId) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("employees")
         .select("*")
+        .eq("tenant_id", tenantId)
         .order("full_name");
+
+      // Filter by branch if multi-branch enabled and a specific branch is selected
+      if (isMultiBranchEnabled && currentBranch) {
+        query = query.eq("branch_id", currentBranch.id);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setEmployees(data || []);
@@ -94,7 +115,7 @@ export const EmployeeManager = () => {
 
   useEffect(() => {
     fetchEmployees();
-  }, []);
+  }, [tenantId, currentBranch]);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this employee?")) return;

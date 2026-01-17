@@ -22,13 +22,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Package, AlertTriangle, RefreshCw, Mail, Loader2, Plus, Pencil, Trash2, FileUp, Download, Palette, Ruler, ImageIcon } from "lucide-react";
+import { Package, AlertTriangle, RefreshCw, Mail, Loader2, Plus, Pencil, Trash2, FileUp, Download, Palette, Ruler, ImageIcon, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ProductModal } from "./ProductModal";
 import { InventoryImportModal } from "./InventoryImportModal";
 import { ProductVariantsModal } from "./ProductVariantsModal";
 import { FeatureGuard } from "./FeatureGuard";
 import { useTenant } from "@/hooks/useTenant";
+import { useBranch } from "@/hooks/useBranch";
 import { useFeatures } from "@/hooks/useFeatures";
 
 interface TechnicalSpec {
@@ -71,6 +72,7 @@ export function InventoryAgent() {
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const { toast } = useToast();
   const { tenantId } = useTenant();
+  const { currentBranch, isMultiBranchEnabled } = useBranch();
   const { terminology, currencySymbol } = useFeatures();
 
   const fetchInventory = async () => {
