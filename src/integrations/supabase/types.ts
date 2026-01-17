@@ -1603,6 +1603,7 @@ export type Database = {
           loan_deduction: number
           napsa_deduction: number
           net_pay: number
+          nhima_deduction: number
           notes: string | null
           other_deductions: number
           overtime_pay: number
@@ -1634,6 +1635,7 @@ export type Database = {
           loan_deduction?: number
           napsa_deduction?: number
           net_pay?: number
+          nhima_deduction?: number
           notes?: string | null
           other_deductions?: number
           overtime_pay?: number
@@ -1665,6 +1667,7 @@ export type Database = {
           loan_deduction?: number
           napsa_deduction?: number
           net_pay?: number
+          nhima_deduction?: number
           notes?: string | null
           other_deductions?: number
           overtime_pay?: number
