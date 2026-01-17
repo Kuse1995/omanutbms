@@ -61,6 +61,11 @@ const calculateNAPSA = (grossPay: number): number => {
   return effectivePay * 0.05;
 };
 
+// NHIMA contribution (1% employee)
+const calculateNHIMA = (grossPay: number): number => {
+  return grossPay * 0.01;
+};
+
 export const PayrollRunModal = ({
   isOpen,
   onClose,
@@ -103,18 +108,18 @@ export const PayrollRunModal = ({
     } else if (entry.pay_type === "per_shift") {
       basePay = entry.shift_rate * entry.shifts_worked;
     } else if (entry.pay_type === "daily") {
-      // For daily, hours_worked represents days worked
-      basePay = entry.hourly_rate * entry.hours_worked; // Reusing hourly_rate as daily_rate
+      basePay = entry.hourly_rate * entry.hours_worked;
     } else {
       basePay = entry.basic_salary;
     }
     
     const gross = basePay + entry.allowances + entry.overtime_pay + entry.bonus;
     const napsa = calculateNAPSA(gross);
+    const nhima = calculateNHIMA(gross);
     const paye = calculatePAYE(gross - napsa);
-    const totalDeductions = napsa + paye + entry.loan_deduction + entry.other_deductions;
+    const totalDeductions = napsa + nhima + paye + entry.loan_deduction + entry.other_deductions;
     const net = gross - totalDeductions;
-    return { basePay, gross, napsa, paye, totalDeductions, net };
+    return { basePay, gross, napsa, nhima, paye, totalDeductions, net };
   };
 
   const handleSubmit = async () => {
@@ -136,7 +141,7 @@ export const PayrollRunModal = ({
       const payPeriodEnd = format(endOfMonth(monthDate), "yyyy-MM-dd");
 
       const payrollRecords = selectedEntries.map((entry) => {
-        const { basePay, gross, napsa, paye, totalDeductions, net } = calculateTotals(entry);
+        const { basePay, gross, napsa, nhima, paye, totalDeductions, net } = calculateTotals(entry);
         return {
           employee_id: entry.employee_id,
           employee_type: "employee",
@@ -151,6 +156,7 @@ export const PayrollRunModal = ({
           overtime_pay: entry.overtime_pay,
           bonus: entry.bonus,
           napsa_deduction: napsa,
+          nhima_deduction: nhima,
           paye_deduction: paye,
           other_deductions: entry.other_deductions,
           loan_deduction: entry.loan_deduction,
