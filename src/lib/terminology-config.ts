@@ -3,7 +3,7 @@
 // NOTE: This file is maintained for backward compatibility
 // New code should use business-type-config.ts as the single source of truth
 
-export type BusinessType = 'distribution' | 'retail' | 'school' | 'ngo' | 'services' | 'agriculture' | 'hospitality' | 'salon' | 'healthcare' | 'autoshop';
+export type BusinessType = 'distribution' | 'retail' | 'school' | 'ngo' | 'services' | 'agriculture' | 'hospitality' | 'salon' | 'healthcare' | 'autoshop' | 'hybrid';
 
 export interface TerminologyMap {
   // Sales/Transaction-related (unified internally as "transactions")
@@ -273,6 +273,29 @@ const terminologyMaps: Record<BusinessType, TerminologyMap> = {
     impactLabel: 'Impact',
     impactUnitLabel: 'Vehicles Serviced',
     impactDescription: 'Track service quality',
+    communityLabel: 'Partner',
+    communitiesLabel: 'Partners',
+  },
+  hybrid: {
+    salesLabel: 'Transactions',
+    salesDescription: 'Record and manage sales and service transactions',
+    transactionLabel: 'Transaction',
+    transactionsLabel: 'Transactions',
+    revenueLabel: 'Revenue',
+    customerLabel: 'Customer',
+    customersLabel: 'Customers',
+    customerIdLabel: 'Customer ID',
+    inventoryLabel: 'Products & Services',
+    productLabel: 'Item',
+    productsLabel: 'Items',
+    itemTypeLabel: 'Item Type',
+    defaultItemType: 'item',
+    isServiceBased: false,
+    invoiceLabel: 'Invoice',
+    invoicesLabel: 'Invoices',
+    impactLabel: 'Impact',
+    impactUnitLabel: 'Items/Services',
+    impactDescription: 'Track your business impact',
     communityLabel: 'Partner',
     communitiesLabel: 'Partners',
   },
