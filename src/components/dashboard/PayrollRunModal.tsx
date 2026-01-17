@@ -188,16 +188,17 @@ export const PayrollRunModal = ({
     .filter((e) => e.selected)
     .reduce(
       (acc, entry) => {
-        const { gross, napsa, paye, totalDeductions, net } = calculateTotals(entry);
+        const { gross, napsa, nhima, paye, totalDeductions, net } = calculateTotals(entry);
         return {
           gross: acc.gross + gross,
           napsa: acc.napsa + napsa,
+          nhima: acc.nhima + nhima,
           paye: acc.paye + paye,
           deductions: acc.deductions + totalDeductions,
           net: acc.net + net,
         };
       },
-      { gross: 0, napsa: 0, paye: 0, deductions: 0, net: 0 }
+      { gross: 0, napsa: 0, nhima: 0, paye: 0, deductions: 0, net: 0 }
     );
 
   return (
@@ -213,6 +214,7 @@ export const PayrollRunModal = ({
           <div className="bg-muted/50 p-3 rounded-lg text-sm">
             <p>
               <strong>NAPSA:</strong> 5% of gross (ceiling: K26,055) |{" "}
+              <strong>NHIMA:</strong> 1% of gross |{" "}
               <strong>PAYE:</strong> Progressive tax brackets applied |{" "}
               <strong>Shift Pay:</strong> Enter hours/shifts for non-monthly workers
             </p>
@@ -229,6 +231,7 @@ export const PayrollRunModal = ({
                 <TableHead className="w-20">Allowances</TableHead>
                 <TableHead className="w-20">Overtime</TableHead>
                 <TableHead className="w-20">Loans</TableHead>
+                <TableHead className="w-20">Other Ded.</TableHead>
                 <TableHead className="text-right">Gross</TableHead>
                 <TableHead className="text-right">Net</TableHead>
               </TableRow>
@@ -354,6 +357,16 @@ export const PayrollRunModal = ({
                         className="h-8 w-20"
                       />
                     </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        value={entry.other_deductions}
+                        onChange={(e) =>
+                          updateEntry(entry.employee_id, "other_deductions", parseFloat(e.target.value) || 0)
+                        }
+                        className="h-8 w-20"
+                      />
+                    </TableCell>
                     <TableCell className="text-right font-medium">K{gross.toLocaleString()}</TableCell>
                     <TableCell className="text-right font-bold text-primary">K{net.toLocaleString()}</TableCell>
                   </TableRow>
@@ -363,7 +376,7 @@ export const PayrollRunModal = ({
           </Table>
 
           <div className="bg-primary/5 p-4 rounded-lg">
-            <div className="grid grid-cols-5 gap-4 text-center">
+            <div className="grid grid-cols-6 gap-4 text-center">
               <div>
                 <div className="text-sm text-muted-foreground">Total Gross</div>
                 <div className="text-lg font-bold">K{grandTotals.gross.toLocaleString()}</div>
@@ -371,6 +384,10 @@ export const PayrollRunModal = ({
               <div>
                 <div className="text-sm text-muted-foreground">NAPSA</div>
                 <div className="text-lg font-bold text-orange-600">K{grandTotals.napsa.toLocaleString()}</div>
+              </div>
+              <div>
+                <div className="text-sm text-muted-foreground">NHIMA</div>
+                <div className="text-lg font-bold text-teal-600">K{grandTotals.nhima.toLocaleString()}</div>
               </div>
               <div>
                 <div className="text-sm text-muted-foreground">PAYE</div>
