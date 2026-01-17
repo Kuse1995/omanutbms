@@ -533,37 +533,27 @@ async function handleRecordSale(supabase: any, entities: Record<string, any>, co
   // Format date for receipt
   const receiptDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   
-  // Create professional receipt message matching BMS PDF style
-  const receiptMessage = `
-*PAYMENT RECEIPT*
-${saleNumber}
+  // Fetch business profile for dynamic branding
+  const { data: businessProfile } = await supabase
+    .from('business_profiles')
+    .select('company_name, slogan, tagline')
+    .eq('tenant_id', context.tenant_id)
+    .single();
 
-*Finch Investments Limited*
-LifeStraw Distributor - Zambia
+  const companyName = businessProfile?.company_name || 'Your Business';
+  const companyTagline = businessProfile?.slogan || businessProfile?.tagline || '';
+  
+  // Create concise receipt message (PDF has full details)
+  const receiptMessage = `✅ *Sale Recorded!*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+*${companyName}*${companyTagline ? `\n${companyTagline}` : ''}
 
-*Amount Paid*
-*K ${amount.toLocaleString()}*
+💰 *K ${amount.toLocaleString()}* paid by ${payment_method}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Receipt Number: ${receiptNumber}
-Customer: ${customer_name || 'Walk-in Customer'}
-Payment Date: ${receiptDate}
-Payment Method: ${payment_method}
-
-*Items Purchased*
-
-Description${' '.repeat(20)}Qty${' '.repeat(5)}Total
-${resolvedItemName}${' '.repeat(Math.max(1, 30 - resolvedItemName.length))}${quantity}${' '.repeat(7)}K ${amount.toLocaleString()}
-
-${' '.repeat(35)}━━━━━━━━━━━
-${' '.repeat(29)}Total: *K ${amount.toLocaleString()}*
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Thank you for your purchase!
+📋 ${receiptNumber}
+👤 ${customer_name || 'Walk-in Customer'}
+📦 ${quantity}x ${resolvedItemName}
+📅 ${receiptDate}
 
 📄 Receipt PDF attached below.`;
 
