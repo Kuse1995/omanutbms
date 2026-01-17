@@ -71,20 +71,55 @@ function sanitizeUserInput(input: unknown, maxLength = 200): string {
     .substring(0, maxLength);
 }
 
-function normalizeProductQuery(input: unknown): { raw: string; pattern: string } {
+// Common abbreviation expansions for fuzzy matching
+const PRODUCT_ABBREVIATIONS: Record<string, string[]> = {
+  'cmnt': ['cement'],
+  'cmt': ['cement'],
+  'strw': ['straw', 'lifestraw'],
+  'straw': ['lifestraw'],
+  'btl': ['bottle'],
+  'bg': ['bag', 'bags'],
+  'bgs': ['bags'],
+  'pcs': ['pieces'],
+  'ltr': ['liter', 'liters'],
+  'lts': ['liters'],
+};
+
+// Words to ignore when matching products (noise words)
+const NOISE_WORDS = ['service', 'services', 'product', 'item', 'items', 'the', 'a', 'an', 'of', 'for', 'to', 'bag', 'bags', 'unit', 'units', 'piece', 'pieces'];
+
+function normalizeProductQuery(input: unknown): { raw: string; pattern: string; searchTerms: string[] } {
   const raw = sanitizeUserInput(input, 100);
-  const tokens = raw
+  
+  // Normalize and tokenize
+  let tokens = raw
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, ' ')
     .split(/\s+/)
     .filter(Boolean)
-    .filter((t) => !['service', 'services', 'product', 'item', 'items'].includes(t));
+    .filter((t) => !NOISE_WORDS.includes(t));
 
-  const patternCore = tokens.length
-    ? tokens.map(escapeSqlLikePattern).join('%')
+  // Expand abbreviations
+  const expandedTokens: string[] = [];
+  for (const token of tokens) {
+    if (PRODUCT_ABBREVIATIONS[token]) {
+      expandedTokens.push(...PRODUCT_ABBREVIATIONS[token]);
+    } else {
+      expandedTokens.push(token);
+    }
+  }
+
+  // Create search pattern - use most significant tokens
+  const significantTokens = expandedTokens.slice(0, 3); // Limit to 3 most important tokens
+  const patternCore = significantTokens.length
+    ? significantTokens.map(escapeSqlLikePattern).join('%')
     : escapeSqlLikePattern(raw.toLowerCase().replace(/\s+/g, ' '));
 
-  return { raw, pattern: `%${patternCore}%` };
+  return { 
+    raw, 
+    pattern: `%${patternCore}%`,
+    searchTerms: significantTokens
+  };
 }
 
 /**
