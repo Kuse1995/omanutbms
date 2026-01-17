@@ -555,7 +555,7 @@ async function handleRecordSale(supabase: any, entities: Record<string, any>, co
 📦 ${quantity}x ${resolvedItemName}
 📅 ${receiptDate}
 
-📄 Receipt PDF attached below.`;
+📄 Receipt PDF attached above.`;
 
   return {
     success: true,
