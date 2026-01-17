@@ -228,10 +228,21 @@ serve(async (req) => {
       .from('business_profiles')
       .select('*')
       .eq('tenant_id', tenant_id)
-      .single();
+      .maybeSingle();
+
+    // Prefer business profile company name; fallback to tenant name
+    let resolvedCompanyName = (businessProfile?.company_name ?? '').trim();
+    if (!resolvedCompanyName) {
+      const { data: tenantRow } = await supabase
+        .from('tenants')
+        .select('name')
+        .eq('id', tenant_id)
+        .maybeSingle();
+      resolvedCompanyName = (tenantRow?.name ?? '').trim() || 'Company';
+    }
 
     const company: CompanyInfo = {
-      companyName: businessProfile?.company_name || 'Company',
+      companyName: resolvedCompanyName,
       companyAddress: businessProfile?.company_address || '',
       companyPhone: businessProfile?.company_phone || '',
       companyEmail: businessProfile?.company_email || '',
