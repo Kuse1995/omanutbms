@@ -18,11 +18,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import { Upload, FileSpreadsheet, Download, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { Upload, FileSpreadsheet, Download, CheckCircle2, XCircle, Loader2, Wand2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/hooks/useTenant";
-
+import { ImportConverterModal } from "./ImportConverterModal";
 interface InventoryImportModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -41,12 +42,24 @@ interface ParsedRow {
   rowNumber: number;
 }
 
+const inventorySchemaFields = [
+  { key: 'sku', label: 'SKU', required: true, type: 'string' as const },
+  { key: 'name', label: 'Name', required: true, type: 'string' as const },
+  { key: 'unit_price', label: 'Unit Price', required: true, type: 'number' as const },
+  { key: 'current_stock', label: 'Current Stock', required: false, type: 'number' as const },
+  { key: 'reorder_level', label: 'Reorder Level', required: false, type: 'number' as const },
+  { key: 'description', label: 'Description', required: false, type: 'string' as const },
+  { key: 'category', label: 'Category', required: false, type: 'string' as const },
+];
+
 export function InventoryImportModal({ open, onOpenChange, onSuccess }: InventoryImportModalProps) {
   const [parsedData, setParsedData] = useState<ParsedRow[]>([]);
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
   const [importResults, setImportResults] = useState<{ added: number; updated: number; failed: number } | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isConverterOpen, setIsConverterOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("spreadsheet");
   const { toast } = useToast();
   const { tenantId } = useTenant();
 
@@ -54,6 +67,37 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
     setParsedData([]);
     setImportProgress(0);
     setImportResults(null);
+  };
+
+  const handleConvertedData = (data: any[]) => {
+    // Convert the AI-extracted data to our ParsedRow format
+    const converted = data.map((row, idx) => ({
+      sku: String(row.sku || "").trim(),
+      name: String(row.name || "").trim(),
+      current_stock: parseInt(row.current_stock) || 0,
+      unit_price: parseFloat(row.unit_price) || 0,
+      reorder_level: parseInt(row.reorder_level) || 10,
+      liters_per_unit: 0,
+      isValid: true,
+      errors: [] as string[],
+      rowNumber: idx + 1,
+    }));
+    
+    // Re-validate
+    const validated = converted.map(row => {
+      const errors: string[] = [];
+      if (!row.sku) errors.push("SKU is required");
+      if (!row.name) errors.push("Name is required");
+      if (row.unit_price < 0) errors.push("Price cannot be negative");
+      return { ...row, isValid: errors.length === 0, errors };
+    });
+    
+    setParsedData(validated);
+    setActiveTab("spreadsheet");
+    toast({
+      title: "Data Ready for Import",
+      description: `${validated.filter(r => r.isValid).length} items ready to import`,
+    });
   };
 
   const validateRows = (rawRows: any[]): ParsedRow[] => {
@@ -282,65 +326,103 @@ PROD-003,Premium Product,5,8500,2,0`;
   const invalidCount = parsedData.filter(r => !r.isValid).length;
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) resetState(); }}>
-      <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto bg-white border-[#004B8D]/20">
-        <DialogHeader>
-          <DialogTitle className="text-[#003366] flex items-center gap-2">
-            <FileSpreadsheet className="h-5 w-5 text-[#0077B6]" />
-            Import Inventory
-          </DialogTitle>
-          <DialogDescription className="text-[#004B8D]/60">
-            Upload a CSV or Excel (.xlsx) file to bulk import or update inventory items
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) resetState(); }}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto bg-white border-[#004B8D]/20">
+          <DialogHeader>
+            <DialogTitle className="text-[#003366] flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5 text-[#0077B6]" />
+              Import Inventory
+            </DialogTitle>
+            <DialogDescription className="text-[#004B8D]/60">
+              Upload a CSV/Excel file or convert from Word/PDF documents
+            </DialogDescription>
+          </DialogHeader>
 
-        {parsedData.length === 0 ? (
-          <div className="space-y-4">
-            {/* Drop Zone */}
-            <div
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                isDragOver
-                  ? "border-[#0077B6] bg-[#0077B6]/5"
-                  : "border-[#004B8D]/20 hover:border-[#004B8D]/40"
-              }`}
-            >
-              <Upload className="h-12 w-12 mx-auto mb-4 text-[#004B8D]/40" />
-              <p className="text-[#003366] font-medium mb-2">
-                Drag & drop your file here
-              </p>
-              <p className="text-[#004B8D]/60 text-sm mb-1">Supports CSV and Excel (.xlsx) files</p>
-              <p className="text-[#004B8D]/60 text-sm mb-4">or</p>
-              <label>
-                <input
-                  type="file"
-                  accept=".csv,.xlsx,.xls"
-                  onChange={handleFileInput}
-                  className="hidden"
-                />
-                <Button variant="outline" className="border-[#004B8D]/20 text-[#004B8D]" asChild>
-                  <span className="cursor-pointer">Browse Files</span>
-                </Button>
-              </label>
-            </div>
+          {parsedData.length === 0 ? (
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="spreadsheet" className="flex items-center gap-2">
+                  <FileSpreadsheet className="h-4 w-4" />
+                  CSV / Excel
+                </TabsTrigger>
+                <TabsTrigger value="document" className="flex items-center gap-2">
+                  <Wand2 className="h-4 w-4" />
+                  Convert from Document
+                </TabsTrigger>
+              </TabsList>
 
-            {/* Template Download */}
-            <div className="flex items-center justify-between p-4 bg-[#004B8D]/5 rounded-lg">
-              <div>
-                <p className="text-[#003366] font-medium text-sm">Need a template?</p>
-                <p className="text-[#004B8D]/60 text-xs">
-                  Download a sample CSV with the correct format
-                </p>
-              </div>
-              <Button variant="ghost" size="sm" onClick={downloadTemplate} className="text-[#0077B6]">
-                <Download className="h-4 w-4 mr-2" />
-                Download Template
-              </Button>
-            </div>
-          </div>
-        ) : (
+              <TabsContent value="spreadsheet" className="space-y-4">
+                {/* Drop Zone */}
+                <div
+                  onDrop={handleDrop}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                    isDragOver
+                      ? "border-[#0077B6] bg-[#0077B6]/5"
+                      : "border-[#004B8D]/20 hover:border-[#004B8D]/40"
+                  }`}
+                >
+                  <Upload className="h-12 w-12 mx-auto mb-4 text-[#004B8D]/40" />
+                  <p className="text-[#003366] font-medium mb-2">
+                    Drag & drop your file here
+                  </p>
+                  <p className="text-[#004B8D]/60 text-sm mb-1">Supports CSV and Excel (.xlsx) files</p>
+                  <p className="text-[#004B8D]/60 text-sm mb-4">or</p>
+                  <label>
+                    <input
+                      type="file"
+                      accept=".csv,.xlsx,.xls"
+                      onChange={handleFileInput}
+                      className="hidden"
+                    />
+                    <Button variant="outline" className="border-[#004B8D]/20 text-[#004B8D]" asChild>
+                      <span className="cursor-pointer">Browse Files</span>
+                    </Button>
+                  </label>
+                </div>
+
+                {/* Template Download */}
+                <div className="flex items-center justify-between p-4 bg-[#004B8D]/5 rounded-lg">
+                  <div>
+                    <p className="text-[#003366] font-medium text-sm">Need a template?</p>
+                    <p className="text-[#004B8D]/60 text-xs">
+                      Download a sample CSV with the correct format
+                    </p>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={downloadTemplate} className="text-[#0077B6]">
+                    <Download className="h-4 w-4 mr-2" />
+                    Download Template
+                  </Button>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="document" className="space-y-4">
+                <div className="border-2 border-dashed rounded-lg p-8 text-center border-[#004B8D]/20">
+                  <Wand2 className="h-12 w-12 mx-auto mb-4 text-primary/60" />
+                  <p className="text-[#003366] font-medium mb-2">
+                    AI-Powered Document Conversion
+                  </p>
+                  <p className="text-[#004B8D]/60 text-sm mb-4">
+                    Upload a Word document, PDF, or image and AI will extract product data for you
+                  </p>
+                  <Button onClick={() => setIsConverterOpen(true)}>
+                    <Wand2 className="h-4 w-4 mr-2" />
+                    Convert Document
+                  </Button>
+                </div>
+                <div className="p-4 bg-muted/50 rounded-lg">
+                  <p className="text-sm text-muted-foreground">
+                    <strong>Supported formats:</strong> Word (.docx), PDF, Images (JPG, PNG)
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Works great with product lists, price sheets, supplier catalogs, and more.
+                  </p>
+                </div>
+              </TabsContent>
+            </Tabs>
+          ) : (
           <div className="space-y-4">
             {/* Summary */}
             <div className="flex items-center gap-4">
@@ -457,7 +539,16 @@ PROD-003,Premium Product,5,8500,2,0`;
             </div>
           </div>
         )}
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+
+      <ImportConverterModal
+        open={isConverterOpen}
+        onOpenChange={setIsConverterOpen}
+        targetSchema="inventory"
+        onDataReady={handleConvertedData}
+        schemaFields={inventorySchemaFields}
+      />
+    </>
   );
 }

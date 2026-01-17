@@ -7,9 +7,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Search, Users, Briefcase, Car, Sparkles, Edit, Trash2, Phone, Mail, Loader2, Clock, Calendar, FileText, Building2 } from "lucide-react";
+import { Plus, Search, Users, Briefcase, Car, Sparkles, Edit, Trash2, Phone, Mail, Loader2, Clock, Calendar, FileText, Building2, FileUp } from "lucide-react";
 import { toast } from "sonner";
 import { EmployeeModal } from "./EmployeeModal";
+import { EmployeeImportModal } from "./EmployeeImportModal";
 import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/hooks/useTenant";
 import { useBranch } from "@/hooks/useBranch";
@@ -77,6 +78,7 @@ export const EmployeeManager = () => {
   const [filterType, setFilterType] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
 
   // Helper to get branch name
@@ -268,10 +270,16 @@ export const EmployeeManager = () => {
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={() => { setSelectedEmployee(null); setIsModalOpen(true); }}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Employee
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setIsImportModalOpen(true)}>
+            <FileUp className="h-4 w-4 mr-2" />
+            Import
+          </Button>
+          <Button onClick={() => { setSelectedEmployee(null); setIsModalOpen(true); }}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Employee
+          </Button>
+        </div>
       </div>
 
       {/* Employee Tabs */}
@@ -322,6 +330,12 @@ export const EmployeeManager = () => {
         isOpen={isModalOpen}
         onClose={() => { setIsModalOpen(false); setSelectedEmployee(null); }}
         employee={selectedEmployee}
+        onSuccess={fetchEmployees}
+      />
+
+      <EmployeeImportModal
+        open={isImportModalOpen}
+        onOpenChange={setIsImportModalOpen}
         onSuccess={fetchEmployees}
       />
     </div>

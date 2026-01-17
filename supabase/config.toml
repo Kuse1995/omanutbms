@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.generate-whatsapp-document]
 verify_jwt = false
+
+[functions.document-to-csv]
+verify_jwt = false
