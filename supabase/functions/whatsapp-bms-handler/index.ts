@@ -649,7 +649,7 @@ Contact support@omanut.co for help.`;
 
           if (docResponse.ok && docResult.success && docResult.url) {
             mediaUrl = docResult.url;
-            responseMessage += `\n\n📄 Receipt attached below.`;
+            // PDF is sent above the message, no duplicate text needed
           } else {
             console.error('[whatsapp-bms-handler] Document generation failed:', docResult.error);
             responseMessage += `\n\n⚠️ Receipt saved but PDF could not be generated. View in dashboard.`;
@@ -860,7 +860,7 @@ async function handlePendingConfirmation(supabase: any, phoneNumber: string, con
       const docResult = await docResponse.json();
       if (docResponse.ok && docResult.success && docResult.url) {
         // Return a special marker that the caller can detect
-        return `${responseMessage}\n\n📄 Receipt attached below.\n__MEDIA_URL__:${docResult.url}`;
+        return `${responseMessage}\n__MEDIA_URL__:${docResult.url}`;
       }
     } catch (docError) {
       console.error('Auto-receipt generation error (confirmation):', docError);
