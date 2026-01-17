@@ -20,13 +20,15 @@ import { WebsiteContactsManagement } from "@/components/dashboard/WebsiteContact
 import { PoweredByFooter } from "@/components/dashboard/PoweredByFooter";
 import { SuperAdminPanel } from "@/components/dashboard/SuperAdminPanel";
 import { OnboardingTour } from "@/components/dashboard/OnboardingTour";
+import { BranchesManager } from "@/components/dashboard/BranchesManager";
 import { useOnboardingTour } from "@/hooks/useOnboardingTour";
 import { useFeatures } from "@/hooks/useFeatures";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { BranchProvider } from "@/hooks/useBranch";
 
-export type DashboardTab = "dashboard" | "sales" | "receipts" | "accounts" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings" | "tenant-settings" | "modules" | "platform-admin";
+export type DashboardTab = "dashboard" | "sales" | "receipts" | "accounts" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings" | "tenant-settings" | "modules" | "platform-admin" | "branches";
 
 const Dashboard = () => {
   const { layout, loading: configLoading } = useBusinessConfig();
@@ -122,28 +124,32 @@ const Dashboard = () => {
         return <ModulesMarketplace />;
       case "platform-admin":
         return <SuperAdminPanel />;
+      case "branches":
+        return <BranchesManager />;
       default:
         return <DashboardHome />;
     }
   };
 
   return (
-    <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-gradient-to-br from-[#f0f7fa] to-[#e8f4f8]">
-        <DashboardSidebar activeTab={activeTab} setActiveTab={handleSetActiveTab} />
-        <div className="flex-1 flex flex-col">
-          <DashboardHeader />
-          <main className="flex-1 p-6 overflow-auto">
-            {renderContent()}
-          </main>
+    <BranchProvider>
+      <SidebarProvider>
+        <div className="min-h-screen flex w-full bg-gradient-to-br from-[#f0f7fa] to-[#e8f4f8]">
+          <DashboardSidebar activeTab={activeTab} setActiveTab={handleSetActiveTab} />
+          <div className="flex-1 flex flex-col">
+            <DashboardHeader />
+            <main className="flex-1 p-6 overflow-auto">
+              {renderContent()}
+            </main>
+          </div>
         </div>
-      </div>
-      
-      {/* Onboarding Tour */}
-      {!tourLoading && (
-        <OnboardingTour run={runTour} onComplete={completeTour} />
-      )}
-    </SidebarProvider>
+        
+        {/* Onboarding Tour */}
+        {!tourLoading && (
+          <OnboardingTour run={runTour} onComplete={completeTour} />
+        )}
+      </SidebarProvider>
+    </BranchProvider>
   );
 };
 

@@ -37,6 +37,7 @@ export interface BusinessProfile {
   secondary_color: string | null;
   accent_color?: string | null;
   white_label_enabled?: boolean | null;
+  multi_branch_enabled?: boolean | null;
   business_type: BusinessType | null;
   // Billing fields
   billing_plan: string | null;
@@ -52,6 +53,8 @@ interface TenantUser {
   user_id: string;
   role: "admin" | "manager" | "viewer";
   is_owner: boolean | null;
+  branch_id: string | null;
+  can_access_all_branches: boolean | null;
 }
 
 interface TenantContextType {

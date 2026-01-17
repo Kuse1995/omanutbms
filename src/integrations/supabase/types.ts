@@ -423,6 +423,7 @@ export type Database = {
       authorized_emails: {
         Row: {
           added_by: string | null
+          branch_id: string | null
           created_at: string
           default_role: Database["public"]["Enums"]["app_role"]
           email: string
@@ -432,6 +433,7 @@ export type Database = {
         }
         Insert: {
           added_by?: string | null
+          branch_id?: string | null
           created_at?: string
           default_role?: Database["public"]["Enums"]["app_role"]
           email: string
@@ -441,6 +443,7 @@ export type Database = {
         }
         Update: {
           added_by?: string | null
+          branch_id?: string | null
           created_at?: string
           default_role?: Database["public"]["Enums"]["app_role"]
           email?: string
@@ -449,6 +452,13 @@ export type Database = {
           tenant_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "authorized_emails_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "authorized_emails_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -588,6 +598,120 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "blog_posts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      branch_inventory: {
+        Row: {
+          branch_id: string
+          created_at: string | null
+          current_stock: number
+          id: string
+          inventory_id: string
+          reorder_level: number
+          reserved: number | null
+          tenant_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string | null
+          current_stock?: number
+          id?: string
+          inventory_id: string
+          reorder_level?: number
+          reserved?: number | null
+          tenant_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string | null
+          current_stock?: number
+          id?: string
+          inventory_id?: string
+          reorder_level?: number
+          reserved?: number | null
+          tenant_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branch_inventory_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "branch_inventory_inventory_id_fkey"
+            columns: ["inventory_id"]
+            isOneToOne: false
+            referencedRelation: "inventory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "branch_inventory_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      branches: {
+        Row: {
+          address: string | null
+          city: string | null
+          code: string | null
+          created_at: string | null
+          email: string | null
+          id: string
+          is_active: boolean | null
+          is_headquarters: boolean | null
+          manager_id: string | null
+          name: string
+          phone: string | null
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          code?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_headquarters?: boolean | null
+          manager_id?: string | null
+          name: string
+          phone?: string | null
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          code?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_headquarters?: boolean | null
+          manager_id?: string | null
+          name?: string
+          phone?: string | null
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branches_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -1012,6 +1136,7 @@ export type Database = {
           bank_account_number: string | null
           bank_name: string | null
           base_salary_zmw: number
+          branch_id: string | null
           created_at: string
           daily_rate: number | null
           department: string | null
@@ -1040,6 +1165,7 @@ export type Database = {
           bank_account_number?: string | null
           bank_name?: string | null
           base_salary_zmw?: number
+          branch_id?: string | null
           created_at?: string
           daily_rate?: number | null
           department?: string | null
@@ -1068,6 +1194,7 @@ export type Database = {
           bank_account_number?: string | null
           bank_name?: string | null
           base_salary_zmw?: number
+          branch_id?: string | null
           created_at?: string
           daily_rate?: number | null
           department?: string | null
@@ -1092,6 +1219,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "employees_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "employees_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -1103,6 +1237,7 @@ export type Database = {
       expenses: {
         Row: {
           amount_zmw: number
+          branch_id: string | null
           category: string
           created_at: string
           date_incurred: string
@@ -1117,6 +1252,7 @@ export type Database = {
         }
         Insert: {
           amount_zmw?: number
+          branch_id?: string | null
           category: string
           created_at?: string
           date_incurred?: string
@@ -1131,6 +1267,7 @@ export type Database = {
         }
         Update: {
           amount_zmw?: number
+          branch_id?: string | null
           category?: string
           created_at?: string
           date_incurred?: string
@@ -1144,6 +1281,13 @@ export type Database = {
           vendor_name?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "expenses_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "expenses_payroll_record_id_fkey"
             columns: ["payroll_record_id"]
@@ -1505,6 +1649,7 @@ export type Database = {
       }
       invoices: {
         Row: {
+          branch_id: string | null
           client_email: string | null
           client_name: string
           client_phone: string | null
@@ -1528,6 +1673,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          branch_id?: string | null
           client_email?: string | null
           client_name: string
           client_phone?: string | null
@@ -1551,6 +1697,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          branch_id?: string | null
           client_email?: string | null
           client_name?: string
           client_phone?: string | null
@@ -1574,6 +1721,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "invoices_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "invoices_source_quotation_id_fkey"
             columns: ["source_quotation_id"]
@@ -2100,6 +2254,7 @@ export type Database = {
       }
       sales: {
         Row: {
+          branch_id: string | null
           created_at: string
           customer_email: string | null
           customer_name: string | null
@@ -2117,6 +2272,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          branch_id?: string | null
           created_at?: string
           customer_email?: string | null
           customer_name?: string | null
@@ -2134,6 +2290,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          branch_id?: string | null
           created_at?: string
           customer_email?: string | null
           customer_name?: string | null
@@ -2151,6 +2308,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "sales_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "sales_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -2240,6 +2404,83 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_transfers: {
+        Row: {
+          approved_by: string | null
+          completed_at: string | null
+          created_at: string | null
+          from_branch_id: string | null
+          id: string
+          inventory_id: string | null
+          notes: string | null
+          quantity: number
+          requested_by: string | null
+          status: string | null
+          tenant_id: string | null
+          to_branch_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          approved_by?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          from_branch_id?: string | null
+          id?: string
+          inventory_id?: string | null
+          notes?: string | null
+          quantity: number
+          requested_by?: string | null
+          status?: string | null
+          tenant_id?: string | null
+          to_branch_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          approved_by?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          from_branch_id?: string | null
+          id?: string
+          inventory_id?: string | null
+          notes?: string | null
+          quantity?: number
+          requested_by?: string | null
+          status?: string | null
+          tenant_id?: string | null
+          to_branch_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_transfers_from_branch_id_fkey"
+            columns: ["from_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_transfers_inventory_id_fkey"
+            columns: ["inventory_id"]
+            isOneToOne: false
+            referencedRelation: "inventory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_transfers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_transfers_to_branch_id_fkey"
+            columns: ["to_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
             referencedColumns: ["id"]
           },
         ]
@@ -2394,6 +2635,8 @@ export type Database = {
       }
       tenant_users: {
         Row: {
+          branch_id: string | null
+          can_access_all_branches: boolean | null
           created_at: string
           id: string
           is_owner: boolean | null
@@ -2402,6 +2645,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          branch_id?: string | null
+          can_access_all_branches?: boolean | null
           created_at?: string
           id?: string
           is_owner?: boolean | null
@@ -2410,6 +2655,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          branch_id?: string | null
+          can_access_all_branches?: boolean | null
           created_at?: string
           id?: string
           is_owner?: boolean | null
@@ -2418,6 +2665,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "tenant_users_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "tenant_users_tenant_id_fkey"
             columns: ["tenant_id"]

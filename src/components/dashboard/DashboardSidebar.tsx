@@ -1,7 +1,7 @@
 import { 
   Package, DollarSign, LayoutDashboard, Settings, HelpCircle, Users, Shield, 
   MessageSquare, Globe, ShoppingCart, Store, Heart, Receipt, Mail, Building2, 
-  Layers, Crown, LogOut, Truck, GraduationCap, Briefcase, type LucideIcon 
+  Layers, Crown, LogOut, Truck, GraduationCap, Briefcase, GitBranch, type LucideIcon 
 } from "lucide-react";
 import {
   Sidebar,
@@ -20,6 +20,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useFeatures } from "@/hooks/useFeatures";
 import { useBranding } from "@/hooks/useBranding";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
+import { useTenant } from "@/hooks/useTenant";
 import { PoweredByFooter } from "./PoweredByFooter";
 import type { DashboardTab } from "@/pages/Dashboard";
 import type { FeatureKey } from "@/lib/feature-config";
@@ -60,10 +61,11 @@ const iconMap: Record<string, LucideIcon> = {
   Crown,
 };
 
-const adminItems = [
-  { id: "settings" as DashboardTab, title: "Access Control", icon: Shield },
-  { id: "tenant-settings" as DashboardTab, title: "Tenant Settings", icon: Building2 },
-  { id: "modules" as DashboardTab, title: "Modules & Plans", icon: Layers },
+const adminItems: { id: DashboardTab; title: string; icon: LucideIcon; requiresMultiBranch?: boolean }[] = [
+  { id: "branches", title: "Branches", icon: GitBranch, requiresMultiBranch: true },
+  { id: "settings", title: "Access Control", icon: Shield },
+  { id: "tenant-settings", title: "Tenant Settings", icon: Building2 },
+  { id: "modules", title: "Modules & Plans", icon: Layers },
 ];
 
 // Base menu items with feature requirements
@@ -87,7 +89,10 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
   const { features, terminology, loading, companyName } = useFeatures();
   const { logoUrl, primaryColor, tagline } = useBranding();
   const { layout, businessType } = useBusinessConfig();
+  const { businessProfile } = useTenant();
   const navigate = useNavigate();
+  
+  const isMultiBranchEnabled = businessProfile?.multi_branch_enabled ?? false;
 
   const handleSignOut = async () => {
     await signOut();
@@ -215,7 +220,9 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {adminItems.map((item) => (
+                {adminItems
+                  .filter(item => !item.requiresMultiBranch || isMultiBranchEnabled)
+                  .map((item) => (
                   <SidebarMenuItem key={item.id}>
                     <SidebarMenuButton
                       onClick={() => setActiveTab(item.id)}

@@ -18,6 +18,7 @@ import { useNavigate } from "react-router-dom";
 import { NotificationsCenter } from "./NotificationsCenter";
 import { TrialBanner } from "./TrialBanner";
 import { UpgradePlanModal } from "./UpgradePlanModal";
+import { BranchSelector } from "./BranchSelector";
 
 export function DashboardHeader() {
   const { user, profile, role, signOut } = useAuth();
@@ -57,6 +58,7 @@ export function DashboardHeader() {
         </div>
 
         <div className="flex items-center gap-4">
+          <BranchSelector />
           <div data-tour="header-notifications">
             <NotificationsCenter />
           </div>
