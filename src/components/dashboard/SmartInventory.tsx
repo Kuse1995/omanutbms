@@ -22,6 +22,21 @@ interface InventoryItem {
   reserved: number;
   ai_prediction: string | null;
   status: string;
+  item_type?: string | null;
+  category?: string | null;
+}
+
+// Categories that are considered services (no stock tracking)
+const SERVICE_CATEGORIES = [
+  'consultation', 'project', 'retainer', 'training', 'support', 'package',
+  'treatment', 'haircut', 'styling', 'coloring', 'spa', 'bridal', 'barbering',
+  'consultation_fee', 'lab_test', 'procedure', 'vaccination',
+  'repair', 'maintenance', 'diagnostics', 'service', 'services',
+  'maintenance_service'
+];
+
+function isServiceItem(item: InventoryItem): boolean {
+  return item.item_type === 'service' || SERVICE_CATEGORIES.includes(item.category || '');
 }
 
 export function SmartInventory() {
@@ -34,7 +49,7 @@ export function SmartInventory() {
     try {
       const { data, error } = await supabase
         .from("inventory")
-        .select("*")
+        .select("id, sku, name, current_stock, reserved, ai_prediction, status, item_type, category")
         .order("name");
 
       if (error) throw error;
@@ -140,9 +155,9 @@ export function SmartInventory() {
           </div>
           <div>
             <h2 className="text-xl font-bold text-white">Smart Inventory</h2>
-            <p className="text-sm text-slate-400">
-              Warehouse View • {inventory.length} products
-            </p>
+          <p className="text-sm text-slate-400">
+            Warehouse View • {inventory.filter(i => !isServiceItem(i)).length} products • {inventory.filter(i => isServiceItem(i)).length} services
+          </p>
           </div>
         </div>
         <Button
@@ -192,10 +207,18 @@ export function SmartInventory() {
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-semibold text-white">
-                    {item.current_stock.toLocaleString()}
+                    {isServiceItem(item) ? (
+                      <span className="text-slate-400 italic">N/A</span>
+                    ) : (
+                      item.current_stock.toLocaleString()
+                    )}
                   </TableCell>
                   <TableCell className="text-right text-slate-300">
-                    {item.reserved}
+                    {isServiceItem(item) ? (
+                      <span className="text-slate-500">-</span>
+                    ) : (
+                      item.reserved
+                    )}
                   </TableCell>
                   <TableCell>
                     <div className="max-w-[250px]">
@@ -209,7 +232,15 @@ export function SmartInventory() {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell>{getStatusBadge(item.status)}</TableCell>
+                  <TableCell>
+                    {isServiceItem(item) ? (
+                      <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30 hover:bg-purple-500/30">
+                        Service
+                      </Badge>
+                    ) : (
+                      getStatusBadge(item.status)
+                    )}
+                  </TableCell>
                 </TableRow>
               ))
             )}

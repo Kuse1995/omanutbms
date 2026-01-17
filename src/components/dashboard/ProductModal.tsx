@@ -73,6 +73,15 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
   const formFields = config.formFields;
   const isServiceBusiness = businessType === 'services';
 
+  // Categories that are considered services (no stock tracking)
+  const serviceCategories = [
+    'consultation', 'project', 'retainer', 'training', 'support', 'package',
+    'treatment', 'haircut', 'styling', 'coloring', 'spa', 'bridal', 'barbering',
+    'consultation_fee', 'lab_test', 'procedure', 'vaccination',
+    'repair', 'maintenance', 'diagnostics', 'service', 'services',
+    'maintenance_service'
+  ];
+
   // Persist draft entries so switching tabs (unmounting this component) doesn't wipe unsaved work
   const draftKey = !product && tenantId ? `inventory-item-draft:${tenantId}:${businessType}` : null;
   const [formData, setFormData] = useState({
@@ -585,13 +594,24 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
       
       const validSpecs = technicalSpecs.filter(spec => spec.label.trim() && spec.value.trim());
 
+      // Determine if this is a service based on category
+      const serviceCategories = [
+        'consultation', 'project', 'retainer', 'training', 'support', 'package',
+        'treatment', 'haircut', 'styling', 'coloring', 'spa', 'bridal', 'barbering',
+        'consultation_fee', 'lab_test', 'procedure', 'vaccination',
+        'repair', 'maintenance', 'diagnostics', 'service', 'services',
+        'maintenance_service'
+      ];
+      const isServiceItem = serviceCategories.includes(formData.category) || formFields.hideStock;
+      const itemType = isServiceItem ? 'service' : 'product';
+
       const productData = {
         sku: formData.sku.trim(),
         name: formData.name.trim(),
-        current_stock: formFields.hideStock ? 9999 : formData.current_stock,
+        current_stock: isServiceItem ? 9999 : formData.current_stock,
         unit_price: formData.unit_price,
         original_price: formData.original_price,
-        reorder_level: formFields.hideStock ? 0 : formData.reorder_level,
+        reorder_level: isServiceItem ? 0 : formData.reorder_level,
         liters_per_unit: formFields.impactUnitsField?.enabled === false ? 0 : formData.liters_per_unit,
         image_url: imageUrl,
         description: formData.description.trim() || null,
@@ -603,6 +623,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
         manual_url: manualUrl,
         technical_specs: validSpecs.length > 0 ? (validSpecs as unknown as Json) : null,
         tenant_id: tenantId,
+        item_type: itemType,
       };
 
       if (product) {
@@ -903,8 +924,8 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
             </div>
           </div>
 
-          {/* Stock fields - hidden for services */}
-          {!formFields.hideStock && (
+          {/* Stock fields - hidden for services (based on category or business type) */}
+          {!formFields.hideStock && !serviceCategories.includes(formData.category) && (
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="current_stock" className="text-[#003366]">Current Stock</Label>

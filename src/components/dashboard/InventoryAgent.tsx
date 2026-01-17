@@ -115,7 +115,12 @@ export function InventoryAgent() {
       setInventory(enrichedInventory);
       setLowStockItems(
         enrichedInventory.filter(
-          (item) => item.current_stock < (item.reorder_level || 10)
+          (item) => {
+            // Exclude services from low stock alerts
+            const serviceCategories = ['consultation', 'project', 'retainer', 'training', 'support', 'package', 'treatment', 'haircut', 'styling', 'coloring', 'spa', 'bridal', 'barbering', 'consultation_fee', 'lab_test', 'procedure', 'vaccination', 'repair', 'maintenance', 'diagnostics', 'service', 'services', 'maintenance_service'];
+            const isService = (item as any).item_type === 'service' || serviceCategories.includes(item.category || '');
+            return !isService && item.current_stock < (item.reorder_level || 10);
+          }
         )
       );
     } catch (error) {
