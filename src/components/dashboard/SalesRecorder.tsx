@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ShoppingCart, Plus, Loader2, CheckCircle, DollarSign, Package, Eye, Download, FileSpreadsheet, CalendarIcon, FileText, AlertCircle, Wrench, Truck, Settings, HardHat, Trash2, Receipt } from "lucide-react";
+import { ShoppingCart, Plus, Loader2, CheckCircle, DollarSign, Package, Eye, Download, FileSpreadsheet, CalendarIcon, FileText, AlertCircle, Wrench, Truck, Settings, HardHat, Trash2, Receipt, Building2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import * as XLSX from "xlsx";
 import { useTenant } from "@/hooks/useTenant";
+import { useBranch } from "@/hooks/useBranch";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 interface InventoryItem {
@@ -88,6 +89,7 @@ export function SalesRecorder() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const { tenantId } = useTenant();
+  const { currentBranch, isMultiBranchEnabled, canAccessAllBranches } = useBranch();
   const { isImpactEnabled, impact } = useBusinessConfig();
 
   // Cart state

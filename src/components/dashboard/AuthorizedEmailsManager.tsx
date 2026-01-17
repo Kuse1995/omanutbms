@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/hooks/useTenant";
+import { useBranch, Branch } from "@/hooks/useBranch";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,7 +22,8 @@ import {
   Users,
   Crown,
   UserCog,
-  Eye
+  Eye,
+  Building2
 } from "lucide-react";
 import { z } from "zod";
 
@@ -34,6 +36,7 @@ interface AuthorizedEmail {
   created_at: string;
   notes: string | null;
   default_role: AppRole;
+  branch_id: string | null;
 }
 
 const emailSchema = z.string().email("Please enter a valid email address");
@@ -50,6 +53,7 @@ export function AuthorizedEmailsManager() {
   const [newEmail, setNewEmail] = useState("");
   const [newNotes, setNewNotes] = useState("");
   const [newRole, setNewRole] = useState<AppRole>("viewer");
+  const [newBranchId, setNewBranchId] = useState<string>("all");
   const [isAdding, setIsAdding] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -57,6 +61,7 @@ export function AuthorizedEmailsManager() {
 
   const { user, isAdmin, isSuperAdmin, loading: authLoading } = useAuth();
   const { tenantId, loading: tenantLoading } = useTenant();
+  const { branches, isMultiBranchEnabled } = useBranch();
   const { toast } = useToast();
 
   // Super admin email that can see all authorized emails
@@ -70,6 +75,13 @@ export function AuthorizedEmailsManager() {
       fetchEmails();
     }
   }, [tenantId, isSuperAdminUser]);
+
+  // Helper to get branch name
+  const getBranchName = (branchId: string | null): string => {
+    if (!branchId) return "All Branches";
+    const branch = branches.find(b => b.id === branchId);
+    return branch?.name || "Unknown";
+  };
 
   const fetchEmails = async () => {
     setLoading(true);
@@ -144,7 +156,8 @@ export function AuthorizedEmailsManager() {
         notes: newNotes.trim() || null,
         added_by: user?.id,
         default_role: newRole,
-        tenant_id: tenantId, // Associate with current tenant
+        tenant_id: tenantId,
+        branch_id: newBranchId === "all" ? null : newBranchId,
       });
 
     if (error) {
@@ -157,16 +170,42 @@ export function AuthorizedEmailsManager() {
         variant: "destructive",
       });
     } else {
+      const branchInfo = newBranchId === "all" ? "all branches" : getBranchName(newBranchId);
       toast({
         title: "Email Added",
-        description: `${newEmail} can now access the BMS as ${roleConfig[newRole].label}`,
+        description: `${newEmail} can now access the BMS as ${roleConfig[newRole].label} (${branchInfo})`,
       });
       setNewEmail("");
       setNewNotes("");
       setNewRole("viewer");
+      setNewBranchId("all");
       fetchEmails();
     }
     setIsAdding(false);
+  };
+
+  const handleUpdateBranch = async (id: string, branchId: string) => {
+    setUpdatingId(id);
+    const { error } = await supabase
+      .from("authorized_emails")
+      .update({ branch_id: branchId === "all" ? null : branchId })
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error updating branch:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update branch assignment",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Branch Updated",
+        description: `Branch assignment updated to ${branchId === "all" ? "All Branches" : getBranchName(branchId)}`,
+      });
+      fetchEmails();
+    }
+    setUpdatingId(null);
   };
 
   const handleUpdateRole = async (id: string, newRole: AppRole) => {
@@ -308,30 +347,65 @@ export function AuthorizedEmailsManager() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-[#004B8D]">Access Role</Label>
-              <Select value={newRole} onValueChange={(value: AppRole) => setNewRole(value)}>
-                <SelectTrigger className="w-full md:w-64 bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-white border-[#004B8D]/20">
-                  {(Object.keys(roleConfig) as AppRole[]).map((role) => {
-                    const config = roleConfig[role];
-                    const Icon = config.icon;
-                    return (
-                      <SelectItem key={role} value={role} className="text-[#003366]">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-[#004B8D]">Access Role</Label>
+                <Select value={newRole} onValueChange={(value: AppRole) => setNewRole(value)}>
+                  <SelectTrigger className="w-full bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-[#004B8D]/20">
+                    {(Object.keys(roleConfig) as AppRole[]).map((role) => {
+                      const config = roleConfig[role];
+                      const Icon = config.icon;
+                      return (
+                        <SelectItem key={role} value={role} className="text-[#003366]">
+                          <div className="flex items-center gap-2">
+                            <Icon className={`w-4 h-4 ${config.color}`} />
+                            <span>{config.label}</span>
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-[#004B8D]/60">
+                  Admin: Full access • Manager: Edit access • Viewer: Read-only
+                </p>
+              </div>
+
+              {isMultiBranchEnabled && (
+                <div className="space-y-2">
+                  <Label className="text-[#004B8D]">Branch Assignment</Label>
+                  <Select value={newBranchId} onValueChange={setNewBranchId}>
+                    <SelectTrigger className="w-full bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366]">
+                      <SelectValue placeholder="Select branch" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border-[#004B8D]/20">
+                      <SelectItem value="all" className="text-[#003366]">
                         <div className="flex items-center gap-2">
-                          <Icon className={`w-4 h-4 ${config.color}`} />
-                          <span>{config.label}</span>
+                          <Building2 className="w-4 h-4 text-emerald-600" />
+                          <span>All Branches (Full Access)</span>
                         </div>
                       </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-[#004B8D]/60">
-                Admin: Full access • Manager: Edit access • Viewer: Read-only
-              </p>
+                      {branches.map((branch) => (
+                        <SelectItem key={branch.id} value={branch.id} className="text-[#003366]">
+                          <div className="flex items-center gap-2">
+                            <Building2 className="w-4 h-4 text-[#004B8D]" />
+                            <span>{branch.name}</span>
+                            {branch.is_headquarters && (
+                              <Badge variant="outline" className="ml-1 text-xs py-0">HQ</Badge>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-[#004B8D]/60">
+                    Assign user to specific branch or grant access to all
+                  </p>
+                </div>
+              )}
             </div>
 
             {error && (
@@ -397,6 +471,9 @@ export function AuthorizedEmailsManager() {
                 <TableRow className="border-[#004B8D]/10 hover:bg-transparent">
                   <TableHead className="text-[#004B8D]/70">Email</TableHead>
                   <TableHead className="text-[#004B8D]/70">Role</TableHead>
+                  {isMultiBranchEnabled && (
+                    <TableHead className="text-[#004B8D]/70">Branch</TableHead>
+                  )}
                   <TableHead className="text-[#004B8D]/70">Notes</TableHead>
                   <TableHead className="text-[#004B8D]/70">Added</TableHead>
                   <TableHead className="text-[#004B8D]/70 text-right">Action</TableHead>
@@ -448,6 +525,40 @@ export function AuthorizedEmailsManager() {
                           </SelectContent>
                         </Select>
                       </TableCell>
+                      {isMultiBranchEnabled && (
+                        <TableCell>
+                          <Select 
+                            value={item.branch_id || "all"} 
+                            onValueChange={(value) => handleUpdateBranch(item.id, value)}
+                            disabled={updatingId === item.id}
+                          >
+                            <SelectTrigger className="w-36 h-8 text-xs border bg-slate-50 border-slate-200">
+                              <SelectValue>
+                                <div className="flex items-center gap-1.5">
+                                  <Building2 className="w-3 h-3 text-[#004B8D]" />
+                                  <span className="truncate">{getBranchName(item.branch_id)}</span>
+                                </div>
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent className="bg-white border-[#004B8D]/20">
+                              <SelectItem value="all" className="text-[#003366]">
+                                <div className="flex items-center gap-2">
+                                  <Building2 className="w-4 h-4 text-emerald-600" />
+                                  <span>All Branches</span>
+                                </div>
+                              </SelectItem>
+                              {branches.map((branch) => (
+                                <SelectItem key={branch.id} value={branch.id} className="text-[#003366]">
+                                  <div className="flex items-center gap-2">
+                                    <Building2 className="w-4 h-4 text-[#004B8D]" />
+                                    <span>{branch.name}</span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                      )}
                       <TableCell className="text-[#004B8D]/60">
                         {item.notes || "—"}
                       </TableCell>
