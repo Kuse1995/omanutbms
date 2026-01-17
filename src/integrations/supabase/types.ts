@@ -73,6 +73,69 @@ export type Database = {
           },
         ]
       }
+      addon_definitions: {
+        Row: {
+          addon_key: string
+          annual_price: number | null
+          created_at: string | null
+          currency: string | null
+          description: string | null
+          display_name: string
+          enterprise_limit: number | null
+          growth_limit: number | null
+          icon: string | null
+          id: string
+          is_active: boolean | null
+          monthly_price: number | null
+          pricing_type: string
+          sort_order: number | null
+          starter_limit: number | null
+          unit_label: string | null
+          unit_price: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          addon_key: string
+          annual_price?: number | null
+          created_at?: string | null
+          currency?: string | null
+          description?: string | null
+          display_name: string
+          enterprise_limit?: number | null
+          growth_limit?: number | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          monthly_price?: number | null
+          pricing_type: string
+          sort_order?: number | null
+          starter_limit?: number | null
+          unit_label?: string | null
+          unit_price?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          addon_key?: string
+          annual_price?: number | null
+          created_at?: string | null
+          currency?: string | null
+          description?: string | null
+          display_name?: string
+          enterprise_limit?: number | null
+          growth_limit?: number | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          monthly_price?: number | null
+          pricing_type?: string
+          sort_order?: number | null
+          starter_limit?: number | null
+          unit_label?: string | null
+          unit_price?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       admin_alerts: {
         Row: {
           alert_type: string
@@ -556,6 +619,7 @@ export type Database = {
           industry: string | null
           inventory_enabled: boolean | null
           logo_url: string | null
+          multi_branch_enabled: boolean | null
           payroll_enabled: boolean | null
           primary_color: string | null
           secondary_color: string | null
@@ -597,6 +661,7 @@ export type Database = {
           industry?: string | null
           inventory_enabled?: boolean | null
           logo_url?: string | null
+          multi_branch_enabled?: boolean | null
           payroll_enabled?: boolean | null
           primary_color?: string | null
           secondary_color?: string | null
@@ -638,6 +703,7 @@ export type Database = {
           industry?: string | null
           inventory_enabled?: boolean | null
           logo_url?: string | null
+          multi_branch_enabled?: boolean | null
           payroll_enabled?: boolean | null
           primary_color?: string | null
           secondary_color?: string | null
@@ -2171,6 +2237,72 @@ export type Database = {
           },
           {
             foreignKeyName: "sales_transactions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_addons: {
+        Row: {
+          addon_key: string | null
+          applied_at: string | null
+          applied_by: string | null
+          created_at: string | null
+          current_usage: number | null
+          custom_limit: number | null
+          custom_monthly_price: number | null
+          custom_unit_price: number | null
+          id: string
+          is_enabled: boolean | null
+          notes: string | null
+          tenant_id: string | null
+          updated_at: string | null
+          usage_reset_date: string | null
+        }
+        Insert: {
+          addon_key?: string | null
+          applied_at?: string | null
+          applied_by?: string | null
+          created_at?: string | null
+          current_usage?: number | null
+          custom_limit?: number | null
+          custom_monthly_price?: number | null
+          custom_unit_price?: number | null
+          id?: string
+          is_enabled?: boolean | null
+          notes?: string | null
+          tenant_id?: string | null
+          updated_at?: string | null
+          usage_reset_date?: string | null
+        }
+        Update: {
+          addon_key?: string | null
+          applied_at?: string | null
+          applied_by?: string | null
+          created_at?: string | null
+          current_usage?: number | null
+          custom_limit?: number | null
+          custom_monthly_price?: number | null
+          custom_unit_price?: number | null
+          id?: string
+          is_enabled?: boolean | null
+          notes?: string | null
+          tenant_id?: string | null
+          updated_at?: string | null
+          usage_reset_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_addons_addon_key_fkey"
+            columns: ["addon_key"]
+            isOneToOne: false
+            referencedRelation: "addon_definitions"
+            referencedColumns: ["addon_key"]
+          },
+          {
+            foreignKeyName: "tenant_addons_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
