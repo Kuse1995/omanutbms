@@ -3,7 +3,7 @@
 
 import type { DashboardTab } from '@/pages/Dashboard';
 
-export type BusinessType = 'distribution' | 'retail' | 'school' | 'ngo' | 'services' | 'agriculture' | 'hospitality' | 'salon' | 'healthcare' | 'autoshop';
+export type BusinessType = 'distribution' | 'retail' | 'school' | 'ngo' | 'services' | 'agriculture' | 'hospitality' | 'salon' | 'healthcare' | 'autoshop' | 'hybrid';
 
 export interface InventoryConfig {
   enabled: boolean;
@@ -886,6 +886,85 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       ],
       welcomeMessage: 'Manage vehicle repairs, parts, and job cards',
       dashboardIcon: 'Wrench',
+    },
+  },
+
+  hybrid: {
+    label: 'Hybrid Business',
+    description: 'Sell products and offer services',
+    inventory: {
+      enabled: true,
+      seedProfile: 'generic',
+      allowVariants: true,
+    },
+    terminology: {
+      product: 'Item',
+      products: 'Items',
+      customer: 'Customer',
+      customers: 'Customers',
+      customerId: 'Customer ID',
+      sale: 'Transaction',
+      sales: 'Transactions',
+      revenue: 'Revenue',
+      invoice: 'Invoice',
+      invoices: 'Invoices',
+      inventory: 'Products & Services',
+      community: 'Partner',
+      communities: 'Partners',
+      defaultItemType: 'item',
+      isServiceBased: false,
+    },
+    impact: {
+      enabled: false,
+    },
+    formFields: {
+      skuPlaceholder: 'e.g., ITM-001',
+      namePlaceholder: 'e.g., Product or Service Name',
+      highlightPlaceholder: 'e.g., Best Seller',
+      descriptionPlaceholder: 'Describe your product or service...',
+      featuresPlaceholder: 'Professional quality\nExpert service\nCustomer satisfaction',
+      categories: [
+        { value: 'products', label: 'Products' },
+        { value: 'services', label: 'Services' },
+        { value: 'packages', label: 'Packages' },
+        { value: 'bundles', label: 'Bundles' },
+        { value: 'parts', label: 'Parts' },
+        { value: 'accessories', label: 'Accessories' },
+        { value: 'maintenance_service', label: 'Maintenance' },
+        { value: 'repair', label: 'Repair' },
+        { value: 'consultation', label: 'Consultation' },
+      ],
+      certificationsLabel: 'Certifications',
+      certifications: [
+        { value: 'quality', label: 'Quality Certified' },
+        { value: 'warranty', label: 'Warranty Provided' },
+        { value: 'licensed', label: 'Licensed Professional' },
+        { value: 'insured', label: 'Insured Service' },
+      ],
+      defaultSpecs: [
+        { label: 'Type', value: '' },
+        { label: 'Duration/Quantity', value: '' },
+        { label: 'Warranty', value: '' },
+      ],
+      impactUnitsField: { enabled: false, label: 'Impact Units' },
+    },
+    layout: {
+      defaultTab: 'sales',
+      tabOrder: ['dashboard', 'sales', 'receipts', 'inventory', 'accounts', 'hr', 'contacts', 'website'],
+      hiddenTabs: ['agents', 'communities', 'messages'],
+      quickActions: [
+        { id: 'new-transaction', label: 'New Transaction', icon: 'ShoppingCart', targetTab: 'sales', highlight: true },
+        { id: 'manage-catalog', label: 'Products & Services', icon: 'Package', targetTab: 'inventory' },
+        { id: 'view-receipts', label: 'View Receipts', icon: 'Receipt', targetTab: 'receipts' },
+      ],
+      kpiCards: [
+        { id: 'total-revenue', title: "Today's Revenue", metric: 'total_revenue', icon: 'DollarSign', color: 'text-emerald-600', bgColor: 'bg-emerald-500/10' },
+        { id: 'inventory-value', title: 'Catalog Value', metric: 'inventory_value', icon: 'Package', color: 'text-[#004B8D]', bgColor: 'bg-[#004B8D]/10' },
+        { id: 'pending-invoices', title: 'Pending Invoices', metric: 'pending_invoices', icon: 'FileText', color: 'text-[#0077B6]', bgColor: 'bg-[#0077B6]/10' },
+        { id: 'low-stock', title: 'Low Stock Alerts', metric: 'low_stock', icon: 'AlertTriangle', color: 'text-amber-600', bgColor: 'bg-amber-500/10' },
+      ],
+      welcomeMessage: 'Manage your products, services, and customer transactions',
+      dashboardIcon: 'Layers',
     },
   },
 };
