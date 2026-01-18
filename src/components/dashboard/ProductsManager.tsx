@@ -33,6 +33,7 @@ interface Product {
   current_stock: number;
   unit_price: number;
   original_price?: number;
+  cost_price?: number;
   reorder_level: number;
   liters_per_unit: number;
   status: string;
@@ -204,7 +205,9 @@ export function ProductsManager() {
               <TableRow className="border-[#004B8D]/10">
                 <TableHead className="text-[#004B8D]/70">Product</TableHead>
                 <TableHead className="text-[#004B8D]/70">SKU</TableHead>
+                <TableHead className="text-[#004B8D]/70">Cost</TableHead>
                 <TableHead className="text-[#004B8D]/70">Price</TableHead>
+                <TableHead className="text-[#004B8D]/70">Margin</TableHead>
                 <TableHead className="text-[#004B8D]/70">Stock</TableHead>
                 <TableHead className="text-[#004B8D]/70">Variants</TableHead>
                 <TableHead className="text-[#004B8D]/70">Status</TableHead>
@@ -214,7 +217,7 @@ export function ProductsManager() {
             <TableBody>
               {filteredProducts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-[#004B8D]/50 py-8">
+                  <TableCell colSpan={9} className="text-center text-[#004B8D]/50 py-8">
                     No products found
                   </TableCell>
                 </TableRow>
@@ -240,8 +243,41 @@ export function ProductsManager() {
                     <TableCell className="text-[#004B8D]/70 font-mono text-sm">
                       {product.sku}
                     </TableCell>
+                    <TableCell className="text-[#004B8D]/70">
+                      {product.cost_price && product.cost_price > 0 ? (
+                        <span>K{product.cost_price.toLocaleString()}</span>
+                      ) : (
+                        <span className="text-[#004B8D]/40 italic text-sm">—</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-[#0077B6] font-medium">
                       K{product.unit_price.toLocaleString()}
+                    </TableCell>
+                    <TableCell>
+                      {product.cost_price && product.cost_price > 0 ? (
+                        (() => {
+                          const margin = product.unit_price - product.cost_price;
+                          const marginPercent = ((margin / product.cost_price) * 100).toFixed(0);
+                          const isPositive = margin > 0;
+                          const isNegative = margin < 0;
+                          return (
+                            <div className="flex flex-col">
+                              <span className={`font-medium text-sm ${
+                                isPositive ? 'text-green-600' : isNegative ? 'text-red-600' : 'text-amber-600'
+                              }`}>
+                                {isNegative ? '-' : '+'}K{Math.abs(margin).toLocaleString()}
+                              </span>
+                              <span className={`text-xs ${
+                                isPositive ? 'text-green-500' : isNegative ? 'text-red-500' : 'text-amber-500'
+                              }`}>
+                                {marginPercent}%
+                              </span>
+                            </div>
+                          );
+                        })()
+                      ) : (
+                        <span className="text-[#004B8D]/40 italic text-sm">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-[#003366]">
                       {isServiceItem(product) ? (

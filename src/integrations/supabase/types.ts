@@ -1506,6 +1506,7 @@ export type Database = {
           ai_prediction: string | null
           category: string | null
           certifications: string[] | null
+          cost_price: number | null
           created_at: string
           current_stock: number
           datasheet_url: string | null
@@ -1533,6 +1534,7 @@ export type Database = {
           ai_prediction?: string | null
           category?: string | null
           certifications?: string[] | null
+          cost_price?: number | null
           created_at?: string
           current_stock?: number
           datasheet_url?: string | null
@@ -1560,6 +1562,7 @@ export type Database = {
           ai_prediction?: string | null
           category?: string | null
           certifications?: string[] | null
+          cost_price?: number | null
           created_at?: string
           current_stock?: number
           datasheet_url?: string | null
