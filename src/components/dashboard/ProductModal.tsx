@@ -35,6 +35,7 @@ interface ProductModalProps {
     current_stock: number;
     unit_price: number;
     original_price?: number;
+    cost_price?: number;
     reorder_level: number;
     liters_per_unit: number;
     image_url?: string | null;
@@ -90,6 +91,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
     current_stock: 0,
     unit_price: 0,
     original_price: 0,
+    cost_price: 0,
     reorder_level: 10,
     liters_per_unit: 0,
     image_url: "",
@@ -101,6 +103,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
     datasheet_url: "",
     manual_url: "",
   });
+  const [recordCostAsExpense, setRecordCostAsExpense] = useState(false);
   
   const [technicalSpecs, setTechnicalSpecs] = useState<TechnicalSpec[]>(formFields.defaultSpecs);
 
@@ -112,6 +115,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
         current_stock: product.current_stock,
         unit_price: product.unit_price,
         original_price: product.original_price || 0,
+        cost_price: product.cost_price || 0,
         reorder_level: product.reorder_level,
         liters_per_unit: product.liters_per_unit,
         image_url: product.image_url || "",
@@ -124,6 +128,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
         manual_url: product.manual_url || "",
       });
       setImagePreview(product.image_url || null);
+      setRecordCostAsExpense(false);
       if (product.technical_specs && Array.isArray(product.technical_specs) && product.technical_specs.length > 0) {
         setTechnicalSpecs(product.technical_specs);
       } else {
@@ -136,6 +141,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
         current_stock: 0,
         unit_price: 0,
         original_price: 0,
+        cost_price: 0,
         reorder_level: 10,
         liters_per_unit: 0,
         image_url: "",
@@ -148,6 +154,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
         manual_url: "",
       });
       setImagePreview(null);
+      setRecordCostAsExpense(false);
       setTechnicalSpecs(formFields.defaultSpecs);
     }
     setImageFile(null);
@@ -455,6 +462,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
       current_stock: "Current Stock",
       unit_price: `Unit Price`,
       original_price: `Original Price`,
+      cost_price: `Cost Price`,
       reorder_level: "Reorder Level",
       liters_per_unit: formFields.impactUnitsField?.label || "Impact Units",
       description: "Description",
@@ -478,6 +486,9 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
     }
     if (formData.original_price !== (product.original_price || 0)) {
       changes.push({ field: fieldLabels.original_price, oldValue: String(product.original_price || 0), newValue: String(formData.original_price) });
+    }
+    if (formData.cost_price !== (product.cost_price || 0)) {
+      changes.push({ field: fieldLabels.cost_price, oldValue: String(product.cost_price || 0), newValue: String(formData.cost_price) });
     }
     if (formData.reorder_level !== product.reorder_level) {
       changes.push({ field: fieldLabels.reorder_level, oldValue: String(product.reorder_level), newValue: String(formData.reorder_level) });
@@ -611,6 +622,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
         current_stock: isServiceItem ? 9999 : formData.current_stock,
         unit_price: formData.unit_price,
         original_price: formData.original_price,
+        cost_price: formData.cost_price,
         reorder_level: isServiceItem ? 0 : formData.reorder_level,
         liters_per_unit: formFields.impactUnitsField?.enabled === false ? 0 : formData.liters_per_unit,
         image_url: imageUrl,
@@ -645,10 +657,40 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
 
         if (error) throw error;
 
-        toast({
-          title: `${terminology.product} Added`,
-          description: `${formData.name} has been added`,
-        });
+        // Record cost as expense if selected and cost_price > 0
+        if (recordCostAsExpense && formData.cost_price > 0) {
+          const totalCostForStock = formData.cost_price * (isServiceItem ? 1 : formData.current_stock);
+          const { error: expenseError } = await supabase
+            .from("expenses")
+            .insert({
+              category: 'Cost of Goods Sold - Vestergaard',
+              vendor_name: 'Inventory Purchase',
+              amount_zmw: totalCostForStock,
+              date_incurred: new Date().toISOString().split('T')[0],
+              notes: `Initial stock cost for ${formData.name} (${isServiceItem ? '1 service' : `${formData.current_stock} units`} @ K${formData.cost_price} each)`,
+              tenant_id: tenantId,
+            });
+
+          if (expenseError) {
+            console.error("Error recording expense:", expenseError);
+            // Don't fail the whole operation, just notify
+            toast({
+              title: "Note",
+              description: "Product added but expense recording failed",
+              variant: "destructive",
+            });
+          } else {
+            toast({
+              title: `${terminology.product} Added with Expense`,
+              description: `${formData.name} added and K${totalCostForStock.toLocaleString()} recorded as expense`,
+            });
+          }
+        } else {
+          toast({
+            title: `${terminology.product} Added`,
+            description: `${formData.name} has been added`,
+          });
+        }
       }
 
       if (!product && draftKey) {
@@ -1006,6 +1048,87 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
               <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full font-medium">
                 Save K{(formData.original_price - formData.unit_price).toLocaleString()}
               </span>
+            </div>
+          )}
+
+          {/* Cost Price and Profit Margin */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="cost_price" className="text-[#003366]">Cost Price</Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#004B8D]/50 text-sm">K</span>
+                <Input
+                  id="cost_price"
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={formData.cost_price}
+                  onChange={(e) => setFormData({ ...formData, cost_price: parseFloat(e.target.value) || 0 })}
+                  className="bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366] pl-8"
+                  placeholder="0.00"
+                />
+              </div>
+              <p className="text-xs text-[#004B8D]/50">Your purchase/production cost</p>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[#003366]">Profit Margin</Label>
+              {formData.cost_price > 0 && formData.unit_price > 0 ? (
+                <div className="h-10 flex items-center">
+                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${
+                    formData.unit_price > formData.cost_price 
+                      ? 'bg-green-50 border border-green-200' 
+                      : formData.unit_price < formData.cost_price
+                      ? 'bg-red-50 border border-red-200'
+                      : 'bg-amber-50 border border-amber-200'
+                  }`}>
+                    <span className={`font-semibold ${
+                      formData.unit_price > formData.cost_price 
+                        ? 'text-green-600' 
+                        : formData.unit_price < formData.cost_price
+                        ? 'text-red-600'
+                        : 'text-amber-600'
+                    }`}>
+                      K{(formData.unit_price - formData.cost_price).toLocaleString()}
+                    </span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                      formData.unit_price > formData.cost_price 
+                        ? 'bg-green-500 text-white' 
+                        : formData.unit_price < formData.cost_price
+                        ? 'bg-red-500 text-white'
+                        : 'bg-amber-500 text-white'
+                    }`}>
+                      {formData.cost_price > 0 
+                        ? `${(((formData.unit_price - formData.cost_price) / formData.cost_price) * 100).toFixed(1)}%`
+                        : '0%'
+                      }
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="h-10 flex items-center">
+                  <span className="text-[#004B8D]/40 text-sm italic">Enter cost & sale price</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Record as Expense checkbox - only for new products */}
+          {!product && formData.cost_price > 0 && (
+            <div className="flex items-center space-x-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <Checkbox
+                id="record_expense"
+                checked={recordCostAsExpense}
+                onCheckedChange={(checked) => setRecordCostAsExpense(checked as boolean)}
+              />
+              <label
+                htmlFor="record_expense"
+                className="text-sm text-[#003366] cursor-pointer flex-1"
+              >
+                Record initial stock cost as expense 
+                <span className="text-[#0077B6] font-medium ml-1">
+                  (K{(formData.cost_price * (serviceCategories.includes(formData.category) ? 1 : formData.current_stock)).toLocaleString()})
+                </span>
+              </label>
             </div>
           )}
 
