@@ -791,8 +791,75 @@ async function handleCheckCustomer(supabase: any, entities: Record<string, any>,
   };
 }
 
+// Valid expense categories that match the database CHECK constraint
+const VALID_EXPENSE_CATEGORIES = [
+  'Cost of Goods Sold - Vestergaard',
+  'Salaries',
+  'Salaries & Wages',
+  'Marketing',
+  'Operations/Rent',
+  'Other'
+];
+
+// Map common expense keywords to valid categories
+const EXPENSE_CATEGORY_MAP: Record<string, string> = {
+  'transport': 'Operations/Rent',
+  'fuel': 'Operations/Rent',
+  'rent': 'Operations/Rent',
+  'office': 'Operations/Rent',
+  'utilities': 'Operations/Rent',
+  'electricity': 'Operations/Rent',
+  'water': 'Operations/Rent',
+  'internet': 'Operations/Rent',
+  'supplies': 'Operations/Rent',
+  'maintenance': 'Operations/Rent',
+  'repair': 'Operations/Rent',
+  'salary': 'Salaries & Wages',
+  'wages': 'Salaries & Wages',
+  'staff': 'Salaries & Wages',
+  'payroll': 'Salaries & Wages',
+  'marketing': 'Marketing',
+  'advertising': 'Marketing',
+  'ads': 'Marketing',
+  'promo': 'Marketing',
+  'promotion': 'Marketing',
+  'stock': 'Cost of Goods Sold - Vestergaard',
+  'inventory': 'Cost of Goods Sold - Vestergaard',
+  'goods': 'Cost of Goods Sold - Vestergaard',
+  'purchase': 'Cost of Goods Sold - Vestergaard',
+  'cogs': 'Cost of Goods Sold - Vestergaard',
+};
+
+function normalizeExpenseCategory(inputCategory: string | undefined, description: string): string {
+  // If a valid category is provided, use it
+  if (inputCategory && VALID_EXPENSE_CATEGORIES.includes(inputCategory)) {
+    return inputCategory;
+  }
+
+  // Try to infer category from the input category name
+  if (inputCategory) {
+    const lowerInput = inputCategory.toLowerCase();
+    for (const [keyword, category] of Object.entries(EXPENSE_CATEGORY_MAP)) {
+      if (lowerInput.includes(keyword)) {
+        return category;
+      }
+    }
+  }
+
+  // Try to infer category from description
+  const lowerDesc = description.toLowerCase();
+  for (const [keyword, category] of Object.entries(EXPENSE_CATEGORY_MAP)) {
+    if (lowerDesc.includes(keyword)) {
+      return category;
+    }
+  }
+
+  // Default to 'Other' which is a valid category
+  return 'Other';
+}
+
 async function handleRecordExpense(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
-  const { description, amount, category = 'General' } = entities;
+  const { description, amount, category: rawCategory } = entities;
 
   if (!description || !amount) {
     return { 
@@ -800,6 +867,9 @@ async function handleRecordExpense(supabase: any, entities: Record<string, any>,
       message: 'Please specify the expense description and amount. Example: "Paid K500 for transport"' 
     };
   }
+
+  // Normalize to a valid category
+  const category = normalizeExpenseCategory(rawCategory, description);
 
   const { data, error } = await supabase
     .from('expenses')
@@ -816,7 +886,7 @@ async function handleRecordExpense(supabase: any, entities: Record<string, any>,
 
   if (error) {
     console.error('Expense recording error:', error);
-    return { success: false, message: 'Failed to record expense.' };
+    return { success: false, message: 'Failed to record expense. Please try again.' };
   }
 
   return {
