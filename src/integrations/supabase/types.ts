@@ -2200,6 +2200,70 @@ export type Database = {
           },
         ]
       }
+      restock_history: {
+        Row: {
+          branch_id: string | null
+          cost_per_unit: number | null
+          created_at: string
+          id: string
+          inventory_id: string | null
+          notes: string | null
+          quantity: number
+          recorded_as_expense: boolean | null
+          restocked_by: string | null
+          tenant_id: string | null
+          total_cost: number | null
+        }
+        Insert: {
+          branch_id?: string | null
+          cost_per_unit?: number | null
+          created_at?: string
+          id?: string
+          inventory_id?: string | null
+          notes?: string | null
+          quantity: number
+          recorded_as_expense?: boolean | null
+          restocked_by?: string | null
+          tenant_id?: string | null
+          total_cost?: number | null
+        }
+        Update: {
+          branch_id?: string | null
+          cost_per_unit?: number | null
+          created_at?: string
+          id?: string
+          inventory_id?: string | null
+          notes?: string | null
+          quantity?: number
+          recorded_as_expense?: boolean | null
+          restocked_by?: string | null
+          tenant_id?: string | null
+          total_cost?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restock_history_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "restock_history_inventory_id_fkey"
+            columns: ["inventory_id"]
+            isOneToOne: false
+            referencedRelation: "inventory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "restock_history_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sale_items: {
         Row: {
           created_at: string

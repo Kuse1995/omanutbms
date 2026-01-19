@@ -22,11 +22,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Package, AlertTriangle, RefreshCw, Mail, Loader2, Plus, Pencil, Trash2, FileUp, Download, Palette, Ruler, ImageIcon, Building2 } from "lucide-react";
+import { Package, AlertTriangle, RefreshCw, Mail, Loader2, Plus, Pencil, Trash2, FileUp, Download, Palette, Ruler, ImageIcon, Building2, PackagePlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ProductModal } from "./ProductModal";
 import { InventoryImportModal } from "./InventoryImportModal";
 import { ProductVariantsModal } from "./ProductVariantsModal";
+import { RestockModal } from "./RestockModal";
 import { FeatureGuard } from "./FeatureGuard";
 import { useTenant } from "@/hooks/useTenant";
 import { useBranch } from "@/hooks/useBranch";
@@ -44,6 +45,7 @@ interface InventoryItem {
   current_stock: number;
   wholesale_stock: number;
   unit_price: number;
+  cost_price?: number;
   original_price?: number;
   reorder_level: number;
   liters_per_unit: number;
@@ -57,6 +59,7 @@ interface InventoryItem {
   technical_specs?: TechnicalSpec[] | null;
   category?: string | null;
   status?: string;
+  item_type?: string;
 }
 
 export function InventoryAgent() {
@@ -67,6 +70,7 @@ export function InventoryAgent() {
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isVariantsModalOpen, setIsVariantsModalOpen] = useState(false);
+  const [isRestockModalOpen, setIsRestockModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<InventoryItem | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
@@ -160,6 +164,11 @@ export function InventoryAgent() {
   const handleManageVariants = (product: InventoryItem) => {
     setSelectedProduct(product);
     setIsVariantsModalOpen(true);
+  };
+
+  const handleRestock = (product: InventoryItem) => {
+    setSelectedProduct(product);
+    setIsRestockModalOpen(true);
   };
 
   const handleDeleteClick = (id: string) => {
@@ -386,6 +395,18 @@ export function InventoryAgent() {
                       <TableCell>{getStockBadge(item)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
+                          {/* Only show restock for non-service items */}
+                          {item.item_type !== 'service' && !['consultation', 'project', 'retainer', 'training', 'support', 'package', 'treatment', 'haircut', 'styling', 'coloring', 'spa', 'bridal', 'barbering', 'consultation_fee', 'lab_test', 'procedure', 'vaccination', 'repair', 'maintenance', 'diagnostics', 'service', 'services', 'maintenance_service'].includes(item.category || '') && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleRestock(item)}
+                              className="text-emerald-600 hover:bg-emerald-50"
+                              title="Restock"
+                            >
+                              <PackagePlus className="w-4 h-4" />
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             variant="ghost"
@@ -446,6 +467,17 @@ export function InventoryAgent() {
           }}
           product={selectedProduct}
           onSuccess={fetchInventory}
+        />
+
+        <RestockModal
+          open={isRestockModalOpen}
+          onOpenChange={(open) => {
+            setIsRestockModalOpen(open);
+            if (!open) setSelectedProduct(null);
+          }}
+          product={selectedProduct}
+          onSuccess={fetchInventory}
+          currencySymbol={currencySymbol}
         />
 
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
