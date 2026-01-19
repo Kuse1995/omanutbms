@@ -1112,23 +1112,75 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
             </div>
           </div>
 
-          {/* Record as Expense checkbox - only for new products */}
+          {/* Stock Cost Recording Options - only for new products with cost price */}
           {!product && formData.cost_price > 0 && (
-            <div className="flex items-center space-x-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <Checkbox
-                id="record_expense"
-                checked={recordCostAsExpense}
-                onCheckedChange={(checked) => setRecordCostAsExpense(checked as boolean)}
-              />
-              <label
-                htmlFor="record_expense"
-                className="text-sm text-[#003366] cursor-pointer flex-1"
-              >
-                Record initial stock cost as expense 
-                <span className="text-[#0077B6] font-medium ml-1">
-                  (K{(formData.cost_price * (serviceCategories.includes(formData.category) ? 1 : formData.current_stock)).toLocaleString()})
+            <div className="space-y-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <p className="text-sm text-[#003366] font-medium">
+                How should we record this stock cost of{' '}
+                <span className="text-[#0077B6] font-semibold">
+                  K{(formData.cost_price * (serviceCategories.includes(formData.category) ? 1 : formData.current_stock)).toLocaleString()}
                 </span>
-              </label>
+                ?
+              </p>
+
+              <div className="space-y-2">
+                {/* Option 1: Opening Stock */}
+                <label
+                  className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                    !recordCostAsExpense 
+                      ? 'bg-white border-[#0077B6] ring-1 ring-[#0077B6]' 
+                      : 'bg-white/50 border-[#004B8D]/20 hover:border-[#004B8D]/40'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="cost_recording"
+                    checked={!recordCostAsExpense}
+                    onChange={() => setRecordCostAsExpense(false)}
+                    className="mt-1 h-4 w-4 text-[#0077B6] focus:ring-[#0077B6]"
+                  />
+                  <div className="flex-1">
+                    <span className="font-medium text-[#003366] block">
+                      Set as Opening Stock (Setup Only)
+                    </span>
+                    <span className="text-xs text-[#004B8D]/70 block mt-1">
+                      This will <strong>not affect today's profit</strong>. Use this for stock you already had before starting to use this system.
+                    </span>
+                  </div>
+                </label>
+
+                {/* Option 2: Record as Expense */}
+                <label
+                  className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                    recordCostAsExpense 
+                      ? 'bg-white border-[#0077B6] ring-1 ring-[#0077B6]' 
+                      : 'bg-white/50 border-[#004B8D]/20 hover:border-[#004B8D]/40'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="cost_recording"
+                    checked={recordCostAsExpense}
+                    onChange={() => setRecordCostAsExpense(true)}
+                    className="mt-1 h-4 w-4 text-[#0077B6] focus:ring-[#0077B6]"
+                  />
+                  <div className="flex-1">
+                    <span className="font-medium text-[#003366] block">
+                      Record as Today's Expense
+                    </span>
+                    <span className="text-xs text-[#004B8D]/70 block mt-1">
+                      This will <strong>immediately affect profit</strong>. Use this for new purchases you made today.
+                    </span>
+                  </div>
+                </label>
+              </div>
+
+              <p className="text-xs text-[#004B8D]/60 bg-amber-50 border border-amber-200 rounded px-3 py-2 flex items-start gap-2">
+                <span className="text-amber-500 font-bold">💡</span>
+                <span>
+                  <strong>Tip:</strong> Most businesses should select "Opening Stock" during initial setup to avoid affecting profit calculations.
+                </span>
+              </p>
             </div>
           )}
 
