@@ -155,6 +155,24 @@ export function TenantAddonsDialog({
       addonKey,
       data: { is_enabled: enabled },
     });
+
+    // Sync multi_branch addon with business_profiles.multi_branch_enabled
+    if (addonKey === "multi_branch") {
+      const { error } = await supabase
+        .from("business_profiles")
+        .update({ multi_branch_enabled: enabled })
+        .eq("tenant_id", tenantId);
+      
+      if (error) {
+        console.error("Error updating multi_branch_enabled:", error);
+        toast({
+          title: "Warning",
+          description: "Add-on toggled but feature flag sync failed. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
     
     toast({
       title: enabled ? "Add-on enabled" : "Add-on disabled",
