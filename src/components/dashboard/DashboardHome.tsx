@@ -65,125 +65,180 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
   const { layout, terminology, businessType } = useBusinessConfig();
   const { tenantId } = useTenant();
 
-  useEffect(() => {
-    const fetchMetrics = async () => {
-      if (!tenantId) {
-        setIsLoading(false);
-        return;
+  const fetchMetrics = async () => {
+    if (!tenantId) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      // Fetch inventory data (only if inventory is enabled)
+      let inventoryData: { current_stock: number; unit_price: number; reorder_level: number | null }[] = [];
+      if (features.inventory) {
+        const { data } = await supabase
+          .from("inventory")
+          .select("current_stock, unit_price, reorder_level")
+          .eq("tenant_id", tenantId);
+        inventoryData = data || [];
       }
 
-      try {
-        // Fetch inventory data (only if inventory is enabled)
-        let inventoryData: { current_stock: number; unit_price: number; reorder_level: number | null }[] = [];
-        if (features.inventory) {
-          const { data } = await supabase
-            .from("inventory")
-            .select("current_stock, unit_price, reorder_level")
-            .eq("tenant_id", tenantId);
-          inventoryData = data || [];
-        }
+      // Fetch pending invoices (actual invoices, not transactions)
+      const { data: pendingInvoicesData } = await supabase
+        .from("invoices")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .in("status", ["pending", "draft"]);
 
-        // Fetch pending transactions
-        const { data: transactions } = await supabase
-          .from("transactions")
+      // Fetch approved agents (only if agents is enabled)
+      let agentsData: { status: string }[] = [];
+      if (features.agents) {
+        const { data } = await supabase
+          .from("agent_applications")
           .select("status")
           .eq("tenant_id", tenantId)
-          .eq("status", "pending");
-
-        // Fetch approved agents (only if agents is enabled)
-        let agentsData: { status: string }[] = [];
-        if (features.agents) {
-          const { data } = await supabase
-            .from("agent_applications")
-            .select("status")
-            .eq("tenant_id", tenantId)
-            .eq("status", "approved");
-          agentsData = data || [];
-        }
-
-        // Fetch sales for revenue (this month)
-        const startOfMonth = new Date();
-        startOfMonth.setDate(1);
-        startOfMonth.setHours(0, 0, 0, 0);
-        
-        const { data: salesData } = await supabase
-          .from("sales")
-          .select("total_amount")
-          .eq("tenant_id", tenantId)
-          .gte("sale_date", startOfMonth.toISOString());
-
-        // Fetch unique clients from invoices
-        const { data: clientsData } = await supabase
-          .from("invoices")
-          .select("client_email")
-          .eq("tenant_id", tenantId);
-
-        const uniqueClients = new Set(clientsData?.map(c => c.client_email).filter(Boolean)).size;
-
-        const totalValue = inventoryData.reduce(
-          (sum, item) => sum + item.current_stock * Number(item.unit_price),
-          0
-        );
-        const lowStock = inventoryData.filter(
-          (item) => item.current_stock < (item.reorder_level || 10)
-        ).length;
-        const totalRevenue = salesData?.reduce((sum, sale) => sum + Number(sale.total_amount), 0) || 0;
-
-        // Get today's date for daily metrics
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        // Fetch today's sales count for appointments/consultations/bookings
-        const { data: todaySalesData } = await supabase
-          .from("sales")
-          .select("id")
-          .eq("tenant_id", tenantId)
-          .gte("sale_date", today.toISOString());
-
-        const todaySalesCount = todaySalesData?.length || 0;
-
-        // Fetch pending/in-progress invoices for jobs in progress
-        const { data: pendingJobs } = await supabase
-          .from("invoices")
-          .select("id")
-          .eq("tenant_id", tenantId)
-          .eq("status", "pending");
-
-        // Fetch livestock count (items in livestock category)
-        let livestockCount = 0;
-        if (features.inventory) {
-          const { data: livestockData } = await supabase
-            .from("inventory")
-            .select("current_stock")
-            .eq("tenant_id", tenantId)
-            .eq("category", "livestock");
-          livestockCount = livestockData?.reduce((sum, item) => sum + item.current_stock, 0) || 0;
-        }
-
-        setMetrics({
-          inventoryValue: totalValue,
-          pendingInvoices: transactions?.length || 0,
-          activeAgents: agentsData.length,
-          lowStockAlerts: lowStock,
-          totalRevenue,
-          activeClients: uniqueClients,
-          studentsEnrolled: uniqueClients,
-          donationsReceived: totalRevenue,
-          bookingsToday: todaySalesCount,
-          appointmentsToday: todaySalesCount,
-          patientsToday: todaySalesCount,
-          jobsInProgress: pendingJobs?.length || 0,
-          livestockCount,
-        });
-      } catch (error) {
-        console.error("Error fetching metrics:", error);
-      } finally {
-        setIsLoading(false);
+          .eq("status", "approved");
+        agentsData = data || [];
       }
-    };
 
-    if (!featuresLoading) {
+      // Fetch sales for revenue (this month)
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+      
+      const { data: salesData } = await supabase
+        .from("sales")
+        .select("total_amount")
+        .eq("tenant_id", tenantId)
+        .gte("sale_date", startOfMonth.toISOString());
+
+      // Fetch unique clients from invoices
+      const { data: clientsData } = await supabase
+        .from("invoices")
+        .select("client_email")
+        .eq("tenant_id", tenantId);
+
+      const uniqueClients = new Set(clientsData?.map(c => c.client_email).filter(Boolean)).size;
+
+      const totalValue = inventoryData.reduce(
+        (sum, item) => sum + item.current_stock * Number(item.unit_price),
+        0
+      );
+      const lowStock = inventoryData.filter(
+        (item) => item.current_stock < (item.reorder_level || 10)
+      ).length;
+      const totalRevenue = salesData?.reduce((sum, sale) => sum + Number(sale.total_amount), 0) || 0;
+
+      // Get today's date for daily metrics
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Fetch today's sales count for appointments/consultations/bookings
+      const { data: todaySalesData } = await supabase
+        .from("sales")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .gte("sale_date", today.toISOString());
+
+      const todaySalesCount = todaySalesData?.length || 0;
+
+      // Fetch pending/in-progress invoices for jobs in progress
+      const { data: pendingJobs } = await supabase
+        .from("invoices")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("status", "pending");
+
+      // Fetch livestock count (items in livestock category)
+      let livestockCount = 0;
+      if (features.inventory) {
+        const { data: livestockData } = await supabase
+          .from("inventory")
+          .select("current_stock")
+          .eq("tenant_id", tenantId)
+          .eq("category", "livestock");
+        livestockCount = livestockData?.reduce((sum, item) => sum + item.current_stock, 0) || 0;
+      }
+
+      setMetrics({
+        inventoryValue: totalValue,
+        pendingInvoices: pendingInvoicesData?.length || 0,
+        activeAgents: agentsData.length,
+        lowStockAlerts: lowStock,
+        totalRevenue,
+        activeClients: uniqueClients,
+        studentsEnrolled: uniqueClients,
+        donationsReceived: totalRevenue,
+        bookingsToday: todaySalesCount,
+        appointmentsToday: todaySalesCount,
+        patientsToday: todaySalesCount,
+        jobsInProgress: pendingJobs?.length || 0,
+        livestockCount,
+      });
+    } catch (error) {
+      console.error("Error fetching metrics:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!featuresLoading && tenantId) {
       fetchMetrics();
+
+      // Set up real-time subscriptions for inventory and invoices
+      const inventoryChannel = supabase
+        .channel('dashboard-inventory')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'inventory',
+            filter: `tenant_id=eq.${tenantId}`
+          },
+          () => {
+            fetchMetrics();
+          }
+        )
+        .subscribe();
+
+      const invoicesChannel = supabase
+        .channel('dashboard-invoices')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'invoices',
+            filter: `tenant_id=eq.${tenantId}`
+          },
+          () => {
+            fetchMetrics();
+          }
+        )
+        .subscribe();
+
+      const salesChannel = supabase
+        .channel('dashboard-sales')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'sales',
+            filter: `tenant_id=eq.${tenantId}`
+          },
+          () => {
+            fetchMetrics();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(inventoryChannel);
+        supabase.removeChannel(invoicesChannel);
+        supabase.removeChannel(salesChannel);
+      };
     }
   }, [tenantId, features, featuresLoading]);
 
