@@ -84,6 +84,7 @@ export type ModuleKey =
   | "accounts" 
   | "hr" 
   | "inventory" 
+  | "returns"
   | "shop" 
   | "agents" 
   | "communities" 
@@ -97,12 +98,12 @@ export type ModuleKey =
 
 export const roleModuleAccess: Record<AppRole, ModuleKey[]> = {
   admin: [
-    "dashboard", "sales", "receipts", "accounts", "hr", "inventory", "shop", 
+    "dashboard", "sales", "receipts", "accounts", "hr", "inventory", "returns", "shop", 
     "agents", "communities", "messages", "website", "contacts", "branches",
     "settings", "tenant-settings", "modules"
   ],
   manager: [
-    "dashboard", "sales", "receipts", "accounts", "hr", "inventory", "shop",
+    "dashboard", "sales", "receipts", "accounts", "hr", "inventory", "returns", "shop",
     "agents", "communities", "messages", "website", "contacts"
   ],
   accountant: [
@@ -112,7 +113,7 @@ export const roleModuleAccess: Record<AppRole, ModuleKey[]> = {
     "dashboard", "hr"
   ],
   sales_rep: [
-    "dashboard", "sales", "receipts", "inventory"
+    "dashboard", "sales", "receipts", "inventory", "returns"
   ],
   cashier: [
     "dashboard", "sales", "receipts"

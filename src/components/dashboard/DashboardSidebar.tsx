@@ -121,9 +121,12 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
     return visibleItems.sort((a, b) => {
       const aIndex = tabOrder.indexOf(a.id);
       const bIndex = tabOrder.indexOf(b.id);
-      // Items not in tabOrder go to the end
+
+      // Items not in tabOrder go to the end (keep their relative order)
+      if (aIndex === -1 && bIndex === -1) return 0;
       if (aIndex === -1) return 1;
       if (bIndex === -1) return -1;
+
       return aIndex - bIndex;
     });
   };
