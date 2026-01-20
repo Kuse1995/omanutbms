@@ -1504,6 +1504,7 @@ export type Database = {
       inventory: {
         Row: {
           ai_prediction: string | null
+          batch_number: string | null
           category: string | null
           certifications: string[] | null
           cost_price: number | null
@@ -1511,7 +1512,9 @@ export type Database = {
           current_stock: number
           datasheet_url: string | null
           description: string | null
+          expiry_date: string | null
           features: string[] | null
+          has_expiry: boolean | null
           highlight: string | null
           id: string
           image_url: string | null
@@ -1532,6 +1535,7 @@ export type Database = {
         }
         Insert: {
           ai_prediction?: string | null
+          batch_number?: string | null
           category?: string | null
           certifications?: string[] | null
           cost_price?: number | null
@@ -1539,7 +1543,9 @@ export type Database = {
           current_stock?: number
           datasheet_url?: string | null
           description?: string | null
+          expiry_date?: string | null
           features?: string[] | null
+          has_expiry?: boolean | null
           highlight?: string | null
           id?: string
           image_url?: string | null
@@ -1560,6 +1566,7 @@ export type Database = {
         }
         Update: {
           ai_prediction?: string | null
+          batch_number?: string | null
           category?: string | null
           certifications?: string[] | null
           cost_price?: number | null
@@ -1567,7 +1574,9 @@ export type Database = {
           current_stock?: number
           datasheet_url?: string | null
           description?: string | null
+          expiry_date?: string | null
           features?: string[] | null
+          has_expiry?: boolean | null
           highlight?: string | null
           id?: string
           image_url?: string | null
@@ -1589,6 +1598,95 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "inventory_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_adjustments: {
+        Row: {
+          adjustment_type: string
+          approved_by: string | null
+          branch_id: string | null
+          cost_impact: number | null
+          created_at: string
+          customer_name: string | null
+          id: string
+          inventory_id: string
+          notes: string | null
+          original_sale_id: string | null
+          processed_by: string | null
+          quantity: number
+          reason: string
+          return_to_stock: boolean | null
+          status: string
+          tenant_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          adjustment_type: string
+          approved_by?: string | null
+          branch_id?: string | null
+          cost_impact?: number | null
+          created_at?: string
+          customer_name?: string | null
+          id?: string
+          inventory_id: string
+          notes?: string | null
+          original_sale_id?: string | null
+          processed_by?: string | null
+          quantity: number
+          reason: string
+          return_to_stock?: boolean | null
+          status?: string
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          adjustment_type?: string
+          approved_by?: string | null
+          branch_id?: string | null
+          cost_impact?: number | null
+          created_at?: string
+          customer_name?: string | null
+          id?: string
+          inventory_id?: string
+          notes?: string | null
+          original_sale_id?: string | null
+          processed_by?: string | null
+          quantity?: number
+          reason?: string
+          return_to_stock?: boolean | null
+          status?: string
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_adjustments_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_adjustments_inventory_id_fkey"
+            columns: ["inventory_id"]
+            isOneToOne: false
+            referencedRelation: "inventory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_adjustments_original_sale_id_fkey"
+            columns: ["original_sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_adjustments_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
