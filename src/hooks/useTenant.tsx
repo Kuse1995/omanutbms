@@ -156,6 +156,32 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     }
   }, [user, authLoading]);
 
+  // Subscribe to real-time updates on business_profiles for this tenant
+  useEffect(() => {
+    if (!tenantUser?.tenant_id) return;
+
+    const channel = supabase
+      .channel(`business_profile_${tenantUser.tenant_id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'business_profiles',
+          filter: `tenant_id=eq.${tenantUser.tenant_id}`,
+        },
+        (payload) => {
+          console.log('Business profile updated:', payload);
+          setBusinessProfile(payload.new as BusinessProfile);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [tenantUser?.tenant_id]);
+
   const tenantId = tenantUser?.tenant_id ?? null;
 
   return (
