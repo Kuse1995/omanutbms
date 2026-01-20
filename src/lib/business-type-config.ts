@@ -70,7 +70,7 @@ export interface QuickActionConfig {
 export interface KPICardConfig {
   id: string;
   title: string;
-  metric: 'inventory_value' | 'pending_invoices' | 'active_agents' | 'low_stock' | 'total_revenue' | 'active_clients' | 'students_enrolled' | 'donations_received' | 'bookings_today' | 'appointments_today' | 'patients_today' | 'jobs_in_progress' | 'harvest_value' | 'livestock_count';
+  metric: 'inventory_value' | 'pending_invoices' | 'active_agents' | 'low_stock' | 'total_revenue' | 'today_sales' | 'active_clients' | 'students_enrolled' | 'donations_received' | 'bookings_today' | 'appointments_today' | 'patients_today' | 'jobs_in_progress' | 'harvest_value' | 'livestock_count';
   icon: string;
   color: string;
   bgColor: string;
@@ -252,7 +252,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
         { id: 'view-receipts', label: 'View Receipts', icon: 'Receipt', targetTab: 'receipts' },
       ],
       kpiCards: [
-        { id: 'total-revenue', title: "Today's Sales", metric: 'total_revenue', icon: 'DollarSign', color: 'text-emerald-600', bgColor: 'bg-emerald-500/10' },
+        { id: 'today-sales', title: "Today's Sales", metric: 'today_sales', icon: 'DollarSign', color: 'text-emerald-600', bgColor: 'bg-emerald-500/10' },
         { id: 'inventory-value', title: 'Inventory Value', metric: 'inventory_value', icon: 'Package', color: 'text-[#004B8D]', bgColor: 'bg-[#004B8D]/10' },
         { id: 'pending-invoices', title: 'Pending Invoices', metric: 'pending_invoices', icon: 'FileText', color: 'text-[#0077B6]', bgColor: 'bg-[#0077B6]/10' },
         { id: 'low-stock', title: 'Low Stock Alerts', metric: 'low_stock', icon: 'AlertTriangle', color: 'text-amber-600', bgColor: 'bg-amber-500/10' },
