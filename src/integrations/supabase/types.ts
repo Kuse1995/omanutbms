@@ -2298,6 +2298,77 @@ export type Database = {
           },
         ]
       }
+      recurring_expenses: {
+        Row: {
+          advance_notice_days: number
+          amount_zmw: number
+          category: string
+          created_at: string
+          created_by: string | null
+          custom_interval_days: number | null
+          description: string | null
+          end_date: string | null
+          frequency: string
+          id: string
+          is_active: boolean
+          last_generated_date: string | null
+          next_due_date: string
+          notes: string | null
+          start_date: string
+          tenant_id: string | null
+          updated_at: string
+          vendor_name: string
+        }
+        Insert: {
+          advance_notice_days?: number
+          amount_zmw?: number
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          custom_interval_days?: number | null
+          description?: string | null
+          end_date?: string | null
+          frequency?: string
+          id?: string
+          is_active?: boolean
+          last_generated_date?: string | null
+          next_due_date: string
+          notes?: string | null
+          start_date?: string
+          tenant_id?: string | null
+          updated_at?: string
+          vendor_name: string
+        }
+        Update: {
+          advance_notice_days?: number
+          amount_zmw?: number
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          custom_interval_days?: number | null
+          description?: string | null
+          end_date?: string | null
+          frequency?: string
+          id?: string
+          is_active?: boolean
+          last_generated_date?: string | null
+          next_due_date?: string
+          notes?: string | null
+          start_date?: string
+          tenant_id?: string | null
+          updated_at?: string
+          vendor_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_expenses_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       restock_history: {
         Row: {
           branch_id: string | null
