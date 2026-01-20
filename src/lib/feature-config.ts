@@ -66,6 +66,7 @@ export const tabFeatureMap: Record<string, FeatureKey | null> = {
   hr: 'payroll',
   inventory: 'inventory',
   shop: 'inventory',
+  returns: 'inventory',
   agents: 'agents',
   communities: 'impact',
   messages: 'impact',
