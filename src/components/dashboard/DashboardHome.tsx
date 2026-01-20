@@ -25,6 +25,7 @@ interface DashboardMetrics {
   activeAgents: number;
   lowStockAlerts: number;
   totalRevenue: number;
+  todaySales: number;
   activeClients: number;
   studentsEnrolled: number;
   donationsReceived: number;
@@ -51,6 +52,7 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
     activeAgents: 0,
     lowStockAlerts: 0,
     totalRevenue: 0,
+    todaySales: 0,
     activeClients: 0,
     studentsEnrolled: 0,
     donationsReceived: 0,
@@ -132,14 +134,15 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      // Fetch today's sales count for appointments/consultations/bookings
+      // Fetch today's sales for appointments/consultations/bookings AND revenue
       const { data: todaySalesData } = await supabase
         .from("sales")
-        .select("id")
+        .select("id, total_amount")
         .eq("tenant_id", tenantId)
         .gte("sale_date", today.toISOString());
 
       const todaySalesCount = todaySalesData?.length || 0;
+      const todaySalesRevenue = todaySalesData?.reduce((sum, sale) => sum + Number(sale.total_amount || 0), 0) || 0;
 
       // Fetch pending/in-progress invoices for jobs in progress
       const { data: pendingJobs } = await supabase
@@ -165,6 +168,7 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
         activeAgents: agentsData.length,
         lowStockAlerts: lowStock,
         totalRevenue,
+        todaySales: todaySalesRevenue,
         activeClients: uniqueClients,
         studentsEnrolled: uniqueClients,
         donationsReceived: totalRevenue,
@@ -255,6 +259,8 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
         return metrics.lowStockAlerts.toString();
       case 'total_revenue':
         return `${currencySymbol} ${metrics.totalRevenue.toLocaleString()}`;
+      case 'today_sales':
+        return `${currencySymbol} ${metrics.todaySales.toLocaleString()}`;
       case 'active_clients':
         return metrics.activeClients.toString();
       case 'students_enrolled':
