@@ -37,6 +37,8 @@ interface AgentApplication {
   created_at: string;
 }
 
+import { AppRole } from "@/lib/role-config";
+
 interface StaffMember {
   id: string;
   user_id: string;
@@ -45,13 +47,13 @@ interface StaffMember {
   department: string | null;
   avatar_url: string | null;
   last_login: string | null;
-  role: "admin" | "manager" | "viewer";
+  role: AppRole;
 }
 
 interface AuthorizedEmail {
   id: string;
   email: string;
-  default_role: "admin" | "manager" | "viewer";
+  default_role: AppRole;
   created_at: string;
 }
 
@@ -131,7 +133,7 @@ export function HRAgent() {
           department: profile?.department || null,
           avatar_url: profile?.avatar_url || null,
           last_login: profile?.last_login || null,
-          role: tu.role as "admin" | "manager" | "viewer",
+          role: tu.role as AppRole,
         };
       });
 

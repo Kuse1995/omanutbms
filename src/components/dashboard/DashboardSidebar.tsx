@@ -25,6 +25,7 @@ import { PoweredByFooter } from "./PoweredByFooter";
 import type { DashboardTab } from "@/pages/Dashboard";
 import type { FeatureKey } from "@/lib/feature-config";
 import { Skeleton } from "@/components/ui/skeleton";
+import { hasModuleAccess, type ModuleKey } from "@/lib/role-config";
 
 interface DashboardSidebarProps {
   activeTab: DashboardTab;
@@ -85,7 +86,7 @@ const baseMenuItems: MenuItem[] = [
 ];
 
 export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarProps) {
-  const { isAdmin, isSuperAdmin, signOut } = useAuth();
+  const { isAdmin, isSuperAdmin, signOut, role } = useAuth();
   const { features, terminology, loading, companyName } = useFeatures();
   const { logoUrl, primaryColor, tagline } = useBranding();
   const { layout, businessType } = useBusinessConfig();
@@ -99,16 +100,18 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
     navigate("/auth");
   };
 
-  // Get menu items ordered and filtered by business type layout
+  // Get menu items ordered and filtered by business type layout and role
   const getOrderedMenuItems = (): MenuItem[] => {
     const { tabOrder, hiddenTabs } = layout;
     
-    // Filter out hidden tabs and items without enabled features
+    // Filter out hidden tabs, items without enabled features, and items user doesn't have role access to
     const visibleItems = baseMenuItems.filter(item => {
       // Check if tab is hidden by business type
       if (hiddenTabs.includes(item.id)) return false;
       // Check if feature is enabled
       if (item.feature && !features[item.feature]) return false;
+      // Check role-based access
+      if (!hasModuleAccess(role, item.id as ModuleKey)) return false;
       return true;
     });
 

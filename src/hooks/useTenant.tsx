@@ -47,11 +47,13 @@ export interface BusinessProfile {
   billing_end_date: string | null;
 }
 
+import { AppRole } from "@/lib/role-config";
+
 interface TenantUser {
   id: string;
   tenant_id: string;
   user_id: string;
-  role: "admin" | "manager" | "viewer";
+  role: AppRole;
   is_owner: boolean | null;
   branch_id: string | null;
   can_access_all_branches: boolean | null;
