@@ -35,8 +35,11 @@ interface ParsedRow {
   name: string;
   current_stock: number;
   unit_price: number;
+  cost_price: number;
   reorder_level: number;
   liters_per_unit: number;
+  description: string;
+  category: string;
   isValid: boolean;
   errors: string[];
   rowNumber: number;
@@ -45,7 +48,8 @@ interface ParsedRow {
 const inventorySchemaFields = [
   { key: 'sku', label: 'SKU', required: true, type: 'string' as const },
   { key: 'name', label: 'Name', required: true, type: 'string' as const },
-  { key: 'unit_price', label: 'Unit Price', required: true, type: 'number' as const },
+  { key: 'unit_price', label: 'Unit Price (Selling)', required: true, type: 'number' as const },
+  { key: 'cost_price', label: 'Cost Price (Purchase)', required: false, type: 'number' as const },
   { key: 'current_stock', label: 'Current Stock', required: false, type: 'number' as const },
   { key: 'reorder_level', label: 'Reorder Level', required: false, type: 'number' as const },
   { key: 'description', label: 'Description', required: false, type: 'string' as const },
@@ -71,13 +75,16 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
 
   const handleConvertedData = (data: any[]) => {
     // Convert the AI-extracted data to our ParsedRow format
-    const converted = data.map((row, idx) => ({
+    const converted: ParsedRow[] = data.map((row, idx) => ({
       sku: String(row.sku || "").trim(),
       name: String(row.name || "").trim(),
       current_stock: parseInt(row.current_stock) || 0,
       unit_price: parseFloat(row.unit_price) || 0,
+      cost_price: parseFloat(row.cost_price) || 0,
       reorder_level: parseInt(row.reorder_level) || 10,
-      liters_per_unit: 0,
+      liters_per_unit: parseInt(row.liters_per_unit) || 0,
+      description: String(row.description || "").trim(),
+      category: String(row.category || "").trim(),
       isValid: true,
       errors: [] as string[],
       rowNumber: idx + 1,
@@ -88,7 +95,8 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
       const errors: string[] = [];
       if (!row.sku) errors.push("SKU is required");
       if (!row.name) errors.push("Name is required");
-      if (row.unit_price < 0) errors.push("Price cannot be negative");
+      if (row.unit_price < 0) errors.push("Selling price cannot be negative");
+      if (row.cost_price < 0) errors.push("Cost price cannot be negative");
       return { ...row, isValid: errors.length === 0, errors };
     });
     
@@ -104,23 +112,28 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
     return rawRows.map((rawRow, idx) => {
       const row: any = { rowNumber: idx + 2, errors: [] };
       
-      // Normalize header keys to lowercase
+      // Normalize header keys to lowercase and handle various formats
       const normalizedRow: any = {};
       Object.keys(rawRow).forEach(key => {
-        normalizedRow[key.toLowerCase().trim()] = rawRow[key];
+        const normalizedKey = key.toLowerCase().trim().replace(/\s+/g, '_');
+        normalizedRow[normalizedKey] = rawRow[key];
       });
 
       row.sku = String(normalizedRow.sku || "").trim();
       row.name = String(normalizedRow.name || "").trim();
-      row.current_stock = parseInt(normalizedRow.current_stock) || 0;
-      row.unit_price = parseFloat(normalizedRow.unit_price) || 0;
-      row.reorder_level = parseInt(normalizedRow.reorder_level) || 10;
+      row.current_stock = parseInt(normalizedRow.current_stock || normalizedRow.stock) || 0;
+      row.unit_price = parseFloat(normalizedRow.unit_price || normalizedRow.selling_price || normalizedRow.price) || 0;
+      row.cost_price = parseFloat(normalizedRow.cost_price || normalizedRow.cost || normalizedRow.purchase_price) || 0;
+      row.reorder_level = parseInt(normalizedRow.reorder_level || normalizedRow.reorder) || 10;
       row.liters_per_unit = parseInt(normalizedRow.liters_per_unit) || 0;
+      row.description = String(normalizedRow.description || "").trim();
+      row.category = String(normalizedRow.category || "").trim();
 
       // Validation
       if (!row.sku) row.errors.push("SKU is required");
       if (!row.name) row.errors.push("Name is required");
-      if (row.unit_price < 0) row.errors.push("Price cannot be negative");
+      if (row.unit_price < 0) row.errors.push("Selling price cannot be negative");
+      if (row.cost_price < 0) row.errors.push("Cost price cannot be negative");
       if (row.current_stock < 0) row.errors.push("Stock cannot be negative");
 
       row.isValid = row.errors.length === 0;
@@ -262,8 +275,11 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
               name: row.name,
               current_stock: row.current_stock,
               unit_price: row.unit_price,
+              cost_price: row.cost_price || 0,
               reorder_level: row.reorder_level,
               liters_per_unit: row.liters_per_unit,
+              description: row.description || null,
+              category: row.category || null,
             })
             .eq("id", existing.id);
 
@@ -279,8 +295,11 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
               name: row.name,
               current_stock: row.current_stock,
               unit_price: row.unit_price,
+              cost_price: row.cost_price || 0,
               reorder_level: row.reorder_level,
               liters_per_unit: row.liters_per_unit,
+              description: row.description || null,
+              category: row.category || null,
             });
 
           if (error) throw error;
@@ -308,10 +327,10 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
   };
 
   const downloadTemplate = () => {
-    const template = `sku,name,current_stock,unit_price,reorder_level,liters_per_unit
-PROD-001,Sample Product,50,450,10,0
-PROD-002,Another Product,30,650,10,0
-PROD-003,Premium Product,5,8500,2,0`;
+    const template = `sku,name,current_stock,unit_price,cost_price,reorder_level,category,description
+PROD-001,Sample Product,50,450,300,10,general,Main product description
+PROD-002,Another Product,30,650,450,10,accessories,Secondary product
+PROD-003,Premium Product,5,8500,6000,2,premium,High-end product with full features`;
 
     const blob = new Blob([template], { type: "text/csv" });
     const url = URL.createObjectURL(blob);

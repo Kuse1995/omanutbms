@@ -15,7 +15,7 @@ interface ReportInsights {
   expenses: number;
   netProfit: number;
   profitMargin: string;
-  totalLiters: number;
+  totalImpactUnits?: number;
   salesCount: number;
   invoiceRevenue: number;
   pendingAmount: number;
@@ -182,17 +182,19 @@ export function FinancialReportGenerator() {
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-cyan-50 to-cyan-100">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Impact: Liters Donated</p>
-                    <p className="text-2xl font-bold text-cyan-700">{report.insights.totalLiters.toLocaleString()}</p>
+            {report.insights.totalImpactUnits !== undefined && report.insights.totalImpactUnits > 0 && (
+              <Card className="bg-gradient-to-br from-cyan-50 to-cyan-100">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">Impact Units</p>
+                      <p className="text-2xl font-bold text-cyan-700">{report.insights.totalImpactUnits.toLocaleString()}</p>
+                    </div>
+                    <Droplets className="h-8 w-8 text-cyan-500" />
                   </div>
-                  <Droplets className="h-8 w-8 text-cyan-500" />
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* AI Summary */}
