@@ -13,6 +13,7 @@ import { useFeatures } from "@/hooks/useFeatures";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 import { useTenant } from "@/hooks/useTenant";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ExpiryAlertsCard } from "@/components/dashboard/ExpiryAlertsCard";
 import type { DashboardTab } from "@/pages/Dashboard";
 
 interface DashboardHomeProps {
@@ -363,6 +364,9 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
           );
         })}
       </div>
+
+      {/* Expiry Alerts for inventory-enabled tenants */}
+      {features.inventory && <ExpiryAlertsCard />}
 
       {/* Quick Actions & Info Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

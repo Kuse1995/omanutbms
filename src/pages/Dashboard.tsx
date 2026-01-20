@@ -21,6 +21,7 @@ import { PoweredByFooter } from "@/components/dashboard/PoweredByFooter";
 import { SuperAdminPanel } from "@/components/dashboard/SuperAdminPanel";
 import { OnboardingTour } from "@/components/dashboard/OnboardingTour";
 import { BranchesManager } from "@/components/dashboard/BranchesManager";
+import { ReturnsAndDamagesManager } from "@/components/dashboard/ReturnsAndDamagesManager";
 import { useOnboardingTour } from "@/hooks/useOnboardingTour";
 import { useFeatures } from "@/hooks/useFeatures";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
@@ -28,7 +29,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { BranchProvider } from "@/hooks/useBranch";
 
-export type DashboardTab = "dashboard" | "sales" | "receipts" | "accounts" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings" | "tenant-settings" | "modules" | "platform-admin" | "branches";
+export type DashboardTab = "dashboard" | "sales" | "receipts" | "accounts" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings" | "tenant-settings" | "modules" | "platform-admin" | "branches" | "returns";
 
 const Dashboard = () => {
   const { layout, loading: configLoading } = useBusinessConfig();
@@ -126,6 +127,8 @@ const Dashboard = () => {
         return <SuperAdminPanel />;
       case "branches":
         return <BranchesManager />;
+      case "returns":
+        return <ReturnsAndDamagesManager />;
       default:
         return <DashboardHome />;
     }

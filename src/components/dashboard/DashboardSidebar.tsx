@@ -1,7 +1,7 @@
 import { 
   Package, DollarSign, LayoutDashboard, Settings, HelpCircle, Users, Shield, 
   MessageSquare, Globe, ShoppingCart, Store, Heart, Receipt, Mail, Building2, 
-  Layers, Crown, LogOut, Truck, GraduationCap, Briefcase, GitBranch, type LucideIcon 
+  Layers, Crown, LogOut, Truck, GraduationCap, Briefcase, GitBranch, RotateCcw, type LucideIcon 
 } from "lucide-react";
 import {
   Sidebar,
@@ -60,6 +60,7 @@ const iconMap: Record<string, LucideIcon> = {
   Building2,
   Layers,
   Crown,
+  RotateCcw,
 };
 
 const adminItems: { id: DashboardTab; title: string; icon: LucideIcon; requiresMultiBranch?: boolean }[] = [
@@ -78,6 +79,7 @@ const baseMenuItems: MenuItem[] = [
   { id: "hr", title: "HR & Payroll", icon: Users, feature: 'payroll' },
   { id: "agents", title: "Agents", icon: Users, feature: 'agents' },
   { id: "inventory", title: "Inventory", icon: Package, feature: 'inventory', dynamicTitle: 'inventory' },
+  { id: "returns", title: "Returns & Damages", icon: RotateCcw, feature: 'inventory' },
   { id: "shop", title: "Shop Manager", icon: Store, feature: 'inventory' },
   { id: "communities", title: "Communities", icon: Heart, feature: 'impact' },
   { id: "messages", title: "Community Messages", icon: MessageSquare, feature: 'impact' },
