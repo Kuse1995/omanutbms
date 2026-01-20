@@ -20,6 +20,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Upload, User, X } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AppRole, roleConfig, getRoleOptions } from "@/lib/role-config";
 
 interface StaffMember {
   id: string;
@@ -28,7 +29,7 @@ interface StaffMember {
   title: string | null;
   department: string | null;
   avatar_url: string | null;
-  role: "admin" | "manager" | "viewer";
+  role: AppRole;
 }
 
 interface StaffProfileModalProps {
@@ -59,7 +60,7 @@ export function StaffProfileModal({
   const [fullName, setFullName] = useState("");
   const [title, setTitle] = useState("");
   const [department, setDepartment] = useState("");
-  const [role, setRole] = useState<"admin" | "manager" | "viewer">("viewer");
+  const [role, setRole] = useState<AppRole>("viewer");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -322,18 +323,20 @@ export function StaffProfileModal({
           {isAdmin && (
             <div className="grid gap-2">
               <Label htmlFor="role">Access Role</Label>
-              <Select value={role} onValueChange={(val: "admin" | "manager" | "viewer") => setRole(val)}>
+              <Select value={role} onValueChange={(val: AppRole) => setRole(val)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="admin">Admin (Full Access)</SelectItem>
-                  <SelectItem value="manager">Manager (Edit Access)</SelectItem>
-                  <SelectItem value="viewer">Viewer (Read Only)</SelectItem>
+                  {getRoleOptions().map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {roleConfig[option.value].label} - {roleConfig[option.value].description}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Admins have full control, Managers can edit data, Viewers can only view.
+                Select the appropriate role based on job responsibilities.
               </p>
             </div>
           )}

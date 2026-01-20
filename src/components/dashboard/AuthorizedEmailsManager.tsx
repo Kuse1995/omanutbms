@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { z } from "zod";
 
-type AppRole = "admin" | "manager" | "viewer";
+import { AppRole, roleConfig, getRoleOptions } from "@/lib/role-config";
 
 interface AuthorizedEmail {
   id: string;
@@ -40,12 +40,6 @@ interface AuthorizedEmail {
 }
 
 const emailSchema = z.string().email("Please enter a valid email address");
-
-const roleConfig: Record<AppRole, { label: string; icon: typeof Crown; color: string; bgColor: string }> = {
-  admin: { label: "Admin", icon: Crown, color: "text-amber-600", bgColor: "bg-amber-50 border-amber-200" },
-  manager: { label: "Manager", icon: UserCog, color: "text-blue-600", bgColor: "bg-blue-50 border-blue-200" },
-  viewer: { label: "Viewer", icon: Eye, color: "text-slate-600", bgColor: "bg-slate-50 border-slate-200" },
-};
 
 export function AuthorizedEmailsManager() {
   const [emails, setEmails] = useState<AuthorizedEmail[]>([]);
@@ -370,7 +364,7 @@ export function AuthorizedEmailsManager() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-[#004B8D]/60">
-                  Admin: Full access • Manager: Edit access • Viewer: Read-only
+                  Select the role that matches the user's job responsibilities
                 </p>
               </div>
 

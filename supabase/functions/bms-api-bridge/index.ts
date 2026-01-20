@@ -9,10 +9,14 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-// Role-based permissions
+// Role-based permissions for WhatsApp BMS operations
 const ROLE_PERMISSIONS: Record<string, string[]> = {
   admin: ['record_sale', 'check_stock', 'list_products', 'generate_invoice', 'record_expense', 'get_sales_summary', 'get_sales_details', 'check_customer'],
   manager: ['record_sale', 'check_stock', 'list_products', 'generate_invoice', 'record_expense', 'get_sales_summary', 'get_sales_details', 'check_customer'],
+  accountant: ['check_stock', 'list_products', 'generate_invoice', 'record_expense', 'get_sales_summary', 'get_sales_details'],
+  hr_manager: ['check_stock', 'list_products', 'get_sales_summary'],
+  sales_rep: ['record_sale', 'check_stock', 'list_products', 'get_sales_details', 'check_customer'],
+  cashier: ['record_sale', 'check_stock', 'list_products'],
   staff: ['record_sale', 'check_stock', 'list_products', 'record_expense', 'get_sales_details'],
   viewer: ['check_stock', 'list_products', 'get_sales_summary', 'get_sales_details'],
 };

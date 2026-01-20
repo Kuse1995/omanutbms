@@ -2,7 +2,9 @@ import { useState, useEffect, createContext, useContext, ReactNode } from "react
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
-type AppRole = "admin" | "manager" | "viewer";
+import { AppRole, isAdminRole, canAddRecords, canEditRecords, canDeleteRecords } from "@/lib/role-config";
+
+export type { AppRole };
 
 interface Profile {
   id: string;
@@ -269,10 +271,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error };
   };
 
-  const canAdd = role === "admin" || role === "manager";  // Can INSERT new records
-  const canEdit = role === "admin";   // Only admins can UPDATE (fraud prevention)
-  const canDelete = role === "admin"; // Only admins can DELETE
-  const isAdmin = role === "admin";
+  // Permission checks using centralized role config
+  const canAdd = canAddRecords(role);
+  const canEdit = canEditRecords(role);
+  const canDelete = canDeleteRecords(role);
+  const isAdmin = isAdminRole(role);
 
   return (
     <AuthContext.Provider
