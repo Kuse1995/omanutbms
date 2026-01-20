@@ -26,7 +26,11 @@ interface SalesReceiptModalProps {
   customerEmail: string | null;
   customerPhone: string | null;
   items: SaleItem[];
+  subtotal?: number;
+  discountAmount?: number;
   totalAmount: number;
+  amountPaid?: number;
+  changeAmount?: number;
   paymentMethod: string;
   paymentDate: string;
   litersImpact: number;
@@ -40,7 +44,11 @@ export function SalesReceiptModal({
   customerEmail,
   customerPhone,
   items,
+  subtotal,
+  discountAmount = 0,
   totalAmount,
+  amountPaid,
+  changeAmount = 0,
   paymentMethod,
   paymentDate,
   litersImpact,
@@ -224,10 +232,36 @@ export function SalesReceiptModal({
                     ))}
                   </tbody>
                   <tfoot>
+                    {subtotal && discountAmount > 0 && (
+                      <>
+                        <tr>
+                          <td colSpan={3} className="text-right py-1 pr-1 text-gray-600">Subtotal:</td>
+                          <td className="text-right py-1 pl-1 whitespace-nowrap">K {subtotal.toLocaleString()}</td>
+                        </tr>
+                        <tr className="text-green-600">
+                          <td colSpan={3} className="text-right py-1 pr-1">Discount:</td>
+                          <td className="text-right py-1 pl-1 whitespace-nowrap">-K {discountAmount.toLocaleString()}</td>
+                        </tr>
+                      </>
+                    )}
                     <tr className="font-bold">
                       <td colSpan={3} className="text-right py-2 pr-1">Total:</td>
                       <td className="text-right py-2 pl-1 text-green-600 whitespace-nowrap">K {totalAmount.toLocaleString()}</td>
                     </tr>
+                    {amountPaid && amountPaid > 0 && paymentMethod !== "credit_invoice" && (
+                      <>
+                        <tr>
+                          <td colSpan={3} className="text-right py-1 pr-1 text-gray-600">Amount Paid:</td>
+                          <td className="text-right py-1 pl-1 whitespace-nowrap">K {amountPaid.toLocaleString()}</td>
+                        </tr>
+                        {changeAmount > 0 && (
+                          <tr className="text-blue-600 font-medium">
+                            <td colSpan={3} className="text-right py-1 pr-1">Change:</td>
+                            <td className="text-right py-1 pl-1 whitespace-nowrap">K {changeAmount.toLocaleString()}</td>
+                          </tr>
+                        )}
+                      </>
+                    )}
                   </tfoot>
                 </table>
               </div>
