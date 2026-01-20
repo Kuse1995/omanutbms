@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Calendar, AlertTriangle, Clock, Package } from "lucide-react";
+import { Calendar, AlertTriangle, Clock, CheckCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
 import { format, differenceInDays, addDays } from "date-fns";
@@ -56,7 +55,21 @@ export function ExpiryAlertsCard() {
   }, [tenantId]);
 
   if (expiredProducts.length === 0 && expiringProducts.length === 0) {
-    return null;
+    return (
+      <Card className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-green-800 flex items-center gap-2">
+            <CheckCircle className="w-5 h-5" />
+            No Expiry Alerts
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-green-600">
+            All products are within safe expiry dates. Products expiring within 30 days will appear here as alerts.
+          </p>
+        </CardContent>
+      </Card>
+    );
   }
 
   const getUrgencyBadge = (days: number) => {
