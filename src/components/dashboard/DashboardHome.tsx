@@ -103,16 +103,16 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
         agentsData = data || [];
       }
 
-      // Fetch sales for revenue (this month)
+      // Fetch sales for revenue (this month) - source: sales_transactions
       const startOfMonth = new Date();
       startOfMonth.setDate(1);
       startOfMonth.setHours(0, 0, 0, 0);
       
       const { data: salesData } = await supabase
-        .from("sales")
-        .select("total_amount")
+        .from("sales_transactions")
+        .select("total_amount_zmw, created_at")
         .eq("tenant_id", tenantId)
-        .gte("sale_date", startOfMonth.toISOString());
+        .gte("created_at", startOfMonth.toISOString());
 
       // Fetch unique clients from invoices
       const { data: clientsData } = await supabase
@@ -129,21 +129,22 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
       const lowStock = inventoryData.filter(
         (item) => item.current_stock < (item.reorder_level || 10)
       ).length;
-      const totalRevenue = salesData?.reduce((sum, sale) => sum + Number(sale.total_amount), 0) || 0;
+      const totalRevenue = salesData?.reduce((sum, sale: any) => sum + Number(sale.total_amount_zmw ?? 0), 0) || 0;
 
       // Get today's date for daily metrics
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      // Fetch today's sales for appointments/consultations/bookings AND revenue
+      // Fetch today's sales (revenue + count) from sales_transactions
       const { data: todaySalesData } = await supabase
-        .from("sales")
-        .select("id, total_amount")
+        .from("sales_transactions")
+        .select("id, total_amount_zmw, created_at")
         .eq("tenant_id", tenantId)
-        .gte("sale_date", today.toISOString());
+        .gte("created_at", today.toISOString());
 
       const todaySalesCount = todaySalesData?.length || 0;
-      const todaySalesRevenue = todaySalesData?.reduce((sum, sale) => sum + Number(sale.total_amount || 0), 0) || 0;
+      const todaySalesRevenue =
+        todaySalesData?.reduce((sum, sale: any) => sum + Number(sale.total_amount_zmw || 0), 0) || 0;
 
       // Fetch pending/in-progress invoices for jobs in progress
       const { data: pendingJobs } = await supabase
@@ -224,14 +225,14 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
         .subscribe();
 
       const salesChannel = supabase
-        .channel('dashboard-sales')
+        .channel('dashboard-sales-transactions')
         .on(
           'postgres_changes',
           {
             event: '*',
             schema: 'public',
-            table: 'sales',
-            filter: `tenant_id=eq.${tenantId}`
+            table: 'sales_transactions',
+            filter: `tenant_id=eq.${tenantId}`,
           },
           () => {
             fetchMetrics();
