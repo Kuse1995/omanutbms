@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ShoppingCart, Plus, Loader2, CheckCircle, DollarSign, Package, Eye, Download, FileSpreadsheet, CalendarIcon, FileText, AlertCircle, Wrench, Truck, Settings, HardHat, Trash2, Receipt, Building2 } from "lucide-react";
+import { ShoppingCart, Plus, Loader2, CheckCircle, DollarSign, Package, Eye, Download, FileSpreadsheet, CalendarIcon, FileText, AlertCircle, Wrench, Truck, Settings, HardHat, Trash2, Receipt, Building2, Percent, Banknote } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -112,6 +112,11 @@ export function SalesRecorder() {
   const [notes, setNotes] = useState("");
   const [invoiceDueDate, setInvoiceDueDate] = useState<Date>(addDays(new Date(), 30));
   
+  // Discount & payment state
+  const [discountType, setDiscountType] = useState<"amount" | "percentage">("amount");
+  const [discountValue, setDiscountValue] = useState<number>(0);
+  const [amountPaid, setAmountPaid] = useState<number>(0);
+  
   // Modal state
   const [selectedSale, setSelectedSale] = useState<SaleTransaction | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -124,7 +129,11 @@ export function SalesRecorder() {
     customerEmail: string | null;
     customerPhone: string | null;
     items: CartItem[];
+    subtotal: number;
+    discountAmount: number;
     totalAmount: number;
+    amountPaid: number;
+    changeAmount: number;
     paymentMethod: string;
     paymentDate: string;
     litersImpact: number;
@@ -149,9 +158,18 @@ export function SalesRecorder() {
   const itemTotal = unitPrice * quantity;
   const estimatedImpact = isImpactEnabled && saleType === "product" ? Math.floor(itemTotal / 20) : 0;
 
-  // Cart totals
-  const cartTotal = cart.reduce((sum, item) => sum + item.totalPrice, 0);
+  // Cart totals with discount
+  const cartSubtotal = cart.reduce((sum, item) => sum + item.totalPrice, 0);
   const cartLiters = cart.reduce((sum, item) => sum + item.litersImpact, 0);
+  
+  // Calculate discount
+  const discountAmount = discountType === "percentage" 
+    ? Math.round((cartSubtotal * discountValue) / 100 * 100) / 100
+    : discountValue;
+  const cartTotal = Math.max(0, cartSubtotal - discountAmount);
+  
+  // Calculate change
+  const changeAmount = amountPaid > 0 ? Math.max(0, amountPaid - cartTotal) : 0;
 
   useEffect(() => {
     fetchData();
@@ -238,6 +256,9 @@ export function SalesRecorder() {
     setNotes("");
     setInvoiceDueDate(addDays(new Date(), 30));
     setSaleType("product");
+    setDiscountType("amount");
+    setDiscountValue(0);
+    setAmountPaid(0);
   };
 
   useEffect(() => {
@@ -585,7 +606,11 @@ export function SalesRecorder() {
           customerEmail: customerEmail.trim() || null,
           customerPhone: customerPhone.trim() || null,
           items: [...cart],
+          subtotal: cartSubtotal,
+          discountAmount,
           totalAmount: cartTotal,
+          amountPaid: 0,
+          changeAmount: 0,
           paymentMethod: "credit_invoice",
           paymentDate: new Date().toISOString(),
           litersImpact: cartLiters,
@@ -623,7 +648,11 @@ export function SalesRecorder() {
           customerEmail: customerEmail.trim() || null,
           customerPhone: customerPhone.trim() || null,
           items: [...cart],
+          subtotal: cartSubtotal,
+          discountAmount,
           totalAmount: cartTotal,
+          amountPaid: amountPaid > 0 ? amountPaid : cartTotal,
+          changeAmount,
           paymentMethod,
           paymentDate: new Date().toISOString(),
           litersImpact: cartLiters,
@@ -664,7 +693,11 @@ export function SalesRecorder() {
         selectedSize: sale.selected_size || undefined,
         litersImpact: sale.liters_impact,
       }],
+      subtotal: sale.total_amount_zmw,
+      discountAmount: 0,
       totalAmount: sale.total_amount_zmw,
+      amountPaid: sale.total_amount_zmw,
+      changeAmount: 0,
       paymentMethod: sale.payment_method || 'cash',
       paymentDate: sale.created_at,
       litersImpact: sale.liters_impact,
@@ -935,8 +968,14 @@ export function SalesRecorder() {
                 <div className="border-t pt-4 space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-[#004B8D]/60">Subtotal:</span>
-                    <span className="font-medium">K{cartTotal.toLocaleString()}</span>
+                    <span className="font-medium">K{cartSubtotal.toLocaleString()}</span>
                   </div>
+                  {discountAmount > 0 && (
+                    <div className="flex justify-between text-sm text-green-600">
+                      <span>Discount:</span>
+                      <span>-K{discountAmount.toLocaleString()}</span>
+                    </div>
+                  )}
                   {isImpactEnabled && (
                     <div className="flex justify-between text-sm">
                       <span className="text-[#004B8D]/60">{impact.unitLabel || 'Impact'}:</span>
@@ -1034,6 +1073,86 @@ export function SalesRecorder() {
               </div>
             </div>
 
+            {/* Discount Section */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-green-50/50 rounded-lg border border-green-200">
+              <div className="space-y-2">
+                <Label className="text-green-700 flex items-center gap-1">
+                  <Percent className="w-4 h-4" />
+                  Discount Type
+                </Label>
+                <Select value={discountType} onValueChange={(v) => setDiscountType(v as "amount" | "percentage")}>
+                  <SelectTrigger className="bg-white border-green-200">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white">
+                    <SelectItem value="amount">Fixed Amount (K)</SelectItem>
+                    <SelectItem value="percentage">Percentage (%)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-green-700">
+                  Discount {discountType === "percentage" ? "%" : "(ZMW)"}
+                </Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={discountType === "percentage" ? 100 : cartSubtotal}
+                  step={discountType === "percentage" ? 1 : 0.01}
+                  value={discountValue || ""}
+                  onChange={(e) => setDiscountValue(parseFloat(e.target.value) || 0)}
+                  placeholder="0"
+                  className="bg-white border-green-200 text-[#003366]"
+                />
+              </div>
+              <div className="flex flex-col justify-center">
+                {discountAmount > 0 && (
+                  <div className="text-green-700">
+                    <p className="text-sm">Discount Applied:</p>
+                    <p className="text-lg font-bold">-K{discountAmount.toLocaleString()}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Amount Paid & Change (for non-credit sales) */}
+            {paymentMethod !== "credit_invoice" && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-blue-50/50 rounded-lg border border-blue-200">
+                <div className="space-y-2">
+                  <Label className="text-blue-700 flex items-center gap-1">
+                    <Banknote className="w-4 h-4" />
+                    Amount Paid (ZMW)
+                  </Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={amountPaid || ""}
+                    onChange={(e) => setAmountPaid(parseFloat(e.target.value) || 0)}
+                    placeholder={cartTotal.toLocaleString()}
+                    className="bg-white border-blue-200 text-[#003366] text-lg font-medium"
+                  />
+                </div>
+                <div className="flex flex-col justify-center">
+                  <p className="text-sm text-blue-600">Total Due:</p>
+                  <p className="text-xl font-bold text-[#003366]">K{cartTotal.toLocaleString()}</p>
+                </div>
+                <div className="flex flex-col justify-center">
+                  {amountPaid > 0 && (
+                    <div className={changeAmount > 0 ? "text-green-700" : amountPaid < cartTotal ? "text-red-600" : "text-blue-700"}>
+                      <p className="text-sm">{amountPaid >= cartTotal ? "Change:" : "Balance Due:"}</p>
+                      <p className="text-xl font-bold">
+                        {amountPaid >= cartTotal 
+                          ? `K${changeAmount.toLocaleString()}`
+                          : `K${(cartTotal - amountPaid).toLocaleString()}`
+                        }
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Credit/Invoice fields */}
             {paymentMethod === "credit_invoice" && (
               <div className="space-y-4">
@@ -1083,10 +1202,18 @@ export function SalesRecorder() {
 
             {/* Checkout Summary & Button */}
             <div className="flex flex-col md:flex-row items-center justify-between gap-4 p-4 bg-gradient-to-r from-[#004B8D]/10 to-[#0077B6]/10 rounded-lg">
-              <div className="text-center md:text-left">
+              <div className="text-center md:text-left space-y-1">
+                {discountAmount > 0 && (
+                  <p className="text-xs text-green-600">
+                    Subtotal: K{cartSubtotal.toLocaleString()} | Discount: -K{discountAmount.toLocaleString()}
+                  </p>
+                )}
                 <p className="text-sm text-[#004B8D]/60">Total Amount</p>
                 <p className="text-2xl font-bold text-[#0077B6]">K{cartTotal.toLocaleString()}</p>
                 {isImpactEnabled && <p className="text-xs text-teal-600">{cartLiters.toLocaleString()} {impact.unitLabel || 'units'}</p>}
+                {paymentMethod !== "credit_invoice" && amountPaid > 0 && changeAmount > 0 && (
+                  <p className="text-sm font-medium text-green-600">Change: K{changeAmount.toLocaleString()}</p>
+                )}
               </div>
               <Button
                 onClick={handleCheckout}
@@ -1346,7 +1473,11 @@ export function SalesRecorder() {
             selected_color: item.selectedColor,
             selected_size: item.selectedSize,
           }))}
+          subtotal={receiptData.subtotal}
+          discountAmount={receiptData.discountAmount}
           totalAmount={receiptData.totalAmount}
+          amountPaid={receiptData.amountPaid}
+          changeAmount={receiptData.changeAmount}
           paymentMethod={receiptData.paymentMethod}
           paymentDate={receiptData.paymentDate}
           litersImpact={receiptData.litersImpact}
