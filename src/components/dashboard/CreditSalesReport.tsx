@@ -206,10 +206,13 @@ export function CreditSalesReport() {
 
     setIsMarkingPaid(true);
     try {
-      // Update invoice status to paid
+      // Update invoice status and paid_amount together
       const { error: invoiceError } = await supabase
         .from("invoices")
-        .update({ status: "paid" })
+        .update({ 
+          status: "paid",
+          paid_amount: selectedSale.invoice.total_amount 
+        })
         .eq("id", selectedSale.invoice.id);
 
       if (invoiceError) throw invoiceError;

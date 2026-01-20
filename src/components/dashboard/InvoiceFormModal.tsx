@@ -39,6 +39,7 @@ interface Invoice {
   tax_rate: number | null;
   tax_amount: number | null;
   total_amount: number;
+  paid_amount: number | null;
   notes: string | null;
 }
 
@@ -209,6 +210,8 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
         total_amount: totalAmount,
         notes: notes.trim() || null,
         created_by: user?.id || null,
+        // Sync paid_amount with status: if "paid", set to total; otherwise preserve existing or 0
+        paid_amount: status === "paid" ? totalAmount : (invoice?.paid_amount || 0),
       };
 
       let invoiceId: string;
