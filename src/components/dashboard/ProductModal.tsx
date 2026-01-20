@@ -47,6 +47,9 @@ interface ProductModalProps {
     datasheet_url?: string | null;
     manual_url?: string | null;
     technical_specs?: TechnicalSpec[] | null;
+    has_expiry?: boolean | null;
+    expiry_date?: string | null;
+    batch_number?: string | null;
   } | null;
   onSuccess: () => void;
 }
@@ -102,6 +105,9 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
     certifications: [] as string[],
     datasheet_url: "",
     manual_url: "",
+    has_expiry: false,
+    expiry_date: "",
+    batch_number: "",
   });
   const [recordCostAsExpense, setRecordCostAsExpense] = useState(false);
   
@@ -126,6 +132,9 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
         certifications: product.certifications || [],
         datasheet_url: product.datasheet_url || "",
         manual_url: product.manual_url || "",
+        has_expiry: product.has_expiry || false,
+        expiry_date: product.expiry_date || "",
+        batch_number: product.batch_number || "",
       });
       setImagePreview(product.image_url || null);
       setRecordCostAsExpense(false);
@@ -152,6 +161,9 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
         certifications: [],
         datasheet_url: "",
         manual_url: "",
+        has_expiry: false,
+        expiry_date: "",
+        batch_number: "",
       });
       setImagePreview(null);
       setRecordCostAsExpense(false);
@@ -636,6 +648,9 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
         technical_specs: validSpecs.length > 0 ? (validSpecs as unknown as Json) : null,
         tenant_id: tenantId,
         item_type: itemType,
+        has_expiry: formData.has_expiry,
+        expiry_date: formData.has_expiry && formData.expiry_date ? formData.expiry_date : null,
+        batch_number: formData.batch_number.trim() || null,
       };
 
       if (product) {
@@ -1198,6 +1213,49 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
                 />
               </div>
               <div />
+            </div>
+          )}
+
+          {/* Expiry Tracking Section */}
+          {!formFields.hideStock && (
+            <div className="space-y-3 p-4 bg-amber-50/50 rounded-lg border border-amber-200/50">
+              <div className="flex items-center gap-3">
+                <Checkbox
+                  id="has_expiry"
+                  checked={formData.has_expiry}
+                  onCheckedChange={(checked) => setFormData({ ...formData, has_expiry: checked === true })}
+                  className="border-[#004B8D]/30 data-[state=checked]:bg-[#0077B6]"
+                />
+                <Label htmlFor="has_expiry" className="text-[#003366] font-medium cursor-pointer">
+                  This product has an expiry date
+                </Label>
+              </div>
+              
+              {formData.has_expiry && (
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="expiry_date" className="text-[#003366]">Expiry Date</Label>
+                    <Input
+                      id="expiry_date"
+                      type="date"
+                      value={formData.expiry_date}
+                      onChange={(e) => setFormData({ ...formData, expiry_date: e.target.value })}
+                      className="bg-white border-[#004B8D]/20 text-[#003366]"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="batch_number" className="text-[#003366]">Batch Number</Label>
+                    <Input
+                      id="batch_number"
+                      type="text"
+                      value={formData.batch_number}
+                      onChange={(e) => setFormData({ ...formData, batch_number: e.target.value })}
+                      placeholder="e.g., LOT-2025-001"
+                      className="bg-white border-[#004B8D]/20 text-[#003366]"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
