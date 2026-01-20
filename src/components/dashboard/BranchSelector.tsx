@@ -19,6 +19,7 @@ export const BranchSelector: React.FC = () => {
     setCurrentBranch,
     isMultiBranchEnabled,
     canAccessAllBranches,
+    userBranchId,
     loading,
   } = useBranch();
 
@@ -26,12 +27,23 @@ export const BranchSelector: React.FC = () => {
     return null;
   }
 
-  // If user can only access one branch, just show it as a label
-  if (!canAccessAllBranches && branches.length === 1) {
+  // Filter branches for non-admin users to only show their assigned branch
+  const accessibleBranches = canAccessAllBranches 
+    ? branches 
+    : branches.filter(b => b.id === userBranchId);
+
+  // If user can only access one branch, just show it as a label (no dropdown)
+  if (!canAccessAllBranches && accessibleBranches.length <= 1) {
+    const userBranch = accessibleBranches[0];
+    if (!userBranch) return null;
+    
     return (
       <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-md">
         <Building2 className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm font-medium">{branches[0].name}</span>
+        <span className="text-sm font-medium">{userBranch.name}</span>
+        {userBranch.is_headquarters && (
+          <Badge variant="outline" className="text-xs">HQ</Badge>
+        )}
       </div>
     );
   }
@@ -75,7 +87,7 @@ export const BranchSelector: React.FC = () => {
             <DropdownMenuSeparator />
           </>
         )}
-        {branches.map((branch) => (
+        {accessibleBranches.map((branch) => (
           <DropdownMenuItem
             key={branch.id}
             onClick={() => setCurrentBranch(branch)}
