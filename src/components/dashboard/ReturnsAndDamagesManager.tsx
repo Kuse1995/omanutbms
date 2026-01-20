@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -20,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { RotateCcw, PackageX, Loader2, RefreshCw, Check, X, Calendar, AlertTriangle } from "lucide-react";
+import { RotateCcw, PackageX, Loader2, RefreshCw, Check, X, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/hooks/useTenant";
 import { useFeatures } from "@/hooks/useFeatures";
@@ -60,9 +59,10 @@ export function ReturnsAndDamagesManager() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const { toast } = useToast();
   const { tenantId } = useTenant();
-  const { currencySymbol, terminology } = useFeatures();
+  const { currencySymbol } = useFeatures();
   const { isAdmin, user } = useAuth();
   const canApprove = isAdmin;
+
   const fetchAdjustments = async () => {
     if (!tenantId) return;
 
@@ -107,7 +107,6 @@ export function ReturnsAndDamagesManager() {
     }
   }, [tenantId, typeFilter, statusFilter]);
 
-  // Real-time subscription
   useEffect(() => {
     if (!tenantId) return;
 
@@ -137,7 +136,6 @@ export function ReturnsAndDamagesManager() {
 
   const handleApprove = async (adjustment: InventoryAdjustment) => {
     try {
-      // Update adjustment status
       const { error: updateError } = await supabase
         .from("inventory_adjustments")
         .update({
@@ -145,12 +143,9 @@ export function ReturnsAndDamagesManager() {
           approved_by: user?.id || null,
         })
         .eq("id", adjustment.id);
-        })
-        .eq("id", adjustment.id);
 
       if (updateError) throw updateError;
 
-      // If return to stock, increase inventory
       if (adjustment.return_to_stock && adjustment.adjustment_type === "return") {
         const { data: currentItem } = await supabase
           .from("inventory")
@@ -165,18 +160,7 @@ export function ReturnsAndDamagesManager() {
             .eq("id", adjustment.inventory_id);
         }
       }
-            .single();
 
-          if (currentItem) {
-            await supabase
-              .from("inventory")
-              .update({ current_stock: currentItem.current_stock + adjustment.quantity })
-              .eq("id", adjustment.inventory_id);
-          }
-        }
-      }
-
-      // For damages/losses, decrease stock if not already done
       if (["damage", "loss", "expired"].includes(adjustment.adjustment_type)) {
         const { data: currentItem } = await supabase
           .from("inventory")
@@ -216,8 +200,6 @@ export function ReturnsAndDamagesManager() {
         .update({
           status: "rejected",
           approved_by: user?.id || null,
-        })
-        .eq("id", adjustmentId);
         })
         .eq("id", adjustmentId);
 
@@ -280,7 +262,6 @@ export function ReturnsAndDamagesManager() {
       transition={{ duration: 0.5 }}
       className="space-y-6"
     >
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-display font-bold text-[#003366] flex items-center gap-2">
@@ -319,10 +300,8 @@ export function ReturnsAndDamagesManager() {
         </div>
       </div>
 
-      {/* Expiry Alerts */}
       <ExpiryAlertsCard />
 
-      {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="bg-white border-[#004B8D]/10">
           <CardContent className="pt-6">
@@ -370,7 +349,6 @@ export function ReturnsAndDamagesManager() {
         </Card>
       </div>
 
-      {/* Filters */}
       <div className="flex gap-4">
         <Select value={typeFilter} onValueChange={setTypeFilter}>
           <SelectTrigger className="w-48">
@@ -398,7 +376,6 @@ export function ReturnsAndDamagesManager() {
         </Select>
       </div>
 
-      {/* Adjustments Table */}
       <Card className="bg-white border-[#004B8D]/10">
         <CardHeader>
           <CardTitle className="text-[#003366]">Adjustment History</CardTitle>
@@ -491,7 +468,6 @@ export function ReturnsAndDamagesManager() {
         </CardContent>
       </Card>
 
-      {/* Modals */}
       <ReturnModal
         open={isReturnModalOpen}
         onOpenChange={setIsReturnModalOpen}

@@ -62,7 +62,6 @@ export function DamageModal({ open, onOpenChange, onSuccess }: DamageModalProps)
   const { tenantId } = useTenant();
   const { user } = useAuth();
 
-  // Fetch products for combobox
   useEffect(() => {
     const fetchProducts = async () => {
       if (!tenantId) return;
@@ -94,9 +93,6 @@ export function DamageModal({ open, onOpenChange, onSuccess }: DamageModalProps)
       setDamageType("damage");
       setQuantity(1);
       setReason("");
-      setNotes("");
-    }
-  }, [open]);
       setNotes("");
     }
   }, [open]);
@@ -157,11 +153,6 @@ export function DamageModal({ open, onOpenChange, onSuccess }: DamageModalProps)
         notes: notes.trim() || null,
         return_to_stock: false,
         processed_by: user?.id || null,
-        status: "pending",
-      });
-        notes: notes.trim() || null,
-        return_to_stock: false,
-        processed_by: userId,
         status: "pending",
       });
 
