@@ -1046,14 +1046,14 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
               <div className="space-y-2">
                 <Label className="text-[#004B8D]/70 text-sm">Storage Location</Label>
                 <Select
-                  value={formData.default_location_id}
-                  onValueChange={(value) => setFormData({ ...formData, default_location_id: value })}
+                  value={formData.default_location_id || "none"}
+                  onValueChange={(value) => setFormData({ ...formData, default_location_id: value === "none" ? "" : value })}
                 >
                   <SelectTrigger className="bg-white border-[#004B8D]/20 text-[#003366]">
                     <SelectValue placeholder="Select location" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No default location</SelectItem>
+                    <SelectItem value="none">No default location</SelectItem>
                     {locations.map((loc) => (
                       <SelectItem key={loc.id} value={loc.id}>
                         {loc.type === 'Warehouse' ? '🏭' : loc.type === 'Store' ? '🏪' : '🔧'} {loc.name}
