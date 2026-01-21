@@ -50,9 +50,15 @@ interface ProductModalProps {
     has_expiry?: boolean | null;
     expiry_date?: string | null;
     batch_number?: string | null;
+    // Fashion fields
+    brand?: string | null;
+    material?: string | null;
+    gender?: string | null;
+    collection_id?: string | null;
   } | null;
   onSuccess: () => void;
 }
+
 
 export function ProductModal({ open, onOpenChange, product, onSuccess }: ProductModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -108,10 +114,34 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
     has_expiry: false,
     expiry_date: "",
     batch_number: "",
+    // Fashion fields
+    brand: "",
+    material: "",
+    gender: "",
+    collection_id: "",
   });
+  const [collections, setCollections] = useState<Array<{ id: string; name: string }>>([]);
   const [recordCostAsExpense, setRecordCostAsExpense] = useState(false);
   
   const [technicalSpecs, setTechnicalSpecs] = useState<TechnicalSpec[]>(formFields.defaultSpecs);
+
+  // Fetch collections for fashion business types
+  useEffect(() => {
+    const fetchCollections = async () => {
+      if (!tenantId || !config.inventory.showCollections) return;
+      
+      const { data } = await supabase
+        .from("collections")
+        .select("id, name")
+        .eq("tenant_id", tenantId)
+        .eq("is_active", true)
+        .order("name");
+      
+      if (data) setCollections(data);
+    };
+    
+    if (open) fetchCollections();
+  }, [open, tenantId, config.inventory.showCollections]);
 
   useEffect(() => {
     if (product) {
@@ -135,6 +165,11 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
         has_expiry: product.has_expiry || false,
         expiry_date: product.expiry_date || "",
         batch_number: product.batch_number || "",
+        // Fashion fields
+        brand: product.brand || "",
+        material: product.material || "",
+        gender: product.gender || "",
+        collection_id: product.collection_id || "",
       });
       setImagePreview(product.image_url || null);
       setRecordCostAsExpense(false);
@@ -164,6 +199,11 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
         has_expiry: false,
         expiry_date: "",
         batch_number: "",
+        // Fashion fields
+        brand: "",
+        material: "",
+        gender: "",
+        collection_id: "",
       });
       setImagePreview(null);
       setRecordCostAsExpense(false);
@@ -654,7 +694,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
       const isServiceItem = serviceCategories.includes(formData.category) || formFields.hideStock;
       const itemType = isServiceItem ? 'service' : 'product';
 
-      const productData = {
+      const productData: Record<string, any> = {
         sku: formData.sku.trim(),
         name: formData.name.trim(),
         current_stock: isServiceItem ? 9999 : formData.current_stock,
@@ -679,10 +719,18 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
         batch_number: formData.batch_number.trim() || null,
       };
 
+      // Add fashion fields if enabled for this business type
+      if (config.inventory.showFashionFields) {
+        productData.brand = formData.brand.trim() || null;
+        productData.material = formData.material || null;
+        productData.gender = formData.gender || null;
+        productData.collection_id = formData.collection_id || null;
+      }
+
       if (product) {
         const { error } = await supabase
           .from("inventory")
-          .update(productData)
+          .update(productData as any)
           .eq("id", product.id);
 
         if (error) throw error;
@@ -694,7 +742,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
       } else {
         const { error } = await supabase
           .from("inventory")
-          .insert(productData);
+          .insert(productData as any);
 
         if (error) throw error;
 
@@ -960,6 +1008,85 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
               />
             </div>
           </div>
+
+          {/* Fashion-specific fields */}
+          {config.inventory.showFashionFields && (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="brand" className="text-[#003366]">Brand</Label>
+                  <Input
+                    id="brand"
+                    value={formData.brand}
+                    onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                    placeholder="e.g., Zara, H&M, Nike"
+                    className="bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366]"
+                    maxLength={100}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="gender" className="text-[#003366]">Gender</Label>
+                  <Select
+                    value={formData.gender}
+                    onValueChange={(value) => setFormData({ ...formData, gender: value })}
+                  >
+                    <SelectTrigger className="bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366]">
+                      <SelectValue placeholder="Select gender" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Any</SelectItem>
+                      {formFields.genders?.map((g) => (
+                        <SelectItem key={g.value} value={g.value}>
+                          {g.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="material" className="text-[#003366]">Material</Label>
+                  <Select
+                    value={formData.material}
+                    onValueChange={(value) => setFormData({ ...formData, material: value })}
+                  >
+                    <SelectTrigger className="bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366]">
+                      <SelectValue placeholder="Select material" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Not specified</SelectItem>
+                      {formFields.materials?.map((m) => (
+                        <SelectItem key={m.value} value={m.value}>
+                          {m.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="collection" className="text-[#003366]">Collection</Label>
+                  <Select
+                    value={formData.collection_id}
+                    onValueChange={(value) => setFormData({ ...formData, collection_id: value })}
+                  >
+                    <SelectTrigger className="bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366]">
+                      <SelectValue placeholder="Select collection" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">No collection</SelectItem>
+                      {collections.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="description" className="text-[#003366]">Description</Label>

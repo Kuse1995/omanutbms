@@ -3,12 +3,14 @@
 
 import type { DashboardTab } from '@/pages/Dashboard';
 
-export type BusinessType = 'distribution' | 'retail' | 'school' | 'ngo' | 'services' | 'agriculture' | 'hospitality' | 'salon' | 'healthcare' | 'autoshop' | 'hybrid';
+export type BusinessType = 'distribution' | 'retail' | 'school' | 'ngo' | 'services' | 'agriculture' | 'hospitality' | 'salon' | 'healthcare' | 'autoshop' | 'hybrid' | 'fashion';
 
 export interface InventoryConfig {
   enabled: boolean;
   seedProfile?: 'water_filtration' | 'generic' | 'services';
   allowVariants?: boolean;
+  showCollections?: boolean;
+  showFashionFields?: boolean;
 }
 
 export interface TerminologyConfig {
@@ -55,6 +57,9 @@ export interface FormFieldConfig {
     label: string;
     placeholder?: string;
   };
+  // Fashion-specific field options
+  materials?: Array<{ value: string; label: string }>;
+  genders?: Array<{ value: string; label: string }>;
 }
 
 // Quick Action configuration
@@ -965,6 +970,116 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       ],
       welcomeMessage: 'Manage your products, services, and customer transactions',
       dashboardIcon: 'Layers',
+    },
+  },
+
+  fashion: {
+    label: 'Fashion & Boutique',
+    description: 'Clothing stores, boutiques, fashion retail',
+    inventory: {
+      enabled: true,
+      seedProfile: 'generic',
+      allowVariants: true,
+      showCollections: true,
+      showFashionFields: true,
+    },
+    terminology: {
+      product: 'Product',
+      products: 'Products',
+      customer: 'Customer',
+      customers: 'Customers',
+      customerId: 'Customer ID',
+      sale: 'Sale',
+      sales: 'Sales',
+      revenue: 'Revenue',
+      invoice: 'Invoice',
+      invoices: 'Invoices',
+      inventory: 'Inventory',
+      community: 'Community',
+      communities: 'Communities',
+      defaultItemType: 'product',
+      isServiceBased: false,
+    },
+    impact: {
+      enabled: false,
+    },
+    formFields: {
+      skuPlaceholder: 'e.g., DRESS-001',
+      namePlaceholder: 'e.g., Floral Maxi Dress',
+      highlightPlaceholder: 'e.g., New Arrival',
+      descriptionPlaceholder: 'Describe the style, fit, and occasion...',
+      featuresPlaceholder: 'Premium fabric\nTrue to size\nMachine washable',
+      categories: [
+        { value: 'clothing', label: 'Clothing' },
+        { value: 'dresses', label: 'Dresses' },
+        { value: 'tops', label: 'Tops & Blouses' },
+        { value: 'bottoms', label: 'Pants & Skirts' },
+        { value: 'outerwear', label: 'Outerwear' },
+        { value: 'accessories', label: 'Accessories' },
+        { value: 'footwear', label: 'Footwear' },
+        { value: 'bags', label: 'Bags & Purses' },
+        { value: 'jewelry', label: 'Jewelry' },
+        { value: 'swimwear', label: 'Swimwear' },
+        { value: 'activewear', label: 'Activewear' },
+        { value: 'lingerie', label: 'Lingerie' },
+      ],
+      certificationsLabel: 'Labels & Certifications',
+      certifications: [
+        { value: 'sustainable', label: 'Sustainable' },
+        { value: 'organic', label: 'Organic' },
+        { value: 'fair-trade', label: 'Fair Trade' },
+        { value: 'vegan', label: 'Vegan' },
+        { value: 'handmade', label: 'Handmade' },
+        { value: 'designer', label: 'Designer' },
+      ],
+      defaultSpecs: [
+        { label: 'Material', value: '' },
+        { label: 'Care Instructions', value: '' },
+        { label: 'Fit', value: '' },
+        { label: 'Origin', value: '' },
+      ],
+      impactUnitsField: { enabled: false, label: 'Impact Units' },
+      materials: [
+        { value: 'cotton', label: 'Cotton' },
+        { value: 'silk', label: 'Silk' },
+        { value: 'polyester', label: 'Polyester' },
+        { value: 'denim', label: 'Denim' },
+        { value: 'leather', label: 'Leather' },
+        { value: 'wool', label: 'Wool' },
+        { value: 'linen', label: 'Linen' },
+        { value: 'cashmere', label: 'Cashmere' },
+        { value: 'velvet', label: 'Velvet' },
+        { value: 'chiffon', label: 'Chiffon' },
+        { value: 'satin', label: 'Satin' },
+        { value: 'nylon', label: 'Nylon' },
+        { value: 'spandex', label: 'Spandex' },
+        { value: 'mixed', label: 'Mixed Fabric' },
+        { value: 'other', label: 'Other' },
+      ],
+      genders: [
+        { value: 'Women', label: 'Women' },
+        { value: 'Men', label: 'Men' },
+        { value: 'Unisex', label: 'Unisex' },
+        { value: 'Kids', label: 'Kids' },
+      ],
+    },
+    layout: {
+      defaultTab: 'sales',
+      tabOrder: ['dashboard', 'sales', 'receipts', 'inventory', 'shop', 'accounts', 'hr', 'contacts', 'website'],
+      hiddenTabs: ['agents', 'communities', 'messages'],
+      quickActions: [
+        { id: 'new-sale', label: 'New Sale', icon: 'ShoppingBag', targetTab: 'sales', highlight: true },
+        { id: 'manage-inventory', label: 'Browse Collection', icon: 'Shirt', targetTab: 'inventory' },
+        { id: 'view-receipts', label: 'View Receipts', icon: 'Receipt', targetTab: 'receipts' },
+      ],
+      kpiCards: [
+        { id: 'today-sales', title: "Today's Sales", metric: 'today_sales', icon: 'DollarSign', color: 'text-emerald-600', bgColor: 'bg-emerald-500/10' },
+        { id: 'inventory-value', title: 'Inventory Value', metric: 'inventory_value', icon: 'ShoppingBag', color: 'text-[#004B8D]', bgColor: 'bg-[#004B8D]/10' },
+        { id: 'pending-invoices', title: 'Pending Invoices', metric: 'pending_invoices', icon: 'FileText', color: 'text-[#0077B6]', bgColor: 'bg-[#0077B6]/10' },
+        { id: 'low-stock', title: 'Low Stock Alerts', metric: 'low_stock', icon: 'AlertTriangle', color: 'text-amber-600', bgColor: 'bg-amber-500/10' },
+      ],
+      welcomeMessage: 'Manage your fashion collections and inventory',
+      dashboardIcon: 'Shirt',
     },
   },
 };
