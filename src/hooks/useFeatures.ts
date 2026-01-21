@@ -36,6 +36,7 @@ export function useFeatures(): UseFeaturesReturn {
       website: isFeatureAllowed('website') && profileConfig.website,
       advanced_accounting: isFeatureAllowed('advanced_accounting') && profileConfig.advanced_accounting,
       whatsapp: isFeatureAllowed('whatsapp') && profileConfig.whatsapp,
+      warehouse: isFeatureAllowed('warehouse') && profileConfig.warehouse,
     };
   };
 
@@ -61,6 +62,9 @@ export function useFeatures(): UseFeaturesReturn {
       messages: 'impact',
       website: 'website',
       contacts: 'website',
+      warehouse: 'warehouse',
+      'stock-transfers': 'warehouse',
+      locations: 'warehouse',
     };
     
     const requiredFeature = featureMap[tabId];

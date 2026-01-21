@@ -29,6 +29,7 @@ interface PlanConfigOverride {
   feature_advanced_accounting: boolean | null;
   feature_website: boolean | null;
   feature_whatsapp: boolean | null;
+  feature_warehouse: boolean | null;
   highlights: string[] | null;
   is_popular: boolean | null;
 }
@@ -77,6 +78,7 @@ function mergePlanConfig(plan: BillingPlan, override: PlanConfigOverride | null)
       advanced_accounting: override.feature_advanced_accounting ?? defaults.features.advanced_accounting,
       website: override.feature_website ?? defaults.features.website,
       whatsapp: override.feature_whatsapp ?? defaults.features.whatsapp,
+      warehouse: override.feature_warehouse ?? defaults.features.warehouse,
     },
     highlights: override.highlights ?? defaults.highlights,
   };
