@@ -2,7 +2,7 @@ import {
   Package, DollarSign, LayoutDashboard, Settings, HelpCircle, Users, Shield, 
   MessageSquare, Globe, ShoppingCart, Store, Heart, Receipt, Mail, Building2, 
   Layers, Crown, LogOut, Truck, GraduationCap, Briefcase, GitBranch, RotateCcw, 
-  Scissors, UserCircle, Shirt, Warehouse, ArrowLeftRight, MapPin, type LucideIcon 
+  Scissors, UserCircle, Shirt, Warehouse, ArrowLeftRight, MapPin, Factory, type LucideIcon 
 } from "lucide-react";
 import {
   Sidebar,
@@ -68,6 +68,7 @@ const iconMap: Record<string, LucideIcon> = {
   Warehouse,
   ArrowLeftRight,
   MapPin,
+  Factory,
 };
 
 const adminItems: { id: DashboardTab; title: string; icon: LucideIcon; requiresMultiBranch?: boolean }[] = [
@@ -97,6 +98,7 @@ const baseMenuItems: MenuItem[] = [
   { id: "messages", title: "Community Messages", icon: MessageSquare, feature: 'impact' },
   { id: "contacts", title: "Website Contacts", icon: Mail, feature: 'website' },
   { id: "website", title: "Website", icon: Globe, feature: 'website' },
+  { id: "production-floor", title: "Production Floor", icon: Factory, feature: 'inventory' },
 ];
 
 export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarProps) {

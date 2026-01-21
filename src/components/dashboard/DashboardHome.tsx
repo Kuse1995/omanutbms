@@ -6,15 +6,17 @@ import {
   Package, DollarSign, Users, AlertTriangle, TrendingUp, Droplets, 
   ShoppingCart, Receipt, FileText, Heart, CreditCard, Clock, 
   GraduationCap, Briefcase, Truck, Wheat, UtensilsCrossed, Scissors,
-  Stethoscope, Wrench, Calendar, Pill, Store, type LucideIcon 
+  Stethoscope, Wrench, Calendar, Pill, Store, Sparkles, type LucideIcon 
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useFeatures } from "@/hooks/useFeatures";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 import { useTenant } from "@/hooks/useTenant";
+import { useEnterpriseFeatures } from "@/hooks/useEnterpriseFeatures";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ExpiryAlertsCard } from "@/components/dashboard/ExpiryAlertsCard";
 import { VariantLowStockAlerts } from "@/components/dashboard/VariantLowStockAlerts";
+import { CustomDesignWizard } from "@/components/dashboard/CustomDesignWizard";
 import type { DashboardTab } from "@/pages/Dashboard";
 
 interface DashboardHomeProps {
@@ -65,9 +67,11 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
     livestockCount: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [showCustomDesignWizard, setShowCustomDesignWizard] = useState(false);
   const { features, loading: featuresLoading, companyName, currencySymbol } = useFeatures();
   const { layout, terminology, businessType } = useBusinessConfig();
   const { tenantId } = useTenant();
+  const { isCustomDesignerEnabled, isProductionTrackingEnabled } = useEnterpriseFeatures();
 
   const fetchMetrics = async () => {
     if (!tenantId) {
@@ -384,7 +388,25 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex flex-wrap gap-2">
+              {/* Enterprise Custom Designer Button - Gold themed */}
+              {isCustomDesignerEnabled && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => setShowCustomDesignWizard(true)}
+                  className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-md"
+                >
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  New Custom Order
+                </Button>
+              )}
+              
               {quickActions.map((action) => {
+                // Hide standard "New Sale" if custom designer is enabled
+                if (isCustomDesignerEnabled && action.id === 'new-sale') {
+                  return null;
+                }
+                
                 const ActionIcon = iconMap[action.icon] || Package;
                 return (
                   <Button
@@ -438,6 +460,12 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
           </Card>
         )}
       </div>
+      
+      {/* Custom Design Wizard Modal */}
+      <CustomDesignWizard 
+        open={showCustomDesignWizard} 
+        onClose={() => setShowCustomDesignWizard(false)} 
+      />
     </motion.div>
   );
 }

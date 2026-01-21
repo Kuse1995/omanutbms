@@ -27,6 +27,7 @@ import { CustomOrdersManager } from "@/components/dashboard/CustomOrdersManager"
 import { LocationsManager } from "@/components/dashboard/LocationsManager";
 import { StockTransfersManager } from "@/components/dashboard/StockTransfersManager";
 import { WarehouseView } from "@/components/dashboard/WarehouseView";
+import { ProductionFloor } from "@/components/dashboard/ProductionFloor";
 import { useOnboardingTour } from "@/hooks/useOnboardingTour";
 import { useFeatures } from "@/hooks/useFeatures";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
@@ -34,7 +35,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { BranchProvider } from "@/hooks/useBranch";
 
-export type DashboardTab = "dashboard" | "sales" | "receipts" | "accounts" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings" | "tenant-settings" | "modules" | "platform-admin" | "branches" | "returns" | "customers" | "custom-orders" | "warehouse" | "stock-transfers" | "locations";
+export type DashboardTab = "dashboard" | "sales" | "receipts" | "accounts" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings" | "tenant-settings" | "modules" | "platform-admin" | "branches" | "returns" | "customers" | "custom-orders" | "warehouse" | "stock-transfers" | "locations" | "production-floor";
 
 const Dashboard = () => {
   const { layout, loading: configLoading } = useBusinessConfig();
@@ -144,6 +145,8 @@ const Dashboard = () => {
         return <StockTransfersManager />;
       case "locations":
         return <LocationsManager />;
+      case "production-floor":
+        return <ProductionFloor />;
       default:
         return <DashboardHome />;
     }
