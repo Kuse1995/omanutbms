@@ -14,6 +14,7 @@ import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 import { useTenant } from "@/hooks/useTenant";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ExpiryAlertsCard } from "@/components/dashboard/ExpiryAlertsCard";
+import { VariantLowStockAlerts } from "@/components/dashboard/VariantLowStockAlerts";
 import type { DashboardTab } from "@/pages/Dashboard";
 
 interface DashboardHomeProps {
@@ -368,6 +369,9 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
 
       {/* Expiry Alerts for inventory-enabled tenants */}
       {features.inventory && <ExpiryAlertsCard />}
+
+      {/* Variant Low Stock Alerts for fashion businesses */}
+      <VariantLowStockAlerts />
 
       {/* Quick Actions & Info Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
