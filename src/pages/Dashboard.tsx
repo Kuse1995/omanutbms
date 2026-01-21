@@ -22,6 +22,8 @@ import { SuperAdminPanel } from "@/components/dashboard/SuperAdminPanel";
 import { OnboardingTour } from "@/components/dashboard/OnboardingTour";
 import { BranchesManager } from "@/components/dashboard/BranchesManager";
 import { ReturnsAndDamagesManager } from "@/components/dashboard/ReturnsAndDamagesManager";
+import { CustomersManager } from "@/components/dashboard/CustomersManager";
+import { CustomOrdersManager } from "@/components/dashboard/CustomOrdersManager";
 import { useOnboardingTour } from "@/hooks/useOnboardingTour";
 import { useFeatures } from "@/hooks/useFeatures";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
@@ -29,7 +31,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { BranchProvider } from "@/hooks/useBranch";
 
-export type DashboardTab = "dashboard" | "sales" | "receipts" | "accounts" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings" | "tenant-settings" | "modules" | "platform-admin" | "branches" | "returns";
+export type DashboardTab = "dashboard" | "sales" | "receipts" | "accounts" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings" | "tenant-settings" | "modules" | "platform-admin" | "branches" | "returns" | "customers" | "custom-orders";
 
 const Dashboard = () => {
   const { layout, loading: configLoading } = useBusinessConfig();
@@ -129,6 +131,10 @@ const Dashboard = () => {
         return <BranchesManager />;
       case "returns":
         return <ReturnsAndDamagesManager />;
+      case "customers":
+        return <CustomersManager />;
+      case "custom-orders":
+        return <CustomOrdersManager />;
       default:
         return <DashboardHome />;
     }

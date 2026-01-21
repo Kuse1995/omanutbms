@@ -1065,12 +1065,12 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
     },
     layout: {
       defaultTab: 'sales',
-      tabOrder: ['dashboard', 'sales', 'receipts', 'inventory', 'shop', 'accounts', 'hr', 'contacts', 'website'],
+      tabOrder: ['dashboard', 'sales', 'receipts', 'custom-orders', 'customers', 'inventory', 'shop', 'accounts', 'hr', 'contacts', 'website'],
       hiddenTabs: ['agents', 'communities', 'messages'],
       quickActions: [
         { id: 'new-sale', label: 'New Sale', icon: 'ShoppingBag', targetTab: 'sales', highlight: true },
+        { id: 'custom-orders', label: 'Custom Orders', icon: 'Scissors', targetTab: 'custom-orders' },
         { id: 'manage-inventory', label: 'Browse Collection', icon: 'Shirt', targetTab: 'inventory' },
-        { id: 'view-receipts', label: 'View Receipts', icon: 'Receipt', targetTab: 'receipts' },
       ],
       kpiCards: [
         { id: 'today-sales', title: "Today's Sales", metric: 'today_sales', icon: 'DollarSign', color: 'text-emerald-600', bgColor: 'bg-emerald-500/10' },
