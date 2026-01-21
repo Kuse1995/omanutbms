@@ -312,9 +312,9 @@ export function UsageAnalyticsDashboard() {
             <Building2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{aggregatedStats?.activeTenantsWithActivity || 0}</div>
+            <div className="text-2xl font-bold">{aggregatedStats?.activeTenants || 0}</div>
             <p className="text-xs text-muted-foreground">
-              of {aggregatedStats?.activeTenants || 0} registered ({aggregatedStats?.activeTenants ? Math.round((aggregatedStats.activeTenantsWithActivity / aggregatedStats.activeTenants) * 100) : 0}% with activity)
+              {aggregatedStats?.activeTenantsWithActivity || 0} with activity in period ({aggregatedStats?.activeTenants ? Math.round((aggregatedStats.activeTenantsWithActivity / aggregatedStats.activeTenants) * 100) : 0}%)
             </p>
           </CardContent>
         </Card>
