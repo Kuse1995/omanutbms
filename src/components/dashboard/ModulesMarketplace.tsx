@@ -6,12 +6,12 @@ import { allModules, ModuleDefinition } from "@/lib/modules-config";
 import { 
   Check, Lock, Mail, Sparkles, Package, LayoutDashboard, ShoppingCart, 
   Receipt, Calculator, Users, Shield, Settings, Store, Briefcase, 
-  BookOpen, Heart, Globe 
+  BookOpen, Heart, Globe, Warehouse 
 } from "lucide-react";
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Package, LayoutDashboard, ShoppingCart, Receipt, Calculator, 
-  Users, Shield, Settings, Store, Briefcase, BookOpen, Heart, Globe,
+  Users, Shield, Settings, Store, Briefcase, BookOpen, Heart, Globe, Warehouse,
 };
 
 function getIconComponent(iconName: string) {

@@ -226,6 +226,23 @@ export const addonModules: ModuleDefinition[] = [
       description: 'Manage website content, blog posts, and announcements',
     },
   },
+  {
+    moduleKey: 'warehouse',
+    displayName: 'Warehouse Management',
+    description: 'Multi-location inventory with stock transfers and manager approvals',
+    category: 'addon',
+    requiredFeatures: ['warehouse'],
+    icon: 'Warehouse',
+    defaultEnabled: false,
+    pricingTier: 'professional',
+    coreIncluded: false,
+    futurePayment: true,
+    pricing: {
+      tier: 'growth',
+      monthlyPriceZMW: 300,
+      description: 'Stock transfers, location management, and smart restock suggestions',
+    },
+  },
 ];
 
 /**

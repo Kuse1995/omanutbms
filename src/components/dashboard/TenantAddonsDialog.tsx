@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Package, Loader2, MessageCircle, Building2, DollarSign, Info } from "lucide-react";
+import { Package, Loader2, MessageCircle, Building2, DollarSign, Info, Warehouse } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface TenantAddonsDialogProps {
@@ -54,6 +54,7 @@ const iconMap: Record<string, typeof Package> = {
   Package,
   MessageCircle,
   Building2,
+  Warehouse,
 };
 
 export function TenantAddonsDialog({ 
@@ -165,6 +166,24 @@ export function TenantAddonsDialog({
       
       if (error) {
         console.error("Error updating multi_branch_enabled:", error);
+        toast({
+          title: "Warning",
+          description: "Add-on toggled but feature flag sync failed. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    // Sync warehouse_management addon with business_profiles.warehouse_enabled
+    if (addonKey === "warehouse_management") {
+      const { error } = await supabase
+        .from("business_profiles")
+        .update({ warehouse_enabled: enabled })
+        .eq("tenant_id", tenantId);
+      
+      if (error) {
+        console.error("Error updating warehouse_enabled:", error);
         toast({
           title: "Warning",
           description: "Add-on toggled but feature flag sync failed. Please try again.",
