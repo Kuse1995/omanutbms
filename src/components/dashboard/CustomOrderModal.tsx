@@ -162,12 +162,14 @@ export function CustomOrderModal({ open, onOpenChange, order, onSuccess }: Custo
 
   const fetchEmployees = async () => {
     if (!tenant?.id) return;
-    const { data } = await supabase
-      .from("employees")
-      .select("id, full_name")
-      .eq("tenant_id", tenant.id)
-      .eq("status", "active");
-    setEmployees(data || []);
+    try {
+      // Type assertion to avoid deep type instantiation error
+      const query = (supabase as any).from("employees").select("id, full_name").eq("tenant_id", tenant.id).eq("status", "active");
+      const { data } = await query;
+      setEmployees((data as Employee[]) || []);
+    } catch (e) {
+      console.error("Error fetching employees:", e);
+    }
   };
 
   const handleCustomerChange = (customerId: string) => {
