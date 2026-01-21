@@ -34,6 +34,9 @@ interface InventoryOption {
   cost_price: number | null;
   current_stock: number | null;
   category: string | null;
+  inventory_class: string | null;
+  unit_of_measure: string | null;
+  location_name?: string | null;
 }
 
 export function MaterialSelector({ materials, onChange }: MaterialSelectorProps) {
@@ -45,15 +48,25 @@ export function MaterialSelector({ materials, onChange }: MaterialSelectorProps)
     const fetchInventory = async () => {
       if (!tenantId) return;
       
+      // Fetch raw materials with location info
       const { data, error } = await supabase
         .from("inventory")
-        .select("id, name, sku, cost_price, current_stock, category")
+        .select(`
+          id, name, sku, cost_price, current_stock, category,
+          inventory_class, unit_of_measure,
+          branches!default_location_id(name)
+        `)
         .eq("tenant_id", tenantId)
+        .eq("inventory_class", "raw_material")
         .gt("current_stock", 0)
         .order("name");
 
       if (!error && data) {
-        setInventoryOptions(data as unknown as InventoryOption[]);
+        const enriched = data.map((item: any) => ({
+          ...item,
+          location_name: item.branches?.name || null,
+        }));
+        setInventoryOptions(enriched as unknown as InventoryOption[]);
       }
       setLoading(false);
     };
@@ -84,15 +97,13 @@ export function MaterialSelector({ materials, onChange }: MaterialSelectorProps)
     if (!item) return;
 
     const updated = [...materials];
-    const isFabric = item.category?.toLowerCase().includes('fabric') || 
-                     item.category?.toLowerCase().includes('material');
     updated[index] = {
       inventoryId: item.id,
       name: item.name,
       sku: item.sku,
       quantity: updated[index].quantity || 1,
       unitCost: item.cost_price ?? 0,
-      unitOfMeasure: isFabric ? "meters" : "pcs",
+      unitOfMeasure: item.unit_of_measure || "pcs",
     };
     onChange(updated);
   };
@@ -149,12 +160,17 @@ export function MaterialSelector({ materials, onChange }: MaterialSelectorProps)
                   <SelectContent>
                     {inventoryOptions.map((opt) => (
                       <SelectItem key={opt.id} value={opt.id}>
-                        <span className="flex items-center gap-2">
-                          <span>{opt.name}</span>
-                          <span className="text-muted-foreground text-xs">
-                            ({opt.current_stock ?? 0} available)
+                        <div className="flex flex-col">
+                          <span className="font-medium">{opt.name}</span>
+                          <span className="text-muted-foreground text-xs flex items-center gap-2">
+                            {opt.location_name && (
+                              <span className="text-purple-600">📍 {opt.location_name}</span>
+                            )}
+                            <span>
+                              {opt.current_stock ?? 0} {opt.unit_of_measure || 'pcs'} available
+                            </span>
                           </span>
-                        </span>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>

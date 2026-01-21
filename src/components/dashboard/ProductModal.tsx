@@ -56,6 +56,10 @@ interface ProductModalProps {
     material?: string | null;
     gender?: string | null;
     collection_id?: string | null;
+    // Inventory classification fields
+    inventory_class?: string | null;
+    unit_of_measure?: string | null;
+    default_location_id?: string | null;
   } | null;
   onSuccess: () => void;
 }
@@ -129,7 +133,12 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
     material: "",
     gender: "",
     collection_id: "",
+    // Inventory classification fields
+    inventory_class: "finished_good",
+    unit_of_measure: "pcs",
+    default_location_id: "",
   });
+  const [locations, setLocations] = useState<Array<{ id: string; name: string; type: string }>>([]);
   const [collections, setCollections] = useState<Array<{ id: string; name: string }>>([]);
   const [recordCostAsExpense, setRecordCostAsExpense] = useState(false);
   
@@ -152,6 +161,24 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
     
     if (open) fetchCollections();
   }, [open, tenantId, config.inventory.showCollections]);
+
+  // Fetch locations (branches) for storage assignment
+  useEffect(() => {
+    const fetchLocations = async () => {
+      if (!tenantId) return;
+      
+      const { data } = await supabase
+        .from("branches")
+        .select("id, name, type")
+        .eq("tenant_id", tenantId)
+        .eq("is_active", true)
+        .order("name");
+      
+      if (data) setLocations(data);
+    };
+    
+    if (open) fetchLocations();
+  }, [open, tenantId]);
 
   useEffect(() => {
     if (product) {
@@ -180,6 +207,10 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
         material: product.material || "",
         gender: product.gender || "",
         collection_id: product.collection_id || "",
+        // Inventory classification fields
+        inventory_class: product.inventory_class || "finished_good",
+        unit_of_measure: product.unit_of_measure || "pcs",
+        default_location_id: product.default_location_id || "",
       });
       setImagePreview(product.image_url || null);
       setRecordCostAsExpense(false);
@@ -214,6 +245,10 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
         material: "",
         gender: "",
         collection_id: "",
+        // Inventory classification fields
+        inventory_class: "finished_good",
+        unit_of_measure: "pcs",
+        default_location_id: "",
       });
       setImagePreview(null);
       setRecordCostAsExpense(false);
@@ -727,6 +762,10 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
         has_expiry: formData.has_expiry,
         expiry_date: formData.has_expiry && formData.expiry_date ? formData.expiry_date : null,
         batch_number: formData.batch_number.trim() || null,
+        // Inventory classification fields
+        inventory_class: formData.inventory_class || "finished_good",
+        unit_of_measure: formData.unit_of_measure || "pcs",
+        default_location_id: formData.default_location_id || null,
       };
 
       // Add fashion fields if enabled for this business type
@@ -981,6 +1020,76 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* Inventory Classification Section */}
+          <div className="border border-[#004B8D]/10 rounded-lg p-4 bg-[#f8fafc]">
+            <Label className="text-[#003366] font-medium mb-3 block">Inventory Classification</Label>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label className="text-[#004B8D]/70 text-sm">Type</Label>
+                <Select
+                  value={formData.inventory_class}
+                  onValueChange={(value) => setFormData({ ...formData, inventory_class: value })}
+                >
+                  <SelectTrigger className="bg-white border-[#004B8D]/20 text-[#003366]">
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="finished_good">📦 Finished Good</SelectItem>
+                    <SelectItem value="raw_material">🧵 Raw Material</SelectItem>
+                    <SelectItem value="consumable">📋 Consumable</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[#004B8D]/70 text-sm">Storage Location</Label>
+                <Select
+                  value={formData.default_location_id}
+                  onValueChange={(value) => setFormData({ ...formData, default_location_id: value })}
+                >
+                  <SelectTrigger className="bg-white border-[#004B8D]/20 text-[#003366]">
+                    <SelectValue placeholder="Select location" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No default location</SelectItem>
+                    {locations.map((loc) => (
+                      <SelectItem key={loc.id} value={loc.id}>
+                        {loc.type === 'Warehouse' ? '🏭' : loc.type === 'Store' ? '🏪' : '🔧'} {loc.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[#004B8D]/70 text-sm">Unit of Measure</Label>
+                <Select
+                  value={formData.unit_of_measure}
+                  onValueChange={(value) => setFormData({ ...formData, unit_of_measure: value })}
+                >
+                  <SelectTrigger className="bg-white border-[#004B8D]/20 text-[#003366]">
+                    <SelectValue placeholder="Select unit" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pcs">Pieces (pcs)</SelectItem>
+                    <SelectItem value="meters">Meters (m)</SelectItem>
+                    <SelectItem value="yards">Yards (yd)</SelectItem>
+                    <SelectItem value="kg">Kilograms (kg)</SelectItem>
+                    <SelectItem value="liters">Liters (L)</SelectItem>
+                    <SelectItem value="rolls">Rolls</SelectItem>
+                    <SelectItem value="spools">Spools</SelectItem>
+                    <SelectItem value="boxes">Boxes</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {formData.inventory_class === 'raw_material' && (
+              <p className="text-xs text-purple-600 mt-2">
+                ✨ Raw materials will be available in the Custom Order material selector
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">

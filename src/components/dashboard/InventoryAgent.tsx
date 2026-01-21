@@ -60,6 +60,11 @@ interface InventoryItem {
   category?: string | null;
   status?: string;
   item_type?: string;
+  // New classification fields
+  inventory_class?: string | null;
+  unit_of_measure?: string | null;
+  default_location_id?: string | null;
+  location_name?: string | null;
 }
 
 export function InventoryAgent() {
@@ -74,6 +79,7 @@ export function InventoryAgent() {
   const [selectedProduct, setSelectedProduct] = useState<InventoryItem | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+  const [classFilter, setClassFilter] = useState<string | null>(null);
   const { toast } = useToast();
   const { tenantId } = useTenant();
   const { currentBranch, isMultiBranchEnabled } = useBranch();
@@ -83,10 +89,13 @@ export function InventoryAgent() {
     if (!tenantId) return;
     
     try {
-      // Fetch inventory with variant counts
+      // Fetch inventory with variant counts and location info
       const { data: inventoryData, error } = await supabase
         .from("inventory")
-        .select("*")
+        .select(`
+          *,
+          branches!default_location_id(name)
+        `)
         .eq("tenant_id", tenantId)
         .order("name");
 
@@ -109,11 +118,12 @@ export function InventoryAgent() {
         if (v.variant_type === "size") variantCounts[v.product_id].sizes++;
       });
 
-      const enrichedInventory = (inventoryData || []).map((item) => ({
+      const enrichedInventory = ((inventoryData || []) as any[]).map((item) => ({
         ...item,
         color_count: variantCounts[item.id]?.colors || 0,
         size_count: variantCounts[item.id]?.sizes || 0,
         technical_specs: item.technical_specs as unknown as TechnicalSpec[] | null,
+        location_name: item.branches?.name || null,
       }));
 
       setInventory(enrichedInventory);
@@ -324,6 +334,38 @@ export function InventoryAgent() {
           </Card>
         )}
 
+        {/* Filter Chips */}
+        <div className="flex flex-wrap gap-2">
+          <Badge
+            variant={classFilter === null ? "default" : "outline"}
+            className={`cursor-pointer ${classFilter === null ? "bg-[#004B8D] text-white" : "hover:bg-[#004B8D]/10"}`}
+            onClick={() => setClassFilter(null)}
+          >
+            All ({inventory.length})
+          </Badge>
+          <Badge
+            variant={classFilter === "finished_good" ? "default" : "outline"}
+            className={`cursor-pointer ${classFilter === "finished_good" ? "bg-[#004B8D] text-white" : "hover:bg-[#004B8D]/10"}`}
+            onClick={() => setClassFilter("finished_good")}
+          >
+            📦 Products ({inventory.filter(i => (i.inventory_class || 'finished_good') === 'finished_good').length})
+          </Badge>
+          <Badge
+            variant={classFilter === "raw_material" ? "default" : "outline"}
+            className={`cursor-pointer ${classFilter === "raw_material" ? "bg-purple-600 text-white" : "hover:bg-purple-50"}`}
+            onClick={() => setClassFilter("raw_material")}
+          >
+            🧵 Materials ({inventory.filter(i => i.inventory_class === 'raw_material').length})
+          </Badge>
+          <Badge
+            variant={classFilter === "consumable" ? "default" : "outline"}
+            className={`cursor-pointer ${classFilter === "consumable" ? "bg-gray-600 text-white" : "hover:bg-gray-50"}`}
+            onClick={() => setClassFilter("consumable")}
+          >
+            📋 Consumables ({inventory.filter(i => i.inventory_class === 'consumable').length})
+          </Badge>
+        </div>
+
         {/* Inventory Table */}
         <Card className="bg-white border-[#004B8D]/10">
           <CardHeader>
@@ -342,6 +384,11 @@ export function InventoryAgent() {
                   <TableRow>
                     <TableHead>SKU</TableHead>
                     <TableHead>{terminology.productLabel}</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>
+                      <Building2 className="w-4 h-4 inline mr-1" />
+                      Location
+                    </TableHead>
                     <TableHead className="text-center">
                       <Palette className="w-4 h-4 inline mr-1" />
                       Colors
@@ -351,14 +398,15 @@ export function InventoryAgent() {
                       Sizes
                     </TableHead>
                     <TableHead className="text-right">Stock</TableHead>
-                    <TableHead className="text-right">Wholesale</TableHead>
                     <TableHead className="text-right">Price</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {inventory.map((item) => (
+                  {inventory
+                    .filter(item => classFilter === null || (item.inventory_class || 'finished_good') === classFilter)
+                    .map((item) => (
                     <TableRow key={item.id}>
                       <TableCell className="font-mono text-sm">{item.sku}</TableCell>
                       <TableCell>
@@ -377,6 +425,22 @@ export function InventoryAgent() {
                           <span className="font-medium">{item.name}</span>
                         </div>
                       </TableCell>
+                      <TableCell>
+                        {item.inventory_class === 'raw_material' ? (
+                          <Badge className="bg-purple-100 text-purple-700 border-purple-200">🧵 Material</Badge>
+                        ) : item.inventory_class === 'consumable' ? (
+                          <Badge className="bg-gray-100 text-gray-700 border-gray-200">📋 Consumable</Badge>
+                        ) : (
+                          <Badge className="bg-blue-50 text-blue-700 border-blue-200">📦 Product</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {item.location_name ? (
+                          <span className="text-sm text-[#004B8D]">📍 {item.location_name}</span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-center">
                         <Badge variant="outline" className="bg-pink-50 text-pink-700 border-pink-200">
                           {item.color_count || 0}
@@ -387,8 +451,9 @@ export function InventoryAgent() {
                           {item.size_count || 0}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right">{item.current_stock}</TableCell>
-                      <TableCell className="text-right">{item.wholesale_stock}</TableCell>
+                      <TableCell className="text-right">
+                        {item.current_stock} {item.unit_of_measure && item.unit_of_measure !== 'pcs' ? item.unit_of_measure : ''}
+                      </TableCell>
                       <TableCell className="text-right">
                         {currencySymbol} {item.unit_price.toLocaleString()}
                       </TableCell>
