@@ -102,31 +102,35 @@ export function UsageAnalyticsDashboard() {
     queryFn: async () => {
       const startDate = subDays(new Date(), parseInt(dateRange)).toISOString();
       
-      // Get ALL tenants (not just active)
-      const { data: tenants } = await supabase
-        .from("tenants")
-        .select(`
-          id,
-          name,
-          status,
-          business_profiles (
-            billing_plan,
-            billing_status,
-            inventory_enabled,
-            payroll_enabled,
-            agents_enabled,
-            whatsapp_enabled,
-            website_enabled,
-            advanced_accounting_enabled,
-            whatsapp_messages_used
-          )
-        `);
+      // FIXED: Fetch tenants and business_profiles separately to avoid RLS issues with nested queries
+      const [tenantsRes, profilesRes] = await Promise.all([
+        supabase.from("tenants").select("id, name, status"),
+        supabase.from("business_profiles").select(`
+          tenant_id,
+          billing_plan,
+          billing_status,
+          inventory_enabled,
+          payroll_enabled,
+          agents_enabled,
+          whatsapp_enabled,
+          website_enabled,
+          advanced_accounting_enabled,
+          whatsapp_messages_used
+        `)
+      ]);
 
+      const tenants = tenantsRes.data;
       if (!tenants) return [];
+
+      // Build a map of tenant_id -> business_profile for efficient lookup
+      const profilesByTenantId = new Map(
+        profilesRes.data?.map(p => [p.tenant_id, p]) || []
+      );
 
       // For each tenant, get comprehensive usage counts
       const usagePromises = tenants.map(async (tenant) => {
-        const profile = tenant.business_profiles?.[0];
+        // Get profile from our map instead of nested query
+        const profile = profilesByTenantId.get(tenant.id);
         const hasBusinessProfile = !!profile;
         
         // Parallel queries for each metric - comprehensive coverage
