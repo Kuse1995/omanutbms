@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, Users, BarChart3, CreditCard, Package } from "lucide-react";
+import { Building2, Users, BarChart3, CreditCard, Package, Activity } from "lucide-react";
 import { TenantManager } from "./TenantManager";
 import { SuperAdminUsersManager } from "./SuperAdminUsersManager";
 import { PlatformStats } from "./PlatformStats";
 import { PlanConfigManager } from "./PlanConfigManager";
 import { AddonsConfigManager } from "./AddonsConfigManager";
+import { UsageAnalyticsDashboard } from "./UsageAnalyticsDashboard";
 
 export function SuperAdminPanel() {
   const [activeTab, setActiveTab] = useState("tenants");
@@ -20,7 +21,7 @@ export function SuperAdminPanel() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5 lg:w-[625px]">
+        <TabsList className="grid w-full grid-cols-6 lg:w-[750px]">
           <TabsTrigger value="tenants" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
             <span className="hidden sm:inline">Tenants</span>
@@ -36,6 +37,10 @@ export function SuperAdminPanel() {
           <TabsTrigger value="addons" className="flex items-center gap-2">
             <Package className="h-4 w-4" />
             <span className="hidden sm:inline">Add-ons</span>
+          </TabsTrigger>
+          <TabsTrigger value="usage" className="flex items-center gap-2">
+            <Activity className="h-4 w-4" />
+            <span className="hidden sm:inline">Usage</span>
           </TabsTrigger>
           <TabsTrigger value="stats" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
@@ -57,6 +62,10 @@ export function SuperAdminPanel() {
 
         <TabsContent value="addons">
           <AddonsConfigManager />
+        </TabsContent>
+
+        <TabsContent value="usage">
+          <UsageAnalyticsDashboard />
         </TabsContent>
 
         <TabsContent value="stats">
