@@ -856,6 +856,50 @@ export type Database = {
           },
         ]
       }
+      collections: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          end_date: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          start_date: string | null
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          start_date?: string | null
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          start_date?: string | null
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "collections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       community_messages: {
         Row: {
           admin_notes: string | null
@@ -1543,8 +1587,10 @@ export type Database = {
         Row: {
           ai_prediction: string | null
           batch_number: string | null
+          brand: string | null
           category: string | null
           certifications: string[] | null
+          collection_id: string | null
           cost_price: number | null
           created_at: string
           current_stock: number
@@ -1552,6 +1598,7 @@ export type Database = {
           description: string | null
           expiry_date: string | null
           features: string[] | null
+          gender: string | null
           has_expiry: boolean | null
           highlight: string | null
           id: string
@@ -1559,6 +1606,7 @@ export type Database = {
           item_type: string
           liters_per_unit: number
           manual_url: string | null
+          material: string | null
           name: string
           original_price: number | null
           reorder_level: number
@@ -1574,8 +1622,10 @@ export type Database = {
         Insert: {
           ai_prediction?: string | null
           batch_number?: string | null
+          brand?: string | null
           category?: string | null
           certifications?: string[] | null
+          collection_id?: string | null
           cost_price?: number | null
           created_at?: string
           current_stock?: number
@@ -1583,6 +1633,7 @@ export type Database = {
           description?: string | null
           expiry_date?: string | null
           features?: string[] | null
+          gender?: string | null
           has_expiry?: boolean | null
           highlight?: string | null
           id?: string
@@ -1590,6 +1641,7 @@ export type Database = {
           item_type?: string
           liters_per_unit?: number
           manual_url?: string | null
+          material?: string | null
           name: string
           original_price?: number | null
           reorder_level?: number
@@ -1605,8 +1657,10 @@ export type Database = {
         Update: {
           ai_prediction?: string | null
           batch_number?: string | null
+          brand?: string | null
           category?: string | null
           certifications?: string[] | null
+          collection_id?: string | null
           cost_price?: number | null
           created_at?: string
           current_stock?: number
@@ -1614,6 +1668,7 @@ export type Database = {
           description?: string | null
           expiry_date?: string | null
           features?: string[] | null
+          gender?: string | null
           has_expiry?: boolean | null
           highlight?: string | null
           id?: string
@@ -1621,6 +1676,7 @@ export type Database = {
           item_type?: string
           liters_per_unit?: number
           manual_url?: string | null
+          material?: string | null
           name?: string
           original_price?: number | null
           reorder_level?: number
@@ -1634,6 +1690,13 @@ export type Database = {
           wholesale_stock?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "inventory_collection_id_fkey"
+            columns: ["collection_id"]
+            isOneToOne: false
+            referencedRelation: "collections"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "inventory_tenant_id_fkey"
             columns: ["tenant_id"]
