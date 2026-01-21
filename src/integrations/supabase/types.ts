@@ -1017,6 +1017,228 @@ export type Database = {
         }
         Relationships: []
       }
+      custom_order_items: {
+        Row: {
+          created_at: string
+          custom_order_id: string
+          description: string | null
+          id: string
+          item_name: string
+          quantity: number | null
+          status: string | null
+          tenant_id: string
+          unit_price: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          custom_order_id: string
+          description?: string | null
+          id?: string
+          item_name: string
+          quantity?: number | null
+          status?: string | null
+          tenant_id: string
+          unit_price?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          custom_order_id?: string
+          description?: string | null
+          id?: string
+          item_name?: string
+          quantity?: number | null
+          status?: string | null
+          tenant_id?: string
+          unit_price?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custom_order_items_custom_order_id_fkey"
+            columns: ["custom_order_id"]
+            isOneToOne: false
+            referencedRelation: "custom_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custom_order_items_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      custom_orders: {
+        Row: {
+          assigned_to: string | null
+          branch_id: string | null
+          color: string | null
+          created_at: string
+          created_by: string | null
+          customer_id: string | null
+          deposit_paid: number | null
+          design_type: string | null
+          due_date: string | null
+          estimated_cost: number | null
+          fabric: string | null
+          final_cost: number | null
+          id: string
+          invoice_id: string | null
+          measurements: Json | null
+          order_date: string | null
+          order_number: string
+          quotation_id: string | null
+          reference_images: string[] | null
+          status: string | null
+          style_notes: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          branch_id?: string | null
+          color?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          deposit_paid?: number | null
+          design_type?: string | null
+          due_date?: string | null
+          estimated_cost?: number | null
+          fabric?: string | null
+          final_cost?: number | null
+          id?: string
+          invoice_id?: string | null
+          measurements?: Json | null
+          order_date?: string | null
+          order_number: string
+          quotation_id?: string | null
+          reference_images?: string[] | null
+          status?: string | null
+          style_notes?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          branch_id?: string | null
+          color?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          deposit_paid?: number | null
+          design_type?: string | null
+          due_date?: string | null
+          estimated_cost?: number | null
+          fabric?: string | null
+          final_cost?: number | null
+          id?: string
+          invoice_id?: string | null
+          measurements?: Json | null
+          order_date?: string | null
+          order_number?: string
+          quotation_id?: string | null
+          reference_images?: string[] | null
+          status?: string | null
+          style_notes?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custom_orders_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custom_orders_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custom_orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custom_orders_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custom_orders_quotation_id_fkey"
+            columns: ["quotation_id"]
+            isOneToOne: false
+            referencedRelation: "quotations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custom_orders_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customers: {
+        Row: {
+          address: string | null
+          created_at: string
+          email: string | null
+          id: string
+          measurements: Json | null
+          name: string
+          notes: string | null
+          phone: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          measurements?: Json | null
+          name: string
+          notes?: string | null
+          phone?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          measurements?: Json | null
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       donation_requests: {
         Row: {
           created_at: string
