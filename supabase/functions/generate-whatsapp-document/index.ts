@@ -625,12 +625,12 @@ async function generateStyledPDF(
       color: tealBg,
     });
 
-    // Impact icon placeholder (water drop emoji equivalent - using text)
-    page.drawText('💧', {
-      x: margin + 15,
-      y: y - 32,
-      size: 20,
-      font: helvetica,
+    // Impact icon placeholder - draw a circle as water drop symbol
+    // (Cannot use emoji as WinAnsi encoding doesn't support Unicode)
+    page.drawCircle({
+      x: margin + 25,
+      y: y - 28,
+      size: 8,
       color: tealText,
     });
 
