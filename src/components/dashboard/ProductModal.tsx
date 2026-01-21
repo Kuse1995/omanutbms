@@ -730,11 +730,13 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
       };
 
       // Add fashion fields if enabled for this business type
+      // Add fashion fields if enabled for this business type
+      // Convert placeholder values ("any", "none") to null for DB storage
       if (config.inventory.showFashionFields) {
         productData.brand = formData.brand.trim() || null;
-        productData.material = formData.material || null;
-        productData.gender = formData.gender || null;
-        productData.collection_id = formData.collection_id || null;
+        productData.material = formData.material && formData.material !== "none" ? formData.material : null;
+        productData.gender = formData.gender && formData.gender !== "any" ? formData.gender : null;
+        productData.collection_id = formData.collection_id && formData.collection_id !== "none" ? formData.collection_id : null;
       }
 
       if (product) {
@@ -1080,7 +1082,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
                       <SelectValue placeholder="Select gender" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Any</SelectItem>
+                      <SelectItem value="any">Any</SelectItem>
                       {formFields.genders?.map((g) => (
                         <SelectItem key={g.value} value={g.value}>
                           {g.label}
@@ -1102,7 +1104,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
                       <SelectValue placeholder="Select material" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Not specified</SelectItem>
+                      <SelectItem value="none">Not specified</SelectItem>
                       {formFields.materials?.map((m) => (
                         <SelectItem key={m.value} value={m.value}>
                           {m.label}
@@ -1121,7 +1123,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
                       <SelectValue placeholder="Select collection" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No collection</SelectItem>
+                      <SelectItem value="none">No collection</SelectItem>
                       {collections.map((c) => (
                         <SelectItem key={c.id} value={c.id}>
                           {c.name}
