@@ -46,6 +46,7 @@ export function PlanOverview() {
     advanced_accounting: "Advanced Accounting",
     website: "Website Management",
     whatsapp: "WhatsApp Integration",
+    warehouse: "Warehouse Management",
   };
 
   return (

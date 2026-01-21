@@ -478,6 +478,7 @@ export type Database = {
           feature_impact: boolean | null
           feature_inventory: boolean | null
           feature_payroll: boolean | null
+          feature_warehouse: boolean | null
           feature_website: boolean | null
           feature_whatsapp: boolean | null
           highlights: string[] | null
@@ -505,6 +506,7 @@ export type Database = {
           feature_impact?: boolean | null
           feature_inventory?: boolean | null
           feature_payroll?: boolean | null
+          feature_warehouse?: boolean | null
           feature_website?: boolean | null
           feature_whatsapp?: boolean | null
           highlights?: string[] | null
@@ -532,6 +534,7 @@ export type Database = {
           feature_impact?: boolean | null
           feature_inventory?: boolean | null
           feature_payroll?: boolean | null
+          feature_warehouse?: boolean | null
           feature_website?: boolean | null
           feature_whatsapp?: boolean | null
           highlights?: string[] | null
@@ -677,6 +680,7 @@ export type Database = {
           name: string
           phone: string | null
           tenant_id: string
+          type: string | null
           updated_at: string | null
         }
         Insert: {
@@ -692,6 +696,7 @@ export type Database = {
           name: string
           phone?: string | null
           tenant_id: string
+          type?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -707,6 +712,7 @@ export type Database = {
           name?: string
           phone?: string | null
           tenant_id?: string
+          type?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -756,6 +762,7 @@ export type Database = {
           tenant_id: string
           trial_expires_at: string | null
           updated_at: string
+          warehouse_enabled: boolean | null
           website_enabled: boolean | null
           whatsapp_enabled: boolean | null
           whatsapp_messages_used: number | null
@@ -798,6 +805,7 @@ export type Database = {
           tenant_id: string
           trial_expires_at?: string | null
           updated_at?: string
+          warehouse_enabled?: boolean | null
           website_enabled?: boolean | null
           whatsapp_enabled?: boolean | null
           whatsapp_messages_used?: number | null
@@ -840,6 +848,7 @@ export type Database = {
           tenant_id?: string
           trial_expires_at?: string | null
           updated_at?: string
+          warehouse_enabled?: boolean | null
           website_enabled?: boolean | null
           whatsapp_enabled?: boolean | null
           whatsapp_messages_used?: number | null
@@ -2981,6 +2990,7 @@ export type Database = {
       }
       stock_transfers: {
         Row: {
+          approved_at: string | null
           approved_by: string | null
           completed_at: string | null
           created_at: string | null
@@ -2989,13 +2999,16 @@ export type Database = {
           inventory_id: string | null
           notes: string | null
           quantity: number
+          rejection_reason: string | null
           requested_by: string | null
+          requires_approval: boolean | null
           status: string | null
           tenant_id: string | null
           to_branch_id: string | null
           updated_at: string | null
         }
         Insert: {
+          approved_at?: string | null
           approved_by?: string | null
           completed_at?: string | null
           created_at?: string | null
@@ -3004,13 +3017,16 @@ export type Database = {
           inventory_id?: string | null
           notes?: string | null
           quantity: number
+          rejection_reason?: string | null
           requested_by?: string | null
+          requires_approval?: boolean | null
           status?: string | null
           tenant_id?: string | null
           to_branch_id?: string | null
           updated_at?: string | null
         }
         Update: {
+          approved_at?: string | null
           approved_by?: string | null
           completed_at?: string | null
           created_at?: string | null
@@ -3019,7 +3035,9 @@ export type Database = {
           inventory_id?: string | null
           notes?: string | null
           quantity?: number
+          rejection_reason?: string | null
           requested_by?: string | null
+          requires_approval?: boolean | null
           status?: string | null
           tenant_id?: string | null
           to_branch_id?: string | null
