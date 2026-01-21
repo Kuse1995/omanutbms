@@ -2,7 +2,7 @@ import {
   Package, DollarSign, LayoutDashboard, Settings, HelpCircle, Users, Shield, 
   MessageSquare, Globe, ShoppingCart, Store, Heart, Receipt, Mail, Building2, 
   Layers, Crown, LogOut, Truck, GraduationCap, Briefcase, GitBranch, RotateCcw, 
-  Scissors, UserCircle, Shirt, type LucideIcon 
+  Scissors, UserCircle, Shirt, Warehouse, ArrowLeftRight, MapPin, type LucideIcon 
 } from "lucide-react";
 import {
   Sidebar,
@@ -65,6 +65,9 @@ const iconMap: Record<string, LucideIcon> = {
   Scissors,
   UserCircle,
   Shirt,
+  Warehouse,
+  ArrowLeftRight,
+  MapPin,
 };
 
 const adminItems: { id: DashboardTab; title: string; icon: LucideIcon; requiresMultiBranch?: boolean }[] = [
@@ -87,6 +90,9 @@ const baseMenuItems: MenuItem[] = [
   { id: "custom-orders", title: "Custom Orders", icon: Scissors, feature: 'inventory' },
   { id: "customers", title: "Customers", icon: UserCircle, feature: 'inventory' },
   { id: "shop", title: "Shop Manager", icon: Store, feature: 'inventory' },
+  { id: "warehouse", title: "Warehouse", icon: Warehouse, feature: 'warehouse' },
+  { id: "stock-transfers", title: "Stock Transfers", icon: ArrowLeftRight, feature: 'warehouse' },
+  { id: "locations", title: "Locations", icon: MapPin, feature: 'warehouse' },
   { id: "communities", title: "Communities", icon: Heart, feature: 'impact' },
   { id: "messages", title: "Community Messages", icon: MessageSquare, feature: 'impact' },
   { id: "contacts", title: "Website Contacts", icon: Mail, feature: 'website' },
