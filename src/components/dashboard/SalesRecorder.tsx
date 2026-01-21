@@ -588,6 +588,27 @@ export function SalesRecorder() {
 
             if (inventoryError) throw inventoryError;
           }
+
+          // Decrement variant-specific stock for fashion products
+          if (item.selectedColor) {
+            await supabase.rpc('decrement_variant_stock', {
+              p_product_id: item.productId,
+              p_variant_type: 'color',
+              p_variant_value: item.selectedColor,
+              p_quantity: item.quantity,
+              p_tenant_id: tenantId,
+            });
+          }
+          
+          if (item.selectedSize) {
+            await supabase.rpc('decrement_variant_stock', {
+              p_product_id: item.productId,
+              p_variant_type: 'size',
+              p_variant_value: item.selectedSize,
+              p_quantity: item.quantity,
+              p_tenant_id: tenantId,
+            });
+          }
         }
       }
 

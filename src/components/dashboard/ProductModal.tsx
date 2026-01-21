@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Json } from "@/integrations/supabase/types";
 import { useTenant } from "@/hooks/useTenant";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
+import { QuickVariantGenerator } from "./QuickVariantGenerator";
 
 interface FieldChange {
   field: string;
@@ -72,6 +73,14 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
   const [manualFile, setManualFile] = useState<File | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingChanges, setPendingChanges] = useState<FieldChange[]>([]);
+  const [variantGeneratorOpen, setVariantGeneratorOpen] = useState(false);
+  const [pendingVariants, setPendingVariants] = useState<Array<{
+    type: "size" | "color";
+    value: string;
+    displayName: string;
+    hexCode?: string;
+    stock: number;
+  }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const datasheetInputRef = useRef<HTMLInputElement>(null);
   const manualInputRef = useRef<HTMLInputElement>(null);
@@ -82,6 +91,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
   // Get form field config based on business type
   const formFields = config.formFields;
   const isServiceBusiness = businessType === 'services';
+  const isFashionMode = businessType === 'fashion';
 
   // Categories that are considered services (no stock tracking)
   const serviceCategories = [
@@ -740,11 +750,47 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
           description: `${formData.name} has been updated successfully`,
         });
       } else {
-        const { error } = await supabase
+        const { data: insertedProduct, error } = await supabase
           .from("inventory")
-          .insert(productData as any);
+          .insert(productData as any)
+          .select('id')
+          .single();
 
         if (error) throw error;
+
+        // Create pending variants for fashion products
+        if (isFashionMode && pendingVariants.length > 0 && insertedProduct?.id) {
+          const variantInserts = pendingVariants.map(v => ({
+            tenant_id: tenantId,
+            product_id: insertedProduct.id,
+            variant_type: v.type,
+            variant_value: v.value,
+            variant_display: v.displayName,
+            hex_code: v.hexCode || null,
+            stock: v.stock,
+            additional_price: 0,
+            is_active: true,
+          }));
+
+          const { error: variantError } = await supabase
+            .from("product_variants")
+            .insert(variantInserts);
+
+          if (variantError) {
+            console.error("Error creating variants:", variantError);
+            toast({
+              title: "Partial Success",
+              description: `${formData.name} added but some variants failed to create.`,
+              variant: "destructive",
+            });
+          } else {
+            toast({
+              title: `${terminology.product} Added with Variants`,
+              description: `${formData.name} added with ${pendingVariants.length} variants.`,
+            });
+            setPendingVariants([]);
+          }
+        }
 
         // Record cost as expense if selected and cost_price > 0
         if (recordCostAsExpense && formData.cost_price > 0) {
@@ -768,13 +814,13 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
               description: "Product added but expense recording failed",
               variant: "destructive",
             });
-          } else {
+          } else if (!isFashionMode || pendingVariants.length === 0) {
             toast({
               title: `${terminology.product} Added with Expense`,
               description: `${formData.name} added and K${totalCostForStock.toLocaleString()} recorded as expense`,
             });
           }
-        } else {
+        } else if (!isFashionMode || pendingVariants.length === 0) {
           toast({
             title: `${terminology.product} Added`,
             description: `${formData.name} has been added`,
@@ -1081,10 +1127,62 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
                           {c.name}
                         </SelectItem>
                       ))}
-                    </SelectContent>
+                </SelectContent>
                   </Select>
                 </div>
               </div>
+
+              {/* Quick Variant Generator - only for new products in fashion mode */}
+              {!product && (
+                <div className="space-y-2">
+                  <QuickVariantGenerator
+                    isOpen={variantGeneratorOpen}
+                    onOpenChange={setVariantGeneratorOpen}
+                    onGenerate={(variants) => {
+                      setPendingVariants(variants);
+                      toast({
+                        title: "Variants Queued",
+                        description: `${variants.length} variants will be created after saving the product.`,
+                      });
+                    }}
+                  />
+                  {pendingVariants.length > 0 && (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-emerald-700">
+                          {pendingVariants.length} variants queued
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setPendingVariants([])}
+                          className="text-red-500 hover:text-red-700 h-6 px-2"
+                        >
+                          <X className="w-3 h-3 mr-1" />
+                          Clear
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {pendingVariants.map((v, i) => (
+                          <span
+                            key={i}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-white border border-emerald-300 rounded"
+                          >
+                            {v.type === "color" && v.hexCode && (
+                              <span
+                                className="w-2.5 h-2.5 rounded-full border border-gray-300"
+                                style={{ backgroundColor: v.hexCode }}
+                              />
+                            )}
+                            {v.displayName}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
 
