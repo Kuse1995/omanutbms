@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   User, 
@@ -11,13 +11,15 @@ import {
   ChevronLeft,
   Sparkles,
   Calculator,
-  Lock
+  Lock,
+  AlertCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
@@ -26,6 +28,7 @@ import { MaterialSelector, type MaterialItem } from "./MaterialSelector";
 import { LaborEstimator, type SkillLevel } from "./LaborEstimator";
 import { PricingBreakdown, calculateQuote } from "./PricingBreakdown";
 import { SketchUploader } from "./SketchUploader";
+import { CustomerSignaturePad } from "./CustomerSignaturePad";
 
 interface CustomDesignWizardProps {
   open: boolean;
@@ -72,6 +75,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
   const { tenantId } = useTenant();
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -102,25 +106,104 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
     estimatedCost: 0,
     depositAmount: 0,
     dueDate: '',
+    // Signature
+    customerSignature: null as string | null,
   });
 
   const updateFormData = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    setValidationErrors([]); // Clear errors on change
   };
 
+  // Step validation logic
+  const validateStep = (stepIndex: number): { valid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+
+    switch (stepIndex) {
+      case 0: // Client Info
+        if (!formData.customerName.trim()) errors.push("Customer name is required");
+        if (!formData.customerPhone.trim()) errors.push("Phone number is required");
+        break;
+      
+      case 1: // Design Details
+        if (!formData.designType) errors.push("Please select a design type");
+        if (!formData.fabric) errors.push("Please select a fabric type");
+        if (!formData.color.trim()) errors.push("Please specify the color/pattern");
+        break;
+      
+      case 2: // Measurements
+        const hasMeasurements = Object.values(formData.measurements).some(v => v > 0);
+        if (!hasMeasurements) errors.push("Please enter at least one measurement");
+        break;
+      
+      case 3: // Sketches - optional but encourage content
+        // Sketches are optional, no strict validation
+        break;
+      
+      case 4: // Pricing
+        if (formData.laborHours <= 0) errors.push("Please estimate labor hours");
+        break;
+      
+      case 5: // Review & Confirm
+        if (!formData.customerSignature) errors.push("Customer signature is required to approve the design");
+        break;
+    }
+
+    return { valid: errors.length === 0, errors };
+  };
+
+  // Calculate step completion percentage
+  const stepCompletionStatus = useMemo(() => {
+    return WIZARD_STEPS.map((_, index) => {
+      const { valid } = validateStep(index);
+      return valid;
+    });
+  }, [formData]);
+
+  const overallProgress = useMemo(() => {
+    const completedSteps = stepCompletionStatus.filter(Boolean).length;
+    return Math.round((completedSteps / WIZARD_STEPS.length) * 100);
+  }, [stepCompletionStatus]);
+
   const handleNext = () => {
+    const { valid, errors } = validateStep(currentStep);
+    
+    if (!valid) {
+      setValidationErrors(errors);
+      toast({
+        title: "Please complete this step",
+        description: errors[0],
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setValidationErrors([]);
     if (currentStep < WIZARD_STEPS.length - 1) {
       setCurrentStep(prev => prev + 1);
     }
   };
 
   const handleBack = () => {
+    setValidationErrors([]);
     if (currentStep > 0) {
       setCurrentStep(prev => prev - 1);
     }
   };
 
   const handleSubmit = async () => {
+    // Final validation
+    const { valid, errors } = validateStep(5);
+    if (!valid) {
+      setValidationErrors(errors);
+      toast({
+        title: "Cannot create order",
+        description: errors[0],
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!tenantId) {
       toast({ title: "Error", description: "No tenant context found", variant: "destructive" });
       return;
@@ -185,7 +268,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
         estimated_cost: quotedPrice || formData.estimatedCost || null,
         deposit_paid: formData.depositAmount || null,
         due_date: formData.dueDate || null,
-        status: 'pending',
+        status: 'confirmed', // Since customer signed, it's confirmed
         // Reference images from sketches
         reference_images: formData.sketchUrls.length > 0 ? formData.sketchUrls : null,
         // AI-generated outfit views
@@ -199,8 +282,8 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
         estimated_labor_cost: laborCost,
         margin_percentage: formData.marginPercentage,
         quoted_price: quotedPrice,
-        price_locked: formData.priceLocked,
-        price_locked_at: formData.priceLocked ? new Date().toISOString() : null,
+        price_locked: true, // Lock price since customer signed
+        price_locked_at: new Date().toISOString(),
       };
       
       const { data: orderData, error } = await supabase
@@ -225,11 +308,27 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
         await supabase.from('job_material_usage').insert(materialRecords);
       }
 
-      if (error) throw error;
+      // Upload signature if available
+      if (formData.customerSignature && orderData) {
+        // Convert base64 to blob
+        const base64Data = formData.customerSignature.split(',')[1];
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'image/png' });
+        
+        const fileName = `${tenantId}/signatures/${orderData.id}.png`;
+        await supabase.storage
+          .from('design-assets')
+          .upload(fileName, blob, { upsert: true });
+      }
 
       toast({
         title: "Custom Order Created!",
-        description: `Order for ${formData.customerName} has been added to the production queue.`,
+        description: `Order for ${formData.customerName} has been confirmed and added to the production queue.`,
       });
 
       onSuccess?.();
@@ -259,6 +358,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
                 value={formData.customerName}
                 onChange={(e) => updateFormData('customerName', e.target.value)}
                 placeholder="Enter customer full name"
+                className={validationErrors.some(e => e.includes('name')) ? 'border-destructive' : ''}
               />
             </div>
             <div>
@@ -268,6 +368,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
                 value={formData.customerPhone}
                 onChange={(e) => updateFormData('customerPhone', e.target.value)}
                 placeholder="+260 97X XXX XXX"
+                className={validationErrors.some(e => e.includes('Phone')) ? 'border-destructive' : ''}
               />
             </div>
             <div>
@@ -289,7 +390,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
             <div>
               <Label htmlFor="designType">Design Type *</Label>
               <Select value={formData.designType} onValueChange={(v) => updateFormData('designType', v)}>
-                <SelectTrigger>
+                <SelectTrigger className={validationErrors.some(e => e.includes('design type')) ? 'border-destructive' : ''}>
                   <SelectValue placeholder="Select design type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -300,9 +401,9 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
               </Select>
             </div>
             <div>
-              <Label htmlFor="fabric">Fabric</Label>
+              <Label htmlFor="fabric">Fabric *</Label>
               <Select value={formData.fabric} onValueChange={(v) => updateFormData('fabric', v)}>
-                <SelectTrigger>
+                <SelectTrigger className={validationErrors.some(e => e.includes('fabric')) ? 'border-destructive' : ''}>
                   <SelectValue placeholder="Select fabric type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -313,12 +414,13 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
               </Select>
             </div>
             <div>
-              <Label htmlFor="color">Color / Pattern</Label>
+              <Label htmlFor="color">Color / Pattern *</Label>
               <Input
                 id="color"
                 value={formData.color}
                 onChange={(e) => updateFormData('color', e.target.value)}
                 placeholder="e.g., Navy Blue, Burgundy with gold trim"
+                className={validationErrors.some(e => e.includes('color')) ? 'border-destructive' : ''}
               />
             </div>
             <div>
@@ -338,12 +440,18 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
         return (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Enter the client's body measurements in centimeters.
+              Enter the client's body measurements in centimeters. <span className="text-destructive">*</span>
             </p>
             <MeasurementsForm
               measurements={formData.measurements}
               onChange={(m) => updateFormData('measurements', m)}
             />
+            {validationErrors.some(e => e.includes('measurement')) && (
+              <p className="text-sm text-destructive flex items-center gap-1">
+                <AlertCircle className="h-4 w-4" />
+                Please enter at least one measurement
+              </p>
+            )}
           </div>
         );
 
@@ -384,6 +492,12 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
               styleNotes={formData.styleNotes}
               fabric={formData.fabric}
             />
+            {validationErrors.some(e => e.includes('labor')) && (
+              <p className="text-sm text-destructive flex items-center gap-1">
+                <AlertCircle className="h-4 w-4" />
+                Please estimate labor hours
+              </p>
+            )}
 
             <div className="border-t pt-4">
               <MaterialSelector
@@ -446,6 +560,24 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
               </div>
             </div>
 
+            {/* Show generated images if available */}
+            {formData.generatedImages.length > 0 && (
+              <div>
+                <p className="font-medium text-muted-foreground mb-2">AI Generated Preview</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {formData.generatedImages.map((img, index) => (
+                    <div key={index} className="aspect-[3/4] rounded overflow-hidden border">
+                      <img 
+                        src={img.imageUrl} 
+                        alt={img.view}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
               <div className="flex items-center gap-2 text-amber-800 font-medium mb-2">
                 <Calculator className="h-4 w-4" />
@@ -490,6 +622,21 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
                 </div>
               </div>
             </div>
+
+            {/* Customer Signature */}
+            <div className="border-t pt-4">
+              <Label className="mb-2 block">Customer Approval Signature *</Label>
+              <CustomerSignaturePad
+                signature={formData.customerSignature}
+                onSignatureChange={(sig) => updateFormData('customerSignature', sig)}
+              />
+              {validationErrors.some(e => e.includes('signature')) && (
+                <p className="text-sm text-destructive flex items-center gap-1 mt-2">
+                  <AlertCircle className="h-4 w-4" />
+                  Customer signature is required to confirm the order
+                </p>
+              )}
+            </div>
           </div>
         );
 
@@ -520,6 +667,15 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
               ✕
             </Button>
           </div>
+          
+          {/* Overall Progress Bar */}
+          <div className="mt-3">
+            <div className="flex items-center justify-between text-xs text-amber-100 mb-1">
+              <span>Order Progress</span>
+              <span>{overallProgress}% Complete</span>
+            </div>
+            <Progress value={overallProgress} className="h-2 bg-amber-400/30" />
+          </div>
         </div>
 
         {/* Progress Steps */}
@@ -528,22 +684,38 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
             {WIZARD_STEPS.map((step, index) => {
               const StepIcon = step.icon;
               const isActive = index === currentStep;
-              const isComplete = index < currentStep;
+              const isComplete = stepCompletionStatus[index] && index < currentStep;
+              const isAccessible = index <= currentStep || stepCompletionStatus.slice(0, index).every(Boolean);
               
               return (
                 <div key={step.id} className="flex items-center">
-                  <div className={`flex items-center gap-2 ${isActive ? 'text-amber-600' : isComplete ? 'text-emerald-600' : 'text-muted-foreground'}`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                      isActive ? 'bg-amber-100 text-amber-600' : 
+                  <button
+                    onClick={() => {
+                      if (isAccessible && index < currentStep) {
+                        setCurrentStep(index);
+                        setValidationErrors([]);
+                      }
+                    }}
+                    disabled={!isAccessible || index > currentStep}
+                    className={`flex items-center gap-2 ${
+                      isActive ? 'text-amber-600' : 
+                      isComplete ? 'text-emerald-600 cursor-pointer' : 
+                      'text-muted-foreground'
+                    } ${!isAccessible ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                      isActive ? 'bg-amber-100 text-amber-600 ring-2 ring-amber-500' : 
                       isComplete ? 'bg-emerald-100 text-emerald-600' : 
                       'bg-muted text-muted-foreground'
                     }`}>
                       {isComplete ? <Check className="h-4 w-4" /> : <StepIcon className="h-4 w-4" />}
                     </div>
                     <span className="text-xs font-medium hidden sm:inline">{step.label}</span>
-                  </div>
+                  </button>
                   {index < WIZARD_STEPS.length - 1 && (
-                    <div className={`w-8 h-0.5 mx-2 ${index < currentStep ? 'bg-emerald-500' : 'bg-muted'}`} />
+                    <div className={`w-8 h-0.5 mx-2 ${
+                      stepCompletionStatus[index] && index < currentStep ? 'bg-emerald-500' : 'bg-muted'
+                    }`} />
                   )}
                 </div>
               );
@@ -577,21 +749,29 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
             Back
           </Button>
 
-          {currentStep < WIZARD_STEPS.length - 1 ? (
-            <Button onClick={handleNext} className="bg-amber-500 hover:bg-amber-600">
-              Next
-              <ChevronRight className="h-4 w-4 ml-1" />
-            </Button>
-          ) : (
-            <Button 
-              onClick={handleSubmit} 
-              disabled={isSubmitting}
-              className="bg-emerald-600 hover:bg-emerald-700"
-            >
-              {isSubmitting ? 'Creating...' : 'Create Order'}
-              <Check className="h-4 w-4 ml-1" />
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {validationErrors.length > 0 && (
+              <span className="text-xs text-destructive hidden sm:inline">
+                {validationErrors.length} issue(s) to fix
+              </span>
+            )}
+            
+            {currentStep < WIZARD_STEPS.length - 1 ? (
+              <Button onClick={handleNext} className="bg-amber-500 hover:bg-amber-600">
+                Next
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            ) : (
+              <Button 
+                onClick={handleSubmit} 
+                disabled={isSubmitting || !formData.customerSignature}
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
+                {isSubmitting ? 'Creating...' : 'Create Order'}
+                <Check className="h-4 w-4 ml-1" />
+              </Button>
+            )}
+          </div>
         </div>
       </motion.div>
     </div>
