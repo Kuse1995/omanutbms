@@ -11,6 +11,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenant } from "@/hooks/useTenant";
 import { Loader2, Plus, Eye, Edit, Trash2, FileCheck, CheckCircle, Lock, ChevronDown, ChevronRight, Users } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
@@ -52,16 +53,24 @@ export function QuotationsManager() {
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const { canAdd, isAdmin } = useAuth();
+  const { tenantId } = useTenant();
 
   useEffect(() => {
-    fetchQuotations();
-  }, []);
+    if (tenantId) {
+      fetchQuotations();
+    }
+  }, [tenantId]);
 
   const fetchQuotations = async () => {
+    if (!tenantId) {
+      setIsLoading(false);
+      return;
+    }
     try {
       const { data, error } = await supabase
         .from("quotations")
         .select("*")
+        .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
