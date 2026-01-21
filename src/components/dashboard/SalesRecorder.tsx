@@ -509,8 +509,16 @@ export function SalesRecorder() {
       const { data: { user } } = await supabase.auth.getUser();
       const receiptNumber = generateReceiptNumber();
       
+      // Calculate per-item discount allocation (distribute discount proportionally)
+      const itemDiscountShare = cart.map(item => {
+        const itemWeight = item.totalPrice / cartSubtotal;
+        return Math.round(discountAmount * itemWeight * 100) / 100;
+      });
+
       // Insert all cart items as sales transactions
-      for (const item of cart) {
+      for (let i = 0; i < cart.length; i++) {
+        const item = cart[i];
+        const itemDiscount = itemDiscountShare[i] || 0;
         const { error: saleError } = await supabase
           .from('sales_transactions')
           .insert({
@@ -523,13 +531,15 @@ export function SalesRecorder() {
             product_name: item.name,
             quantity: item.quantity,
             unit_price_zmw: item.unitPrice,
-            total_amount_zmw: item.totalPrice,
+            total_amount_zmw: item.totalPrice - itemDiscount,
             payment_method: paymentMethod,
             notes: notes.trim() || null,
             selected_color: item.selectedColor || null,
             selected_size: item.selectedSize || null,
             item_type: item.type,
             receipt_number: receiptNumber,
+            discount_amount: itemDiscount,
+            discount_reason: discountAmount > 0 ? (discountType === "percentage" ? `${discountValue}% discount` : `K${discountValue} discount`) : null,
           });
 
         if (saleError) throw saleError;
@@ -561,10 +571,12 @@ export function SalesRecorder() {
             invoice_date: format(new Date(), "yyyy-MM-dd"),
             due_date: format(invoiceDueDate, "yyyy-MM-dd"),
             status: 'sent',
-            subtotal: cartTotal,
+            subtotal: cartSubtotal,
             tax_rate: 0,
             tax_amount: 0,
             total_amount: cartTotal,
+            discount_amount: discountAmount,
+            discount_reason: discountAmount > 0 ? (discountType === "percentage" ? `${discountValue}% discount` : `K${discountValue} discount`) : null,
             notes: notes.trim() || `Credit sale - ${cart.length} items`,
           } as any])
           .select('id, invoice_number')

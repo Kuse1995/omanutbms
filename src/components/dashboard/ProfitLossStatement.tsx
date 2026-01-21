@@ -86,7 +86,7 @@ export function ProfitLossStatement() {
     if (!tenantId) return;
     setIsLoading(true);
     try {
-      const [salesRes, expensesRes, invoicesRes] = await Promise.all([
+      const [salesRes, expensesRes, invoicesRes, paymentsRes] = await Promise.all([
         supabase
           .from("sales_transactions")
           .select("total_amount_zmw")
@@ -101,16 +101,27 @@ export function ProfitLossStatement() {
           .lte("date_incurred", endDate),
         supabase
           .from("invoices")
-          .select("total_amount")
+          .select("total_amount, paid_amount, status")
           .eq("tenant_id", tenantId)
-          .eq("status", "paid")
           .gte("invoice_date", startDate)
           .lte("invoice_date", endDate),
+        supabase
+          .from("payment_receipts")
+          .select("amount_paid, invoice_id")
+          .eq("tenant_id", tenantId)
+          .gte("payment_date", startDate)
+          .lte("payment_date", endDate),
       ]);
 
-      // Calculate revenue
-      const productSales = (salesRes.data || []).reduce((sum, s) => sum + Number(s.total_amount_zmw), 0);
-      const invoiceRevenue = (invoicesRes.data || []).reduce((sum, inv) => sum + Number(inv.total_amount), 0);
+      // Calculate revenue from direct sales
+      // total_amount_zmw already reflects NET amount after any discounts
+      const productSales = (salesRes.data || []).reduce((sum, s) => sum + Number(s.total_amount_zmw || 0), 0);
+      
+      // Calculate invoice revenue from actual payments received (not from invoice total)
+      const invoiceRevenue = (paymentsRes.data || [])
+        .filter(p => p.invoice_id) // Only payments linked to invoices
+        .reduce((sum, p) => sum + Number(p.amount_paid || 0), 0);
+      
       const totalRevenue = productSales + invoiceRevenue;
 
       // Calculate expenses by category
