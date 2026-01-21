@@ -482,6 +482,9 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
       features: isServiceBusiness ? "What's Included" : "Features",
       category: "Category",
       certifications: formFields.certificationsLabel,
+      has_expiry: "Has Expiry Date",
+      expiry_date: "Expiry Date",
+      batch_number: "Batch Number",
     };
 
     if (formData.sku.trim() !== product.sku) {
@@ -529,6 +532,29 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
     const originalCerts = [...(product.certifications || [])].sort().join(", ");
     if (currentCerts !== originalCerts) {
       changes.push({ field: fieldLabels.certifications, oldValue: originalCerts || "(none)", newValue: currentCerts || "(none)" });
+    }
+
+    // Track expiry-related changes
+    if (formData.has_expiry !== (product.has_expiry || false)) {
+      changes.push({ 
+        field: fieldLabels.has_expiry, 
+        oldValue: product.has_expiry ? "Yes" : "No", 
+        newValue: formData.has_expiry ? "Yes" : "No" 
+      });
+    }
+    if (formData.expiry_date !== (product.expiry_date || "")) {
+      changes.push({ 
+        field: fieldLabels.expiry_date, 
+        oldValue: product.expiry_date || "(not set)", 
+        newValue: formData.expiry_date || "(not set)" 
+      });
+    }
+    if (formData.batch_number.trim() !== (product.batch_number || "")) {
+      changes.push({ 
+        field: fieldLabels.batch_number, 
+        oldValue: product.batch_number || "(not set)", 
+        newValue: formData.batch_number.trim() || "(not set)" 
+      });
     }
 
     if (imageFile) {
