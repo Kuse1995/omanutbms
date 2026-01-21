@@ -1304,6 +1304,44 @@ export type Database = {
           },
         ]
       }
+      feature_usage_logs: {
+        Row: {
+          action_type: string
+          created_at: string
+          feature_key: string
+          id: string
+          metadata: Json | null
+          tenant_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action_type?: string
+          created_at?: string
+          feature_key: string
+          id?: string
+          metadata?: Json | null
+          tenant_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action_type?: string
+          created_at?: string
+          feature_key?: string
+          id?: string
+          metadata?: Json | null
+          tenant_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feature_usage_logs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       financial_reports: {
         Row: {
           ai_insights: Json | null
@@ -3065,6 +3103,7 @@ export type Database = {
           created_at: string
           id: string
           ip_address: string | null
+          tenant_id: string | null
           user_agent: string | null
           user_id: string
         }
@@ -3073,6 +3112,7 @@ export type Database = {
           created_at?: string
           id?: string
           ip_address?: string | null
+          tenant_id?: string | null
           user_agent?: string | null
           user_id: string
         }
@@ -3081,10 +3121,19 @@ export type Database = {
           created_at?: string
           id?: string
           ip_address?: string | null
+          tenant_id?: string | null
           user_agent?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_activity_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -3470,7 +3519,25 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      feature_usage_summary: {
+        Row: {
+          feature_key: string | null
+          last_used_at: string | null
+          tenant_id: string | null
+          unique_users: number | null
+          usage_count: number | null
+          usage_date: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feature_usage_logs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       can_manage_accounts: { Args: { _tenant_id: string }; Returns: boolean }
