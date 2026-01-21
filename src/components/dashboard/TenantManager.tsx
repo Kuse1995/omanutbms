@@ -28,6 +28,7 @@ interface Tenant {
   user_count?: number;
   billing_plan?: string;
   billing_status?: string;
+  business_type?: BusinessType;
 }
 
 export function TenantManager() {
@@ -82,10 +83,10 @@ export function TenantManager() {
             .select("*", { count: "exact", head: true })
             .eq("tenant_id", tenant.id);
           
-          // Get billing info from business_profiles
+          // Get billing info and business type from business_profiles
           const { data: profile } = await supabase
             .from("business_profiles")
-            .select("billing_plan, billing_status")
+            .select("billing_plan, billing_status, business_type")
             .eq("tenant_id", tenant.id)
             .single();
           
@@ -94,6 +95,7 @@ export function TenantManager() {
             user_count: count || 0,
             billing_plan: profile?.billing_plan || 'starter',
             billing_status: profile?.billing_status || 'inactive',
+            business_type: (profile?.business_type as BusinessType) || 'retail',
           };
         })
       );
@@ -190,13 +192,24 @@ export function TenantManager() {
 
   // Update tenant mutation
   const updateTenantMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<Tenant> }) => {
+    mutationFn: async ({ id, data, businessType }: { id: string; data: Partial<Tenant>; businessType?: BusinessType }) => {
+      // Update tenant table
       const { error } = await supabase
         .from("tenants")
-        .update(data)
+        .update({ name: data.name, slug: data.slug, status: data.status })
         .eq("id", id);
 
       if (error) throw error;
+
+      // Update business type in business_profiles if provided
+      if (businessType) {
+        const { error: profileError } = await supabase
+          .from("business_profiles")
+          .update({ business_type: businessType })
+          .eq("tenant_id", id);
+
+        if (profileError) throw profileError;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["all-tenants"] });
@@ -413,6 +426,7 @@ export function TenantManager() {
         slug: editingTenant.slug,
         status: editingTenant.status,
       },
+      businessType: editingTenant.business_type,
     });
   };
 
@@ -749,6 +763,30 @@ export function TenantManager() {
                       <SelectItem value="pending">Pending</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Business Type</Label>
+                  <Select
+                    value={editingTenant.business_type || 'retail'}
+                    onValueChange={(value: BusinessType) => setEditingTenant({ ...editingTenant, business_type: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {businessTypeOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          <div className="flex flex-col">
+                            <span>{option.label}</span>
+                            <span className="text-xs text-muted-foreground">{option.description}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Determines available features, categories, and terminology
+                  </p>
                 </div>
               </div>
             )}
