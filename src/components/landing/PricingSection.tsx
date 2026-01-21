@@ -6,16 +6,41 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { 
-  BILLING_PLANS, 
-  BillingPlan, 
-  formatPrice, 
-  getAnnualSavingsPercent 
-} from "@/lib/billing-plans";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useBillingPlans } from "@/hooks/useBillingPlans";
+import { BillingPlan, formatPrice } from "@/lib/billing-plans";
 
 export function PricingSection() {
   const [isAnnual, setIsAnnual] = useState(true);
-  const plans: BillingPlan[] = ["starter", "growth", "enterprise"];
+  const { plans, planKeys, loading } = useBillingPlans();
+
+  // Calculate annual savings
+  const getAnnualSavings = (planKey: BillingPlan) => {
+    const plan = plans[planKey];
+    if (plan.monthlyPrice === 0) return 0;
+    const monthlyTotal = plan.monthlyPrice * 12;
+    const savings = ((monthlyTotal - plan.annualPrice) / monthlyTotal) * 100;
+    return Math.round(savings);
+  };
+
+  if (loading) {
+    return (
+      <section id="pricing" className="py-24 bg-gradient-to-b from-background to-muted/30">
+        <div className="container-custom">
+          <div className="text-center mb-16">
+            <Skeleton className="h-8 w-32 mx-auto mb-4" />
+            <Skeleton className="h-12 w-96 mx-auto mb-4" />
+            <Skeleton className="h-6 w-80 mx-auto" />
+          </div>
+          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-[500px] rounded-2xl" />
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section id="pricing" className="py-24 bg-gradient-to-b from-background to-muted/30">
@@ -59,9 +84,9 @@ export function PricingSection() {
 
         {/* Pricing Cards */}
         <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-          {plans.map((planKey, index) => {
-            const planData = BILLING_PLANS[planKey];
-            const savings = getAnnualSavingsPercent(planKey);
+          {planKeys.map((planKey, index) => {
+            const planData = plans[planKey];
+            const savings = getAnnualSavings(planKey);
 
             return (
               <motion.div
