@@ -36,6 +36,7 @@ const featureLabels: Record<string, { label: string; icon: React.ComponentType<a
 interface TenantUsageData {
   tenant_id: string;
   tenant_name: string;
+  tenant_status: string;
   billing_plan: string;
   billing_status: string;
   sales_count: number;
@@ -68,7 +69,7 @@ export function UsageAnalyticsDashboard() {
     queryFn: async () => {
       const startDate = subDays(new Date(), parseInt(dateRange)).toISOString();
       
-      // Get all tenants with business profiles
+      // Get all tenants with business profiles (not just active ones for total count)
       const { data: tenants } = await supabase
         .from("tenants")
         .select(`
@@ -86,8 +87,7 @@ export function UsageAnalyticsDashboard() {
             advanced_accounting_enabled,
             whatsapp_messages_used
           )
-        `)
-        .eq("status", "active");
+        `);
 
       if (!tenants) return [];
 
@@ -95,8 +95,10 @@ export function UsageAnalyticsDashboard() {
       const usagePromises = tenants.map(async (tenant) => {
         const profile = tenant.business_profiles?.[0] || {};
         
-        // Parallel queries for each metric
-        const [salesRes, invoicesRes, inventoryRes, employeesRes, agentsRes, lastActivityRes] = await Promise.all([
+        // Parallel queries for each metric - use both sales and sales_transactions
+        const [salesRes, salesTransRes, invoicesRes, inventoryRes, employeesRes, agentsRes, lastSaleRes, lastActivityRes] = await Promise.all([
+          supabase.from("sales").select("id", { count: "exact", head: true })
+            .eq("tenant_id", tenant.id).gte("created_at", startDate),
           supabase.from("sales_transactions").select("id", { count: "exact", head: true })
             .eq("tenant_id", tenant.id).gte("created_at", startDate),
           supabase.from("invoices").select("id", { count: "exact", head: true })
@@ -107,6 +109,8 @@ export function UsageAnalyticsDashboard() {
             .eq("tenant_id", tenant.id),
           supabase.from("agent_transactions").select("id", { count: "exact", head: true })
             .eq("tenant_id", tenant.id).gte("created_at", startDate),
+          supabase.from("sales").select("created_at")
+            .eq("tenant_id", tenant.id).order("created_at", { ascending: false }).limit(1),
           supabase.from("sales_transactions").select("created_at")
             .eq("tenant_id", tenant.id).order("created_at", { ascending: false }).limit(1),
         ]);
@@ -119,19 +123,30 @@ export function UsageAnalyticsDashboard() {
         if (profile.website_enabled) featuresEnabled.push("website");
         if (profile.advanced_accounting_enabled) featuresEnabled.push("accounting");
 
+        // Combine sales counts from both tables
+        const totalSalesCount = (salesRes.count || 0) + (salesTransRes.count || 0);
+        
+        // Get the most recent activity from either table
+        const lastSaleDate = lastSaleRes.data?.[0]?.created_at;
+        const lastTransDate = lastActivityRes.data?.[0]?.created_at;
+        const lastActivity = lastSaleDate && lastTransDate 
+          ? (new Date(lastSaleDate) > new Date(lastTransDate) ? lastSaleDate : lastTransDate)
+          : lastSaleDate || lastTransDate || null;
+
         return {
           tenant_id: tenant.id,
           tenant_name: tenant.name,
+          tenant_status: tenant.status,
           billing_plan: profile.billing_plan || "starter",
           billing_status: profile.billing_status || "active",
-          sales_count: salesRes.count || 0,
+          sales_count: totalSalesCount,
           invoice_count: invoicesRes.count || 0,
           inventory_count: inventoryRes.count || 0,
           employee_count: employeesRes.count || 0,
           agent_count: agentsRes.count || 0,
           whatsapp_messages: profile.whatsapp_messages_used || 0,
           whatsapp_limit: getWhatsAppLimit(profile.billing_plan),
-          last_activity: lastActivityRes.data?.[0]?.created_at || null,
+          last_activity: lastActivity,
           features_enabled: featuresEnabled,
         } as TenantUsageData;
       });
@@ -146,8 +161,9 @@ export function UsageAnalyticsDashboard() {
     queryFn: async () => {
       const startDate = subDays(new Date(), parseInt(dateRange)).toISOString();
       
-      // Get actual database activity as proxy for feature usage
-      const [salesStats, invoiceStats, inventoryStats, payrollStats, agentStats, whatsappStats] = await Promise.all([
+      // Get actual database activity as proxy for feature usage (query both sales tables)
+      const [salesStats, salesTransStats, invoiceStats, inventoryStats, payrollStats, agentStats, whatsappStats] = await Promise.all([
+        supabase.from("sales").select("tenant_id", { count: "exact" }).gte("created_at", startDate),
         supabase.from("sales_transactions").select("tenant_id", { count: "exact" }).gte("created_at", startDate),
         supabase.from("invoices").select("tenant_id", { count: "exact" }).gte("created_at", startDate),
         supabase.from("inventory_adjustments").select("tenant_id", { count: "exact" }).gte("created_at", startDate),
@@ -156,8 +172,15 @@ export function UsageAnalyticsDashboard() {
         supabase.from("whatsapp_audit_logs").select("tenant_id", { count: "exact" }).gte("created_at", startDate),
       ]);
 
+      // Combine sales from both tables
+      const combinedSalesCount = (salesStats.count || 0) + (salesTransStats.count || 0);
+      const combinedSalesTenants = new Set([
+        ...(salesStats.data?.map(s => s.tenant_id) || []),
+        ...(salesTransStats.data?.map(s => s.tenant_id) || []),
+      ]);
+
       return [
-        { feature_key: "sales", total_usage: salesStats.count || 0, unique_tenants: new Set(salesStats.data?.map(s => s.tenant_id)).size, unique_users: 0, trend: 0 },
+        { feature_key: "sales", total_usage: combinedSalesCount, unique_tenants: combinedSalesTenants.size, unique_users: 0, trend: 0 },
         { feature_key: "invoices", total_usage: invoiceStats.count || 0, unique_tenants: new Set(invoiceStats.data?.map(s => s.tenant_id)).size, unique_users: 0, trend: 0 },
         { feature_key: "inventory", total_usage: inventoryStats.count || 0, unique_tenants: new Set(inventoryStats.data?.map(s => s.tenant_id)).size, unique_users: 0, trend: 0 },
         { feature_key: "payroll", total_usage: payrollStats.count || 0, unique_tenants: new Set(payrollStats.data?.map(s => s.tenant_id)).size, unique_users: 0, trend: 0 },
@@ -171,24 +194,29 @@ export function UsageAnalyticsDashboard() {
   const aggregatedStats = useMemo(() => {
     if (!tenantUsageData) return null;
     
+    // Only count active tenants for distribution and stats
+    const activeTenants = tenantUsageData.filter(t => t.tenant_status === "active");
+    
     const totalSales = tenantUsageData.reduce((sum, t) => sum + t.sales_count, 0);
     const totalInvoices = tenantUsageData.reduce((sum, t) => sum + t.invoice_count, 0);
     const totalInventory = tenantUsageData.reduce((sum, t) => sum + t.inventory_count, 0);
     const totalAgentTransactions = tenantUsageData.reduce((sum, t) => sum + t.agent_count, 0);
-    const activeTenantsCount = tenantUsageData.filter(t => t.sales_count > 0 || t.invoice_count > 0).length;
+    // Active tenants = those with recent activity
+    const activeTenantsWithActivity = activeTenants.filter(t => t.sales_count > 0 || t.invoice_count > 0).length;
     
     const featureAdoption = {
-      inventory: tenantUsageData.filter(t => t.features_enabled.includes("inventory")).length,
-      payroll: tenantUsageData.filter(t => t.features_enabled.includes("payroll")).length,
-      agents: tenantUsageData.filter(t => t.features_enabled.includes("agents")).length,
-      whatsapp: tenantUsageData.filter(t => t.features_enabled.includes("whatsapp")).length,
-      website: tenantUsageData.filter(t => t.features_enabled.includes("website")).length,
-      accounting: tenantUsageData.filter(t => t.features_enabled.includes("accounting")).length,
+      inventory: activeTenants.filter(t => t.features_enabled.includes("inventory")).length,
+      payroll: activeTenants.filter(t => t.features_enabled.includes("payroll")).length,
+      agents: activeTenants.filter(t => t.features_enabled.includes("agents")).length,
+      whatsapp: activeTenants.filter(t => t.features_enabled.includes("whatsapp")).length,
+      website: activeTenants.filter(t => t.features_enabled.includes("website")).length,
+      accounting: activeTenants.filter(t => t.features_enabled.includes("accounting")).length,
     };
 
     return {
       totalTenants: tenantUsageData.length,
-      activeTenantsCount,
+      activeTenants: activeTenants.length,
+      activeTenantsWithActivity,
       totalSales,
       totalInvoices,
       totalInventory,
@@ -284,9 +312,9 @@ export function UsageAnalyticsDashboard() {
             <Building2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{aggregatedStats?.activeTenantsCount || 0}</div>
+            <div className="text-2xl font-bold">{aggregatedStats?.activeTenantsWithActivity || 0}</div>
             <p className="text-xs text-muted-foreground">
-              of {aggregatedStats?.totalTenants || 0} total ({aggregatedStats?.totalTenants ? Math.round((aggregatedStats.activeTenantsCount / aggregatedStats.totalTenants) * 100) : 0}% active)
+              of {aggregatedStats?.activeTenants || 0} registered ({aggregatedStats?.activeTenants ? Math.round((aggregatedStats.activeTenantsWithActivity / aggregatedStats.activeTenants) * 100) : 0}% with activity)
             </p>
           </CardContent>
         </Card>
