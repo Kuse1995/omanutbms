@@ -1,8 +1,10 @@
+import { useState, useEffect } from "react";
 import { 
   Package, DollarSign, LayoutDashboard, Settings, HelpCircle, Users, Shield, 
   MessageSquare, Globe, ShoppingCart, Store, Heart, Receipt, Mail, Building2, 
   Layers, Crown, LogOut, Truck, GraduationCap, Briefcase, GitBranch, RotateCcw, 
-  Scissors, UserCircle, Shirt, Warehouse, ArrowLeftRight, MapPin, Factory, type LucideIcon 
+  Scissors, UserCircle, Shirt, Warehouse, ArrowLeftRight, MapPin, Factory, 
+  ChevronDown, type LucideIcon 
 } from "lucide-react";
 import {
   Sidebar,
@@ -13,9 +15,17 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useFeatures } from "@/hooks/useFeatures";
@@ -39,6 +49,13 @@ interface MenuItem {
   icon: LucideIcon;
   feature: FeatureKey | null;
   dynamicTitle?: 'sales' | 'inventory';
+}
+
+interface MenuCategory {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  items: DashboardTab[];
 }
 
 // Icon mapping for dashboard icons from config
@@ -70,6 +87,40 @@ const iconMap: Record<string, LucideIcon> = {
   MapPin,
   Factory,
 };
+
+// Category definitions for organized navigation
+const menuCategories: MenuCategory[] = [
+  {
+    id: 'sales-finance',
+    label: 'Sales & Finance',
+    icon: DollarSign,
+    items: ['sales', 'receipts', 'accounts'],
+  },
+  {
+    id: 'inventory-stock',
+    label: 'Inventory & Stock',
+    icon: Package,
+    items: ['inventory', 'returns', 'shop', 'warehouse', 'stock-transfers', 'locations'],
+  },
+  {
+    id: 'custom-workflow',
+    label: 'Custom Workflow',
+    icon: Scissors,
+    items: ['custom-orders', 'production-floor', 'customers'],
+  },
+  {
+    id: 'team-hr',
+    label: 'Team',
+    icon: Users,
+    items: ['hr', 'agents'],
+  },
+  {
+    id: 'community-web',
+    label: 'Community & Web',
+    icon: Globe,
+    items: ['communities', 'messages', 'website', 'contacts'],
+  },
+];
 
 const adminItems: { id: DashboardTab; title: string; icon: LucideIcon; requiresMultiBranch?: boolean }[] = [
   { id: "branches", title: "Branches", icon: GitBranch, requiresMultiBranch: true },
@@ -111,17 +162,20 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
   
   const isMultiBranchEnabled = businessProfile?.multi_branch_enabled ?? false;
 
+  // Track which categories are open
+  const [openCategories, setOpenCategories] = useState<string[]>(['sales-finance']);
+
   const handleSignOut = async () => {
     await signOut();
     navigate("/auth");
   };
 
   // Get menu items ordered and filtered by business type layout and role
-  const getOrderedMenuItems = (): MenuItem[] => {
+  const getVisibleMenuItems = (): MenuItem[] => {
     const { tabOrder, hiddenTabs } = layout;
     
     // Filter out hidden tabs, items without enabled features, and items user doesn't have role access to
-    const visibleItems = baseMenuItems.filter(item => {
+    return baseMenuItems.filter(item => {
       // Check if tab is hidden by business type
       if (hiddenTabs.includes(item.id)) return false;
       // Check if feature is enabled
@@ -129,19 +183,6 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
       // Check role-based access
       if (!hasModuleAccess(role, item.id as ModuleKey)) return false;
       return true;
-    });
-
-    // Sort by tab order from layout config
-    return visibleItems.sort((a, b) => {
-      const aIndex = tabOrder.indexOf(a.id);
-      const bIndex = tabOrder.indexOf(b.id);
-
-      // Items not in tabOrder go to the end (keep their relative order)
-      if (aIndex === -1 && bIndex === -1) return 0;
-      if (aIndex === -1) return 1;
-      if (bIndex === -1) return -1;
-
-      return aIndex - bIndex;
     });
   };
 
@@ -154,6 +195,47 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
 
   // Get dashboard icon from layout config
   const DashboardIcon = iconMap[layout.dashboardIcon] || LayoutDashboard;
+
+  const visibleMenuItems = getVisibleMenuItems();
+
+  // Get visible items for a category
+  const getCategoryItems = (category: MenuCategory): MenuItem[] => {
+    return visibleMenuItems.filter(item => category.items.includes(item.id));
+  };
+
+  // Get visible categories (only those with at least one visible item)
+  const getVisibleCategories = (): MenuCategory[] => {
+    return menuCategories.filter(category => getCategoryItems(category).length > 0);
+  };
+
+  // Find which category contains the active tab
+  const findActiveCategory = (): string | null => {
+    for (const category of menuCategories) {
+      if (category.items.includes(activeTab)) {
+        return category.id;
+      }
+    }
+    return null;
+  };
+
+  // Auto-expand category when active tab changes
+  useEffect(() => {
+    const activeCategory = findActiveCategory();
+    if (activeCategory && !openCategories.includes(activeCategory)) {
+      setOpenCategories(prev => [...prev, activeCategory]);
+    }
+  }, [activeTab]);
+
+  const toggleCategory = (categoryId: string) => {
+    setOpenCategories(prev => 
+      prev.includes(categoryId) 
+        ? prev.filter(id => id !== categoryId)
+        : [...prev, categoryId]
+    );
+  };
+
+  // Dashboard item (always visible at top)
+  const dashboardItem = visibleMenuItems.find(item => item.id === 'dashboard');
 
   // Show skeleton while loading to prevent flash of content
   if (loading) {
@@ -186,7 +268,7 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
     );
   }
 
-  const orderedMenuItems = getOrderedMenuItems();
+  const visibleCategories = getVisibleCategories();
 
   return (
     <Sidebar className="border-r border-[#003366]/30 bg-gradient-to-b from-[#004B8D] to-[#003366]" data-tour="sidebar">
@@ -210,26 +292,81 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
 
       <SidebarContent className="px-2 py-4">
         <SidebarGroup>
-          <SidebarGroupLabel className="text-white/50 uppercase text-xs tracking-wider mb-2">
-            Modules
-          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {orderedMenuItems.map((item) => (
-                <SidebarMenuItem key={item.id} data-tour={`${item.id}-nav`}>
+              {/* Dashboard - Always visible at top */}
+              {dashboardItem && (
+                <SidebarMenuItem data-tour="dashboard-nav">
                   <SidebarMenuButton
-                    onClick={() => setActiveTab(item.id)}
+                    onClick={() => setActiveTab(dashboardItem.id)}
                     className={`w-full justify-start gap-3 px-3 py-2.5 rounded-lg transition-all ${
-                      activeTab === item.id
+                      activeTab === dashboardItem.id
                         ? "bg-white text-[#004B8D] shadow-md"
                         : "text-white/80 hover:bg-white/10 hover:text-white"
                     }`}
                   >
-                    <item.icon className="w-5 h-5" />
-                    <span className="font-medium">{getItemTitle(item)}</span>
+                    <dashboardItem.icon className="w-5 h-5" />
+                    <span className="font-medium">{getItemTitle(dashboardItem)}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-              ))}
+              )}
+
+              {/* Collapsible Categories */}
+              {visibleCategories.map((category) => {
+                const categoryItems = getCategoryItems(category);
+                const isOpen = openCategories.includes(category.id);
+                const hasActiveItem = categoryItems.some(item => item.id === activeTab);
+
+                return (
+                  <Collapsible
+                    key={category.id}
+                    open={isOpen}
+                    onOpenChange={() => toggleCategory(category.id)}
+                    className="group/collapsible"
+                  >
+                    <SidebarMenuItem>
+                      <CollapsibleTrigger asChild>
+                        <SidebarMenuButton
+                          className={`w-full justify-between gap-3 px-3 py-2.5 rounded-lg transition-all ${
+                            hasActiveItem && !isOpen
+                              ? "bg-white/20 text-white"
+                              : "text-white/80 hover:bg-white/10 hover:text-white"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <category.icon className="w-5 h-5" />
+                            <span className="font-medium">{category.label}</span>
+                          </div>
+                          <ChevronDown 
+                            className={`w-4 h-4 transition-transform duration-200 ${
+                              isOpen ? 'rotate-180' : ''
+                            }`} 
+                          />
+                        </SidebarMenuButton>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
+                        <SidebarMenuSub className="ml-4 border-l border-white/20 pl-2 mt-1">
+                          {categoryItems.map((item) => (
+                            <SidebarMenuSubItem key={item.id} data-tour={`${item.id}-nav`}>
+                              <SidebarMenuSubButton
+                                onClick={() => setActiveTab(item.id)}
+                                className={`w-full justify-start gap-3 px-3 py-2 rounded-lg transition-all text-sm ${
+                                  activeTab === item.id
+                                    ? "bg-white text-[#004B8D] shadow-md"
+                                    : "text-white/70 hover:bg-white/10 hover:text-white"
+                                }`}
+                              >
+                                <item.icon className="w-4 h-4" />
+                                <span>{getItemTitle(item)}</span>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      </CollapsibleContent>
+                    </SidebarMenuItem>
+                  </Collapsible>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
