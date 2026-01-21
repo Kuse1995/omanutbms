@@ -12,7 +12,8 @@ import {
   Sparkles,
   Calculator,
   Lock,
-  AlertCircle
+  AlertCircle,
+  ClipboardCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +30,7 @@ import { LaborEstimator, type SkillLevel } from "./LaborEstimator";
 import { PricingBreakdown, calculateQuote } from "./PricingBreakdown";
 import { SketchUploader } from "./SketchUploader";
 import { CustomerSignaturePad } from "./CustomerSignaturePad";
+import { QualityControlChecklist, initializeQCChecks, type QCCheckItem } from "./QualityControlChecklist";
 
 interface CustomDesignWizardProps {
   open: boolean;
@@ -42,6 +44,7 @@ const WIZARD_STEPS = [
   { id: 'measurements', label: 'Measurements', icon: Ruler },
   { id: 'sketches', label: 'Sketches & Refs', icon: Camera },
   { id: 'pricing', label: 'Smart Pricing', icon: Calculator },
+  { id: 'qc', label: 'Quality Control', icon: ClipboardCheck },
   { id: 'review', label: 'Review & Confirm', icon: FileText },
 ];
 
@@ -108,6 +111,9 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
     dueDate: '',
     // Signature
     customerSignature: null as string | null,
+    // QC Checklist
+    qcChecks: initializeQCChecks(),
+    qcNotes: '',
   });
 
   const updateFormData = (field: string, value: any) => {
@@ -142,9 +148,20 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
       
       case 4: // Pricing
         if (formData.laborHours <= 0) errors.push("Please estimate labor hours");
+        // Validate material stock
+        const hasStockIssues = formData.materials.some(m => 
+          m.stockWarning?.includes('Insufficient')
+        );
+        if (hasStockIssues) errors.push("Some materials have insufficient stock");
         break;
       
-      case 5: // Review & Confirm
+      case 5: // Quality Control
+        const requiredChecks = formData.qcChecks.filter(c => c.required);
+        const allRequiredComplete = requiredChecks.every(c => c.checked);
+        if (!allRequiredComplete) errors.push("Please complete all required QC checks before fitting");
+        break;
+      
+      case 6: // Review & Confirm
         if (!formData.customerSignature) errors.push("Customer signature is required to approve the design");
         break;
     }
@@ -192,8 +209,8 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
   };
 
   const handleSubmit = async () => {
-    // Final validation
-    const { valid, errors } = validateStep(5);
+    // Final validation (step 6 - Review & Confirm)
+    const { valid, errors } = validateStep(6);
     if (!valid) {
       setValidationErrors(errors);
       toast({
@@ -503,7 +520,17 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
               <MaterialSelector
                 materials={formData.materials}
                 onChange={(m) => updateFormData('materials', m)}
+                designType={formData.designType}
+                fabric={formData.fabric}
+                color={formData.color}
+                styleNotes={formData.styleNotes}
               />
+              {validationErrors.some(e => e.includes('stock')) && (
+                <p className="text-sm text-destructive flex items-center gap-1 mt-2">
+                  <AlertCircle className="h-4 w-4" />
+                  Some materials have insufficient stock - please adjust quantities
+                </p>
+              )}
             </div>
 
             <div className="border-t pt-4">
@@ -536,7 +563,29 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
           </div>
         );
 
-      case 5: // Review & Confirm
+      case 5: // Quality Control
+        return (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Complete the quality control checklist before scheduling the fitting appointment.
+              All required checks <span className="text-destructive">*</span> must be completed.
+            </p>
+            <QualityControlChecklist
+              checks={formData.qcChecks}
+              onChecksChange={(checks) => updateFormData('qcChecks', checks)}
+              qcNotes={formData.qcNotes}
+              onNotesChange={(notes) => updateFormData('qcNotes', notes)}
+            />
+            {validationErrors.some(e => e.includes('QC')) && (
+              <p className="text-sm text-destructive flex items-center gap-1">
+                <AlertCircle className="h-4 w-4" />
+                Complete all required QC checks before proceeding
+              </p>
+            )}
+          </div>
+        );
+
+      case 6: // Review & Confirm
         const finalMaterialCost = formData.materials.reduce(
           (sum, m) => sum + m.quantity * m.unitCost, 0
         );
@@ -544,6 +593,8 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
         const { quotedPrice: finalQuote } = calculateQuote(
           finalMaterialCost, finalLaborCost, formData.marginPercentage
         );
+
+        const qcComplete = formData.qcChecks.filter(c => c.required).every(c => c.checked);
 
         return (
           <div className="space-y-6">
@@ -558,6 +609,16 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
                 <p className="text-foreground">{formData.designType}</p>
                 <p className="text-muted-foreground">{formData.fabric} • {formData.color}</p>
               </div>
+            </div>
+
+            {/* QC Status */}
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
+              qcComplete ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+            }`}>
+              <ClipboardCheck className="h-4 w-4" />
+              {qcComplete 
+                ? 'Quality control checks completed - ready for fitting' 
+                : 'Quality control pending - complete before fitting'}
             </div>
 
             {/* Show generated images if available */}
