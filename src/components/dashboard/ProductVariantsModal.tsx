@@ -26,6 +26,7 @@ interface Variant {
   variant_display: string | null;
   hex_code: string | null;
   additional_price: number;
+  stock: number;
   is_active: boolean;
 }
 
@@ -38,8 +39,8 @@ export function ProductVariantsModal({ open, onOpenChange, product, onSuccess }:
   const { tenantId } = useTenant();
 
   // New variant form state
-  const [newColor, setNewColor] = useState({ value: "", display: "", hex: "#000000", price: 0 });
-  const [newSize, setNewSize] = useState({ value: "", display: "", price: 0 });
+  const [newColor, setNewColor] = useState({ value: "", display: "", hex: "#000000", price: 0, stock: 0 });
+  const [newSize, setNewSize] = useState({ value: "", display: "", price: 0, stock: 0 });
 
   useEffect(() => {
     if (open && product) {
@@ -92,12 +93,13 @@ export function ProductVariantsModal({ open, onOpenChange, product, onSuccess }:
         variant_display: newColor.display.trim() || newColor.value.trim(),
         hex_code: newColor.hex,
         additional_price: newColor.price,
+        stock: newColor.stock,
       });
 
       if (error) throw error;
 
       toast({ title: "Color Added", description: `${newColor.value} has been added` });
-      setNewColor({ value: "", display: "", hex: "#000000", price: 0 });
+      setNewColor({ value: "", display: "", hex: "#000000", price: 0, stock: 0 });
       fetchVariants();
       onSuccess();
     } catch (error: any) {
@@ -135,12 +137,13 @@ export function ProductVariantsModal({ open, onOpenChange, product, onSuccess }:
         variant_value: newSize.value.trim(),
         variant_display: newSize.display.trim() || newSize.value.trim(),
         additional_price: newSize.price,
+        stock: newSize.stock,
       });
 
       if (error) throw error;
 
       toast({ title: "Size Added", description: `${newSize.value} has been added` });
-      setNewSize({ value: "", display: "", price: 0 });
+      setNewSize({ value: "", display: "", price: 0, stock: 0 });
       fetchVariants();
       onSuccess();
     } catch (error: any) {
@@ -212,7 +215,7 @@ export function ProductVariantsModal({ open, onOpenChange, product, onSuccess }:
               {/* Add Color Form */}
               <div className="bg-purple-50 rounded-lg p-4 space-y-3">
                 <h4 className="text-sm font-medium text-purple-800">Add New Color</h4>
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-5 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs text-purple-700">Color Name *</Label>
                     <Input
@@ -241,7 +244,17 @@ export function ProductVariantsModal({ open, onOpenChange, product, onSuccess }:
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs text-purple-700">+Price (ZMW)</Label>
+                    <Label className="text-xs text-purple-700">Stock</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={newColor.stock}
+                      onChange={(e) => setNewColor({ ...newColor, stock: parseInt(e.target.value) || 0 })}
+                      className="bg-white border-purple-200"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-purple-700">+Price</Label>
                     <Input
                       type="number"
                       min={0}
@@ -283,6 +296,7 @@ export function ProductVariantsModal({ open, onOpenChange, product, onSuccess }:
                             <span className="text-[#004B8D]/50 text-sm ml-2">({variant.variant_display})</span>
                           )}
                         </div>
+                        <span className="text-blue-600 text-sm font-medium">{variant.stock || 0} in stock</span>
                         {variant.additional_price > 0 && (
                           <span className="text-green-600 text-sm">+K{variant.additional_price}</span>
                         )}
@@ -305,13 +319,13 @@ export function ProductVariantsModal({ open, onOpenChange, product, onSuccess }:
               {/* Add Size Form */}
               <div className="bg-blue-50 rounded-lg p-4 space-y-3">
                 <h4 className="text-sm font-medium text-blue-800">Add New Size</h4>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-4 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs text-blue-700">Size Value *</Label>
                     <Input
                       value={newSize.value}
                       onChange={(e) => setNewSize({ ...newSize, value: e.target.value })}
-                      placeholder="e.g., 650ml"
+                      placeholder="e.g., M, L, XL"
                       className="bg-white border-blue-200"
                     />
                   </div>
@@ -320,12 +334,22 @@ export function ProductVariantsModal({ open, onOpenChange, product, onSuccess }:
                     <Input
                       value={newSize.display}
                       onChange={(e) => setNewSize({ ...newSize, display: e.target.value })}
-                      placeholder="e.g., 650ml (22oz)"
+                      placeholder="e.g., Medium"
                       className="bg-white border-blue-200"
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs text-blue-700">+Price (ZMW)</Label>
+                    <Label className="text-xs text-blue-700">Stock</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={newSize.stock}
+                      onChange={(e) => setNewSize({ ...newSize, stock: parseInt(e.target.value) || 0 })}
+                      className="bg-white border-blue-200"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-blue-700">+Price</Label>
                     <Input
                       type="number"
                       min={0}
@@ -366,6 +390,7 @@ export function ProductVariantsModal({ open, onOpenChange, product, onSuccess }:
                             <span className="text-[#004B8D]/50 text-sm ml-2">({variant.variant_display})</span>
                           )}
                         </div>
+                        <span className="text-blue-600 text-sm font-medium">{variant.stock || 0} in stock</span>
                         {variant.additional_price > 0 && (
                           <span className="text-green-600 text-sm">+K{variant.additional_price}</span>
                         )}

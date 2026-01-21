@@ -22,6 +22,8 @@ import * as XLSX from "xlsx";
 import { useTenant } from "@/hooks/useTenant";
 import { useBranch } from "@/hooks/useBranch";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
+import { FashionPOS } from "./FashionPOS";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface InventoryItem {
   id: string;
@@ -29,6 +31,8 @@ interface InventoryItem {
   sku: string;
   unit_price: number;
   current_stock: number;
+  image_url?: string | null;
+  collection_id?: string | null;
 }
 
 interface ProductVariant {
@@ -39,6 +43,7 @@ interface ProductVariant {
   variant_display: string | null;
   hex_code: string | null;
   additional_price: number;
+  stock: number;
 }
 
 interface SaleTransaction {
@@ -90,7 +95,13 @@ export function SalesRecorder() {
   const { toast } = useToast();
   const { tenantId } = useTenant();
   const { currentBranch, isMultiBranchEnabled, canAccessAllBranches } = useBranch();
-  const { isImpactEnabled, impact } = useBusinessConfig();
+  const { isImpactEnabled, impact, businessType, currencySymbol } = useBusinessConfig();
+
+  // Collections for fashion POS
+  const [collections, setCollections] = useState<Array<{ id: string; name: string }>>([]);
+  
+  // Check if we should use fashion POS
+  const isFashionMode = businessType === 'fashion';
 
   // Cart state
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -190,8 +201,24 @@ export function SalesRecorder() {
 
   const fetchData = async () => {
     setIsLoading(true);
-    await Promise.all([fetchInventory(), fetchRecentSales(), fetchVariants()]);
+    await Promise.all([fetchInventory(), fetchRecentSales(), fetchVariants(), fetchCollections()]);
     setIsLoading(false);
+  };
+
+  const fetchCollections = async () => {
+    if (!tenantId) return;
+    const { data, error } = await supabase
+      .from('collections')
+      .select('id, name')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .order('name');
+    
+    if (error) {
+      console.error('Error fetching collections:', error);
+      return;
+    }
+    setCollections(data || []);
   };
 
   const fetchVariants = async () => {
@@ -210,7 +237,7 @@ export function SalesRecorder() {
   const fetchInventory = async () => {
     const { data, error } = await supabase
       .from('inventory')
-      .select('id, name, sku, unit_price, current_stock')
+      .select('id, name, sku, unit_price, current_stock, image_url, collection_id')
       .gt('current_stock', 0)
       .order('name');
 
@@ -742,18 +769,44 @@ export function SalesRecorder() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Add Items Section */}
+        {/* Add Items Section - conditional for fashion */}
         <Card className="lg:col-span-2 bg-white border-[#004B8D]/10 shadow-sm">
           <CardHeader>
             <CardTitle className="text-[#003366] flex items-center gap-2">
               <Plus className="w-5 h-5 text-[#0077B6]" />
-              Add Items to Sale
+              {isFashionMode ? "Select Products" : "Add Items to Sale"}
             </CardTitle>
             <CardDescription className="text-[#004B8D]/60">
-              Add products and services, then checkout together
+              {isFashionMode ? "Click on products to add them to cart" : "Add products and services, then checkout together"}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* Fashion POS Mode */}
+            {isFashionMode ? (
+              <FashionPOS
+                inventory={inventory}
+                variants={productVariants}
+                collections={collections}
+                cart={cart}
+                onAddToCart={(item) => {
+                  const existingIdx = cart.findIndex(c => 
+                    c.productId === item.productId && 
+                    c.selectedColor === item.selectedColor && 
+                    c.selectedSize === item.selectedSize
+                  );
+                  if (existingIdx >= 0) {
+                    const updatedCart = [...cart];
+                    updatedCart[existingIdx] = item;
+                    setCart(updatedCart);
+                  } else {
+                    setCart([...cart, item]);
+                  }
+                  toast({ title: "Added to Cart", description: `${item.name} added` });
+                }}
+              />
+            ) : (
+            /* Traditional Form-based Mode */
+            <>
             {/* Sale Type Toggle */}
             <div className="space-y-3">
               <Label className="text-[#003366]">Item Type</Label>
@@ -931,6 +984,8 @@ export function SalesRecorder() {
                   Add to Cart
                 </Button>
               </div>
+            )}
+            </>
             )}
           </CardContent>
         </Card>

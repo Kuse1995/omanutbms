@@ -2155,6 +2155,7 @@ export type Database = {
           id: string
           is_active: boolean
           product_id: string
+          stock: number | null
           stock_adjustment: number | null
           tenant_id: string | null
           updated_at: string
@@ -2169,6 +2170,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           product_id: string
+          stock?: number | null
           stock_adjustment?: number | null
           tenant_id?: string | null
           updated_at?: string
@@ -2183,6 +2185,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           product_id?: string
+          stock?: number | null
           stock_adjustment?: number | null
           tenant_id?: string | null
           updated_at?: string
