@@ -39,6 +39,9 @@ export interface BusinessProfile {
   white_label_enabled?: boolean | null;
   multi_branch_enabled?: boolean | null;
   business_type: BusinessType | null;
+  warehouse_enabled?: boolean | null;
+  // Enterprise feature flags (JSONB array)
+  enabled_features?: string[] | null;
   // Billing fields
   billing_plan: string | null;
   billing_status: string | null;

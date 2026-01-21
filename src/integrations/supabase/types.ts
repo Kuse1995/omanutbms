@@ -744,6 +744,7 @@ export type Database = {
           created_at: string
           currency: string | null
           currency_symbol: string | null
+          enabled_features: Json | null
           id: string
           impact_enabled: boolean | null
           industry: string | null
@@ -787,6 +788,7 @@ export type Database = {
           created_at?: string
           currency?: string | null
           currency_symbol?: string | null
+          enabled_features?: Json | null
           id?: string
           impact_enabled?: boolean | null
           industry?: string | null
@@ -830,6 +832,7 @@ export type Database = {
           created_at?: string
           currency?: string | null
           currency_symbol?: string | null
+          enabled_features?: Json | null
           id?: string
           impact_enabled?: boolean | null
           industry?: string | null
