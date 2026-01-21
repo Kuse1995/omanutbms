@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.document-to-csv]
 verify_jwt = false
+
+[functions.estimate-design-labor]
+verify_jwt = false

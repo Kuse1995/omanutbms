@@ -74,7 +74,7 @@ export function CustomOrdersManager() {
         .select(`
           *,
           customers(name),
-          employees(full_name)
+          employees!custom_orders_assigned_to_fkey(full_name)
         `)
         .eq("tenant_id", tenant.id)
         .order("created_at", { ascending: false });

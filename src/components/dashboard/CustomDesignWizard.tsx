@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-  Scissors, 
   User, 
   Ruler, 
   Palette, 
@@ -10,9 +9,10 @@ import {
   Check, 
   ChevronRight, 
   ChevronLeft,
-  Sparkles
+  Sparkles,
+  Calculator,
+  Lock
 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +22,9 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
 import { MeasurementsForm } from "./MeasurementsForm";
+import { MaterialSelector, type MaterialItem } from "./MaterialSelector";
+import { LaborEstimator, type SkillLevel } from "./LaborEstimator";
+import { PricingBreakdown, calculateQuote } from "./PricingBreakdown";
 
 interface CustomDesignWizardProps {
   open: boolean;
@@ -34,6 +37,7 @@ const WIZARD_STEPS = [
   { id: 'design', label: 'Design Details', icon: Palette },
   { id: 'measurements', label: 'Measurements', icon: Ruler },
   { id: 'sketches', label: 'Sketches & Refs', icon: Camera },
+  { id: 'pricing', label: 'Smart Pricing', icon: Calculator },
   { id: 'review', label: 'Review & Confirm', icon: FileText },
 ];
 
@@ -84,6 +88,14 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
     // Sketches
     sketchUrls: [] as string[],
     referenceNotes: '',
+    // Pricing
+    materials: [] as MaterialItem[],
+    laborHours: 0,
+    skillLevel: 'Senior' as SkillLevel,
+    hourlyRate: 75,
+    tailorId: null as string | null,
+    marginPercentage: 30,
+    priceLocked: false,
     // Order details
     estimatedCost: 0,
     depositAmount: 0,
@@ -152,6 +164,13 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
         }
       }
 
+      // Calculate pricing
+      const materialCost = formData.materials.reduce(
+        (sum, m) => sum + m.quantity * m.unitCost, 0
+      );
+      const laborCost = formData.laborHours * formData.hourlyRate;
+      const { quotedPrice } = calculateQuote(materialCost, laborCost, formData.marginPercentage);
+
       // tenant_id is auto-set by trigger, order_number is auto-generated
       const insertData: Record<string, unknown> = {
         tenant_id: tenantId,
@@ -161,13 +180,44 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
         color: formData.color,
         style_notes: formData.styleNotes,
         measurements: formData.measurements,
-        estimated_cost: formData.estimatedCost || null,
+        estimated_cost: quotedPrice || formData.estimatedCost || null,
         deposit_paid: formData.depositAmount || null,
         due_date: formData.dueDate || null,
         status: 'pending',
+        // Pricing fields
+        assigned_tailor_id: formData.tailorId,
+        tailor_skill_level: formData.skillLevel,
+        estimated_labor_hours: formData.laborHours,
+        labor_hourly_rate: formData.hourlyRate,
+        estimated_material_cost: materialCost,
+        estimated_labor_cost: laborCost,
+        margin_percentage: formData.marginPercentage,
+        quoted_price: quotedPrice,
+        price_locked: formData.priceLocked,
+        price_locked_at: formData.priceLocked ? new Date().toISOString() : null,
       };
       
-      const { error } = await supabase.from('custom_orders').insert(insertData as any);
+      const { data: orderData, error } = await supabase
+        .from('custom_orders')
+        .insert(insertData as any)
+        .select('id')
+        .single();
+
+      if (error) throw error;
+
+      // Save material usage records
+      if (orderData && formData.materials.length > 0) {
+        const materialRecords = formData.materials.map(m => ({
+          custom_order_id: orderData.id,
+          inventory_item_id: m.inventoryId,
+          quantity_used: m.quantity,
+          unit_of_measure: m.unitOfMeasure,
+          cost_at_time_of_use: m.unitCost,
+          tenant_id: tenantId,
+        }));
+
+        await supabase.from('job_material_usage').insert(materialRecords);
+      }
 
       if (error) throw error;
 
@@ -316,7 +366,74 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
           </div>
         );
 
-      case 4: // Review & Confirm
+      case 4: // Smart Pricing
+        const materialTotal = formData.materials.reduce(
+          (sum, m) => sum + m.quantity * m.unitCost, 0
+        );
+        const laborTotal = formData.laborHours * formData.hourlyRate;
+        
+        return (
+          <div className="space-y-6">
+            <LaborEstimator
+              hours={formData.laborHours}
+              skillLevel={formData.skillLevel}
+              hourlyRate={formData.hourlyRate}
+              tailorId={formData.tailorId}
+              onHoursChange={(h) => updateFormData('laborHours', h)}
+              onSkillLevelChange={(s) => updateFormData('skillLevel', s)}
+              onHourlyRateChange={(r) => updateFormData('hourlyRate', r)}
+              onTailorChange={(t) => updateFormData('tailorId', t)}
+              designType={formData.designType}
+              styleNotes={formData.styleNotes}
+              fabric={formData.fabric}
+            />
+
+            <div className="border-t pt-4">
+              <MaterialSelector
+                materials={formData.materials}
+                onChange={(m) => updateFormData('materials', m)}
+              />
+            </div>
+
+            <div className="border-t pt-4">
+              <PricingBreakdown
+                materialCost={materialTotal}
+                laborCost={laborTotal}
+                marginPercentage={formData.marginPercentage}
+                onMarginChange={(m) => updateFormData('marginPercentage', m)}
+                isLocked={formData.priceLocked}
+              />
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <Button
+                type="button"
+                variant={formData.priceLocked ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => updateFormData('priceLocked', !formData.priceLocked)}
+                className={formData.priceLocked ? "bg-amber-100 text-amber-800 border-amber-300" : ""}
+              >
+                <Lock className="h-4 w-4 mr-1" />
+                {formData.priceLocked ? "Price Locked" : "Lock Quote"}
+              </Button>
+              {formData.priceLocked && (
+                <span className="text-xs text-muted-foreground">
+                  Price is now frozen and saved to the order.
+                </span>
+              )}
+            </div>
+          </div>
+        );
+
+      case 5: // Review & Confirm
+        const finalMaterialCost = formData.materials.reduce(
+          (sum, m) => sum + m.quantity * m.unitCost, 0
+        );
+        const finalLaborCost = formData.laborHours * formData.hourlyRate;
+        const { quotedPrice: finalQuote } = calculateQuote(
+          finalMaterialCost, finalLaborCost, formData.marginPercentage
+        );
+
         return (
           <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4 text-sm">
@@ -332,18 +449,29 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
               </div>
             </div>
 
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 text-amber-800 font-medium mb-2">
+                <Calculator className="h-4 w-4" />
+                Quoted Price
+              </div>
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Materials</p>
+                  <p className="font-medium">K {finalMaterialCost.toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Labor ({formData.laborHours}hrs)</p>
+                  <p className="font-medium">K {finalLaborCost.toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Final Quote</p>
+                  <p className="font-bold text-lg text-primary">K {finalQuote.toFixed(2)}</p>
+                </div>
+              </div>
+            </div>
+
             <div className="border-t pt-4 space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="estimatedCost">Estimated Cost (K)</Label>
-                  <Input
-                    id="estimatedCost"
-                    type="number"
-                    value={formData.estimatedCost || ''}
-                    onChange={(e) => updateFormData('estimatedCost', parseFloat(e.target.value) || 0)}
-                    placeholder="0.00"
-                  />
-                </div>
                 <div>
                   <Label htmlFor="depositAmount">Deposit Amount (K)</Label>
                   <Input
@@ -354,15 +482,15 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
                     placeholder="0.00"
                   />
                 </div>
-              </div>
-              <div>
-                <Label htmlFor="dueDate">Expected Due Date</Label>
-                <Input
-                  id="dueDate"
-                  type="date"
-                  value={formData.dueDate}
-                  onChange={(e) => updateFormData('dueDate', e.target.value)}
-                />
+                <div>
+                  <Label htmlFor="dueDate">Expected Due Date</Label>
+                  <Input
+                    id="dueDate"
+                    type="date"
+                    value={formData.dueDate}
+                    onChange={(e) => updateFormData('dueDate', e.target.value)}
+                  />
+                </div>
               </div>
             </div>
           </div>
