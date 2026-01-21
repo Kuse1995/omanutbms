@@ -2,7 +2,9 @@ import { motion } from "framer-motion";
 import { Check, Sparkles, Zap, Crown, Mail } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { BILLING_PLANS, BillingPlan, formatPrice } from "@/lib/billing-plans";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useBillingPlans } from "@/hooks/useBillingPlans";
+import { BillingPlan, formatPrice } from "@/lib/billing-plans";
 
 interface PlanSelectorProps {
   selectedPlan: BillingPlan;
@@ -10,6 +12,7 @@ interface PlanSelectorProps {
 }
 
 export function PlanSelector({ selectedPlan, onSelectPlan }: PlanSelectorProps) {
+  const { plans, loading } = useBillingPlans();
   const selectablePlans: BillingPlan[] = ["starter", "growth"];
 
   const getPlanIcon = (plan: BillingPlan) => {
@@ -23,6 +26,21 @@ export function PlanSelector({ selectedPlan, onSelectPlan }: PlanSelectorProps) 
     }
   };
 
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="text-center mb-4">
+          <Skeleton className="h-4 w-48 mx-auto" />
+        </div>
+        <div className="grid gap-3">
+          {[1, 2].map((i) => (
+            <Skeleton key={i} className="h-28 rounded-xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="text-center mb-4">
@@ -33,7 +51,7 @@ export function PlanSelector({ selectedPlan, onSelectPlan }: PlanSelectorProps) 
 
       <div className="grid gap-3">
         {selectablePlans.map((planKey) => {
-          const plan = BILLING_PLANS[planKey];
+          const plan = plans[planKey];
           const isSelected = selectedPlan === planKey;
 
           return (
@@ -107,7 +125,7 @@ export function PlanSelector({ selectedPlan, onSelectPlan }: PlanSelectorProps) 
               <Crown className="w-5 h-5" />
             </div>
             <div className="flex-1">
-              <h4 className="font-semibold text-slate-300">Enterprise</h4>
+              <h4 className="font-semibold text-slate-300">{plans.enterprise.label}</h4>
               <p className="text-sm text-slate-500">Need unlimited scale & custom features?</p>
             </div>
             <Button 

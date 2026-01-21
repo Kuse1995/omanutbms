@@ -16,7 +16,8 @@ import { TenantAddonsDialog } from "./TenantAddonsDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { getBusinessTypeOptions, BusinessType } from "@/lib/business-type-config";
-import { getBillingPlanOptions, getBillingStatusOptions, BillingPlan, BillingStatus, BILLING_PLANS } from "@/lib/billing-plans";
+import { getBillingPlanOptions, getBillingStatusOptions, BillingPlan, BillingStatus } from "@/lib/billing-plans";
+import { useBillingPlans } from "@/hooks/useBillingPlans";
 
 interface Tenant {
   id: string;
@@ -32,6 +33,7 @@ interface Tenant {
 export function TenantManager() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { plans } = useBillingPlans();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
@@ -644,7 +646,7 @@ export function TenantManager() {
                   <TableCell>{getStatusBadge(tenant.status)}</TableCell>
                   <TableCell>
                     <Badge variant="outline">
-                      {BILLING_PLANS[tenant.billing_plan as BillingPlan]?.label || tenant.billing_plan}
+                      {plans[tenant.billing_plan as BillingPlan]?.label || tenant.billing_plan || "No Plan"}
                     </Badge>
                   </TableCell>
                   <TableCell>{getBillingStatusBadge(tenant.billing_status || 'inactive')}</TableCell>

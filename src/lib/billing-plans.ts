@@ -39,8 +39,8 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
     label: "Starter",
     description: "For small teams and early businesses",
     tagline: "Perfect for getting started",
-    monthlyPrice: 499,
-    annualPrice: 4790,
+    monthlyPrice: 299,
+    annualPrice: 3000,
     currency: "ZMW",
     trialDays: 14,
     popular: false,
@@ -55,7 +55,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       impact: false,
       advanced_accounting: false,
       website: false,
-      whatsapp: true, // All plans have WhatsApp with usage limits
+      whatsapp: true,
     },
     highlights: [
       "Up to 3 team members",
@@ -67,11 +67,11 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
   },
 
   growth: {
-    label: "Growth",
+    label: "Pro",
     description: "For growing organizations",
     tagline: "Most popular for scaling teams",
-    monthlyPrice: 1299,
-    annualPrice: 12470,
+    monthlyPrice: 799,
+    annualPrice: 9000,
     currency: "ZMW",
     trialDays: 14,
     popular: true,
@@ -103,8 +103,8 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
     label: "Enterprise",
     description: "Custom solution for large organizations",
     tagline: "Full power, unlimited scale",
-    monthlyPrice: 0, // Custom pricing
-    annualPrice: 0,
+    monthlyPrice: 1999,
+    annualPrice: 22999,
     currency: "ZMW",
     trialDays: 30,
     popular: false,

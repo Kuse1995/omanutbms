@@ -1,8 +1,9 @@
 import { ReactNode, useState } from "react";
 import { useFeatures } from "@/hooks/useFeatures";
 import { useBilling } from "@/hooks/useBilling";
+import { useBillingPlans } from "@/hooks/useBillingPlans";
 import { FeatureKey } from "@/lib/feature-config";
-import { PlanFeatures, BILLING_PLANS } from "@/lib/billing-plans";
+import { PlanFeatures } from "@/lib/billing-plans";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ShieldX, Lock, Sparkles } from "lucide-react";
@@ -23,10 +24,11 @@ interface FeatureGuardProps {
  */
 export function FeatureGuard({ feature, children, featureName }: FeatureGuardProps) {
   const { isEnabled, loading: featuresLoading } = useFeatures();
-  const { isFeatureAllowed, isActive, plan, status, getRequiredPlan, loading: billingLoading } = useBilling();
+  const { isFeatureAllowed, isActive, plan, planConfig, status, getRequiredPlan, loading: billingLoading } = useBilling();
+  const { plans, loading: plansLoading } = useBillingPlans();
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
 
-  const loading = featuresLoading || billingLoading;
+  const loading = featuresLoading || billingLoading || plansLoading;
 
   // Show loading skeleton while features are being loaded
   if (loading) {
@@ -112,7 +114,7 @@ export function FeatureGuard({ feature, children, featureName }: FeatureGuardPro
   // Check if billing plan doesn't include this feature
   if (!billingAllows) {
     const requiredPlan = getRequiredPlan(feature as keyof PlanFeatures);
-    const requiredPlanLabel = requiredPlan ? BILLING_PLANS[requiredPlan].label : "Higher";
+    const requiredPlanLabel = requiredPlan ? plans[requiredPlan].label : "Higher";
 
     return (
       <>
@@ -128,7 +130,7 @@ export function FeatureGuard({ feature, children, featureName }: FeatureGuardPro
             </CardHeader>
             <CardContent className="text-center space-y-4">
               <div className="flex justify-center gap-2">
-                <Badge variant="secondary">Current: {BILLING_PLANS[plan].label}</Badge>
+                <Badge variant="secondary">Current: {planConfig.label}</Badge>
                 <Badge variant="default">Required: {requiredPlanLabel}</Badge>
               </div>
               <p className="text-muted-foreground">

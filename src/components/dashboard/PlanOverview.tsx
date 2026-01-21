@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useBilling } from "@/hooks/useBilling";
 import { useTrialStatus } from "@/hooks/useTrialStatus";
-import { BILLING_PLANS, PlanFeatures, formatPrice } from "@/lib/billing-plans";
+import { PlanFeatures, formatPrice } from "@/lib/billing-plans";
 import { Check, X, Mail, Crown, Users, Package, Info, Sparkles, Clock } from "lucide-react";
 import { UpgradePlanModal } from "./UpgradePlanModal";
 
