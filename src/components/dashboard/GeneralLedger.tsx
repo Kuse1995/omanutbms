@@ -94,22 +94,26 @@ export function GeneralLedger() {
       let runningBalance = 0;
 
       // Add sales as revenue (credit to revenue, debit to cash/receivables)
-      (salesRes.data || []).forEach((sale) => {
-        runningBalance += Number(sale.total_amount_zmw);
+      // total_amount_zmw is already NET of discounts
+      ((salesRes.data as any[]) || []).forEach((sale) => {
+        const saleAmount = Number(sale.total_amount_zmw || 0);
+        const discountAmount = Number(sale.discount_amount || 0);
+        
+        runningBalance += saleAmount;
         ledgerEntries.push({
           id: `sale-${sale.id}`,
           date: sale.created_at,
-          description: `Sale: ${sale.product_name} x${sale.quantity}`,
+          description: `Sale: ${sale.product_name} x${sale.quantity}${discountAmount > 0 ? ` (Discount: K${discountAmount.toLocaleString()})` : ''}`,
           account: "Revenue - Product Sales",
           debit: 0,
-          credit: Number(sale.total_amount_zmw),
+          credit: saleAmount,
           balance: runningBalance,
           type: "revenue",
         });
       });
 
       // Add expenses as debits
-      (expensesRes.data || []).forEach((expense) => {
+      ((expensesRes.data as any[]) || []).forEach((expense) => {
         runningBalance -= Number(expense.amount_zmw);
         ledgerEntries.push({
           id: `expense-${expense.id}`,
@@ -123,9 +127,9 @@ export function GeneralLedger() {
         });
       });
 
-      // Add payment receipts as revenue (actual cash received)
+      // Add payment receipts as revenue (actual cash received for invoices)
       // Only include payments linked to invoices to avoid double-counting with sales_transactions
-      (paymentsRes.data || []).forEach((payment) => {
+      ((paymentsRes.data as any[]) || []).forEach((payment) => {
         // Only show payment receipts that are linked to invoices
         // Direct sales already appear in sales_transactions
         if (payment.invoice_id) {
