@@ -744,7 +744,7 @@ export function AgentsManager() {
                         </SelectTrigger>
                         <SelectContent className="bg-popover border-border z-50">
                           {mainInventory.length === 0 ? (
-                            <SelectItem value="" disabled>No products in stock</SelectItem>
+                            <SelectItem value="no-products" disabled>No products in stock</SelectItem>
                           ) : (
                             mainInventory.map((product) => (
                               <SelectItem key={product.id} value={product.id}>
