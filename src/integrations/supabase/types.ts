@@ -1085,6 +1085,7 @@ export type Database = {
       }
       custom_orders: {
         Row: {
+          assigned_tailor_id: string | null
           assigned_to: string | null
           branch_id: string | null
           color: string | null
@@ -1095,21 +1096,31 @@ export type Database = {
           design_type: string | null
           due_date: string | null
           estimated_cost: number | null
+          estimated_labor_cost: number | null
+          estimated_labor_hours: number | null
+          estimated_material_cost: number | null
           fabric: string | null
           final_cost: number | null
           id: string
           invoice_id: string | null
+          labor_hourly_rate: number | null
+          margin_percentage: number | null
           measurements: Json | null
           order_date: string | null
           order_number: string
+          price_locked: boolean | null
+          price_locked_at: string | null
           quotation_id: string | null
+          quoted_price: number | null
           reference_images: string[] | null
           status: string | null
           style_notes: string | null
+          tailor_skill_level: string | null
           tenant_id: string
           updated_at: string
         }
         Insert: {
+          assigned_tailor_id?: string | null
           assigned_to?: string | null
           branch_id?: string | null
           color?: string | null
@@ -1120,21 +1131,31 @@ export type Database = {
           design_type?: string | null
           due_date?: string | null
           estimated_cost?: number | null
+          estimated_labor_cost?: number | null
+          estimated_labor_hours?: number | null
+          estimated_material_cost?: number | null
           fabric?: string | null
           final_cost?: number | null
           id?: string
           invoice_id?: string | null
+          labor_hourly_rate?: number | null
+          margin_percentage?: number | null
           measurements?: Json | null
           order_date?: string | null
           order_number: string
+          price_locked?: boolean | null
+          price_locked_at?: string | null
           quotation_id?: string | null
+          quoted_price?: number | null
           reference_images?: string[] | null
           status?: string | null
           style_notes?: string | null
+          tailor_skill_level?: string | null
           tenant_id: string
           updated_at?: string
         }
         Update: {
+          assigned_tailor_id?: string | null
           assigned_to?: string | null
           branch_id?: string | null
           color?: string | null
@@ -1145,21 +1166,37 @@ export type Database = {
           design_type?: string | null
           due_date?: string | null
           estimated_cost?: number | null
+          estimated_labor_cost?: number | null
+          estimated_labor_hours?: number | null
+          estimated_material_cost?: number | null
           fabric?: string | null
           final_cost?: number | null
           id?: string
           invoice_id?: string | null
+          labor_hourly_rate?: number | null
+          margin_percentage?: number | null
           measurements?: Json | null
           order_date?: string | null
           order_number?: string
+          price_locked?: boolean | null
+          price_locked_at?: string | null
           quotation_id?: string | null
+          quoted_price?: number | null
           reference_images?: string[] | null
           status?: string | null
           style_notes?: string | null
+          tailor_skill_level?: string | null
           tenant_id?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "custom_orders_assigned_tailor_id_fkey"
+            columns: ["assigned_tailor_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "custom_orders_assigned_to_fkey"
             columns: ["assigned_to"]
@@ -1433,6 +1470,7 @@ export type Database = {
           pay_type: string
           phone: string | null
           shift_rate: number | null
+          skill_level: string | null
           tenant_id: string | null
           termination_date: string | null
           updated_at: string
@@ -1462,6 +1500,7 @@ export type Database = {
           pay_type?: string
           phone?: string | null
           shift_rate?: number | null
+          skill_level?: string | null
           tenant_id?: string | null
           termination_date?: string | null
           updated_at?: string
@@ -1491,6 +1530,7 @@ export type Database = {
           pay_type?: string
           phone?: string | null
           shift_rate?: number | null
+          skill_level?: string | null
           tenant_id?: string | null
           termination_date?: string | null
           updated_at?: string
@@ -2176,6 +2216,61 @@ export type Database = {
           },
           {
             foreignKeyName: "invoices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_material_usage: {
+        Row: {
+          cost_at_time_of_use: number
+          created_at: string | null
+          custom_order_id: string | null
+          id: string
+          inventory_item_id: string | null
+          quantity_used: number
+          tenant_id: string | null
+          unit_of_measure: string | null
+        }
+        Insert: {
+          cost_at_time_of_use?: number
+          created_at?: string | null
+          custom_order_id?: string | null
+          id?: string
+          inventory_item_id?: string | null
+          quantity_used?: number
+          tenant_id?: string | null
+          unit_of_measure?: string | null
+        }
+        Update: {
+          cost_at_time_of_use?: number
+          created_at?: string | null
+          custom_order_id?: string | null
+          id?: string
+          inventory_item_id?: string | null
+          quantity_used?: number
+          tenant_id?: string | null
+          unit_of_measure?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_material_usage_custom_order_id_fkey"
+            columns: ["custom_order_id"]
+            isOneToOne: false
+            referencedRelation: "custom_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_material_usage_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_material_usage_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
