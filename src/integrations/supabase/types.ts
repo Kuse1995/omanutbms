@@ -1869,6 +1869,7 @@ export type Database = {
           created_at: string
           current_stock: number
           datasheet_url: string | null
+          default_location_id: string | null
           description: string | null
           expiry_date: string | null
           features: string[] | null
@@ -1877,6 +1878,7 @@ export type Database = {
           highlight: string | null
           id: string
           image_url: string | null
+          inventory_class: string | null
           item_type: string
           liters_per_unit: number
           manual_url: string | null
@@ -1889,6 +1891,7 @@ export type Database = {
           status: string
           technical_specs: Json | null
           tenant_id: string | null
+          unit_of_measure: string | null
           unit_price: number
           updated_at: string
           wholesale_stock: number
@@ -1904,6 +1907,7 @@ export type Database = {
           created_at?: string
           current_stock?: number
           datasheet_url?: string | null
+          default_location_id?: string | null
           description?: string | null
           expiry_date?: string | null
           features?: string[] | null
@@ -1912,6 +1916,7 @@ export type Database = {
           highlight?: string | null
           id?: string
           image_url?: string | null
+          inventory_class?: string | null
           item_type?: string
           liters_per_unit?: number
           manual_url?: string | null
@@ -1924,6 +1929,7 @@ export type Database = {
           status?: string
           technical_specs?: Json | null
           tenant_id?: string | null
+          unit_of_measure?: string | null
           unit_price?: number
           updated_at?: string
           wholesale_stock?: number
@@ -1939,6 +1945,7 @@ export type Database = {
           created_at?: string
           current_stock?: number
           datasheet_url?: string | null
+          default_location_id?: string | null
           description?: string | null
           expiry_date?: string | null
           features?: string[] | null
@@ -1947,6 +1954,7 @@ export type Database = {
           highlight?: string | null
           id?: string
           image_url?: string | null
+          inventory_class?: string | null
           item_type?: string
           liters_per_unit?: number
           manual_url?: string | null
@@ -1959,6 +1967,7 @@ export type Database = {
           status?: string
           technical_specs?: Json | null
           tenant_id?: string | null
+          unit_of_measure?: string | null
           unit_price?: number
           updated_at?: string
           wholesale_stock?: number
@@ -1969,6 +1978,13 @@ export type Database = {
             columns: ["collection_id"]
             isOneToOne: false
             referencedRelation: "collections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_default_location_id_fkey"
+            columns: ["default_location_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
             referencedColumns: ["id"]
           },
           {
