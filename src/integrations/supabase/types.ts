@@ -1101,6 +1101,7 @@ export type Database = {
           estimated_material_cost: number | null
           fabric: string | null
           final_cost: number | null
+          generated_images: Json | null
           id: string
           invoice_id: string | null
           labor_hourly_rate: number | null
@@ -1136,6 +1137,7 @@ export type Database = {
           estimated_material_cost?: number | null
           fabric?: string | null
           final_cost?: number | null
+          generated_images?: Json | null
           id?: string
           invoice_id?: string | null
           labor_hourly_rate?: number | null
@@ -1171,6 +1173,7 @@ export type Database = {
           estimated_material_cost?: number | null
           fabric?: string | null
           final_cost?: number | null
+          generated_images?: Json | null
           id?: string
           invoice_id?: string | null
           labor_hourly_rate?: number | null

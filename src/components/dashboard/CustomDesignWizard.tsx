@@ -25,6 +25,7 @@ import { MeasurementsForm } from "./MeasurementsForm";
 import { MaterialSelector, type MaterialItem } from "./MaterialSelector";
 import { LaborEstimator, type SkillLevel } from "./LaborEstimator";
 import { PricingBreakdown, calculateQuote } from "./PricingBreakdown";
+import { SketchUploader } from "./SketchUploader";
 
 interface CustomDesignWizardProps {
   open: boolean;
@@ -88,6 +89,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
     // Sketches
     sketchUrls: [] as string[],
     referenceNotes: '',
+    generatedImages: [] as { view: string; imageUrl: string }[],
     // Pricing
     materials: [] as MaterialItem[],
     laborHours: 0,
@@ -184,6 +186,10 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
         deposit_paid: formData.depositAmount || null,
         due_date: formData.dueDate || null,
         status: 'pending',
+        // Reference images from sketches
+        reference_images: formData.sketchUrls.length > 0 ? formData.sketchUrls : null,
+        // AI-generated outfit views
+        generated_images: formData.generatedImages.length > 0 ? formData.generatedImages : [],
         // Pricing fields
         assigned_tailor_id: formData.tailorId,
         tailor_skill_level: formData.skillLevel,
@@ -343,27 +349,18 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
 
       case 3: // Sketches & References
         return (
-          <div className="space-y-4">
-            <div className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-8 text-center">
-              <Camera className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-              <p className="text-sm text-muted-foreground mb-2">
-                Drag and drop reference images or sketches here
-              </p>
-              <Button variant="outline" size="sm">
-                Upload Images
-              </Button>
-            </div>
-            <div>
-              <Label htmlFor="referenceNotes">Reference Notes</Label>
-              <Textarea
-                id="referenceNotes"
-                value={formData.referenceNotes}
-                onChange={(e) => updateFormData('referenceNotes', e.target.value)}
-                placeholder="Describe any reference images, celebrity looks, or inspiration..."
-                rows={4}
-              />
-            </div>
-          </div>
+          <SketchUploader
+            sketchUrls={formData.sketchUrls}
+            referenceNotes={formData.referenceNotes}
+            generatedImages={formData.generatedImages}
+            designType={formData.designType}
+            fabric={formData.fabric}
+            color={formData.color}
+            styleNotes={formData.styleNotes}
+            onSketchUrlsChange={(urls) => updateFormData('sketchUrls', urls)}
+            onReferenceNotesChange={(notes) => updateFormData('referenceNotes', notes)}
+            onGeneratedImagesChange={(images) => updateFormData('generatedImages', images)}
+          />
         );
 
       case 4: // Smart Pricing
