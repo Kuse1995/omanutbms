@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Search, User, LogOut, Shield } from "lucide-react";
+import { Search, User, LogOut, Shield, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,7 +22,7 @@ import { UpgradePlanModal } from "./UpgradePlanModal";
 import { BranchSelector } from "./BranchSelector";
 
 export function DashboardHeader() {
-  const { user, profile, role, signOut } = useAuth();
+  const { user, profile, role, signOut, isSuperAdmin } = useAuth();
   const { companyName } = useFeatures();
   const navigate = useNavigate();
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
@@ -44,6 +45,15 @@ export function DashboardHeader() {
 
   return (
     <>
+      {/* Super Admin Mode Warning Banner */}
+      {isSuperAdmin && (
+        <Alert variant="destructive" className="rounded-none border-x-0 border-t-0 bg-amber-500/10 border-amber-500/30">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-amber-700 font-medium">
+            Super Admin Mode: You have cross-tenant visibility. Data from all organizations may be visible.
+          </AlertDescription>
+        </Alert>
+      )}
       <TrialBanner onUpgrade={() => setUpgradeModalOpen(true)} />
       <header className="h-16 border-b border-[#004B8D]/10 bg-white/80 backdrop-blur-sm px-6 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-4">

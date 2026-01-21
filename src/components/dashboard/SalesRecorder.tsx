@@ -222,9 +222,11 @@ export function SalesRecorder() {
   };
 
   const fetchVariants = async () => {
+    if (!tenantId) return;
     const { data, error } = await supabase
       .from('product_variants')
       .select('*')
+      .eq('tenant_id', tenantId)
       .eq('is_active', true);
 
     if (error) {
@@ -235,9 +237,11 @@ export function SalesRecorder() {
   };
 
   const fetchInventory = async () => {
+    if (!tenantId) return;
     const { data, error } = await supabase
       .from('inventory')
       .select('id, name, sku, unit_price, current_stock, image_url, collection_id')
+      .eq('tenant_id', tenantId)
       .gt('current_stock', 0)
       .order('name');
 
@@ -249,9 +253,11 @@ export function SalesRecorder() {
   };
 
   const fetchRecentSales = async () => {
+    if (!tenantId) return;
     const { data, error } = await supabase
       .from('sales_transactions')
       .select('*')
+      .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false })
       .limit(10);
 

@@ -30,6 +30,7 @@ import {
 import { FileText, Plus, RefreshCw, Loader2, Eye, Pencil, Trash2, Receipt, Lock, ChevronDown, ChevronRight, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenant } from "@/hooks/useTenant";
 import { InvoiceFormModal } from "./InvoiceFormModal";
 import { InvoiceViewModal } from "./InvoiceViewModal";
 import { ReceiptModal } from "./ReceiptModal";
@@ -72,12 +73,18 @@ export function InvoicesManager() {
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const { canAdd, isAdmin } = useAuth();
+  const { tenantId } = useTenant();
 
   const fetchInvoices = async () => {
+    if (!tenantId) {
+      setIsLoading(false);
+      return;
+    }
     try {
       const { data, error } = await supabase
         .from("invoices")
         .select("*")
+        .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -96,7 +103,9 @@ export function InvoicesManager() {
   };
 
   useEffect(() => {
-    fetchInvoices();
+    if (tenantId) {
+      fetchInvoices();
+    }
 
     const channel = supabase
       .channel("invoices-changes")
@@ -110,7 +119,7 @@ export function InvoicesManager() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [tenantId]);
 
   // Group invoices by client name
   const clientGroups = useMemo((): ClientGroup[] => {
