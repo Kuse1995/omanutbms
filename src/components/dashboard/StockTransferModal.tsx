@@ -139,9 +139,9 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
       // Use type assertion to avoid deep type instantiation issues
       const query = (supabase as any)
         .from('inventory')
-        .select('id, name, sku, quantity')
+        .select('id, name, sku, current_stock')
         .eq('tenant_id', tenant.id)
-        .gt('quantity', 0)
+        .gt('current_stock', 0)
         .order('name');
       
       const { data, error } = await query;
@@ -151,7 +151,7 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
         id: item.id,
         product_name: item.name,
         sku: item.sku || '',
-        current_stock: item.quantity || 0,
+        current_stock: item.current_stock || 0,
       })));
     } catch (error) {
       console.error('Error fetching inventory:', error);

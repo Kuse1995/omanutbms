@@ -765,7 +765,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
         // Inventory classification fields
         inventory_class: formData.inventory_class || "finished_good",
         unit_of_measure: formData.unit_of_measure || "pcs",
-        default_location_id: formData.default_location_id || null,
+        default_location_id: formData.default_location_id && formData.default_location_id !== "none" ? formData.default_location_id : null,
       };
 
       // Add fashion fields if enabled for this business type
