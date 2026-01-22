@@ -8,6 +8,14 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
+
+function getBearerToken(req: Request): string | null {
+  const auth = req.headers.get('Authorization');
+  if (!auth) return null;
+  const m = auth.match(/^Bearer\s+(.+)$/i);
+  return (m?.[1] ?? '').trim() || null;
+}
 
 // Role-based permissions for WhatsApp BMS operations
 const ROLE_PERMISSIONS: Record<string, string[]> = {
@@ -206,6 +214,36 @@ serve(async (req) => {
   }
 
   try {
+    // Require auth: either an internal service-role call (from our own backend functions)
+    // or an end-user JWT (dashboard).
+    const authHeader = req.headers.get('Authorization');
+    const bearer = getBearerToken(req);
+    if (!authHeader || !bearer) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Missing authorization' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const isInternal = bearer === SUPABASE_SERVICE_ROLE_KEY;
+    let callerUserId: string | null = null;
+
+    if (!isInternal) {
+      const supabaseUser = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        global: { headers: { Authorization: authHeader } },
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const { data: { user }, error: userErr } = await supabaseUser.auth.getUser();
+      if (userErr || !user) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Unauthorized' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      callerUserId = user.id;
+    }
+
     const { intent, entities, context } = await req.json() as {
       intent: string;
       entities: Record<string, any>;
@@ -219,6 +257,32 @@ serve(async (req) => {
       );
     }
 
+    // If this is a user JWT call, ensure the caller is the same user claimed in context.
+    if (!isInternal && callerUserId && callerUserId !== context.user_id) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Unauthorized: user mismatch' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Defense-in-depth: validate user belongs to the tenant, and derive role from DB.
+    const { data: tenantUser, error: tuErr } = await supabase
+      .from('tenant_users')
+      .select('role')
+      .eq('tenant_id', context.tenant_id)
+      .eq('user_id', context.user_id)
+      .maybeSingle();
+
+    if (tuErr || !tenantUser) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Unauthorized: tenant access denied' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Override role from DB (don’t trust client-supplied role)
+    context.role = String(tenantUser.role);
+
     // Check role permissions
     const allowedIntents = ROLE_PERMISSIONS[context.role] || [];
     if (!allowedIntents.includes(intent)) {
@@ -231,7 +295,6 @@ serve(async (req) => {
       );
     }
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const startTime = Date.now();
 
     let result;
