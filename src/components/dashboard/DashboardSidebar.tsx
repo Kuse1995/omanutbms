@@ -248,7 +248,7 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
   // Show skeleton while loading to prevent flash of content
   if (loading) {
     return (
-      <Sidebar className="border-r border-[#003366]/30 bg-gradient-to-b from-[#004B8D] to-[#003366]">
+      <Sidebar className="border-r border-sidebar-border bg-gradient-to-b from-[var(--brand-primary,#004B8D)] to-[var(--brand-secondary,#003366)]">
         <SidebarHeader className="p-4 border-b border-white/10">
           <div className="flex items-center gap-3">
             <Skeleton className="h-10 w-10 rounded-lg bg-white/20" />
@@ -279,7 +279,7 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
   const visibleCategories = getVisibleCategories();
 
   return (
-    <Sidebar className="border-r border-[#003366]/30 bg-gradient-to-b from-[#004B8D] to-[#003366]" data-tour="sidebar">
+    <Sidebar className="border-r border-sidebar-border bg-gradient-to-b from-[var(--brand-primary,#004B8D)] to-[var(--brand-secondary,#003366)]" data-tour="sidebar">
       <SidebarHeader className="p-4 border-b border-white/10">
         <div className="flex items-center gap-3">
           {logoUrl ? (
@@ -309,7 +309,7 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
                     onClick={() => setActiveTab(dashboardItem.id)}
                     className={`w-full justify-start gap-3 px-3 py-2.5 rounded-lg transition-all ${
                       activeTab === dashboardItem.id
-                        ? "bg-white text-[#004B8D] shadow-md"
+                        ? "bg-white text-[var(--brand-primary,#004B8D)] shadow-md"
                         : "text-white/80 hover:bg-white/10 hover:text-white"
                     }`}
                   >
@@ -360,7 +360,7 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
                                 onClick={() => setActiveTab(item.id)}
                                 className={`w-full justify-start gap-3 px-3 py-2 rounded-lg transition-all text-sm ${
                                   activeTab === item.id
-                                    ? "bg-white text-[#004B8D] shadow-md"
+                                    ? "bg-white text-[var(--brand-primary,#004B8D)] shadow-md"
                                     : "text-white/70 hover:bg-white/10 hover:text-white"
                                 }`}
                               >
@@ -395,7 +395,7 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
                       onClick={() => setActiveTab(item.id)}
                       className={`w-full justify-start gap-3 px-3 py-2.5 rounded-lg transition-all ${
                         activeTab === item.id
-                          ? "bg-[#0077B6] text-white shadow-md"
+                          ? "bg-[var(--brand-secondary,#0077B6)] text-white shadow-md"
                           : "text-white/80 hover:bg-white/10 hover:text-white"
                       }`}
                     >

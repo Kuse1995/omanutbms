@@ -69,6 +69,12 @@ export default {
           light: "hsl(var(--brand-blue-light))",
           dark: "hsl(var(--brand-blue-dark))",
           teal: "hsl(var(--brand-teal))",
+          // Dynamic tenant branding colors (set via inline styles)
+          primary: "var(--brand-primary, hsl(var(--brand-blue)))",
+          secondary: "var(--brand-secondary, hsl(var(--brand-blue-light)))",
+          accent: "var(--brand-accent, hsl(var(--brand-teal)))",
+          "bg-light": "color-mix(in srgb, var(--brand-primary, #004B8D) 5%, white)",
+          "bg-dark": "color-mix(in srgb, var(--brand-primary, #004B8D) 10%, white)",
         },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
