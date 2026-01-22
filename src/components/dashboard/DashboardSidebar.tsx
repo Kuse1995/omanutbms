@@ -32,6 +32,7 @@ import { useFeatures } from "@/hooks/useFeatures";
 import { useBranding } from "@/hooks/useBranding";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 import { useTenant } from "@/hooks/useTenant";
+import { useEnterpriseFeatures } from "@/hooks/useEnterpriseFeatures";
 import { PoweredByFooter } from "./PoweredByFooter";
 import type { DashboardTab } from "@/pages/Dashboard";
 import type { FeatureKey } from "@/lib/feature-config";
@@ -158,6 +159,7 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
   const { logoUrl, primaryColor, tagline } = useBranding();
   const { layout, businessType } = useBusinessConfig();
   const { businessProfile } = useTenant();
+  const { isCustomDesignerEnabled, isProductionTrackingEnabled } = useEnterpriseFeatures();
   const navigate = useNavigate();
   
   const isMultiBranchEnabled = businessProfile?.multi_branch_enabled ?? false;
@@ -182,6 +184,9 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
       if (item.feature && !features[item.feature]) return false;
       // Check role-based access
       if (!hasModuleAccess(role, item.id as ModuleKey)) return false;
+      // Check enterprise feature gating for custom workflow tabs
+      if (item.id === 'custom-orders' && !isCustomDesignerEnabled) return false;
+      if (item.id === 'production-floor' && !isCustomDesignerEnabled && !isProductionTrackingEnabled) return false;
       return true;
     });
   };
