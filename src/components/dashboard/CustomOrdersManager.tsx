@@ -11,7 +11,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CustomOrderModal } from "./CustomOrderModal";
-import { Scissors, Plus, Search, Edit, Trash2, Loader2, Calendar, User, Clock } from "lucide-react";
+import { CustomDesignWizard } from "./CustomDesignWizard";
+import { Scissors, Plus, Search, Edit, Trash2, Loader2, Calendar, User, Clock, Sparkles } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import type { Measurements } from "./MeasurementsForm";
@@ -58,6 +59,7 @@ export function CustomOrdersManager() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [modalOpen, setModalOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<CustomOrder | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<CustomOrder | null>(null);
@@ -177,8 +179,11 @@ export function CustomOrdersManager() {
         </div>
 
         {canEdit && (
-          <Button onClick={() => { setSelectedOrder(null); setModalOpen(true); }}>
-            <Plus className="h-4 w-4 mr-2" />
+          <Button 
+            onClick={() => setWizardOpen(true)}
+            className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-md"
+          >
+            <Sparkles className="h-4 w-4 mr-2" />
             New Custom Order
           </Button>
         )}
@@ -344,10 +349,18 @@ export function CustomOrdersManager() {
         </CardContent>
       </Card>
 
+      {/* Edit modal for existing orders */}
       <CustomOrderModal
         open={modalOpen}
         onOpenChange={setModalOpen}
         order={selectedOrder}
+        onSuccess={fetchOrders}
+      />
+
+      {/* New order wizard with sketch upload & QC */}
+      <CustomDesignWizard
+        open={wizardOpen}
+        onClose={() => setWizardOpen(false)}
         onSuccess={fetchOrders}
       />
 
