@@ -185,8 +185,11 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
       // Check role-based access
       if (!hasModuleAccess(role, item.id as ModuleKey)) return false;
       // Check enterprise feature gating for custom workflow tabs
+      // Hide entire "Custom Workflow" category for non-authorized tenants
       if (item.id === 'custom-orders' && !isCustomDesignerEnabled) return false;
       if (item.id === 'production-floor' && !isCustomDesignerEnabled && !isProductionTrackingEnabled) return false;
+      // "Customers" is part of custom workflow, so hide it too if the workflow isn't enabled
+      if (item.id === 'customers' && !isCustomDesignerEnabled) return false;
       return true;
     });
   };
