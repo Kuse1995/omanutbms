@@ -407,6 +407,11 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
                   return null;
                 }
                 
+                // Hide "Custom Orders" quick action if custom designer is NOT enabled
+                if (action.id === 'custom-orders' && !isCustomDesignerEnabled) {
+                  return null;
+                }
+                
                 const ActionIcon = iconMap[action.icon] || Package;
                 return (
                   <Button
