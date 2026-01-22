@@ -10,8 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Package, Loader2, MessageCircle, Building2, DollarSign, Info, Warehouse } from "lucide-react";
+import { Package, Loader2, MessageCircle, Building2, DollarSign, Info, Warehouse, Scissors, Factory, Crown } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import type { EnterpriseFeature } from "@/hooks/useEnterpriseFeatures";
 
 interface TenantAddonsDialogProps {
   tenantId: string;
@@ -53,6 +54,8 @@ interface TenantAddon {
 const iconMap: Record<string, typeof Package> = {
   Package,
   MessageCircle,
+  Scissors,
+  Factory,
   Building2,
   Warehouse,
 };
@@ -67,6 +70,8 @@ export function TenantAddonsDialog({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [localAddons, setLocalAddons] = useState<Record<string, Partial<TenantAddon>>>({});
+  const [enterpriseFeatures, setEnterpriseFeatures] = useState<EnterpriseFeature[]>([]);
+  const [savingEnterpriseFeature, setSavingEnterpriseFeature] = useState<string | null>(null);
 
   // Fetch addon definitions
   const { data: addonDefinitions, isLoading: loadingDefs } = useQuery({
@@ -97,6 +102,32 @@ export function TenantAddonsDialog({
     },
     enabled: open && !!tenantId,
   });
+
+  // Fetch tenant's enterprise features from business_profiles
+  const { data: businessProfile, isLoading: loadingProfile } = useQuery({
+    queryKey: ["business-profile-features", tenantId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("business_profiles")
+        .select("enabled_features")
+        .eq("tenant_id", tenantId)
+        .single();
+
+      if (error && error.code !== "PGRST116") throw error;
+      return data;
+    },
+    enabled: open && !!tenantId,
+  });
+
+  // Initialize enterprise features state
+  useEffect(() => {
+    if (businessProfile?.enabled_features) {
+      const features = businessProfile.enabled_features as EnterpriseFeature[];
+      setEnterpriseFeatures(Array.isArray(features) ? features : []);
+    } else {
+      setEnterpriseFeatures([]);
+    }
+  }, [businessProfile]);
 
   // Initialize local state from fetched addons
   useEffect(() => {
@@ -226,6 +257,40 @@ export function TenantAddonsDialog({
     });
   };
 
+  // Toggle enterprise feature
+  const handleEnterpriseFeatureToggle = async (feature: EnterpriseFeature, enabled: boolean) => {
+    setSavingEnterpriseFeature(feature);
+    
+    try {
+      const updatedFeatures = enabled
+        ? [...enterpriseFeatures, feature]
+        : enterpriseFeatures.filter(f => f !== feature);
+      
+      const { error } = await supabase
+        .from("business_profiles")
+        .update({ enabled_features: updatedFeatures })
+        .eq("tenant_id", tenantId);
+      
+      if (error) throw error;
+      
+      setEnterpriseFeatures(updatedFeatures);
+      queryClient.invalidateQueries({ queryKey: ["business-profile-features", tenantId] });
+      
+      toast({
+        title: enabled ? "Feature enabled" : "Feature disabled",
+        description: `${feature.replace(/_/g, " ")} has been ${enabled ? "enabled" : "disabled"} for ${tenantName}.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error updating feature",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setSavingEnterpriseFeature(null);
+    }
+  };
+
   const getPlanLimit = (addon: AddonDefinition): number | null => {
     switch (billingPlan) {
       case "starter":
@@ -244,7 +309,23 @@ export function TenantAddonsDialog({
     return <IconComponent className="h-4 w-4" />;
   };
 
-  const isLoading = loadingDefs || loadingTenantAddons;
+  const isLoading = loadingDefs || loadingTenantAddons || loadingProfile;
+
+  // Enterprise feature definitions
+  const enterpriseFeatureDefinitions: { key: EnterpriseFeature; name: string; description: string; icon: typeof Scissors }[] = [
+    {
+      key: "custom_designer_workflow",
+      name: "Custom Designer Workflow",
+      description: "Enables the bespoke order wizard, measurements, sketches, and production floor for custom fashion design.",
+      icon: Scissors,
+    },
+    {
+      key: "production_tracking",
+      name: "Production Tracking",
+      description: "Enables production stage management and Kanban board for tracking order progress.",
+      icon: Factory,
+    },
+  ];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -268,7 +349,60 @@ export function TenantAddonsDialog({
             <p className="text-muted-foreground mt-2">Loading add-ons...</p>
           </div>
         ) : (
-          <div className="space-y-4 py-4">
+          <div className="space-y-6 py-4">
+            {/* Enterprise Features Section */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-amber-600">
+                <Crown className="h-4 w-4" />
+                <h3 className="font-semibold text-sm uppercase tracking-wide">Enterprise Features</h3>
+              </div>
+              <p className="text-xs text-muted-foreground mb-3">
+                Exclusive IP features that can be enabled for authorized tenants only.
+              </p>
+              
+              {enterpriseFeatureDefinitions.map((feature) => {
+                const isEnabled = enterpriseFeatures.includes(feature.key);
+                const isSaving = savingEnterpriseFeature === feature.key;
+                const IconComponent = feature.icon;
+
+                return (
+                  <div
+                    key={feature.key}
+                    className={`p-4 rounded-lg border ${isEnabled ? "border-amber-500/30 bg-amber-50" : "border-muted"}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-md ${isEnabled ? "bg-amber-500/20" : "bg-muted"}`}>
+                          <IconComponent className={`h-4 w-4 ${isEnabled ? "text-amber-600" : ""}`} />
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-sm">{feature.name}</h4>
+                          <p className="text-xs text-muted-foreground">{feature.description}</p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={isEnabled}
+                        onCheckedChange={(checked) => handleEnterpriseFeatureToggle(feature.key, checked)}
+                        disabled={isSaving}
+                        className="data-[state=checked]:bg-amber-500"
+                      />
+                    </div>
+                    {isEnabled && (
+                      <div className="mt-2 flex items-center gap-1 text-xs text-amber-600">
+                        <Info className="h-3 w-3" />
+                        <span>This tenant has access to {feature.name}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <Separator />
+
+            {/* Standard Add-ons Section */}
+            <div className="space-y-3">
+              <h3 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">Standard Add-ons</h3>
             {addonDefinitions?.map((def) => {
               const tenantAddon = localAddons[def.addon_key];
               const isEnabled = tenantAddon?.is_enabled ?? false;
@@ -417,6 +551,7 @@ export function TenantAddonsDialog({
                 </div>
               );
             })}
+            </div>
           </div>
         )}
 

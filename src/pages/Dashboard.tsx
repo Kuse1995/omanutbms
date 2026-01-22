@@ -33,6 +33,7 @@ import { useFeatures } from "@/hooks/useFeatures";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useEnterpriseFeatures } from "@/hooks/useEnterpriseFeatures";
 import { BranchProvider } from "@/hooks/useBranch";
 
 export type DashboardTab = "dashboard" | "sales" | "receipts" | "accounts" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings" | "tenant-settings" | "modules" | "platform-admin" | "branches" | "returns" | "customers" | "custom-orders" | "warehouse" | "stock-transfers" | "locations" | "production-floor";
@@ -43,6 +44,7 @@ const Dashboard = () => {
   const { canAccessTab, loading } = useFeatures();
   const { toast } = useToast();
   const { isSuperAdmin } = useAuth();
+  const { isCustomDesignerEnabled, isProductionTrackingEnabled } = useEnterpriseFeatures();
   const { runTour, completeTour, isLoading: tourLoading } = useOnboardingTour();
 
   // Route protection: redirect to dashboard if user tries to access disabled feature
@@ -59,6 +61,27 @@ const Dashboard = () => {
       setActiveTab("dashboard");
       return;
     }
+
+    // Enterprise feature gating for custom workflow tabs
+    if (activeTab === "custom-orders" && !isCustomDesignerEnabled) {
+      toast({
+        title: "Feature not available",
+        description: "The Custom Design Wizard is an exclusive feature for authorized tenants.",
+        variant: "destructive",
+      });
+      setActiveTab("dashboard");
+      return;
+    }
+
+    if (activeTab === "production-floor" && !isCustomDesignerEnabled && !isProductionTrackingEnabled) {
+      toast({
+        title: "Feature not available",
+        description: "The Production Floor is an exclusive feature for authorized tenants.",
+        variant: "destructive",
+      });
+      setActiveTab("dashboard");
+      return;
+    }
     
     if (activeTab !== "platform-admin" && !canAccessTab(activeTab)) {
       toast({
@@ -68,7 +91,7 @@ const Dashboard = () => {
       });
       setActiveTab("dashboard");
     }
-  }, [activeTab, canAccessTab, loading, toast, isSuperAdmin]);
+  }, [activeTab, canAccessTab, loading, toast, isSuperAdmin, isCustomDesignerEnabled, isProductionTrackingEnabled]);
 
   // Safe tab setter that checks feature access
   const handleSetActiveTab = (tab: DashboardTab) => {
