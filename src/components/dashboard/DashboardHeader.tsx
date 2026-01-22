@@ -55,14 +55,14 @@ export function DashboardHeader() {
         </Alert>
       )}
       <TrialBanner onUpgrade={() => setUpgradeModalOpen(true)} />
-      <header className="h-16 border-b border-[#004B8D]/10 bg-white/80 backdrop-blur-sm px-6 flex items-center justify-between shadow-sm">
+      <header className="h-16 border-b border-[var(--brand-primary,#004B8D)]/10 bg-white/80 backdrop-blur-sm px-6 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-4">
-          <SidebarTrigger className="text-[#004B8D] hover:bg-[#004B8D]/10" />
+          <SidebarTrigger className="text-[var(--brand-primary,#004B8D)] hover:bg-[var(--brand-primary,#004B8D)]/10" />
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#004B8D]/50" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--brand-primary,#004B8D)]/50" />
             <Input
               placeholder="Search inventory, transactions..."
-              className="w-80 pl-10 bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366] placeholder:text-[#004B8D]/40 focus:border-[#004B8D] focus:ring-[#004B8D]/20"
+              className="w-80 pl-10 bg-[var(--brand-primary,#004B8D)]/5 border-[var(--brand-primary,#004B8D)]/20 text-foreground placeholder:text-[var(--brand-primary,#004B8D)]/40 focus:border-[var(--brand-primary,#004B8D)] focus:ring-[var(--brand-primary,#004B8D)]/20"
             />
           </div>
         </div>
@@ -75,13 +75,13 @@ export function DashboardHeader() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <div className="flex items-center gap-3 pl-4 border-l border-[#004B8D]/20 cursor-pointer hover:bg-[#004B8D]/5 p-2 rounded-lg transition-colors">
+              <div className="flex items-center gap-3 pl-4 border-l border-[var(--brand-primary,#004B8D)]/20 cursor-pointer hover:bg-[var(--brand-primary,#004B8D)]/5 p-2 rounded-lg transition-colors">
                 <div className="text-right">
-                  <p className="text-sm font-medium text-[#003366]">
+                  <p className="text-sm font-medium text-foreground">
                     {profile?.full_name || user?.email?.split("@")[0] || "User"}
                   </p>
                   <div className="flex items-center justify-end gap-2">
-                    <p className="text-xs text-[#004B8D]/60">
+                    <p className="text-xs text-muted-foreground">
                       {profile?.department || companyName || "Omanut"}
                     </p>
                     {role && (
@@ -91,30 +91,30 @@ export function DashboardHeader() {
                     )}
                   </div>
                 </div>
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#004B8D] to-[#0077B6] flex items-center justify-center">
+                <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, var(--brand-primary, #004B8D), var(--brand-secondary, #0077B6))` }}>
                   <User className="w-4 h-4 text-white" />
                 </div>
               </div>
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="w-56 bg-white border-[#004B8D]/20 text-[#003366] z-50"
+              className="w-56 bg-background border-border text-foreground z-50"
             >
-              <DropdownMenuLabel className="text-[#004B8D]">
+              <DropdownMenuLabel className="text-[var(--brand-primary,#004B8D)]">
                 {user?.email}
               </DropdownMenuLabel>
-              <DropdownMenuSeparator className="bg-[#004B8D]/10" />
-              <DropdownMenuItem className="hover:bg-[#004B8D]/10 cursor-pointer">
+              <DropdownMenuSeparator className="bg-border" />
+              <DropdownMenuItem className="hover:bg-muted cursor-pointer">
                 <User className="w-4 h-4 mr-2" />
                 Profile Settings
               </DropdownMenuItem>
               {role === "admin" && (
-                <DropdownMenuItem className="hover:bg-[#004B8D]/10 cursor-pointer">
+                <DropdownMenuItem className="hover:bg-muted cursor-pointer">
                   <Shield className="w-4 h-4 mr-2" />
                   User Management
                 </DropdownMenuItem>
               )}
-              <DropdownMenuSeparator className="bg-[#004B8D]/10" />
+              <DropdownMenuSeparator className="bg-border" />
               <DropdownMenuItem
                 onClick={handleSignOut}
                 className="hover:bg-red-500/10 text-red-600 cursor-pointer"

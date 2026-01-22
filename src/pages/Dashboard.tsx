@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
@@ -35,6 +35,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useEnterpriseFeatures } from "@/hooks/useEnterpriseFeatures";
 import { BranchProvider } from "@/hooks/useBranch";
+import { useBranding } from "@/hooks/useBranding";
 
 export type DashboardTab = "dashboard" | "sales" | "receipts" | "accounts" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings" | "tenant-settings" | "modules" | "platform-admin" | "branches" | "returns" | "customers" | "custom-orders" | "warehouse" | "stock-transfers" | "locations" | "production-floor";
 
@@ -46,6 +47,14 @@ const Dashboard = () => {
   const { isSuperAdmin } = useAuth();
   const { isCustomDesignerEnabled, isProductionTrackingEnabled } = useEnterpriseFeatures();
   const { runTour, completeTour, isLoading: tourLoading } = useOnboardingTour();
+  const { primaryColor, secondaryColor, accentColor } = useBranding();
+
+  // Generate dynamic CSS variables from tenant branding
+  const brandingStyles = useMemo(() => ({
+    '--brand-primary': primaryColor,
+    '--brand-secondary': secondaryColor,
+    '--brand-accent': accentColor,
+  } as React.CSSProperties), [primaryColor, secondaryColor, accentColor]);
 
   // Route protection: redirect to dashboard if user tries to access disabled feature
   useEffect(() => {
@@ -178,7 +187,10 @@ const Dashboard = () => {
   return (
     <BranchProvider>
       <SidebarProvider>
-        <div className="min-h-screen flex w-full bg-gradient-to-br from-[#f0f7fa] to-[#e8f4f8]">
+        <div 
+          className="min-h-screen flex w-full bg-gradient-to-br from-brand-bg-light to-brand-bg-dark"
+          style={brandingStyles}
+        >
           <DashboardSidebar activeTab={activeTab} setActiveTab={handleSetActiveTab} />
           <div className="flex-1 flex flex-col">
             <DashboardHeader />
