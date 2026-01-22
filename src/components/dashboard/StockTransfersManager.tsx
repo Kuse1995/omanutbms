@@ -102,7 +102,7 @@ export function StockTransfersManager() {
           *,
           from_branch:branches!stock_transfers_from_branch_id_fkey(name),
           to_branch:branches!stock_transfers_to_branch_id_fkey(name),
-          inventory:branch_inventory!stock_transfers_inventory_id_fkey(product_name),
+          inventory:inventory!stock_transfers_inventory_id_fkey(name, sku),
           requester:profiles!stock_transfers_requested_by_fkey(full_name)
         `)
         .eq("tenant_id", tenant.id)
@@ -114,7 +114,7 @@ export function StockTransfersManager() {
         ...t,
         from_branch_name: t.from_branch?.name || 'Unknown',
         to_branch_name: t.to_branch?.name || 'Unknown',
-        product_name: t.inventory?.product_name || 'Unknown Product',
+        product_name: t.inventory?.name || 'Unknown Product',
         requested_by_name: t.requester?.full_name || 'Unknown',
       }));
 

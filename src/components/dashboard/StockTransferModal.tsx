@@ -60,7 +60,6 @@ interface TransferItem {
 
 interface InventoryItem {
   id: string;
-  inventory_id: string;
   product_name: string;
   sku: string;
   current_stock: number;
@@ -154,10 +153,9 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
       
       setAvailableInventory((data || []).map((item: any) => ({
         // IMPORTANT:
-        // stock_transfers.inventory_id is FK -> branch_inventory (see StockTransfersManager join)
-        // so we must store the branch_inventory row id here.
-        id: item.id,
-        inventory_id: item.inventory_id,
+        // stock_transfers.inventory_id is FK -> inventory.id
+        // (branch_inventory.id is a per-branch stock row, not the product id)
+        id: item.inventory_id,
         product_name: item.inventory?.name || 'Unknown',
         sku: item.inventory?.sku || '',
         current_stock: item.current_stock || 0,
@@ -200,7 +198,7 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
 
     setItems([...items, {
       id: crypto.randomUUID(),
-      // inventoryId here represents branch_inventory.id (FK used by stock_transfers)
+      // inventoryId here represents inventory.id (FK used by stock_transfers)
       inventoryId: inventoryItem.id,
       productName: inventoryItem.product_name,
       sku: inventoryItem.sku,
@@ -254,7 +252,7 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
         tenant_id: tenant.id,
         from_branch_id: sourceId,
         to_branch_id: targetId,
-        // FK -> branch_inventory.id
+        // FK -> inventory.id
         inventory_id: item.inventoryId,
         quantity: item.quantity,
         status: requiresApproval ? 'pending' : 'in_transit',
