@@ -49,6 +49,7 @@ interface CustomOrder {
   assigned_to: string | null;
   created_at: string;
   estimated_cost: number | null;
+  qc_completed_at: string | null;
   customer?: {
     name: string | null;
     phone: string | null;
@@ -95,7 +96,7 @@ export function ProductionFloor() {
         .from('custom_orders')
         .select(`
           id, order_number, customer_id, design_type, fabric, color, 
-          status, due_date, assigned_to, created_at, estimated_cost,
+          status, due_date, assigned_to, created_at, estimated_cost, qc_completed_at,
           customers:customer_id (name, phone)
         `)
         .eq('tenant_id', tenantId)
@@ -157,10 +158,39 @@ export function ProductionFloor() {
       return;
     }
 
+    // QC Gate: Block any forward transition from sewing/fitting to ready/delivered without QC completion
+    const requiresQC = ['sewing', 'fitting'].includes(order.status);
+    const movingToPostQC = ['ready', 'delivered'].includes(newStatus);
+    const qcNotCompleted = !order.qc_completed_at;
+
     // Intercept sewing → fitting transition for QC gate
     if (order.status === 'sewing' && newStatus === 'fitting') {
       setPendingQCOrder(order);
       setShowQCModal(true);
+      setDraggedOrder(null);
+      return;
+    }
+
+    // Block fitting → ready/delivered if QC not completed (order was manually moved to fitting without QC)
+    if (order.status === 'fitting' && movingToPostQC && qcNotCompleted) {
+      setPendingQCOrder(order);
+      setShowQCModal(true);
+      setDraggedOrder(null);
+      toast({
+        title: "Quality Control Required",
+        description: "This order must pass QC before moving to Ready",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Block sewing → ready/delivered (skipping fitting entirely)
+    if (order.status === 'sewing' && movingToPostQC) {
+      toast({
+        title: "Invalid Transition",
+        description: "Orders must go through Fitting and QC before Ready",
+        variant: "destructive",
+      });
       setDraggedOrder(null);
       return;
     }
@@ -436,14 +466,14 @@ export function ProductionFloor() {
                               <Badge variant="outline" className="text-[10px] font-normal">
                                 {order.design_type || 'Custom'}
                               </Badge>
-                              {/* QC Status Badge */}
-                              {order.status === 'sewing' && (
+                              {/* QC Status Badge - based on actual qc_completed_at */}
+                              {!order.qc_completed_at && ['sewing', 'fitting'].includes(order.status) && (
                                 <Badge className="text-[10px] bg-amber-100 text-amber-700 border-amber-200">
                                   <ShieldCheck className="h-2.5 w-2.5 mr-0.5" />
                                   QC Pending
                                 </Badge>
                               )}
-                              {['fitting', 'ready', 'delivered'].includes(order.status) && (
+                              {order.qc_completed_at && (
                                 <Badge className="text-[10px] bg-emerald-100 text-emerald-700 border-emerald-200">
                                   <ShieldCheck className="h-2.5 w-2.5 mr-0.5" />
                                   QC ✓
