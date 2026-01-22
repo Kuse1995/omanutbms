@@ -1111,6 +1111,10 @@ export type Database = {
           order_number: string
           price_locked: boolean | null
           price_locked_at: string | null
+          qc_checks: Json | null
+          qc_completed_at: string | null
+          qc_completed_by: string | null
+          qc_notes: string | null
           quotation_id: string | null
           quoted_price: number | null
           reference_images: string[] | null
@@ -1147,6 +1151,10 @@ export type Database = {
           order_number: string
           price_locked?: boolean | null
           price_locked_at?: string | null
+          qc_checks?: Json | null
+          qc_completed_at?: string | null
+          qc_completed_by?: string | null
+          qc_notes?: string | null
           quotation_id?: string | null
           quoted_price?: number | null
           reference_images?: string[] | null
@@ -1183,6 +1191,10 @@ export type Database = {
           order_number?: string
           price_locked?: boolean | null
           price_locked_at?: string | null
+          qc_checks?: Json | null
+          qc_completed_at?: string | null
+          qc_completed_by?: string | null
+          qc_notes?: string | null
           quotation_id?: string | null
           quoted_price?: number | null
           reference_images?: string[] | null

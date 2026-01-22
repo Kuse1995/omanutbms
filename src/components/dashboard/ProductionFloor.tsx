@@ -16,7 +16,8 @@ import {
   Package,
   AlertCircle,
   Sparkles,
-  GripVertical
+  GripVertical,
+  ShieldCheck
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,8 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
 import { format, differenceInDays, isPast } from "date-fns";
+import { ProductionQCModal } from "./ProductionQCModal";
+import type { QCCheckItem } from "./QualityControlChecklist";
 
 interface CustomOrder {
   id: string;
@@ -72,6 +75,10 @@ export function ProductionFloor() {
   const [searchQuery, setSearchQuery] = useState("");
   const [draggedOrder, setDraggedOrder] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<KanbanStatus | null>(null);
+  
+  // QC Gate Modal state
+  const [showQCModal, setShowQCModal] = useState(false);
+  const [pendingQCOrder, setPendingQCOrder] = useState<CustomOrder | null>(null);
 
   useEffect(() => {
     if (tenantId) {
@@ -150,6 +157,14 @@ export function ProductionFloor() {
       return;
     }
 
+    // Intercept sewing → fitting transition for QC gate
+    if (order.status === 'sewing' && newStatus === 'fitting') {
+      setPendingQCOrder(order);
+      setShowQCModal(true);
+      setDraggedOrder(null);
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('custom_orders')
@@ -177,6 +192,22 @@ export function ProductionFloor() {
     } finally {
       setDraggedOrder(null);
     }
+  };
+
+  // Handle QC approval - order already updated by modal
+  const handleQCApproved = (orderId: string, qcData: { qcChecks: QCCheckItem[]; qcNotes: string }) => {
+    setOrders(prev =>
+      prev.map(o =>
+        o.id === orderId ? { ...o, status: 'fitting' } : o
+      )
+    );
+    setShowQCModal(false);
+    setPendingQCOrder(null);
+  };
+
+  const handleQCModalClose = () => {
+    setShowQCModal(false);
+    setPendingQCOrder(null);
   };
 
   const getOrdersByStatus = (status: KanbanStatus) => {
@@ -401,9 +432,24 @@ export function ProductionFloor() {
                               </DropdownMenu>
                             </div>
 
-                            <Badge variant="outline" className="text-[10px] mb-2 font-normal">
-                              {order.design_type || 'Custom'}
-                            </Badge>
+                            <div className="flex items-center gap-1 mb-2">
+                              <Badge variant="outline" className="text-[10px] font-normal">
+                                {order.design_type || 'Custom'}
+                              </Badge>
+                              {/* QC Status Badge */}
+                              {order.status === 'sewing' && (
+                                <Badge className="text-[10px] bg-amber-100 text-amber-700 border-amber-200">
+                                  <ShieldCheck className="h-2.5 w-2.5 mr-0.5" />
+                                  QC Pending
+                                </Badge>
+                              )}
+                              {['fitting', 'ready', 'delivered'].includes(order.status) && (
+                                <Badge className="text-[10px] bg-emerald-100 text-emerald-700 border-emerald-200">
+                                  <ShieldCheck className="h-2.5 w-2.5 mr-0.5" />
+                                  QC ✓
+                                </Badge>
+                              )}
+                            </div>
 
                             {order.fabric && (
                               <p className="text-[10px] text-muted-foreground mb-2 truncate">
@@ -451,6 +497,14 @@ export function ProductionFloor() {
           })}
         </div>
       </div>
+
+      {/* QC Gate Modal */}
+      <ProductionQCModal
+        open={showQCModal}
+        order={pendingQCOrder}
+        onClose={handleQCModalClose}
+        onApproved={handleQCApproved}
+      />
     </motion.div>
   );
 }
