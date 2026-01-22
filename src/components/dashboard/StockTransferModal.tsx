@@ -136,25 +136,29 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
   const fetchSourceInventory = async () => {
     if (!tenant?.id || !sourceId) return;
     try {
-      // Use type assertion to avoid deep type instantiation issues
-      const query = (supabase as any)
-        .from('inventory')
-        .select('id, name, sku, current_stock')
+      // Query branch_inventory to get stock specific to the source branch
+      const { data, error } = await supabase
+        .from('branch_inventory')
+        .select(`
+          id,
+          inventory_id,
+          current_stock,
+          inventory:inventory_id(name, sku)
+        `)
         .eq('tenant_id', tenant.id)
-        .gt('current_stock', 0)
-        .order('name');
+        .eq('branch_id', sourceId)
+        .gt('current_stock', 0);
       
-      const { data, error } = await query;
       if (error) throw error;
       
       setAvailableInventory((data || []).map((item: any) => ({
-        id: item.id,
-        product_name: item.name,
-        sku: item.sku || '',
+        id: item.inventory_id, // Use inventory_id for the transfer
+        product_name: item.inventory?.name || 'Unknown',
+        sku: item.inventory?.sku || '',
         current_stock: item.current_stock || 0,
       })));
     } catch (error) {
-      console.error('Error fetching inventory:', error);
+      console.error('Error fetching branch inventory:', error);
     }
   };
 
