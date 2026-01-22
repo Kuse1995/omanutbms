@@ -136,8 +136,8 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
   const fetchSourceInventory = async () => {
     if (!tenant?.id || !sourceId) return;
     try {
-      // Query branch_inventory to get stock specific to the source branch
-      const { data, error } = await supabase
+      // First try branch_inventory for branch-specific stock
+      const { data: branchData, error: branchError } = await supabase
         .from('branch_inventory')
         .select(`
           id,
@@ -149,22 +149,42 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
         .eq('branch_id', sourceId)
         .gt('current_stock', 0);
       
-      if (error) throw error;
-      
-      setAvailableInventory((data || []).map((item: any) => ({
-        // IMPORTANT:
-        // stock_transfers.inventory_id is FK -> inventory.id
-        // (branch_inventory.id is a per-branch stock row, not the product id)
-        id: item.inventory_id,
-        product_name: item.inventory?.name || 'Unknown',
-        sku: item.inventory?.sku || '',
+      if (branchError) {
+        console.error('Error fetching branch inventory:', branchError);
+      }
+
+      // If branch_inventory has data, use it
+      if (branchData && branchData.length > 0) {
+        setAvailableInventory(branchData.map((item: any) => ({
+          id: item.inventory_id,
+          product_name: item.inventory?.name || 'Unknown',
+          sku: item.inventory?.sku || '',
+          current_stock: item.current_stock || 0,
+        })));
+        return;
+      }
+
+      // Fallback: use main inventory table when branch_inventory is empty
+      const { data: inventoryData, error: inventoryError } = await supabase
+        .from('inventory')
+        .select('id, name, sku, current_stock')
+        .eq('tenant_id', tenant.id)
+        .gt('current_stock', 0)
+        .order('name');
+
+      if (inventoryError) throw inventoryError;
+
+      setAvailableInventory((inventoryData || []).map((item: any) => ({
+        id: item.id,
+        product_name: item.name || 'Unknown',
+        sku: item.sku || '',
         current_stock: item.current_stock || 0,
       })));
     } catch (error) {
-      console.error('Error fetching branch inventory:', error);
+      console.error('Error fetching inventory:', error);
       toast({
         title: 'Error',
-        description: 'Failed to load stock for the selected source location.',
+        description: 'Failed to load products for transfer.',
         variant: 'destructive',
       });
     }

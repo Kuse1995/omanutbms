@@ -96,26 +96,42 @@ export function StockTransfersManager() {
     if (!tenant?.id) return;
     setLoading(true);
     try {
+      // First fetch transfers with basic joins (no profiles join that may fail)
       const { data, error } = await supabase
         .from("stock_transfers")
         .select(`
           *,
-          from_branch:branches!stock_transfers_from_branch_id_fkey(name),
-          to_branch:branches!stock_transfers_to_branch_id_fkey(name),
-          inventory:inventory!stock_transfers_inventory_id_fkey(name, sku),
-          requester:profiles!stock_transfers_requested_by_fkey(full_name)
+          from_branch:from_branch_id(name),
+          to_branch:to_branch_id(name),
+          inventory:inventory_id(name, sku)
         `)
         .eq("tenant_id", tenant.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
 
+      // Fetch requester names separately if needed
+      const requesterIds = [...new Set((data || []).map(t => t.requested_by).filter(Boolean))];
+      let requesterMap: Record<string, string> = {};
+      
+      if (requesterIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, full_name')
+          .in('user_id', requesterIds);
+        
+        requesterMap = (profiles || []).reduce((acc, p) => {
+          acc[p.user_id] = p.full_name || 'Unknown';
+          return acc;
+        }, {} as Record<string, string>);
+      }
+
       const formattedTransfers: Transfer[] = (data || []).map((t: any) => ({
         ...t,
         from_branch_name: t.from_branch?.name || 'Unknown',
         to_branch_name: t.to_branch?.name || 'Unknown',
         product_name: t.inventory?.name || 'Unknown Product',
-        requested_by_name: t.requester?.full_name || 'Unknown',
+        requested_by_name: requesterMap[t.requested_by] || 'Unknown',
       }));
 
       setTransfers(formattedTransfers);
