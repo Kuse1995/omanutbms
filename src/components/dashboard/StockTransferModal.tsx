@@ -60,6 +60,7 @@ interface TransferItem {
 
 interface InventoryItem {
   id: string;
+  inventory_id: string;
   product_name: string;
   sku: string;
   current_stock: number;
@@ -152,13 +153,22 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
       if (error) throw error;
       
       setAvailableInventory((data || []).map((item: any) => ({
-        id: item.inventory_id, // Use inventory_id for the transfer
+        // IMPORTANT:
+        // stock_transfers.inventory_id is FK -> branch_inventory (see StockTransfersManager join)
+        // so we must store the branch_inventory row id here.
+        id: item.id,
+        inventory_id: item.inventory_id,
         product_name: item.inventory?.name || 'Unknown',
         sku: item.inventory?.sku || '',
         current_stock: item.current_stock || 0,
       })));
     } catch (error) {
       console.error('Error fetching branch inventory:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load stock for the selected source location.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -190,6 +200,7 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
 
     setItems([...items, {
       id: crypto.randomUUID(),
+      // inventoryId here represents branch_inventory.id (FK used by stock_transfers)
       inventoryId: inventoryItem.id,
       productName: inventoryItem.product_name,
       sku: inventoryItem.sku,
@@ -243,6 +254,7 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
         tenant_id: tenant.id,
         from_branch_id: sourceId,
         to_branch_id: targetId,
+        // FK -> branch_inventory.id
         inventory_id: item.inventoryId,
         quantity: item.quantity,
         status: requiresApproval ? 'pending' : 'in_transit',
