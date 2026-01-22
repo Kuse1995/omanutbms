@@ -12,8 +12,7 @@ import {
   Sparkles,
   Calculator,
   Lock,
-  AlertCircle,
-  ClipboardCheck
+  AlertCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,7 +29,6 @@ import { LaborEstimator, type SkillLevel } from "./LaborEstimator";
 import { PricingBreakdown, calculateQuote } from "./PricingBreakdown";
 import { SketchUploader } from "./SketchUploader";
 import { CustomerSignaturePad } from "./CustomerSignaturePad";
-import { QualityControlChecklist, initializeQCChecks, type QCCheckItem } from "./QualityControlChecklist";
 
 interface CustomDesignWizardProps {
   open: boolean;
@@ -44,7 +42,6 @@ const WIZARD_STEPS = [
   { id: 'measurements', label: 'Measurements', icon: Ruler },
   { id: 'sketches', label: 'Sketches & Refs', icon: Camera },
   { id: 'pricing', label: 'Smart Pricing', icon: Calculator },
-  { id: 'qc', label: 'Quality Control', icon: ClipboardCheck },
   { id: 'review', label: 'Review & Confirm', icon: FileText },
 ];
 
@@ -111,9 +108,6 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
     dueDate: '',
     // Signature
     customerSignature: null as string | null,
-    // QC Checklist
-    qcChecks: initializeQCChecks(),
-    qcNotes: '',
   });
 
   const updateFormData = (field: string, value: any) => {
@@ -155,13 +149,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
         if (hasStockIssues) errors.push("Some materials have insufficient stock");
         break;
       
-      case 5: // Quality Control
-        const requiredChecks = formData.qcChecks.filter(c => c.required);
-        const allRequiredComplete = requiredChecks.every(c => c.checked);
-        if (!allRequiredComplete) errors.push("Please complete all required QC checks before fitting");
-        break;
-      
-      case 6: // Review & Confirm
+      case 5: // Review & Confirm (was step 6)
         if (!formData.customerSignature) errors.push("Customer signature is required to approve the design");
         break;
     }
@@ -209,8 +197,8 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
   };
 
   const handleSubmit = async () => {
-    // Final validation (step 6 - Review & Confirm)
-    const { valid, errors } = validateStep(6);
+    // Final validation (step 5 - Review & Confirm)
+    const { valid, errors } = validateStep(5);
     if (!valid) {
       setValidationErrors(errors);
       toast({
@@ -563,29 +551,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
           </div>
         );
 
-      case 5: // Quality Control
-        return (
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Complete the quality control checklist before scheduling the fitting appointment.
-              All required checks <span className="text-destructive">*</span> must be completed.
-            </p>
-            <QualityControlChecklist
-              checks={formData.qcChecks}
-              onChecksChange={(checks) => updateFormData('qcChecks', checks)}
-              qcNotes={formData.qcNotes}
-              onNotesChange={(notes) => updateFormData('qcNotes', notes)}
-            />
-            {validationErrors.some(e => e.includes('QC')) && (
-              <p className="text-sm text-destructive flex items-center gap-1">
-                <AlertCircle className="h-4 w-4" />
-                Complete all required QC checks before proceeding
-              </p>
-            )}
-          </div>
-        );
-
-      case 6: // Review & Confirm
+      case 5: // Review & Confirm
         const finalMaterialCost = formData.materials.reduce(
           (sum, m) => sum + m.quantity * m.unitCost, 0
         );
@@ -593,8 +559,6 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
         const { quotedPrice: finalQuote } = calculateQuote(
           finalMaterialCost, finalLaborCost, formData.marginPercentage
         );
-
-        const qcComplete = formData.qcChecks.filter(c => c.required).every(c => c.checked);
 
         return (
           <div className="space-y-6">
@@ -611,14 +575,10 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
               </div>
             </div>
 
-            {/* QC Status */}
-            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
-              qcComplete ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-            }`}>
-              <ClipboardCheck className="h-4 w-4" />
-              {qcComplete 
-                ? 'Quality control checks completed - ready for fitting' 
-                : 'Quality control pending - complete before fitting'}
+            {/* Note about QC */}
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-blue-50 text-blue-700">
+              <Check className="h-4 w-4" />
+              Quality control will be performed during production before fitting
             </div>
 
             {/* Show generated images if available */}
@@ -865,8 +825,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
                     {currentStep === 2 && "Record body measurements"}
                     {currentStep === 3 && "Upload references and generate previews"}
                     {currentStep === 4 && "Calculate materials and labor costs"}
-                    {currentStep === 5 && "Complete quality checks before fitting"}
-                    {currentStep === 6 && "Review and get customer approval"}
+                    {currentStep === 5 && "Review and get customer approval"}
                   </p>
                 </div>
               </div>
