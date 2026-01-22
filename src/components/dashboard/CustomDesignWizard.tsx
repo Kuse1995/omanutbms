@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   User, 
@@ -707,41 +707,59 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-gradient-to-br from-slate-900/80 via-slate-800/70 to-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-background rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden"
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+        className="bg-background/95 backdrop-blur-xl rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden border border-border/50"
       >
-        {/* Header */}
-        <div className="bg-gradient-to-r from-amber-500 to-amber-600 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Sparkles className="h-6 w-6 text-white" />
+        {/* Header with gradient */}
+        <div className="relative bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 px-6 py-5">
+          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyek0zNiAzMHYySDI0di0yaDF6Ii8+PC9nPjwvZz48L3N2Zz4=')] opacity-30" />
+          <div className="relative flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center">
+                <Sparkles className="h-6 w-6 text-white" />
+              </div>
               <div>
-                <h2 className="text-lg font-semibold text-white">New Custom Order</h2>
-                <p className="text-amber-100 text-sm">Enterprise Design Workflow</p>
+                <h2 className="text-xl font-bold text-white tracking-tight">Custom Design Wizard</h2>
+                <p className="text-amber-100/80 text-sm">Create bespoke orders with precision</p>
               </div>
             </div>
-            <Button variant="ghost" size="sm" onClick={onClose} className="text-white hover:bg-white/20">
-              ✕
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={onClose} 
+              className="text-white/80 hover:text-white hover:bg-white/20 rounded-xl"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </Button>
           </div>
           
-          {/* Overall Progress Bar */}
-          <div className="mt-3">
-            <div className="flex items-center justify-between text-xs text-amber-100 mb-1">
-              <span>Order Progress</span>
-              <span>{overallProgress}% Complete</span>
+          {/* Progress indicator */}
+          <div className="relative mt-5">
+            <div className="flex items-center justify-between text-xs text-white/80 mb-2">
+              <span className="font-medium">Step {currentStep + 1} of {WIZARD_STEPS.length}</span>
+              <span className="font-semibold">{overallProgress}% Complete</span>
             </div>
-            <Progress value={overallProgress} className="h-2 bg-amber-400/30" />
+            <div className="h-2 bg-white/20 rounded-full overflow-hidden backdrop-blur">
+              <motion.div 
+                className="h-full bg-gradient-to-r from-white via-amber-100 to-white rounded-full"
+                initial={{ width: 0 }}
+                animate={{ width: `${overallProgress}%` }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+              />
+            </div>
           </div>
         </div>
 
-        {/* Progress Steps */}
-        <div className="px-6 py-4 border-b bg-muted/30">
-          <div className="flex items-center justify-between">
+        {/* Step Navigation */}
+        <div className="px-6 py-5 border-b bg-gradient-to-b from-muted/50 to-background">
+          <div className="flex items-center justify-between gap-1">
             {WIZARD_STEPS.map((step, index) => {
               const StepIcon = step.icon;
               const isActive = index === currentStep;
@@ -749,7 +767,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
               const isAccessible = index <= currentStep || stepCompletionStatus.slice(0, index).every(Boolean);
               
               return (
-                <div key={step.id} className="flex items-center">
+                <div key={step.id} className="flex items-center flex-1 last:flex-none">
                   <button
                     onClick={() => {
                       if (isAccessible && index < currentStep) {
@@ -758,25 +776,59 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
                       }
                     }}
                     disabled={!isAccessible || index > currentStep}
-                    className={`flex items-center gap-2 ${
-                      isActive ? 'text-amber-600' : 
-                      isComplete ? 'text-emerald-600 cursor-pointer' : 
-                      'text-muted-foreground'
-                    } ${!isAccessible ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`group flex flex-col items-center gap-1.5 transition-all ${
+                      !isAccessible ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
+                    }`}
                   >
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
-                      isActive ? 'bg-amber-100 text-amber-600 ring-2 ring-amber-500' : 
-                      isComplete ? 'bg-emerald-100 text-emerald-600' : 
-                      'bg-muted text-muted-foreground'
+                    <motion.div 
+                      className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-sm ${
+                        isActive 
+                          ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-amber-500/30 shadow-lg' 
+                          : isComplete 
+                            ? 'bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-emerald-500/20' 
+                            : 'bg-muted text-muted-foreground group-hover:bg-muted/80'
+                      }`}
+                      animate={isActive ? { scale: [1, 1.05, 1] } : {}}
+                      transition={{ duration: 0.3 }}
+                    >
+                      {isComplete ? (
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{ type: "spring", damping: 10 }}
+                        >
+                          <Check className="h-5 w-5" />
+                        </motion.div>
+                      ) : (
+                        <StepIcon className="h-5 w-5" />
+                      )}
+                      {isActive && (
+                        <motion.div 
+                          className="absolute inset-0 rounded-xl ring-2 ring-amber-400/50"
+                          animate={{ scale: [1, 1.15, 1], opacity: [1, 0, 1] }}
+                          transition={{ duration: 2, repeat: Infinity }}
+                        />
+                      )}
+                    </motion.div>
+                    <span className={`text-[10px] font-medium text-center leading-tight hidden sm:block ${
+                      isActive ? 'text-amber-600' : isComplete ? 'text-emerald-600' : 'text-muted-foreground'
                     }`}>
-                      {isComplete ? <Check className="h-4 w-4" /> : <StepIcon className="h-4 w-4" />}
-                    </div>
-                    <span className="text-xs font-medium hidden sm:inline">{step.label}</span>
+                      {step.label}
+                    </span>
                   </button>
                   {index < WIZARD_STEPS.length - 1 && (
-                    <div className={`w-8 h-0.5 mx-2 ${
-                      stepCompletionStatus[index] && index < currentStep ? 'bg-emerald-500' : 'bg-muted'
-                    }`} />
+                    <div className="flex-1 h-0.5 mx-1.5 rounded-full overflow-hidden bg-muted">
+                      <motion.div 
+                        className={`h-full rounded-full ${
+                          stepCompletionStatus[index] && index < currentStep 
+                            ? 'bg-gradient-to-r from-emerald-500 to-emerald-400' 
+                            : 'bg-transparent'
+                        }`}
+                        initial={{ width: 0 }}
+                        animate={{ width: stepCompletionStatus[index] && index < currentStep ? '100%' : '0%' }}
+                        transition={{ duration: 0.3 }}
+                      />
+                    </div>
                   )}
                 </div>
               );
@@ -784,52 +836,95 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
           </div>
         </div>
 
-        {/* Content */}
-        <div className="p-6 overflow-y-auto max-h-[50vh]">
+        {/* Content Area */}
+        <div className="p-6 overflow-y-auto max-h-[50vh] bg-gradient-to-b from-background to-muted/20">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentStep}
-              initial={{ opacity: 0, x: 20 }}
+              initial={{ opacity: 0, x: 30 }}
               animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.2 }}
+              exit={{ opacity: 0, x: -30 }}
+              transition={{ duration: 0.25, ease: "easeInOut" }}
+              className="min-h-[300px]"
             >
+              <div className="flex items-center gap-3 mb-5">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                  currentStep === WIZARD_STEPS.length - 1 
+                    ? 'bg-emerald-100 text-emerald-600' 
+                    : 'bg-amber-100 text-amber-600'
+                }`}>
+                  {React.createElement(WIZARD_STEPS[currentStep].icon, { className: "h-5 w-5" })}
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg text-foreground">
+                    {WIZARD_STEPS[currentStep].label}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {currentStep === 0 && "Enter customer details to get started"}
+                    {currentStep === 1 && "Specify the design requirements"}
+                    {currentStep === 2 && "Record body measurements"}
+                    {currentStep === 3 && "Upload references and generate previews"}
+                    {currentStep === 4 && "Calculate materials and labor costs"}
+                    {currentStep === 5 && "Complete quality checks before fitting"}
+                    {currentStep === 6 && "Review and get customer approval"}
+                  </p>
+                </div>
+              </div>
               {renderStepContent()}
             </motion.div>
           </AnimatePresence>
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t bg-muted/30 flex items-center justify-between">
+        <div className="px-6 py-4 border-t bg-muted/30 backdrop-blur flex items-center justify-between">
           <Button
             variant="outline"
             onClick={handleBack}
             disabled={currentStep === 0}
+            className="gap-2"
           >
-            <ChevronLeft className="h-4 w-4 mr-1" />
+            <ChevronLeft className="h-4 w-4" />
             Back
           </Button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {validationErrors.length > 0 && (
-              <span className="text-xs text-destructive hidden sm:inline">
-                {validationErrors.length} issue(s) to fix
-              </span>
+              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive text-xs font-medium">
+                <AlertCircle className="h-3.5 w-3.5" />
+                {validationErrors.length} issue{validationErrors.length > 1 ? 's' : ''} to fix
+              </div>
             )}
             
             {currentStep < WIZARD_STEPS.length - 1 ? (
-              <Button onClick={handleNext} className="bg-amber-500 hover:bg-amber-600">
-                Next
-                <ChevronRight className="h-4 w-4 ml-1" />
+              <Button 
+                onClick={handleNext} 
+                className="gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 shadow-lg shadow-amber-500/25"
+              >
+                Continue
+                <ChevronRight className="h-4 w-4" />
               </Button>
             ) : (
               <Button 
                 onClick={handleSubmit} 
                 disabled={isSubmitting || !formData.customerSignature}
-                className="bg-emerald-600 hover:bg-emerald-700"
+                className="gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-lg shadow-emerald-500/25"
               >
-                {isSubmitting ? 'Creating...' : 'Create Order'}
-                <Check className="h-4 w-4 ml-1" />
+                {isSubmitting ? (
+                  <>
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    >
+                      <Sparkles className="h-4 w-4" />
+                    </motion.div>
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    Create Order
+                    <Check className="h-4 w-4" />
+                  </>
+                )}
               </Button>
             )}
           </div>
