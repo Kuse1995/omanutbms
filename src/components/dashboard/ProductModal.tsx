@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Json } from "@/integrations/supabase/types";
 import { useTenant } from "@/hooks/useTenant";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
+import { useEnterpriseFeatures } from "@/hooks/useEnterpriseFeatures";
 import { QuickVariantGenerator } from "./QuickVariantGenerator";
 
 interface FieldChange {
@@ -91,6 +92,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
   const { toast } = useToast();
   const { tenantId } = useTenant();
   const { businessType, terminology, config, companyName } = useBusinessConfig();
+  const { isCustomDesignerEnabled } = useEnterpriseFeatures();
   
   // Get form field config based on business type
   const formFields = config.formFields;
@@ -1085,7 +1087,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
                 </Select>
               </div>
             </div>
-            {formData.inventory_class === 'raw_material' && (
+            {formData.inventory_class === 'raw_material' && isCustomDesignerEnabled && (
               <p className="text-xs text-purple-600 mt-2">
                 ✨ Raw materials will be available in the Custom Order material selector
               </p>
