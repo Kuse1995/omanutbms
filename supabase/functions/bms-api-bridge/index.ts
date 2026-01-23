@@ -1511,7 +1511,7 @@ async function handleMyPay(supabase: any, entities: Record<string, any>, context
   // Find employee
   const { data: employee } = await supabase
     .from('employees')
-    .select('id, full_name, base_salary')
+    .select('id, full_name, base_salary_zmw')
     .eq('tenant_id', context.tenant_id)
     .eq('user_id', context.user_id)
     .maybeSingle();
