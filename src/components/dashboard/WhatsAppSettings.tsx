@@ -324,7 +324,7 @@ export function WhatsAppSettings() {
         employee_id: mapping.employee_id,
         whatsapp_number: mapping.whatsapp_number,
         display_name: mapping.display_name || selectedEmployee?.full_name || "Employee",
-        role: "staff", // Limited role for self-service
+        role: "viewer", // Limited role for self-service (viewer is valid in DB enum)
         created_by: user?.id,
         is_employee_self_service: true,
       };
