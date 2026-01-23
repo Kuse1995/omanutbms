@@ -1225,11 +1225,23 @@ async function handleMySchedule(supabase: any, entities: Record<string, any>, co
 
 // ========== ATTENDANCE HANDLERS ==========
 
-async function handleClockIn(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
-  // Find employee by user_id
+// Haversine formula to calculate distance between two GPS coordinates
+function calculateDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000; // Earth's radius in meters
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+async function handleClockIn(supabase: any, entities: Record<string, any>, context: ExecutionContext & { location?: { latitude: number; longitude: number } }) {
+  // Find employee by user_id (include branch_id for geofencing)
   const { data: employee, error: empError } = await supabase
     .from('employees')
-    .select('id, full_name')
+    .select('id, full_name, branch_id')
     .eq('tenant_id', context.tenant_id)
     .eq('user_id', context.user_id)
     .maybeSingle();
@@ -1259,15 +1271,99 @@ async function handleClockIn(supabase: any, entities: Record<string, any>, conte
     };
   }
 
-  // Create attendance record
+  // Check if location verification is required
+  const { data: businessProfile } = await supabase
+    .from('business_profiles')
+    .select('attendance_location_required')
+    .eq('tenant_id', context.tenant_id)
+    .maybeSingle();
+
+  const locationRequired = businessProfile?.attendance_location_required ?? true;
+  
+  let locationVerified = false;
+  let distanceMeters: number | null = null;
+  let clockInLatitude: number | null = null;
+  let clockInLongitude: number | null = null;
+
+  // If location verification is required, check geofencing
+  if (locationRequired) {
+    // Get branch location for geofencing (employee's branch or headquarters)
+    let branchQuery = supabase
+      .from('branches')
+      .select('id, name, latitude, longitude, geofence_radius_meters')
+      .eq('tenant_id', context.tenant_id);
+    
+    if (employee.branch_id) {
+      branchQuery = branchQuery.eq('id', employee.branch_id);
+    } else {
+      branchQuery = branchQuery.eq('is_headquarters', true);
+    }
+    
+    const { data: branch } = await branchQuery.maybeSingle();
+    
+    // Check if branch has GPS configured
+    const branchHasGPS = branch?.latitude && branch?.longitude;
+    
+    if (branchHasGPS) {
+      // GPS is configured - require location from employee
+      if (!context.location) {
+        return {
+          success: false,
+          message: '📍 Please share your location to clock in.\n\nTap 📎 → Location → Send your current location.',
+        };
+      }
+      
+      clockInLatitude = context.location.latitude;
+      clockInLongitude = context.location.longitude;
+      
+      // Calculate distance from office
+      distanceMeters = Math.round(calculateDistanceMeters(
+        clockInLatitude,
+        clockInLongitude,
+        parseFloat(branch.latitude),
+        parseFloat(branch.longitude)
+      ));
+      
+      const geofenceRadius = branch.geofence_radius_meters || 100;
+      
+      if (distanceMeters > geofenceRadius) {
+        const distanceDisplay = distanceMeters >= 1000 
+          ? `${(distanceMeters / 1000).toFixed(1)}km`
+          : `${distanceMeters}m`;
+        
+        return {
+          success: false,
+          message: `❌ You're ${distanceDisplay} from ${branch.name || 'the office'}.\n\nYou must be within ${geofenceRadius}m to clock in.\n\n💡 Working remotely? Contact your manager.`,
+        };
+      }
+      
+      locationVerified = true;
+    } else if (context.location) {
+      // Branch doesn't have GPS but employee shared location anyway - record it
+      clockInLatitude = context.location.latitude;
+      clockInLongitude = context.location.longitude;
+      // Not verified since branch has no reference point
+    }
+  } else if (context.location) {
+    // Location not required but was shared - record it anyway
+    clockInLatitude = context.location.latitude;
+    clockInLongitude = context.location.longitude;
+  }
+
+  // Create attendance record with location data
   const now = new Date();
   const { error: insertError } = await supabase
     .from('employee_attendance')
     .insert({
       employee_id: employee.id,
+      tenant_id: context.tenant_id,
       date: today,
       clock_in: now.toISOString(),
       status: 'present',
+      clock_in_latitude: clockInLatitude,
+      clock_in_longitude: clockInLongitude,
+      clock_in_verified: locationVerified,
+      clock_in_distance_meters: distanceMeters,
     });
 
   if (insertError) {
@@ -1276,11 +1372,14 @@ async function handleClockIn(supabase: any, entities: Record<string, any>, conte
   }
 
   const clockInTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const verificationNote = locationVerified 
+    ? `\n📍 Location verified (${distanceMeters}m from office)`
+    : '';
 
   return {
     success: true,
-    message: `✅ Clocked in at ${clockInTime}\n\n👋 Good morning, ${employee.full_name?.split(' ')[0] || context.display_name}!\n\nHave a productive day! 💪`,
-    data: { clock_in: now.toISOString() },
+    message: `✅ Clocked in at ${clockInTime}${verificationNote}\n\n👋 Good morning, ${employee.full_name?.split(' ')[0] || context.display_name}!\n\nHave a productive day! 💪`,
+    data: { clock_in: now.toISOString(), location_verified: locationVerified, distance_meters: distanceMeters },
   };
 }
 

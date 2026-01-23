@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/hooks/useTenant';
 import { Branch } from '@/hooks/useBranch';
-import { Loader2 } from 'lucide-react';
+import { Loader2, MapPin, Navigation } from 'lucide-react';
 
 interface BranchModalProps {
   open: boolean;
@@ -42,7 +42,11 @@ export const BranchModal: React.FC<BranchModalProps> = ({
     email: '',
     is_headquarters: false,
     is_active: true,
+    latitude: '',
+    longitude: '',
+    geofence_radius_meters: 100,
   });
+  const [gettingLocation, setGettingLocation] = useState(false);
 
   useEffect(() => {
     if (branch) {
@@ -55,6 +59,9 @@ export const BranchModal: React.FC<BranchModalProps> = ({
         email: branch.email || '',
         is_headquarters: branch.is_headquarters || false,
         is_active: branch.is_active ?? true,
+        latitude: (branch as any).latitude?.toString() || '',
+        longitude: (branch as any).longitude?.toString() || '',
+        geofence_radius_meters: (branch as any).geofence_radius_meters || 100,
       });
     } else {
       setFormData({
@@ -66,6 +73,9 @@ export const BranchModal: React.FC<BranchModalProps> = ({
         email: '',
         is_headquarters: false,
         is_active: true,
+        latitude: '',
+        longitude: '',
+        geofence_radius_meters: 100,
       });
     }
   }, [branch, open]);
@@ -83,6 +93,42 @@ export const BranchModal: React.FC<BranchModalProps> = ({
       name,
       code: prev.code || generateCode(name),
     }));
+  };
+
+  const getCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      toast({
+        title: 'Not Supported',
+        description: 'Geolocation is not supported by your browser',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setGettingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setFormData(prev => ({
+          ...prev,
+          latitude: position.coords.latitude.toFixed(7),
+          longitude: position.coords.longitude.toFixed(7),
+        }));
+        setGettingLocation(false);
+        toast({
+          title: 'Location Captured',
+          description: 'GPS coordinates have been set',
+        });
+      },
+      (error) => {
+        setGettingLocation(false);
+        toast({
+          title: 'Location Error',
+          description: error.message || 'Failed to get location',
+          variant: 'destructive',
+        });
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -110,6 +156,9 @@ export const BranchModal: React.FC<BranchModalProps> = ({
         email: formData.email.trim() || null,
         is_headquarters: formData.is_headquarters,
         is_active: formData.is_active,
+        latitude: formData.latitude ? parseFloat(formData.latitude) : null,
+        longitude: formData.longitude ? parseFloat(formData.longitude) : null,
+        geofence_radius_meters: formData.geofence_radius_meters,
       };
 
       if (branch) {
@@ -225,6 +274,74 @@ export const BranchModal: React.FC<BranchModalProps> = ({
               onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
               placeholder="branch@company.com"
             />
+          </div>
+
+          {/* GPS Location Section */}
+          <div className="space-y-3 border rounded-lg p-3 bg-muted/30">
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-primary" />
+                GPS Location (for clock-in verification)
+              </Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={getCurrentLocation}
+                disabled={gettingLocation}
+              >
+                {gettingLocation ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                ) : (
+                  <Navigation className="h-4 w-4 mr-1" />
+                )}
+                Use My Location
+              </Button>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="latitude" className="text-xs text-muted-foreground">Latitude</Label>
+                <Input
+                  id="latitude"
+                  type="number"
+                  step="0.0000001"
+                  value={formData.latitude}
+                  onChange={(e) => setFormData(prev => ({ ...prev, latitude: e.target.value }))}
+                  placeholder="e.g., -15.4167"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="longitude" className="text-xs text-muted-foreground">Longitude</Label>
+                <Input
+                  id="longitude"
+                  type="number"
+                  step="0.0000001"
+                  value={formData.longitude}
+                  onChange={(e) => setFormData(prev => ({ ...prev, longitude: e.target.value }))}
+                  placeholder="e.g., 28.2833"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="geofence" className="text-xs text-muted-foreground">
+                Geofence Radius: {formData.geofence_radius_meters}m
+              </Label>
+              <Input
+                id="geofence"
+                type="range"
+                min={50}
+                max={500}
+                step={25}
+                value={formData.geofence_radius_meters}
+                onChange={(e) => setFormData(prev => ({ ...prev, geofence_radius_meters: parseInt(e.target.value) }))}
+                className="w-full"
+              />
+              <p className="text-xs text-muted-foreground">
+                Employees must be within this distance to clock in via WhatsApp
+              </p>
+            </div>
           </div>
 
           <div className="flex items-center justify-between pt-2">
