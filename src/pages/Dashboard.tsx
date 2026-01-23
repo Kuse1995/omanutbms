@@ -36,6 +36,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useEnterpriseFeatures } from "@/hooks/useEnterpriseFeatures";
 import { BranchProvider } from "@/hooks/useBranch";
 import { useBranding } from "@/hooks/useBranding";
+import { useApplyTenantBranding } from "@/contexts/BrandingContext";
 
 export type DashboardTab = "dashboard" | "sales" | "receipts" | "accounts" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings" | "tenant-settings" | "modules" | "platform-admin" | "branches" | "returns" | "customers" | "custom-orders" | "warehouse" | "stock-transfers" | "locations" | "production-floor";
 
@@ -47,14 +48,39 @@ const Dashboard = () => {
   const { isSuperAdmin } = useAuth();
   const { isCustomDesignerEnabled, isProductionTrackingEnabled } = useEnterpriseFeatures();
   const { runTour, completeTour, isLoading: tourLoading } = useOnboardingTour();
-  const { primaryColor, secondaryColor, accentColor } = useBranding();
+  const branding = useBranding();
+  const applyBranding = useApplyTenantBranding();
 
-  // Generate dynamic CSS variables from tenant branding
+  // Apply tenant branding globally when in dashboard
+  useEffect(() => {
+    applyBranding({
+      companyName: branding.companyName,
+      logoUrl: branding.logoUrl,
+      primaryColor: branding.primaryColor,
+      secondaryColor: branding.secondaryColor,
+      accentColor: branding.accentColor,
+      tagline: branding.tagline,
+      slogan: branding.slogan,
+      isWhiteLabel: branding.isWhiteLabel,
+    });
+  }, [
+    branding.companyName,
+    branding.logoUrl,
+    branding.primaryColor,
+    branding.secondaryColor,
+    branding.accentColor,
+    branding.tagline,
+    branding.slogan,
+    branding.isWhiteLabel,
+    applyBranding,
+  ]);
+
+  // Generate dynamic CSS variables from tenant branding (local fallback)
   const brandingStyles = useMemo(() => ({
-    '--brand-primary': primaryColor,
-    '--brand-secondary': secondaryColor,
-    '--brand-accent': accentColor,
-  } as React.CSSProperties), [primaryColor, secondaryColor, accentColor]);
+    '--brand-primary': branding.primaryColor,
+    '--brand-secondary': branding.secondaryColor,
+    '--brand-accent': branding.accentColor,
+  } as React.CSSProperties), [branding.primaryColor, branding.secondaryColor, branding.accentColor]);
 
   // Route protection: redirect to dashboard if user tries to access disabled feature
   useEffect(() => {

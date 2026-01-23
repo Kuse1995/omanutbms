@@ -125,7 +125,7 @@ export function WhiteLabelSettings() {
         <CardHeader>
           <CardTitle>What Changes?</CardTitle>
           <CardDescription>
-            Here's what white-label mode affects in your system.
+            Here's what white-label mode affects across the entire platform.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -135,9 +135,9 @@ export function WhiteLabelSettings() {
                 <span className="text-xs font-bold text-primary">1</span>
               </div>
               <div>
-                <p className="font-medium">Footer Branding</p>
+                <p className="font-medium">Complete Platform Branding</p>
                 <p className="text-sm text-muted-foreground">
-                  The "Powered by {vendorName}" footer is {enabled ? 'hidden' : 'visible'}
+                  Your brand colors are applied across the entire dashboard, sidebar, buttons, and UI elements
                 </p>
               </div>
             </div>
@@ -146,15 +146,37 @@ export function WhiteLabelSettings() {
                 <span className="text-xs font-bold text-primary">2</span>
               </div>
               <div>
-                <p className="font-medium">Reports & Certificates</p>
+                <p className="font-medium">Branded Login Page</p>
                 <p className="text-sm text-muted-foreground">
-                  All generated documents use your company branding exclusively
+                  Share your custom login URL (<code className="bg-muted px-1 rounded text-xs">/auth?tenant=your-slug</code>) with your team
                 </p>
               </div>
             </div>
             <div className="flex items-start gap-3">
               <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
                 <span className="text-xs font-bold text-primary">3</span>
+              </div>
+              <div>
+                <p className="font-medium">Footer & Vendor Branding</p>
+                <p className="text-sm text-muted-foreground">
+                  The "Powered by {vendorName}" footer is {enabled ? 'hidden' : 'visible'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-xs font-bold text-primary">4</span>
+              </div>
+              <div>
+                <p className="font-medium">Reports & Documents</p>
+                <p className="text-sm text-muted-foreground">
+                  All generated invoices, receipts, and reports use your company branding exclusively
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-xs font-bold text-primary">5</span>
               </div>
               <div>
                 <p className="font-medium">AI-Generated Content</p>

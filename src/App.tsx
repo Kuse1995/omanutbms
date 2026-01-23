@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { AuthProvider } from "@/hooks/useAuth";
 import { TenantProvider } from "@/hooks/useTenant";
+import { BrandingProvider } from "@/contexts/BrandingContext";
 import { ProtectedRoute } from "@/components/dashboard/ProtectedRoute";
 import Index from "./pages/Index";
 import About from "./pages/About";
@@ -60,11 +61,13 @@ const App = () => (
     <TooltipProvider>
       <AuthProvider>
         <TenantProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <AnimatedRoutes />
-          </BrowserRouter>
+          <BrandingProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <AnimatedRoutes />
+            </BrowserRouter>
+          </BrandingProvider>
         </TenantProvider>
       </AuthProvider>
     </TooltipProvider>
