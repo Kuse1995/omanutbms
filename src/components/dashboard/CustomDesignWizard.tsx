@@ -12,7 +12,10 @@ import {
   Sparkles,
   Calculator,
   Lock,
-  AlertCircle
+  AlertCircle,
+  Briefcase,
+  Clock,
+  Calendar
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,12 +26,14 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
-import { MeasurementsForm } from "./MeasurementsForm";
+import { GarmentMeasurementsForm, type GarmentMeasurements } from "./GarmentMeasurementsForm";
 import { MaterialSelector, type MaterialItem } from "./MaterialSelector";
 import { LaborEstimator, type SkillLevel } from "./LaborEstimator";
 import { PricingBreakdown, calculateQuote } from "./PricingBreakdown";
 import { SketchUploader } from "./SketchUploader";
 import { CustomerSignaturePad } from "./CustomerSignaturePad";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 
 interface CustomDesignWizardProps {
   open: boolean;
@@ -38,11 +43,12 @@ interface CustomDesignWizardProps {
 
 const WIZARD_STEPS = [
   { id: 'client', label: 'Client Info', icon: User },
+  { id: 'work', label: 'Work Details', icon: Briefcase },
   { id: 'design', label: 'Design Details', icon: Palette },
   { id: 'measurements', label: 'Measurements', icon: Ruler },
   { id: 'sketches', label: 'Sketches & Refs', icon: Camera },
   { id: 'pricing', label: 'Smart Pricing', icon: Calculator },
-  { id: 'review', label: 'Review & Confirm', icon: FileText },
+  { id: 'review', label: 'Review & Sign', icon: FileText },
 ];
 
 const DESIGN_TYPES = [
@@ -54,6 +60,7 @@ const DESIGN_TYPES = [
   'Shirt/Blouse',
   'Trousers/Pants',
   'Jacket/Blazer',
+  'Skirt',
   'Traditional Attire',
   'Other',
 ];
@@ -77,24 +84,36 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
-  // Form state
+  // Form state - Updated with Dodo Wear form fields
   const [formData, setFormData] = useState({
-    // Client
+    // Client Info (Step 1)
     customerName: '',
     customerPhone: '',
+    customerWhatsApp: '',
     customerEmail: '',
-    // Design
+    residentialAddress: '',
+    
+    // Work Details (Step 2 - NEW)
+    productionType: 'normal' as 'normal' | 'express',
+    fittingDate: '',
+    collectionDate: '',
+    collectionTime: '',
+    
+    // Design Details (Step 3)
     designType: '',
     fabric: '',
     color: '',
-    styleNotes: '',
-    // Measurements
-    measurements: {} as Record<string, number>,
-    // Sketches
+    styleNotes: '', // "General Description of Work"
+    
+    // Measurements (Step 4)
+    measurements: {} as GarmentMeasurements,
+    
+    // Sketches (Step 5)
     sketchUrls: [] as string[],
     referenceNotes: '',
     generatedImages: [] as { view: string; imageUrl: string }[],
-    // Pricing
+    
+    // Pricing (Step 6)
     materials: [] as MaterialItem[],
     laborHours: 0,
     skillLevel: 'Senior' as SkillLevel,
@@ -102,20 +121,20 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
     tailorId: null as string | null,
     marginPercentage: 30,
     priceLocked: false,
-    // Order details
+    
+    // Review & Sign (Step 7)
     estimatedCost: 0,
     depositAmount: 0,
     dueDate: '',
-    // Signature
     customerSignature: null as string | null,
   });
 
   const updateFormData = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    setValidationErrors([]); // Clear errors on change
+    setValidationErrors([]);
   };
 
-  // Step validation logic
+  // Step validation logic - Updated for 7 steps
   const validateStep = (stepIndex: number): { valid: boolean; errors: string[] } => {
     const errors: string[] = [];
 
@@ -125,31 +144,33 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
         if (!formData.customerPhone.trim()) errors.push("Phone number is required");
         break;
       
-      case 1: // Design Details
+      case 1: // Work Details
+        // Optional but recommended
+        break;
+      
+      case 2: // Design Details
         if (!formData.designType) errors.push("Please select a design type");
         if (!formData.fabric) errors.push("Please select a fabric type");
         if (!formData.color.trim()) errors.push("Please specify the color/pattern");
         break;
       
-      case 2: // Measurements
-        const hasMeasurements = Object.values(formData.measurements).some(v => v > 0);
+      case 3: // Measurements
+        const hasMeasurements = Object.values(formData.measurements).some(v => v && v > 0);
         if (!hasMeasurements) errors.push("Please enter at least one measurement");
         break;
       
-      case 3: // Sketches - optional but encourage content
-        // Sketches are optional, no strict validation
+      case 4: // Sketches - optional
         break;
       
-      case 4: // Pricing
+      case 5: // Pricing
         if (formData.laborHours <= 0) errors.push("Please estimate labor hours");
-        // Validate material stock
         const hasStockIssues = formData.materials.some(m => 
           m.stockWarning?.includes('Insufficient')
         );
         if (hasStockIssues) errors.push("Some materials have insufficient stock");
         break;
       
-      case 5: // Review & Confirm (was step 6)
+      case 6: // Review & Sign
         if (!formData.customerSignature) errors.push("Customer signature is required to approve the design");
         break;
     }
@@ -196,9 +217,18 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
     }
   };
 
+  // Calculate balance due
+  const calculateBalance = () => {
+    const materialCost = formData.materials.reduce(
+      (sum, m) => sum + m.quantity * m.unitCost, 0
+    );
+    const laborCost = formData.laborHours * formData.hourlyRate;
+    const { quotedPrice } = calculateQuote(materialCost, laborCost, formData.marginPercentage);
+    return quotedPrice - (formData.depositAmount || 0);
+  };
+
   const handleSubmit = async () => {
-    // Final validation (step 5 - Review & Confirm)
-    const { valid, errors } = validateStep(5);
+    const { valid, errors } = validateStep(6);
     if (!valid) {
       setValidationErrors(errors);
       toast({
@@ -220,7 +250,6 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
       let customerId: string | null = null;
       
       if (formData.customerName && formData.customerPhone) {
-        // Check if customer exists
         const { data: existingCustomer } = await supabase
           .from('customers')
           .select('id')
@@ -230,13 +259,15 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
         
         if (existingCustomer) {
           customerId = existingCustomer.id;
-          // Update measurements
           await supabase
             .from('customers')
-            .update({ measurements: formData.measurements })
+            .update({ 
+              measurements: formData.measurements,
+              whatsapp_number: formData.customerWhatsApp || null,
+              residential_address: formData.residentialAddress || null,
+            })
             .eq('id', customerId);
         } else {
-          // Create new customer
           const { data: newCustomer, error: customerError } = await supabase
             .from('customers')
             .insert({
@@ -245,6 +276,8 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
               phone: formData.customerPhone,
               email: formData.customerEmail || null,
               measurements: formData.measurements,
+              whatsapp_number: formData.customerWhatsApp || null,
+              residential_address: formData.residentialAddress || null,
             })
             .select('id')
             .single();
@@ -261,7 +294,6 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
       const laborCost = formData.laborHours * formData.hourlyRate;
       const { quotedPrice } = calculateQuote(materialCost, laborCost, formData.marginPercentage);
 
-      // tenant_id is auto-set by trigger, order_number is auto-generated
       const insertData: Record<string, unknown> = {
         tenant_id: tenantId,
         customer_id: customerId,
@@ -273,12 +305,9 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
         estimated_cost: quotedPrice || formData.estimatedCost || null,
         deposit_paid: formData.depositAmount || null,
         due_date: formData.dueDate || null,
-        status: 'confirmed', // Since customer signed, it's confirmed
-        // Reference images from sketches
+        status: 'confirmed',
         reference_images: formData.sketchUrls.length > 0 ? formData.sketchUrls : null,
-        // AI-generated outfit views
         generated_images: formData.generatedImages.length > 0 ? formData.generatedImages : [],
-        // Pricing fields
         assigned_tailor_id: formData.tailorId,
         tailor_skill_level: formData.skillLevel,
         estimated_labor_hours: formData.laborHours,
@@ -287,8 +316,15 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
         estimated_labor_cost: laborCost,
         margin_percentage: formData.marginPercentage,
         quoted_price: quotedPrice,
-        price_locked: true, // Lock price since customer signed
+        price_locked: true,
         price_locked_at: new Date().toISOString(),
+        // New Dodo Wear form fields
+        whatsapp_number: formData.customerWhatsApp || null,
+        residential_address: formData.residentialAddress || null,
+        production_type: formData.productionType,
+        fitting_date: formData.fittingDate || null,
+        collection_date: formData.collectionDate || null,
+        collection_time: formData.collectionTime || null,
       };
       
       const { data: orderData, error } = await supabase
@@ -315,7 +351,6 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
 
       // Upload signature if available
       if (formData.customerSignature && orderData) {
-        // Convert base64 to blob
         const base64Data = formData.customerSignature.split(',')[1];
         const byteCharacters = atob(base64Data);
         const byteNumbers = new Array(byteCharacters.length);
@@ -356,25 +391,36 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
       case 0: // Client Info
         return (
           <div className="space-y-4">
-            <div>
-              <Label htmlFor="customerName">Customer Name *</Label>
-              <Input
-                id="customerName"
-                value={formData.customerName}
-                onChange={(e) => updateFormData('customerName', e.target.value)}
-                placeholder="Enter customer full name"
-                className={validationErrors.some(e => e.includes('name')) ? 'border-destructive' : ''}
-              />
-            </div>
-            <div>
-              <Label htmlFor="customerPhone">Phone Number *</Label>
-              <Input
-                id="customerPhone"
-                value={formData.customerPhone}
-                onChange={(e) => updateFormData('customerPhone', e.target.value)}
-                placeholder="+260 97X XXX XXX"
-                className={validationErrors.some(e => e.includes('Phone')) ? 'border-destructive' : ''}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <Label htmlFor="customerName">Customer Name *</Label>
+                <Input
+                  id="customerName"
+                  value={formData.customerName}
+                  onChange={(e) => updateFormData('customerName', e.target.value)}
+                  placeholder="Enter customer full name"
+                  className={validationErrors.some(e => e.includes('name')) ? 'border-destructive' : ''}
+                />
+              </div>
+              <div>
+                <Label htmlFor="customerPhone">Phone Number *</Label>
+                <Input
+                  id="customerPhone"
+                  value={formData.customerPhone}
+                  onChange={(e) => updateFormData('customerPhone', e.target.value)}
+                  placeholder="+260 97X XXX XXX"
+                  className={validationErrors.some(e => e.includes('Phone')) ? 'border-destructive' : ''}
+                />
+              </div>
+              <div>
+                <Label htmlFor="customerWhatsApp">WhatsApp Number</Label>
+                <Input
+                  id="customerWhatsApp"
+                  value={formData.customerWhatsApp}
+                  onChange={(e) => updateFormData('customerWhatsApp', e.target.value)}
+                  placeholder="+260 97X XXX XXX"
+                />
+              </div>
             </div>
             <div>
               <Label htmlFor="customerEmail">Email (Optional)</Label>
@@ -386,10 +432,106 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
                 placeholder="customer@email.com"
               />
             </div>
+            <div>
+              <Label htmlFor="residentialAddress">Residential Address</Label>
+              <Textarea
+                id="residentialAddress"
+                value={formData.residentialAddress}
+                onChange={(e) => updateFormData('residentialAddress', e.target.value)}
+                placeholder="Enter customer's residential address"
+                rows={2}
+              />
+            </div>
           </div>
         );
 
-      case 1: // Design Details
+      case 1: // Work Details (NEW STEP)
+        return (
+          <div className="space-y-6">
+            {/* Production Type Toggle */}
+            <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
+              <div className="space-y-0.5">
+                <Label className="text-base font-medium">Production Time</Label>
+                <p className="text-sm text-muted-foreground">
+                  {formData.productionType === 'normal' 
+                    ? 'Standard production (12 working days)' 
+                    : 'Express rush order (additional charges apply)'}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className={`text-sm ${formData.productionType === 'normal' ? 'font-medium' : 'text-muted-foreground'}`}>
+                  Normal
+                </span>
+                <Switch
+                  checked={formData.productionType === 'express'}
+                  onCheckedChange={(checked) => updateFormData('productionType', checked ? 'express' : 'normal')}
+                />
+                <span className={`text-sm ${formData.productionType === 'express' ? 'font-medium text-amber-600' : 'text-muted-foreground'}`}>
+                  Express
+                </span>
+                {formData.productionType === 'express' && (
+                  <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                    Rush
+                  </Badge>
+                )}
+              </div>
+            </div>
+
+            {/* Scheduling */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="fittingDate" className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  Date for Fitting
+                </Label>
+                <Input
+                  id="fittingDate"
+                  type="date"
+                  value={formData.fittingDate}
+                  onChange={(e) => updateFormData('fittingDate', e.target.value)}
+                  className="mt-1.5"
+                />
+              </div>
+              <div>
+                <Label htmlFor="collectionDate" className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  Collection Date
+                </Label>
+                <Input
+                  id="collectionDate"
+                  type="date"
+                  value={formData.collectionDate}
+                  onChange={(e) => updateFormData('collectionDate', e.target.value)}
+                  className="mt-1.5"
+                />
+              </div>
+              <div>
+                <Label htmlFor="collectionTime" className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  Collection Time
+                </Label>
+                <Input
+                  id="collectionTime"
+                  type="time"
+                  value={formData.collectionTime}
+                  onChange={(e) => updateFormData('collectionTime', e.target.value)}
+                  className="mt-1.5"
+                />
+              </div>
+            </div>
+
+            <div className="p-3 rounded-lg bg-blue-50 text-blue-700 text-sm">
+              <p className="font-medium mb-1">Scheduling Tips</p>
+              <ul className="list-disc list-inside space-y-0.5 text-blue-600">
+                <li>Fitting date should be at least 7 days before collection</li>
+                <li>Allow 2-3 days after fitting for final adjustments</li>
+                <li>Express orders may have limited scheduling flexibility</li>
+              </ul>
+            </div>
+          </div>
+        );
+
+      case 2: // Design Details
         return (
           <div className="space-y-4">
             <div>
@@ -429,27 +571,33 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
               />
             </div>
             <div>
-              <Label htmlFor="styleNotes">Style Notes</Label>
+              <Label htmlFor="styleNotes">General Description of Work</Label>
               <Textarea
                 id="styleNotes"
                 value={formData.styleNotes}
                 onChange={(e) => updateFormData('styleNotes', e.target.value)}
-                placeholder="Additional details about the design, buttons, lining, pockets, etc."
-                rows={4}
+                placeholder="Describe the work in detail: style preferences, specific features (buttons, lining, pockets), special requests, alterations needed, etc."
+                rows={5}
+                className="resize-none"
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                Include all details about the garment construction, finishing, and any special instructions
+              </p>
             </div>
           </div>
         );
 
-      case 2: // Measurements
+      case 3: // Measurements - Now uses categorized garment tabs
         return (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Enter the client's body measurements in centimeters. <span className="text-destructive">*</span>
+              Enter measurements in centimeters. Select the garment type tab and fill in the relevant fields.
+              <span className="text-destructive"> *</span>
             </p>
-            <MeasurementsForm
+            <GarmentMeasurementsForm
               measurements={formData.measurements}
               onChange={(m) => updateFormData('measurements', m)}
+              designType={formData.designType}
             />
             {validationErrors.some(e => e.includes('measurement')) && (
               <p className="text-sm text-destructive flex items-center gap-1">
@@ -460,7 +608,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
           </div>
         );
 
-      case 3: // Sketches & References
+      case 4: // Sketches & References
         return (
           <SketchUploader
             sketchUrls={formData.sketchUrls}
@@ -476,7 +624,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
           />
         );
 
-      case 4: // Smart Pricing
+      case 5: // Smart Pricing
         const materialTotal = formData.materials.reduce(
           (sum, m) => sum + m.quantity * m.unitCost, 0
         );
@@ -551,7 +699,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
           </div>
         );
 
-      case 5: // Review & Confirm
+      case 6: // Review & Sign
         const finalMaterialCost = formData.materials.reduce(
           (sum, m) => sum + m.quantity * m.unitCost, 0
         );
@@ -559,29 +707,62 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
         const { quotedPrice: finalQuote } = calculateQuote(
           finalMaterialCost, finalLaborCost, formData.marginPercentage
         );
+        const balanceDue = finalQuote - (formData.depositAmount || 0);
 
         return (
           <div className="space-y-6">
+            {/* Customer & Work Summary */}
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <p className="font-medium text-muted-foreground">Customer</p>
                 <p className="text-foreground">{formData.customerName}</p>
                 <p className="text-muted-foreground">{formData.customerPhone}</p>
+                {formData.customerWhatsApp && (
+                  <p className="text-muted-foreground text-xs">WhatsApp: {formData.customerWhatsApp}</p>
+                )}
               </div>
               <div>
                 <p className="font-medium text-muted-foreground">Design</p>
                 <p className="text-foreground">{formData.designType}</p>
                 <p className="text-muted-foreground">{formData.fabric} • {formData.color}</p>
+                {formData.productionType === 'express' && (
+                  <Badge variant="outline" className="mt-1 bg-amber-50 text-amber-700 border-amber-200 text-xs">
+                    Express Order
+                  </Badge>
+                )}
               </div>
             </div>
 
-            {/* Note about QC */}
+            {/* Scheduling Summary */}
+            {(formData.fittingDate || formData.collectionDate) && (
+              <div className="flex gap-4 text-sm">
+                {formData.fittingDate && (
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-muted-foreground">Fitting:</span>
+                    <span>{new Date(formData.fittingDate).toLocaleDateString()}</span>
+                  </div>
+                )}
+                {formData.collectionDate && (
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-muted-foreground">Collection:</span>
+                    <span>
+                      {new Date(formData.collectionDate).toLocaleDateString()}
+                      {formData.collectionTime && ` at ${formData.collectionTime}`}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* QC Note */}
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-blue-50 text-blue-700">
               <Check className="h-4 w-4" />
               Quality control will be performed during production before fitting
             </div>
 
-            {/* Show generated images if available */}
+            {/* Generated Images */}
             {formData.generatedImages.length > 0 && (
               <div>
                 <p className="font-medium text-muted-foreground mb-2">AI Generated Preview</p>
@@ -599,12 +780,13 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
               </div>
             )}
 
+            {/* Pricing Summary with Balance */}
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-              <div className="flex items-center gap-2 text-amber-800 font-medium mb-2">
+              <div className="flex items-center gap-2 text-amber-800 font-medium mb-3">
                 <Calculator className="h-4 w-4" />
-                Quoted Price
+                Payment Summary
               </div>
-              <div className="grid grid-cols-3 gap-4 text-sm">
+              <div className="grid grid-cols-4 gap-4 text-sm">
                 <div>
                   <p className="text-muted-foreground">Materials</p>
                   <p className="font-medium">K {finalMaterialCost.toFixed(2)}</p>
@@ -614,12 +796,19 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
                   <p className="font-medium">K {finalLaborCost.toFixed(2)}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Final Quote</p>
+                  <p className="text-muted-foreground">Total Charge</p>
                   <p className="font-bold text-lg text-primary">K {finalQuote.toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Balance Due</p>
+                  <p className={`font-bold text-lg ${balanceDue > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                    K {balanceDue.toFixed(2)}
+                  </p>
                 </div>
               </div>
             </div>
 
+            {/* Deposit & Due Date */}
             <div className="border-t pt-4 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -684,7 +873,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
                 <Sparkles className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-white tracking-tight">Custom Design Wizard</h2>
+                <h2 className="text-xl font-bold text-white tracking-tight">Dodo Wear Custom Order</h2>
                 <p className="text-amber-100/80 text-sm">Create bespoke orders with precision</p>
               </div>
             </div>
@@ -719,7 +908,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
 
         {/* Step Navigation */}
         <div className="px-6 py-5 border-b bg-gradient-to-b from-muted/50 to-background">
-          <div className="flex items-center justify-between gap-1">
+          <div className="flex items-center justify-between gap-0.5">
             {WIZARD_STEPS.map((step, index) => {
               const StepIcon = step.icon;
               const isActive = index === currentStep;
@@ -736,12 +925,12 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
                       }
                     }}
                     disabled={!isAccessible || index > currentStep}
-                    className={`group flex flex-col items-center gap-1.5 transition-all ${
+                    className={`group flex flex-col items-center gap-1 transition-all ${
                       !isAccessible ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
                     }`}
                   >
                     <motion.div 
-                      className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-sm ${
+                      className={`relative w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-all shadow-sm ${
                         isActive 
                           ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-amber-500/30 shadow-lg' 
                           : isComplete 
@@ -757,10 +946,10 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
                           animate={{ scale: 1 }}
                           transition={{ type: "spring", damping: 10 }}
                         >
-                          <Check className="h-5 w-5" />
+                          <Check className="h-4 w-4 sm:h-5 sm:w-5" />
                         </motion.div>
                       ) : (
-                        <StepIcon className="h-5 w-5" />
+                        <StepIcon className="h-4 w-4 sm:h-5 sm:w-5" />
                       )}
                       {isActive && (
                         <motion.div 
@@ -770,14 +959,14 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
                         />
                       )}
                     </motion.div>
-                    <span className={`text-[10px] font-medium text-center leading-tight hidden sm:block ${
+                    <span className={`text-[9px] sm:text-[10px] font-medium text-center leading-tight hidden sm:block ${
                       isActive ? 'text-amber-600' : isComplete ? 'text-emerald-600' : 'text-muted-foreground'
                     }`}>
                       {step.label}
                     </span>
                   </button>
                   {index < WIZARD_STEPS.length - 1 && (
-                    <div className="flex-1 h-0.5 mx-1.5 rounded-full overflow-hidden bg-muted">
+                    <div className="flex-1 h-0.5 mx-0.5 sm:mx-1 rounded-full overflow-hidden bg-muted">
                       <motion.div 
                         className={`h-full rounded-full ${
                           stepCompletionStatus[index] && index < currentStep 
@@ -820,12 +1009,13 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
                     {WIZARD_STEPS[currentStep].label}
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    {currentStep === 0 && "Enter customer details to get started"}
-                    {currentStep === 1 && "Specify the design requirements"}
-                    {currentStep === 2 && "Record body measurements"}
-                    {currentStep === 3 && "Upload references and generate previews"}
-                    {currentStep === 4 && "Calculate materials and labor costs"}
-                    {currentStep === 5 && "Review and get customer approval"}
+                    {currentStep === 0 && "Enter customer contact details"}
+                    {currentStep === 1 && "Set production timeline and scheduling"}
+                    {currentStep === 2 && "Specify design and fabric requirements"}
+                    {currentStep === 3 && "Record body measurements by garment type"}
+                    {currentStep === 4 && "Upload references and generate previews"}
+                    {currentStep === 5 && "Calculate materials and labor costs"}
+                    {currentStep === 6 && "Review order and get customer signature"}
                   </p>
                 </div>
               </div>

@@ -1088,6 +1088,8 @@ export type Database = {
           assigned_tailor_id: string | null
           assigned_to: string | null
           branch_id: string | null
+          collection_date: string | null
+          collection_time: string | null
           color: string | null
           created_at: string
           created_by: string | null
@@ -1101,6 +1103,7 @@ export type Database = {
           estimated_material_cost: number | null
           fabric: string | null
           final_cost: number | null
+          fitting_date: string | null
           generated_images: Json | null
           id: string
           invoice_id: string | null
@@ -1111,6 +1114,7 @@ export type Database = {
           order_number: string
           price_locked: boolean | null
           price_locked_at: string | null
+          production_type: string | null
           qc_checks: Json | null
           qc_completed_at: string | null
           qc_completed_by: string | null
@@ -1118,16 +1122,20 @@ export type Database = {
           quotation_id: string | null
           quoted_price: number | null
           reference_images: string[] | null
+          residential_address: string | null
           status: string | null
           style_notes: string | null
           tailor_skill_level: string | null
           tenant_id: string
           updated_at: string
+          whatsapp_number: string | null
         }
         Insert: {
           assigned_tailor_id?: string | null
           assigned_to?: string | null
           branch_id?: string | null
+          collection_date?: string | null
+          collection_time?: string | null
           color?: string | null
           created_at?: string
           created_by?: string | null
@@ -1141,6 +1149,7 @@ export type Database = {
           estimated_material_cost?: number | null
           fabric?: string | null
           final_cost?: number | null
+          fitting_date?: string | null
           generated_images?: Json | null
           id?: string
           invoice_id?: string | null
@@ -1151,6 +1160,7 @@ export type Database = {
           order_number: string
           price_locked?: boolean | null
           price_locked_at?: string | null
+          production_type?: string | null
           qc_checks?: Json | null
           qc_completed_at?: string | null
           qc_completed_by?: string | null
@@ -1158,16 +1168,20 @@ export type Database = {
           quotation_id?: string | null
           quoted_price?: number | null
           reference_images?: string[] | null
+          residential_address?: string | null
           status?: string | null
           style_notes?: string | null
           tailor_skill_level?: string | null
           tenant_id: string
           updated_at?: string
+          whatsapp_number?: string | null
         }
         Update: {
           assigned_tailor_id?: string | null
           assigned_to?: string | null
           branch_id?: string | null
+          collection_date?: string | null
+          collection_time?: string | null
           color?: string | null
           created_at?: string
           created_by?: string | null
@@ -1181,6 +1195,7 @@ export type Database = {
           estimated_material_cost?: number | null
           fabric?: string | null
           final_cost?: number | null
+          fitting_date?: string | null
           generated_images?: Json | null
           id?: string
           invoice_id?: string | null
@@ -1191,6 +1206,7 @@ export type Database = {
           order_number?: string
           price_locked?: boolean | null
           price_locked_at?: string | null
+          production_type?: string | null
           qc_checks?: Json | null
           qc_completed_at?: string | null
           qc_completed_by?: string | null
@@ -1198,11 +1214,13 @@ export type Database = {
           quotation_id?: string | null
           quoted_price?: number | null
           reference_images?: string[] | null
+          residential_address?: string | null
           status?: string | null
           style_notes?: string | null
           tailor_skill_level?: string | null
           tenant_id?: string
           updated_at?: string
+          whatsapp_number?: string | null
         }
         Relationships: [
           {
@@ -1266,8 +1284,10 @@ export type Database = {
           name: string
           notes: string | null
           phone: string | null
+          residential_address: string | null
           tenant_id: string
           updated_at: string
+          whatsapp_number: string | null
         }
         Insert: {
           address?: string | null
@@ -1278,8 +1298,10 @@ export type Database = {
           name: string
           notes?: string | null
           phone?: string | null
+          residential_address?: string | null
           tenant_id: string
           updated_at?: string
+          whatsapp_number?: string | null
         }
         Update: {
           address?: string | null
@@ -1290,8 +1312,10 @@ export type Database = {
           name?: string
           notes?: string | null
           phone?: string | null
+          residential_address?: string | null
           tenant_id?: string
           updated_at?: string
+          whatsapp_number?: string | null
         }
         Relationships: [
           {
