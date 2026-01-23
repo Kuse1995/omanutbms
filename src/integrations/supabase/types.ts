@@ -3970,12 +3970,13 @@ export type Database = {
           employee_id: string | null
           id: string
           is_active: boolean | null
+          is_employee_self_service: boolean | null
           is_verified: boolean | null
           last_used_at: string | null
           role: string
           tenant_id: string
           updated_at: string | null
-          user_id: string
+          user_id: string | null
           whatsapp_number: string
         }
         Insert: {
@@ -3985,12 +3986,13 @@ export type Database = {
           employee_id?: string | null
           id?: string
           is_active?: boolean | null
+          is_employee_self_service?: boolean | null
           is_verified?: boolean | null
           last_used_at?: string | null
           role?: string
           tenant_id: string
           updated_at?: string | null
-          user_id: string
+          user_id?: string | null
           whatsapp_number: string
         }
         Update: {
@@ -4000,12 +4002,13 @@ export type Database = {
           employee_id?: string | null
           id?: string
           is_active?: boolean | null
+          is_employee_self_service?: boolean | null
           is_verified?: boolean | null
           last_used_at?: string | null
           role?: string
           tenant_id?: string
           updated_at?: string | null
-          user_id?: string
+          user_id?: string | null
           whatsapp_number?: string
         }
         Relationships: [
