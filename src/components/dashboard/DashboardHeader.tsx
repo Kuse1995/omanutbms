@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,6 +42,15 @@ export function DashboardHeader() {
       default:
         return "bg-slate-500/20 text-slate-400 border-slate-500/30";
     }
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
   };
 
   return (
@@ -91,9 +101,15 @@ export function DashboardHeader() {
                     )}
                   </div>
                 </div>
-                <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, var(--brand-primary, #004B8D), var(--brand-secondary, #0077B6))` }}>
-                  <User className="w-4 h-4 text-white" />
-                </div>
+                <Avatar className="w-9 h-9">
+                  <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.full_name || "User"} />
+                  <AvatarFallback 
+                    className="text-white text-sm font-medium"
+                    style={{ background: `linear-gradient(135deg, var(--brand-primary, #004B8D), var(--brand-secondary, #0077B6))` }}
+                  >
+                    {getInitials(profile?.full_name || user?.email?.split("@")[0] || "U")}
+                  </AvatarFallback>
+                </Avatar>
               </div>
             </DropdownMenuTrigger>
             <DropdownMenuContent
