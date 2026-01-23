@@ -52,6 +52,7 @@ interface CustomOrder {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
+  draft: { label: "Draft", variant: "outline" },
   pending: { label: "Pending", variant: "outline" },
   confirmed: { label: "Confirmed", variant: "secondary" },
   cutting: { label: "Cutting", variant: "default" },
