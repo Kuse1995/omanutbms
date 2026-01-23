@@ -10,9 +10,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { CustomOrderModal } from "./CustomOrderModal";
 import { CustomDesignWizard } from "./CustomDesignWizard";
-import { Scissors, Plus, Search, Edit, Trash2, Loader2, Calendar, User, Clock, Sparkles } from "lucide-react";
+import { OrderToInvoiceModal } from "./OrderToInvoiceModal";
+import { ReceiptModal } from "./ReceiptModal";
+import { InvoiceViewModal } from "./InvoiceViewModal";
+import { Scissors, Plus, Search, Edit, Trash2, Loader2, Calendar, User, FileText, CreditCard, Eye, Sparkles, CheckCircle } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import type { Measurements } from "./MeasurementsForm";
@@ -27,14 +31,24 @@ interface CustomOrder {
   style_notes: string | null;
   measurements: Measurements;
   estimated_cost: number | null;
+  quoted_price: number | null;
   deposit_paid: number | null;
   order_date: string;
   due_date: string | null;
+  collection_date: string | null;
   status: string;
   assigned_to: string | null;
+  invoice_id: string | null;
   created_at: string;
-  customers?: { name: string } | null;
+  customers?: { name: string; email: string | null; phone: string | null } | null;
   employees?: { full_name: string } | null;
+  invoices?: { 
+    id: string;
+    invoice_number: string;
+    total_amount: number;
+    paid_amount: number;
+    status: string;
+  } | null;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
@@ -60,7 +74,11 @@ export function CustomOrdersManager() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [modalOpen, setModalOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+  const [receiptModalOpen, setReceiptModalOpen] = useState(false);
+  const [viewInvoiceModalOpen, setViewInvoiceModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<CustomOrder | null>(null);
+  const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<CustomOrder | null>(null);
 
@@ -75,8 +93,9 @@ export function CustomOrdersManager() {
         .from("custom_orders")
         .select(`
           *,
-          customers(name),
-          employees!custom_orders_assigned_to_fkey(full_name)
+          customers(name, email, phone),
+          employees!custom_orders_assigned_to_fkey(full_name),
+          invoices(id, invoice_number, total_amount, paid_amount, status)
         `)
         .eq("tenant_id", tenant.id)
         .order("created_at", { ascending: false });
@@ -118,6 +137,61 @@ export function CustomOrdersManager() {
   const handleEdit = (order: CustomOrder) => {
     setSelectedOrder(order);
     setModalOpen(true);
+  };
+
+  const handleGenerateInvoice = (order: CustomOrder) => {
+    setSelectedOrder(order);
+    setInvoiceModalOpen(true);
+  };
+
+  const handleRecordPayment = (order: CustomOrder) => {
+    if (order.invoices) {
+      setSelectedInvoice({
+        id: order.invoices.id,
+        invoice_number: order.invoices.invoice_number,
+        client_name: order.customers?.name || "Walk-in",
+        client_email: order.customers?.email || null,
+        total_amount: order.invoices.total_amount,
+        paid_amount: order.invoices.paid_amount,
+      });
+      setReceiptModalOpen(true);
+    }
+  };
+
+  const handleViewInvoice = (order: CustomOrder) => {
+    if (order.invoices) {
+      setSelectedInvoice({
+        id: order.invoices.id,
+        invoice_number: order.invoices.invoice_number,
+        client_name: order.customers?.name || "Walk-in",
+        total_amount: order.invoices.total_amount,
+        paid_amount: order.invoices.paid_amount,
+        status: order.invoices.status,
+      });
+      setViewInvoiceModalOpen(true);
+    }
+  };
+
+  const getPaymentStatus = (order: CustomOrder) => {
+    const quoted = order.quoted_price || order.estimated_cost || 0;
+    if (!quoted) return null;
+    
+    if (order.invoices) {
+      const paid = order.invoices.paid_amount || 0;
+      const total = order.invoices.total_amount;
+      const balance = total - paid;
+      
+      if (balance <= 0) return { status: "paid", label: "Paid", variant: "default" as const };
+      if (paid > 0) return { status: "partial", label: `Bal: ${currencySymbol}${balance.toLocaleString()}`, variant: "secondary" as const };
+      return { status: "unpaid", label: "Unpaid", variant: "outline" as const };
+    }
+    
+    // No invoice yet - show deposit status
+    const deposit = order.deposit_paid || 0;
+    if (deposit > 0) {
+      return { status: "deposit", label: `Deposit: ${currencySymbol}${deposit.toLocaleString()}`, variant: "secondary" as const };
+    }
+    return { status: "none", label: "No Payment", variant: "outline" as const };
   };
 
   const handleDelete = async () => {
@@ -261,87 +335,168 @@ export function CustomOrdersManager() {
                     <TableHead>Design</TableHead>
                     <TableHead>Due Date</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Cost</TableHead>
+                    <TableHead className="text-right">Quoted</TableHead>
+                    <TableHead className="text-center">Payment</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredOrders.map((order) => (
-                    <TableRow key={order.id}>
-                      <TableCell className="font-medium">{order.order_number}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <User className="h-3 w-3 text-muted-foreground" />
-                          {order.customers?.name || "Walk-in"}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="capitalize">{order.design_type || "Custom"}</p>
-                          {order.fabric && (
-                            <p className="text-xs text-muted-foreground">{order.fabric}</p>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {order.due_date ? (
-                          <div className="flex items-center gap-1 text-sm">
-                            <Calendar className="h-3 w-3 text-muted-foreground" />
-                            {format(new Date(order.due_date), "MMM d, yyyy")}
+                  {filteredOrders.map((order) => {
+                    const paymentStatus = getPaymentStatus(order);
+                    const quoted = order.quoted_price || order.estimated_cost || 0;
+                    const canGenerateInvoice = order.status !== "pending" && order.status !== "cancelled" && !order.invoice_id && quoted > 0;
+                    const hasInvoice = !!order.invoice_id;
+                    const invoiceBalance = hasInvoice && order.invoices 
+                      ? order.invoices.total_amount - (order.invoices.paid_amount || 0)
+                      : 0;
+
+                    return (
+                      <TableRow key={order.id}>
+                        <TableCell className="font-medium">{order.order_number}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <User className="h-3 w-3 text-muted-foreground" />
+                            {order.customers?.name || "Walk-in"}
                           </div>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">Not set</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={STATUS_CONFIG[order.status]?.variant || "outline"}>
-                          {STATUS_CONFIG[order.status]?.label || order.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {order.estimated_cost ? (
+                        </TableCell>
+                        <TableCell>
                           <div>
-                            <p className="font-medium">{currencySymbol}{order.estimated_cost.toLocaleString()}</p>
-                            {order.deposit_paid && order.deposit_paid > 0 && (
-                              <p className="text-xs text-muted-foreground">
-                                Deposit: {currencySymbol}{order.deposit_paid.toLocaleString()}
-                              </p>
+                            <p className="capitalize">{order.design_type || "Custom"}</p>
+                            {order.fabric && (
+                              <p className="text-xs text-muted-foreground">{order.fabric}</p>
                             )}
                           </div>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          {canEdit && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleEdit(order)}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              {isAdmin && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="text-destructive hover:text-destructive"
-                                  onClick={() => {
-                                    setOrderToDelete(order);
-                                    setDeleteDialogOpen(true);
-                                  }}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              )}
-                            </>
+                        </TableCell>
+                        <TableCell>
+                          {(order.collection_date || order.due_date) ? (
+                            <div className="flex items-center gap-1 text-sm">
+                              <Calendar className="h-3 w-3 text-muted-foreground" />
+                              {format(new Date(order.collection_date || order.due_date!), "MMM d, yyyy")}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">Not set</span>
                           )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={STATUS_CONFIG[order.status]?.variant || "outline"}>
+                            {STATUS_CONFIG[order.status]?.label || order.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {quoted > 0 ? (
+                            <p className="font-medium">{currencySymbol}{quoted.toLocaleString()}</p>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {paymentStatus ? (
+                            <Badge 
+                              variant={paymentStatus.variant}
+                              className={paymentStatus.status === "paid" ? "bg-green-100 text-green-800 hover:bg-green-100" : ""}
+                            >
+                              {paymentStatus.status === "paid" && <CheckCircle className="h-3 w-3 mr-1" />}
+                              {paymentStatus.label}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <TooltipProvider>
+                            <div className="flex justify-end gap-1">
+                              {/* Invoice/Payment Actions */}
+                              {canGenerateInvoice && canEdit && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="text-primary hover:text-primary"
+                                      onClick={() => handleGenerateInvoice(order)}
+                                    >
+                                      <FileText className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Generate Invoice</TooltipContent>
+                                </Tooltip>
+                              )}
+                              
+                              {hasInvoice && (
+                                <>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => handleViewInvoice(order)}
+                                      >
+                                        <Eye className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>View Invoice</TooltipContent>
+                                  </Tooltip>
+                                  
+                                  {invoiceBalance > 0 && canEdit && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="text-green-600 hover:text-green-700"
+                                          onClick={() => handleRecordPayment(order)}
+                                        >
+                                          <CreditCard className="h-4 w-4" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>Record Payment</TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                </>
+                              )}
+
+                              {/* Edit/Delete Actions */}
+                              {canEdit && (
+                                <>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => handleEdit(order)}
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Edit Order</TooltipContent>
+                                  </Tooltip>
+                                  
+                                  {isAdmin && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="text-destructive hover:text-destructive"
+                                          onClick={() => {
+                                            setOrderToDelete(order);
+                                            setDeleteDialogOpen(true);
+                                          }}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>Delete Order</TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </TooltipProvider>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -362,6 +517,29 @@ export function CustomOrdersManager() {
         open={wizardOpen}
         onClose={() => setWizardOpen(false)}
         onSuccess={fetchOrders}
+      />
+
+      {/* Generate Invoice Modal */}
+      <OrderToInvoiceModal
+        open={invoiceModalOpen}
+        onOpenChange={setInvoiceModalOpen}
+        order={selectedOrder}
+        onSuccess={fetchOrders}
+      />
+
+      {/* Record Payment Modal */}
+      <ReceiptModal
+        isOpen={receiptModalOpen}
+        onClose={() => setReceiptModalOpen(false)}
+        onSuccess={fetchOrders}
+        invoice={selectedInvoice}
+      />
+
+      {/* View Invoice Modal */}
+      <InvoiceViewModal
+        isOpen={viewInvoiceModalOpen}
+        onClose={() => setViewInvoiceModalOpen(false)}
+        invoice={selectedInvoice}
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
