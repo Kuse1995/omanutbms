@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Clock, LogIn, LogOut, Calendar, Users, Timer } from "lucide-react";
+import { Clock, LogIn, LogOut, Calendar, Users, Timer, MapPin, MapPinOff } from "lucide-react";
 import { format, differenceInMinutes, startOfMonth, endOfMonth } from "date-fns";
 import { useTenant } from "@/hooks/useTenant";
 
@@ -44,7 +44,18 @@ export const AttendanceManager = () => {
         .lte("date", format(monthEnd, "yyyy-MM-dd"))
         .order("date", { ascending: false });
       if (error) throw error;
-      return data;
+      return data as Array<{
+        id: string;
+        employee_id: string;
+        date: string;
+        clock_in: string;
+        clock_out: string | null;
+        work_hours: number | null;
+        status: string;
+        clock_in_verified: boolean | null;
+        clock_in_distance_meters: number | null;
+        employees: { full_name: string } | null;
+      }>;
     },
   });
 
@@ -288,11 +299,12 @@ export const AttendanceManager = () => {
                   <TableHead>Clock In</TableHead>
                   <TableHead>Clock Out</TableHead>
                   <TableHead>Hours</TableHead>
+                  <TableHead>Location</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {attendance.map((record: any) => (
+                {attendance.map((record) => (
                   <TableRow key={record.id}>
                     <TableCell>{format(new Date(record.date), "MMM dd, yyyy")}</TableCell>
                     <TableCell className="font-medium">{record.employees?.full_name}</TableCell>
@@ -301,6 +313,21 @@ export const AttendanceManager = () => {
                       {record.clock_out ? format(new Date(record.clock_out), "HH:mm") : "-"}
                     </TableCell>
                     <TableCell>{record.work_hours ? `${record.work_hours}h` : "-"}</TableCell>
+                    <TableCell>
+                      {record.clock_in_verified === true ? (
+                        <div className="flex items-center gap-1 text-green-600">
+                          <MapPin className="h-3 w-3" />
+                          <span className="text-xs">{record.clock_in_distance_meters}m</span>
+                        </div>
+                      ) : record.clock_in_verified === false ? (
+                        <div className="flex items-center gap-1 text-amber-500">
+                          <MapPinOff className="h-3 w-3" />
+                          <span className="text-xs">Unverified</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Badge variant={record.status === "clocked_in" ? "default" : "secondary"}>
                         {record.status === "clocked_in" ? "Active" : "Completed"}

@@ -673,9 +673,12 @@ export type Database = {
           code: string | null
           created_at: string | null
           email: string | null
+          geofence_radius_meters: number | null
           id: string
           is_active: boolean | null
           is_headquarters: boolean | null
+          latitude: number | null
+          longitude: number | null
           manager_id: string | null
           name: string
           phone: string | null
@@ -689,9 +692,12 @@ export type Database = {
           code?: string | null
           created_at?: string | null
           email?: string | null
+          geofence_radius_meters?: number | null
           id?: string
           is_active?: boolean | null
           is_headquarters?: boolean | null
+          latitude?: number | null
+          longitude?: number | null
           manager_id?: string | null
           name: string
           phone?: string | null
@@ -705,9 +711,12 @@ export type Database = {
           code?: string | null
           created_at?: string | null
           email?: string | null
+          geofence_radius_meters?: number | null
           id?: string
           is_active?: boolean | null
           is_headquarters?: boolean | null
+          latitude?: number | null
+          longitude?: number | null
           manager_id?: string | null
           name?: string
           phone?: string | null
@@ -730,6 +739,7 @@ export type Database = {
           accent_color: string | null
           advanced_accounting_enabled: boolean | null
           agents_enabled: boolean | null
+          attendance_location_required: boolean | null
           billing_end_date: string | null
           billing_notes: string | null
           billing_plan: string
@@ -774,6 +784,7 @@ export type Database = {
           accent_color?: string | null
           advanced_accounting_enabled?: boolean | null
           agents_enabled?: boolean | null
+          attendance_location_required?: boolean | null
           billing_end_date?: string | null
           billing_notes?: string | null
           billing_plan?: string
@@ -818,6 +829,7 @@ export type Database = {
           accent_color?: string | null
           advanced_accounting_enabled?: boolean | null
           agents_enabled?: boolean | null
+          attendance_location_required?: boolean | null
           billing_end_date?: string | null
           billing_notes?: string | null
           billing_plan?: string
@@ -1384,7 +1396,13 @@ export type Database = {
       employee_attendance: {
         Row: {
           clock_in: string
+          clock_in_distance_meters: number | null
+          clock_in_latitude: number | null
+          clock_in_longitude: number | null
+          clock_in_verified: boolean | null
           clock_out: string | null
+          clock_out_latitude: number | null
+          clock_out_longitude: number | null
           created_at: string
           date: string
           employee_id: string
@@ -1397,7 +1415,13 @@ export type Database = {
         }
         Insert: {
           clock_in?: string
+          clock_in_distance_meters?: number | null
+          clock_in_latitude?: number | null
+          clock_in_longitude?: number | null
+          clock_in_verified?: boolean | null
           clock_out?: string | null
+          clock_out_latitude?: number | null
+          clock_out_longitude?: number | null
           created_at?: string
           date?: string
           employee_id: string
@@ -1410,7 +1434,13 @@ export type Database = {
         }
         Update: {
           clock_in?: string
+          clock_in_distance_meters?: number | null
+          clock_in_latitude?: number | null
+          clock_in_longitude?: number | null
+          clock_in_verified?: boolean | null
           clock_out?: string | null
+          clock_out_latitude?: number | null
+          clock_out_longitude?: number | null
           created_at?: string
           date?: string
           employee_id?: string

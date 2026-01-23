@@ -58,7 +58,7 @@ const REQUIRED_FIELDS: Record<string, string[]> = {
   my_tasks: [],
   task_details: ['order_number'],
   my_schedule: [],
-  clock_in: [],
+  clock_in: [], // Location optional but enables verification
   clock_out: [],
   my_attendance: [],
   my_pay: [],
@@ -167,8 +167,13 @@ serve(async (req) => {
     const from = formData.get('From')?.toString() || '';
     const body = formData.get('Body')?.toString()?.trim() || '';
     const messageSid = formData.get('MessageSid')?.toString() || '';
+    
+    // Extract location data if shared (Twilio sends these for location messages)
+    const latitude = parseFloat(formData.get('Latitude')?.toString() || '');
+    const longitude = parseFloat(formData.get('Longitude')?.toString() || '');
+    const hasLocation = !isNaN(latitude) && !isNaN(longitude);
 
-    console.log(`Received WhatsApp message from ${from}: ${body.substring(0, 100)}`);
+    console.log(`Received WhatsApp message from ${from}: ${body.substring(0, 100)}${hasLocation ? ` [Location: ${latitude}, ${longitude}]` : ''}`);
 
     // Extract and validate phone number
     const rawPhoneNumber = from.replace('whatsapp:', '');
@@ -583,6 +588,19 @@ Contact: support@omanut.co`;
     }
 
     // Execute the intent via BMS API Bridge
+    // For clock_in, add location data if available
+    const contextData: any = {
+      tenant_id: mapping.tenant_id,
+      user_id: mapping.user_id,
+      role: mapping.role,
+      display_name: mapping.display_name,
+    };
+    
+    // Add location for attendance intents if shared
+    if ((parsedIntent.intent === 'clock_in' || parsedIntent.intent === 'clock_out') && hasLocation) {
+      contextData.location = { latitude, longitude };
+    }
+    
     const bridgeResponse = await fetch(`${SUPABASE_URL}/functions/v1/bms-api-bridge`, {
       method: 'POST',
       headers: {
@@ -592,12 +610,7 @@ Contact: support@omanut.co`;
       body: JSON.stringify({
         intent: parsedIntent.intent,
         entities: mergedEntities,
-        context: {
-          tenant_id: mapping.tenant_id,
-          user_id: mapping.user_id,
-          role: mapping.role,
-          display_name: mapping.display_name,
-        },
+        context: contextData,
       }),
     });
 
