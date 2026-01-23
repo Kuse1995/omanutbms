@@ -24,7 +24,7 @@ import { format } from "date-fns";
 interface WhatsAppMapping {
   id: string;
   tenant_id: string;
-  user_id: string;
+  user_id: string | null;
   whatsapp_number: string;
   display_name: string;
   role: string;
@@ -34,6 +34,7 @@ interface WhatsAppMapping {
   created_at: string;
   employee_id?: string | null;
   branch_id?: string | null;
+  is_employee_self_service?: boolean;
 }
 
 interface TenantUser {
@@ -203,6 +204,7 @@ export function WhatsAppSettings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
   const [newMapping, setNewMapping] = useState({
     user_id: "",
     whatsapp_number: "+260",
@@ -210,6 +212,11 @@ export function WhatsAppSettings() {
     role: "viewer" as WhatsAppRoleKey,
     employee_id: "",
     branch_id: "",
+  });
+  const [employeeMapping, setEmployeeMapping] = useState({
+    employee_id: "",
+    whatsapp_number: "+260",
+    display_name: "",
   });
 
   // Fetch WhatsApp mappings
@@ -270,7 +277,7 @@ export function WhatsAppSettings() {
     enabled: !!tenantId,
   });
 
-  // Add mapping mutation
+  // Add mapping mutation (for BMS users)
   const addMutation = useMutation({
     mutationFn: async (mapping: typeof newMapping) => {
       const insertData: any = {
@@ -280,6 +287,7 @@ export function WhatsAppSettings() {
         display_name: mapping.display_name,
         role: mapping.role,
         created_by: user?.id,
+        is_employee_self_service: false,
       };
       
       // Only add employee_id if selected
@@ -303,6 +311,35 @@ export function WhatsAppSettings() {
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message || "Failed to add WhatsApp number.", variant: "destructive" });
+    },
+  });
+
+  // Add employee-only mapping mutation (for self-service)
+  const addEmployeeMutation = useMutation({
+    mutationFn: async (mapping: typeof employeeMapping) => {
+      const selectedEmployee = employees?.find(e => e.id === mapping.employee_id);
+      const insertData: any = {
+        tenant_id: tenantId,
+        user_id: null, // No BMS user account required
+        employee_id: mapping.employee_id,
+        whatsapp_number: mapping.whatsapp_number,
+        display_name: mapping.display_name || selectedEmployee?.full_name || "Employee",
+        role: "staff", // Limited role for self-service
+        created_by: user?.id,
+        is_employee_self_service: true,
+      };
+      
+      const { error } = await supabase.from("whatsapp_user_mappings").insert(insertData);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["whatsapp-mappings"] });
+      setIsEmployeeModalOpen(false);
+      setEmployeeMapping({ employee_id: "", whatsapp_number: "+260", display_name: "" });
+      toast({ title: "Success", description: "Employee WhatsApp access added. They can now check their tasks, attendance, and payslip." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to add employee WhatsApp access.", variant: "destructive" });
     },
   });
 
@@ -375,15 +412,21 @@ export function WhatsAppSettings() {
 
       {/* Mappings Table */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
           <div>
             <CardTitle>Registered Phone Numbers</CardTitle>
             <CardDescription>Team members who can access BMS via WhatsApp</CardDescription>
           </div>
-          <Button onClick={() => setIsAddModalOpen(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Add Phone
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsEmployeeModalOpen(true)} className="gap-2">
+              <Users className="h-4 w-4" />
+              Add Employee Self-Service
+            </Button>
+            <Button onClick={() => setIsAddModalOpen(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Add BMS User
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -409,7 +452,14 @@ export function WhatsAppSettings() {
                   return (
                     <TableRow key={mapping.id}>
                       <TableCell className="font-mono">{mapping.whatsapp_number}</TableCell>
-                      <TableCell>{mapping.display_name}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {mapping.display_name}
+                          {mapping.is_employee_self_service && (
+                            <Badge variant="secondary" className="text-xs">Self-Service</Badge>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={`capitalize gap-1 ${roleConfig.bgColor}`}>
                           <MappingRoleIcon className={`h-3 w-3 ${roleConfig.color}`} />
@@ -601,6 +651,111 @@ export function WhatsAppSettings() {
             <Button onClick={() => addMutation.mutate(newMapping)} disabled={!newMapping.user_id || !newMapping.whatsapp_number || addMutation.isPending}>
               {addMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Add Number
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Employee Self-Service Modal */}
+      <Dialog open={isEmployeeModalOpen} onOpenChange={setIsEmployeeModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-primary" />
+              Add Employee Self-Service Access
+            </DialogTitle>
+            <DialogDescription>
+              Allow an employee to check their own tasks, attendance, and payslip via WhatsApp without needing a BMS account.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* Employee Selection */}
+            <div className="space-y-2">
+              <Label>Select Employee *</Label>
+              <Select 
+                value={employeeMapping.employee_id} 
+                onValueChange={(v) => {
+                  const emp = employees?.find(e => e.id === v);
+                  setEmployeeMapping({ 
+                    ...employeeMapping, 
+                    employee_id: v,
+                    display_name: emp?.full_name || ""
+                  });
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose an employee" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees?.map((emp) => (
+                    <SelectItem key={emp.id} value={emp.id}>
+                      {emp.full_name} {emp.department && `(${emp.department})`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* WhatsApp Number */}
+            <div className="space-y-2">
+              <Label>WhatsApp Number *</Label>
+              <Input
+                value={employeeMapping.whatsapp_number}
+                onChange={(e) => setEmployeeMapping({ ...employeeMapping, whatsapp_number: e.target.value })}
+                placeholder="+260971234567"
+              />
+            </div>
+
+            {/* Display Name */}
+            <div className="space-y-2">
+              <Label>Display Name</Label>
+              <Input
+                value={employeeMapping.display_name}
+                onChange={(e) => setEmployeeMapping({ ...employeeMapping, display_name: e.target.value })}
+                placeholder="Auto-filled from employee name"
+              />
+            </div>
+
+            {/* Permissions Preview */}
+            <div className="p-4 rounded-lg border bg-slate-50 border-slate-200">
+              <div className="flex items-center gap-2 mb-3">
+                <Wrench className="h-5 w-5 text-slate-600" />
+                <span className="font-medium">Employee Self-Service Access</span>
+              </div>
+              
+              <div className="mb-3">
+                <p className="text-xs font-medium text-green-700 mb-1">Can do via WhatsApp:</p>
+                <ul className="space-y-1">
+                  {["View their assigned tasks/orders", "Check their attendance records", "View their payslip & earnings", "Clock in/out (with location)"].map((item, i) => (
+                    <li key={i} className="text-xs flex items-start gap-1.5">
+                      <Check className="h-3 w-3 text-green-600 mt-0.5 shrink-0" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              
+              <div>
+                <p className="text-xs font-medium text-red-700 mb-1">Cannot do:</p>
+                <ul className="space-y-1">
+                  {["Record sales or expenses", "Access financial data", "View team information", "Generate invoices/receipts"].map((item, i) => (
+                    <li key={i} className="text-xs flex items-start gap-1.5 text-muted-foreground">
+                      <X className="h-3 w-3 text-red-500 mt-0.5 shrink-0" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEmployeeModalOpen(false)}>Cancel</Button>
+            <Button 
+              onClick={() => addEmployeeMutation.mutate(employeeMapping)} 
+              disabled={!employeeMapping.employee_id || !employeeMapping.whatsapp_number || addEmployeeMutation.isPending}
+            >
+              {addEmployeeMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Add Employee Access
             </Button>
           </DialogFooter>
         </DialogContent>
