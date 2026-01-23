@@ -92,11 +92,10 @@ export function UserProfileSettings() {
 
       setAvatarUrl(publicUrl);
 
-      // Update profile immediately
+      // Upsert profile with new avatar
       const { error: updateError } = await supabase
         .from("profiles")
-        .update({ avatar_url: publicUrl })
-        .eq("user_id", user.id);
+        .upsert({ user_id: user.id, avatar_url: publicUrl }, { onConflict: 'user_id' });
 
       if (updateError) throw updateError;
 
@@ -131,8 +130,7 @@ export function UserProfileSettings() {
 
       const { error } = await supabase
         .from("profiles")
-        .update({ avatar_url: null })
-        .eq("user_id", user.id);
+        .upsert({ user_id: user.id, avatar_url: null }, { onConflict: 'user_id' });
 
       if (error) throw error;
 
@@ -159,15 +157,16 @@ export function UserProfileSettings() {
 
     setIsLoading(true);
     try {
+      // Use upsert to create profile if it doesn't exist
       const { error } = await supabase
         .from("profiles")
-        .update({
+        .upsert({
+          user_id: user.id,
           full_name: fullName,
           title: title,
           department: department,
           avatar_url: avatarUrl || null,
-        })
-        .eq("user_id", user.id);
+        }, { onConflict: 'user_id' });
 
       if (error) throw error;
 

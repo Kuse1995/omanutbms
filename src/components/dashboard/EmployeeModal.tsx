@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useTenant } from "@/hooks/useTenant";
+import { useBranch } from "@/hooks/useBranch";
 
 interface Employee {
   id: string;
@@ -46,6 +47,7 @@ interface EmployeeModalProps {
 export const EmployeeModal = ({ isOpen, onClose, employee, onSuccess }: EmployeeModalProps) => {
   const [loading, setLoading] = useState(false);
   const { tenantId } = useTenant();
+  const { currentBranch, isMultiBranchEnabled } = useBranch();
   const [formData, setFormData] = useState({
     full_name: "",
     employee_type: "office_staff",
@@ -136,7 +138,7 @@ export const EmployeeModal = ({ isOpen, onClose, employee, onSuccess }: Employee
 
     setLoading(true);
     try {
-      const payload = {
+      const payload: Record<string, any> = {
         ...formData,
         department: formData.department || null,
         job_title: formData.job_title || null,
@@ -153,6 +155,11 @@ export const EmployeeModal = ({ isOpen, onClose, employee, onSuccess }: Employee
         tenant_id: tenantId,
       };
 
+      // Assign to current branch if multi-branch is enabled and we're creating a new employee
+      if (!employee && isMultiBranchEnabled && currentBranch) {
+        payload.branch_id = currentBranch.id;
+      }
+
       if (employee) {
         const { error } = await supabase
           .from("employees")
@@ -161,7 +168,7 @@ export const EmployeeModal = ({ isOpen, onClose, employee, onSuccess }: Employee
         if (error) throw error;
         toast.success("Employee updated");
       } else {
-        const { error } = await supabase.from("employees").insert([payload]);
+        const { error } = await supabase.from("employees").insert([payload as any]);
         if (error) throw error;
         toast.success("Employee added");
       }
