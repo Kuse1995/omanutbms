@@ -722,19 +722,13 @@ async function handleRecordSale(supabase: any, entities: Record<string, any>, co
 
   const companyTagline = (businessProfile?.slogan ?? businessProfile?.tagline ?? '').trim();
   
-  // Create concise receipt message (PDF has full details)
-  const receiptMessage = `✅ *Sale Recorded!*
+  // Create natural, conversational receipt message
+  const receiptMessage = `Done! Sale recorded for ${companyName}.
 
-*${companyName}*${companyTagline ? `\n${companyTagline}` : ''}
+K${amount.toLocaleString()} from ${customer_name || 'walk-in customer'} by ${payment_method.toLowerCase()}.
+${quantity > 1 ? `${quantity}x ` : ''}${resolvedItemName} • ${receiptNumber}
 
-💰 *K ${amount.toLocaleString()}* paid by ${payment_method}
-
-📋 ${receiptNumber}
-👤 ${customer_name || 'Walk-in Customer'}
-📦 ${quantity}x ${resolvedItemName}
-📅 ${receiptDate}
-
-📄 Receipt PDF attached above.`;
+Your receipt PDF is attached above.`;
 
   return {
     success: true,
@@ -1267,7 +1261,7 @@ async function handleClockIn(supabase: any, entities: Record<string, any>, conte
     const clockInTime = new Date(existingAttendance.clock_in).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
     return { 
       success: false, 
-      message: `⚠️ Already clocked in at ${clockInTime}.\n\nSay "clock out" when leaving.` 
+      message: `You're already clocked in since ${clockInTime}! Just say "clock out" when you're done for the day.` 
     };
   }
 
@@ -1309,7 +1303,7 @@ async function handleClockIn(supabase: any, entities: Record<string, any>, conte
       if (!context.location) {
         return {
           success: false,
-          message: '📍 Please share your location to clock in.\n\nTap 📎 → Location → Send your current location.',
+          message: 'I need your location to clock you in. Just tap the 📎 attachment button, select Location, and share where you are!',
         };
       }
       
@@ -1333,7 +1327,7 @@ async function handleClockIn(supabase: any, entities: Record<string, any>, conte
         
         return {
           success: false,
-          message: `❌ You're ${distanceDisplay} from ${branch.name || 'the office'}.\n\nYou must be within ${geofenceRadius}m to clock in.\n\n💡 Working remotely? Contact your manager.`,
+          message: `Hmm, looks like you're about ${distanceDisplay} from ${branch.name || 'the office'}. You need to be within ${geofenceRadius}m to clock in here.\n\nAre you working from a different location today? Let your manager know and they can help sort it out.`,
         };
       }
       
@@ -1372,13 +1366,22 @@ async function handleClockIn(supabase: any, entities: Record<string, any>, conte
   }
 
   const clockInTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const firstName = employee.full_name?.split(' ')[0] || context.display_name;
+  
+  // Time-aware greeting
+  const hour = now.getHours();
+  let greeting = 'Hello';
+  if (hour < 12) greeting = 'Good morning';
+  else if (hour < 17) greeting = 'Good afternoon';
+  else greeting = 'Good evening';
+  
   const verificationNote = locationVerified 
-    ? `\n📍 Location verified (${distanceMeters}m from office)`
+    ? ` (verified - ${distanceMeters}m from office)`
     : '';
 
   return {
     success: true,
-    message: `✅ Clocked in at ${clockInTime}${verificationNote}\n\n👋 Good morning, ${employee.full_name?.split(' ')[0] || context.display_name}!\n\nHave a productive day! 💪`,
+    message: `${greeting} ${firstName}! Clocked in at ${clockInTime}${verificationNote}.\n\nHave a great and productive day! 💪`,
     data: { clock_in: now.toISOString(), location_verified: locationVerified, distance_meters: distanceMeters },
   };
 }
@@ -1412,7 +1415,7 @@ async function handleClockOut(supabase: any, entities: Record<string, any>, cont
   if (attError || !attendance) {
     return { 
       success: false, 
-      message: '⚠️ No clock-in found for today.\n\nSay "clock in" first.' 
+      message: "Looks like you haven't clocked in today yet. Just say \"clock in\" when you arrive!" 
     };
   }
 
@@ -1437,10 +1440,11 @@ async function handleClockOut(supabase: any, entities: Record<string, any>, cont
 
   const clockOutTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   const hoursFormatted = workHours.toFixed(1);
+  const firstName = employee.full_name?.split(' ')[0] || 'there';
 
   return {
     success: true,
-    message: `✅ Clocked out at ${clockOutTime}\n\n⏱️ You worked ${hoursFormatted} hours today.\n\nSee you tomorrow! 👋`,
+    message: `Clocked out at ${clockOutTime}! You worked ${hoursFormatted} hours today.\n\nGreat work ${firstName}, see you next time! 👋`,
     data: { clock_out: now.toISOString(), work_hours: workHours },
   };
 }

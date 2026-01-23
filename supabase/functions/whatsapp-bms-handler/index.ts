@@ -9,37 +9,30 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-// Simplified, conversational help message
-const HELP_MESSAGE = `👋 Hi! I'm your BMS assistant.
+// Friendly, conversational help message
+const HELP_MESSAGE = `Hey there! 👋 I'm your business assistant.
 
-📌 SALES & INVENTORY:
-• "sold 5 cement 2500 cash" - Record sale
-• "chk stock cement" - Check stock
-• "sales today" - Today's total
+Here's what I can help with:
 
-📌 MY WORK:
-• "my tasks" - View assigned orders
-• "clock in" / "clock out" - Attendance
-• "my pay" - Latest payslip
+📦 *Sales & Stock*
+Just tell me what you sold, like "sold 5 cement 2500 cash" or ask "check stock cement"
 
-📌 PRODUCTION (Staff):
-• "CO-001 cutting done" - Update status
-• "details CO-001" - Order specs
+👔 *Your Work*
+Say "my tasks" to see what's pending, "clock in" when you arrive, or "my pay" for your latest payslip
 
-📌 EXPENSES & DOCUMENTS:
-• "exp 200 transport" - Log expense
-• "last receipt" - Get receipt
+📋 *Documents*
+Need a receipt or invoice? Just ask - "last receipt" or "send invoice"
 
-💡 Just tell me what happened!
-Say "cancel" to start over.`;
+💰 *Expenses*
+Log spending with "spent 200 on transport"
 
-const UNREGISTERED_MESSAGE = `❌ This number is not registered.
+Just chat naturally - I understand broken English and shortcuts! Say "cancel" anytime to start fresh.`;
 
-To use WhatsApp BMS:
-1. Contact your admin
-2. Ask them to add your number in Settings → WhatsApp
+const UNREGISTERED_MESSAGE = `Hi! I don't recognize this number yet.
 
-Questions? support@omanut.co`;
+To get started, ask your admin to add your WhatsApp number in the system under Settings → WhatsApp.
+
+Need help? Reach out to support@omanut.co`;
 
 // Required fields for each intent
 const REQUIRED_FIELDS: Record<string, string[]> = {
@@ -209,7 +202,7 @@ serve(async (req) => {
     }
 
     if (!mapping.is_active) {
-      const inactiveMessage = '⚠️ Your access is disabled. Contact your admin.';
+      const inactiveMessage = "Your access has been paused. Please check with your admin to get it sorted!";
       await logAudit(supabase, {
         tenant_id: mapping.tenant_id,
         whatsapp_number: phoneNumber,
@@ -227,10 +220,9 @@ serve(async (req) => {
     // Check usage limits
     const usageLimitResult = await checkAndIncrementUsage(supabase, mapping.tenant_id, phoneNumber, mapping.user_id);
     if (!usageLimitResult.allowed) {
-      const limitMessage = `⚠️ Monthly limit reached (${usageLimitResult.used}/${usageLimitResult.limit}).
+      const limitMessage = `You've hit the monthly message limit (${usageLimitResult.used}/${usageLimitResult.limit}).
 
-Upgrade your plan or wait for reset.
-Contact: support@omanut.co`;
+Your admin can upgrade the plan to keep chatting, or it'll reset next month. Contact support@omanut.co if you need help!`;
       
       await logAudit(supabase, {
         tenant_id: mapping.tenant_id,
@@ -274,10 +266,10 @@ Contact: support@omanut.co`;
     }
 
     // Check for cancel command (expanded patterns)
-    const cancelPatterns = ['cancel', 'reset', 'start over', 'stop', 'quit', 'exit', 'clear', 'nevermind', 'nvm'];
+    const cancelPatterns = ['cancel', 'reset', 'start over', 'stop', 'quit', 'exit', 'clear', 'nevermind', 'nvm', 'forget it', 'scratch that'];
     if (cancelPatterns.includes(lowerBody)) {
       await clearDraft(supabase, mapping.tenant_id, phoneNumber);
-      const cancelMessage = '🔄 OK, cancelled. What next?';
+      const cancelMessage = 'No problem, cancelled! What would you like to do instead?';
       await logAudit(supabase, {
         tenant_id: mapping.tenant_id,
         whatsapp_number: phoneNumber,
@@ -292,12 +284,32 @@ Contact: support@omanut.co`;
       return createTwiMLResponse(cancelMessage);
     }
 
-    // Check for yes/no confirmations (expanded patterns)
-    const yesPatterns = ['yes', 'y', 'yep', 'yeah', 'ok', 'okay', 'sure', 'confirm', 'proceed', 'do it', 'go ahead', 'correct', 'right'];
-    const noPatterns = ['no', 'n', 'nope', 'nah', 'wrong', 'cancel', 'stop'];
+// Check for yes/no confirmations - VERY flexible natural language acceptance
+    const yesPatterns = [
+      // Direct confirmations
+      'yes', 'y', 'yep', 'yeah', 'yea', 'yah', 'yup', 'ya',
+      'ok', 'okay', 'k', 'okey', 'oki',
+      'sure', 'sure thing', 'of course', 'absolutely', 'definitely',
+      'confirm', 'confirmed', 'proceed', 'continue', 'go', 'go ahead', 'do it', 'lets go',
+      'correct', 'right', 'thats right', 'thats correct', 'exactly', 'spot on', 'bingo',
+      'perfect', 'great', 'good', 'fine', 'alright', 'all good', 'sounds good', 'looks good',
+      'affirmative', 'approved', 'accept', 'agreed', 'done',
+      // Zambian/African expressions
+      'sha', 'iyee', 'eya', 'eh', 'ehh', 'ehe',
+      'sure boss', 'yes boss', 'okay boss', 'alright boss',
+      'sharp', 'sharp sharp', 'shap', 'aight', 'bet', 'cool', 'nice',
+      // Casual/informal
+      'yass', 'yep yep', 'mhm', 'mmhm', 'uh huh', 'for sure'
+    ];
+    const noPatterns = [
+      'no', 'n', 'nope', 'nah', 'nay', 'negative', 'not', 
+      'wrong', 'incorrect', 'cancel', 'stop', 'abort', 'dont', "don't",
+      'wait', 'hold on', 'nevermind', 'never mind', 'forget it', 'scratch that'
+    ];
     
-    const isYes = yesPatterns.some(p => lowerBody === p || lowerBody.startsWith(p + ' '));
-    const isNo = noPatterns.some(p => lowerBody === p);
+    // More flexible matching - check if message starts with or contains these patterns
+    const isYes = yesPatterns.some(p => lowerBody === p || lowerBody.startsWith(p + ' ') || lowerBody.startsWith(p + ','));
+    const isNo = noPatterns.some(p => lowerBody === p || lowerBody.startsWith(p + ' '));
 
     if (isYes || isNo) {
       const pendingResult = await handlePendingConfirmation(supabase, phoneNumber, isYes, mapping);
@@ -364,7 +376,7 @@ Contact: support@omanut.co`;
 
       if (!intentResponse.ok) {
         console.error('Intent parser error for follow-up');
-        return createTwiMLResponse('⚠️ Sorry, didn\'t get that. Try again or say "help".');
+        return createTwiMLResponse("Hmm, I didn't quite get that. Can you try saying it differently, or say \"help\" to see what I can do?");
       }
 
       const followUpParsed = await intentResponse.json();
@@ -421,7 +433,7 @@ Contact: support@omanut.co`;
       if (!intentResponse.ok) {
         const errorText = await intentResponse.text();
         console.error('Intent parser error:', errorText);
-        const errorMessage = '⚠️ Didn\'t understand. Say "help" for examples.';
+        const errorMessage = "I'm not sure what you mean. Try telling me in simpler words, or say \"help\" to see examples!";
         await logAudit(supabase, {
           tenant_id: mapping.tenant_id,
           whatsapp_number: phoneNumber,
@@ -690,7 +702,7 @@ Contact: support@omanut.co`;
 
   } catch (error) {
     console.error('WhatsApp handler error:', error);
-    const errorMessage = '⚠️ Error. Try again.';
+    const errorMessage = "Oops, something went wrong on my end. Give it another try in a moment!";
     return createTwiMLResponse(errorMessage);
   }
 });
@@ -752,51 +764,70 @@ function getMissingFields(intent: string, entities: Record<string, any>): string
   });
 }
 
-// Simplified, friendlier prompts for missing fields
+// Conversational, friendly prompts for missing fields
 function generatePromptForMissingFields(intent: string, missingFields: string[], currentEntities: Record<string, any>): string {
-  // Build what we have so far
+  // Build a natural summary of what we have
   const haveList: string[] = [];
-  if (currentEntities.product) haveList.push(`📦 ${currentEntities.product}`);
-  if (currentEntities.quantity && currentEntities.quantity > 1) haveList.push(`x${currentEntities.quantity}`);
-  if (currentEntities.customer_name) haveList.push(`👤 ${currentEntities.customer_name}`);
-  if (currentEntities.amount) haveList.push(`💰 K${currentEntities.amount}`);
-  if (currentEntities.payment_method) haveList.push(`💳 ${currentEntities.payment_method}`);
-  if (currentEntities.description) haveList.push(`📝 ${currentEntities.description}`);
+  if (currentEntities.product) {
+    const qty = currentEntities.quantity && currentEntities.quantity > 1 ? `${currentEntities.quantity} ` : '';
+    haveList.push(`${qty}${currentEntities.product}`);
+  }
+  if (currentEntities.customer_name) haveList.push(`to ${currentEntities.customer_name}`);
+  if (currentEntities.amount) haveList.push(`for K${currentEntities.amount.toLocaleString()}`);
+  if (currentEntities.payment_method) haveList.push(`by ${currentEntities.payment_method}`);
+  if (currentEntities.description) haveList.push(currentEntities.description);
 
-  const haveText = haveList.length > 0 ? `\n✅ Got: ${haveList.join(' • ')}` : '';
+  const haveSummary = haveList.length > 0 ? `\n\nGot it: ${haveList.join(', ')}.` : '';
 
-  // Simplified prompts based on what's missing
+  // Natural, conversational prompts
   if (intent === 'record_sale') {
     if (missingFields.includes('product') && missingFields.includes('amount')) {
-      return `❓ What did you sell and for how much?${haveText}\n\nExample: "5 bags cement 2500"`;
+      return `What did you sell and for how much?${haveSummary}`;
     }
     if (missingFields.includes('product')) {
-      return `❓ What item?${haveText}\n\nExample: "cement" or "5 bags"`;
+      return `What did you sell?${haveSummary}`;
     }
     if (missingFields.includes('amount')) {
-      return `❓ How much? (K)${haveText}\n\nExample: "2500" or "2k"`;
+      return `How much was it?${haveSummary}`;
     }
   }
 
   if (intent === 'record_expense') {
     if (missingFields.includes('description') && missingFields.includes('amount')) {
-      return `❓ What expense and how much?${haveText}\n\nExample: "500 transport"`;
+      return `What did you spend on and how much?${haveSummary}`;
     }
     if (missingFields.includes('description')) {
-      return `❓ What for?${haveText}\n\nExample: "fuel" or "supplies"`;
+      return `What was it for?${haveSummary}`;
     }
     if (missingFields.includes('amount')) {
-      return `❓ How much? (K)${haveText}\n\nExample: "500"`;
+      return `How much did you spend?${haveSummary}`;
     }
   }
 
   if (intent === 'check_customer') {
-    return `❓ Customer name?${haveText}\n\nExample: "John" or "ABC Shop"`;
+    return `Which customer are you looking for?${haveSummary}`;
   }
 
-  // Generic fallback
-  const fieldNames = missingFields.map(f => f.replace('_', ' ')).join(' & ');
-  return `❓ Need: ${fieldNames}${haveText}`;
+  if (intent === 'task_details' && missingFields.includes('order_number')) {
+    return `Which order? Just give me the number like CO-001.${haveSummary}`;
+  }
+
+  if (intent === 'update_order_status') {
+    if (missingFields.includes('order_number')) {
+      return `Which order are you updating?${haveSummary}`;
+    }
+    if (missingFields.includes('new_status')) {
+      return `What's the new status? (e.g., cutting done, sewing done, ready)${haveSummary}`;
+    }
+  }
+
+  if (intent === 'generate_invoice' && missingFields.includes('customer_name')) {
+    return `Who should I create the invoice for?${haveSummary}`;
+  }
+
+  // Friendly generic fallback
+  const fieldNames = missingFields.map(f => f.replace(/_/g, ' ')).join(' and ');
+  return `Just need the ${fieldNames} to continue.${haveSummary}`;
 }
 
 async function handlePendingConfirmation(supabase: any, phoneNumber: string, confirmed: boolean, mapping: any) {
@@ -820,7 +851,7 @@ async function handlePendingConfirmation(supabase: any, phoneNumber: string, con
     .eq('id', pending.id);
 
   if (!confirmed) {
-    return '❌ Cancelled.';
+    return 'No worries, cancelled! Let me know what else you need.';
   }
 
   const bridgeResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/bms-api-bridge`, {
@@ -872,22 +903,25 @@ async function handlePendingConfirmation(supabase: any, phoneNumber: string, con
   return responseMessage;
 }
 
-// Simplified confirmation messages
+// Natural, conversational confirmation messages
 function getConfirmationMessage(intent: string, entities: any): string {
   const qty = entities.quantity || 1;
   const product = entities.product || 'item';
   const amount = entities.amount?.toLocaleString() || '0';
   const customer = entities.customer_name || 'Walk-in';
+  const paymentMethod = entities.payment_method || 'cash';
 
   switch (intent) {
     case 'record_sale':
-      return `⚠️ Confirm sale:\n${qty}x ${product} → K${amount}\nCustomer: ${customer}\n\nReply Y or N`;
+      const qtyText = qty > 1 ? `${qty}x ` : '';
+      const customerText = customer !== 'Walk-in' ? ` to ${customer}` : '';
+      return `Quick check - selling ${qtyText}${product}${customerText} for K${amount}, ${paymentMethod.toLowerCase()} payment.\n\nSound right? Just say yes or make any corrections.`;
     case 'record_expense':
-      return `⚠️ Confirm expense:\nK${amount} for "${entities.description}"\n\nReply Y or N`;
+      return `Recording K${amount} expense for "${entities.description}".\n\nLooks good? Say yes to confirm.`;
     case 'generate_invoice':
-      return `⚠️ Create invoice for ${customer}?\n\nReply Y or N`;
+      return `I'll create an invoice for ${customer}.\n\nGood to go?`;
     default:
-      return `⚠️ Confirm ${intent.replace('_', ' ')}?\n\nReply Y or N`;
+      return `Just confirming - ${intent.replace(/_/g, ' ')}?\n\nSay yes to proceed.`;
   }
 }
 
