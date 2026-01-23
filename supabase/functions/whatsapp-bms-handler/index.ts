@@ -12,18 +12,26 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 // Simplified, conversational help message
 const HELP_MESSAGE = `👋 Hi! I'm your BMS assistant.
 
-📌 Quick Examples:
+📌 SALES & INVENTORY:
 • "sold 5 cement 2500 cash" - Record sale
 • "chk stock cement" - Check stock
 • "sales today" - Today's total
-• "break down by clients" - Sales details
+
+📌 MY WORK:
+• "my tasks" - View assigned orders
+• "clock in" / "clock out" - Attendance
+• "my pay" - Latest payslip
+
+📌 PRODUCTION (Staff):
+• "CO-001 cutting done" - Update status
+• "details CO-001" - Order specs
+
+📌 EXPENSES & DOCUMENTS:
 • "exp 200 transport" - Log expense
 • "last receipt" - Get receipt
 
 💡 Just tell me what happened!
-I understand broken English & shorthand.
-
-Type "help" anytime. Say "cancel" to start over.`;
+Say "cancel" to start over.`;
 
 const UNREGISTERED_MESSAGE = `❌ This number is not registered.
 
@@ -46,6 +54,19 @@ const REQUIRED_FIELDS: Record<string, string[]> = {
   send_receipt: [],
   send_invoice: [],
   send_quotation: [],
+  // New employee intents
+  my_tasks: [],
+  task_details: ['order_number'],
+  my_schedule: [],
+  clock_in: [],
+  clock_out: [],
+  my_attendance: [],
+  my_pay: [],
+  // Management intents
+  team_attendance: [],
+  pending_orders: [],
+  low_stock_alerts: [],
+  update_order_status: ['order_number', 'new_status'],
 };
 
 /**

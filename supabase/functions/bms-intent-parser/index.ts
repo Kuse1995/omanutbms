@@ -26,6 +26,21 @@ SUPPORTED INTENTS:
 11. send_quotation - Send/get a quotation document
 12. help - User needs help with commands
 
+=== EMPLOYEE & HR INTENTS ===
+13. my_tasks - View my assigned tasks/custom orders
+14. task_details - Get details of a specific order (measurements, specs)
+15. my_schedule - Get my upcoming fittings/collections
+16. clock_in - Clock in for work (attendance)
+17. clock_out - Clock out from work (attendance)
+18. my_attendance - View my attendance summary
+19. my_pay - View my latest payslip summary
+
+=== MANAGEMENT INTENTS (admin/manager only) ===
+20. team_attendance - View who's clocked in today
+21. pending_orders - View production queue
+22. low_stock_alerts - View items below reorder level
+23. update_order_status - Update production order status (e.g., "CO-001 cutting done")
+
 === LANGUAGE TOLERANCE RULES ===
 Accept broken English, SMS-style text, and informal expressions:
 - "sld" / "sold" / "I sld" = sold
@@ -38,6 +53,24 @@ Accept broken English, SMS-style text, and informal expressions:
 - "rcpt" / "receipt" = receipt
 - "exp" / "spent" / "paid for" = expense
 - "cstmr" / "custmr" / "client" = customer
+
+=== TASK & ATTENDANCE EXPRESSIONS ===
+- "my tasks" / "my orders" / "whats pending" / "wht do i hv" = my_tasks
+- "details CO-001" / "measurements CO-001" / "specs CO" = task_details
+- "my schedule" / "fittings today" / "upcoming" / "wht coming" = my_schedule
+- "clock in" / "im here" / "arrived" / "morning" / "clk in" = clock_in
+- "clock out" / "leaving" / "going home" / "done" / "clk out" / "bye" = clock_out
+- "my hours" / "attendance" / "my time" = my_attendance
+- "my pay" / "salary" / "payslip" / "how much do i earn" = my_pay
+- "who's in" / "whos in" / "team today" / "attendance today" = team_attendance
+- "pending orders" / "production queue" / "whats in production" = pending_orders
+- "low stock" / "reorder" / "running low" = low_stock_alerts
+
+=== ORDER STATUS UPDATE EXPRESSIONS ===
+- "CO-001 cutting done" / "finished cutting CO-001" = update_order_status
+- "CO-001 sewing done" / "sewn CO-001" = update_order_status
+- "CO-001 ready" / "completed CO-001" = update_order_status
+- "delivered CO-001" / "customer collected CO-001" = update_order_status
 
 === ZAMBIAN BUSINESS EXPRESSIONS ===
 These are common ways locals describe sales:
@@ -68,6 +101,13 @@ Common shortcuts:
 - "bg" / "bag" / "bags" = bags
 - "pcs" / "pieces" = pieces
 
+=== ORDER STATUS ALIASES ===
+Map common expressions to valid statuses:
+- "cutting done" / "cut" = "cutting" completed, move to "se wiring"
+- "sewing done" / "sewn" / "finished sewing" = move to "fitting"
+- "fitting done" / "fitted" = move to "ready"
+- "delivered" / "collected" / "picked up" = "delivered"
+
 === CRITICAL EXTRACTION RULES ===
 1. Currency is ALWAYS ZMW (Kwacha)
 2. ALWAYS extract amounts as NUMBERS (not strings)
@@ -80,6 +120,8 @@ Common shortcuts:
 5. Extract customer names when mentioned (e.g., "to John", "for ABC Company", "the man called Peter")
 6. Product names should be extracted as-is, including service names
 7. If the message is very short but implies context (like just a number), try to infer what it means
+8. For task_details and update_order_status, extract order_number (e.g., "CO-001", "CO001", "001")
+9. For update_order_status, extract new_status from the message context
 
 RESPONSE FORMAT (JSON only, no other text):
 {
@@ -100,41 +142,47 @@ Response: {"intent":"record_sale","confidence":"high","entities":{"product":"cem
 User: "moved 3 bags to john 1500 momo"
 Response: {"intent":"record_sale","confidence":"high","entities":{"product":"bags","quantity":3,"customer_name":"John","amount":1500,"payment_method":"Mobile Money"},"requires_confirmation":false,"clarification_needed":null}
 
-User: "ive sold cement to mulenga for 2k cash"
-Response: {"intent":"record_sale","confidence":"high","entities":{"product":"cement","quantity":1,"customer_name":"Mulenga","amount":2000,"payment_method":"Cash"},"requires_confirmation":false,"clarification_needed":null}
+User: "my tasks"
+Response: {"intent":"my_tasks","confidence":"high","entities":{},"requires_confirmation":false,"clarification_needed":null}
 
-User: "customer took 10 straws 15k card"
-Response: {"intent":"record_sale","confidence":"high","entities":{"product":"straws","quantity":10,"amount":15000,"payment_method":"Card"},"requires_confirmation":false,"clarification_needed":null}
+User: "details CO-001"
+Response: {"intent":"task_details","confidence":"high","entities":{"order_number":"CO-001"},"requires_confirmation":false,"clarification_needed":null}
 
-User: "Software dev for K15000"
-Response: {"intent":"record_sale","confidence":"high","entities":{"product":"Software development","quantity":1,"amount":15000},"requires_confirmation":false,"clarification_needed":null}
+User: "clock in"
+Response: {"intent":"clock_in","confidence":"high","entities":{},"requires_confirmation":false,"clarification_needed":null}
+
+User: "im here"
+Response: {"intent":"clock_in","confidence":"high","entities":{},"requires_confirmation":false,"clarification_needed":null}
+
+User: "leaving"
+Response: {"intent":"clock_out","confidence":"high","entities":{},"requires_confirmation":false,"clarification_needed":null}
+
+User: "my pay"
+Response: {"intent":"my_pay","confidence":"high","entities":{},"requires_confirmation":false,"clarification_needed":null}
+
+User: "CO-001 cutting done"
+Response: {"intent":"update_order_status","confidence":"high","entities":{"order_number":"CO-001","new_status":"se wiring","completed_stage":"cutting"},"requires_confirmation":false,"clarification_needed":null}
+
+User: "finished sewing CO-002"
+Response: {"intent":"update_order_status","confidence":"high","entities":{"order_number":"CO-002","new_status":"fitting","completed_stage":"sewing"},"requires_confirmation":false,"clarification_needed":null}
+
+User: "whos in today"
+Response: {"intent":"team_attendance","confidence":"high","entities":{},"requires_confirmation":false,"clarification_needed":null}
+
+User: "pending orders"
+Response: {"intent":"pending_orders","confidence":"high","entities":{},"requires_confirmation":false,"clarification_needed":null}
+
+User: "low stock"
+Response: {"intent":"low_stock_alerts","confidence":"high","entities":{},"requires_confirmation":false,"clarification_needed":null}
 
 User: "chk stk cement"
 Response: {"intent":"check_stock","confidence":"high","entities":{"product":"cement"},"requires_confirmation":false,"clarification_needed":null}
 
-User: "hw mch strw"
-Response: {"intent":"check_stock","confidence":"high","entities":{"product":"straw"},"requires_confirmation":false,"clarification_needed":null}
-
 User: "sales 2day" or "tday sales"
 Response: {"intent":"get_sales_summary","confidence":"high","entities":{"period":"today"},"requires_confirmation":false,"clarification_needed":null}
 
-User: "brk dwn clients" or "who bot wht"
-Response: {"intent":"get_sales_details","confidence":"high","entities":{"period":"today"},"requires_confirmation":false,"clarification_needed":null}
-
 User: "spent 200 fuel"
 Response: {"intent":"record_expense","confidence":"high","entities":{"description":"fuel","amount":200},"requires_confirmation":false,"clarification_needed":null}
-
-User: "exp k500 transport"
-Response: {"intent":"record_expense","confidence":"high","entities":{"description":"transport","amount":500},"requires_confirmation":false,"clarification_needed":null}
-
-User: "Send rcpt R2025-0042" or "get receipt 42"
-Response: {"intent":"send_receipt","confidence":"high","entities":{"document_number":"R2025-0042"},"requires_confirmation":false,"clarification_needed":null}
-
-User: "last rcpt" or "my receipt"
-Response: {"intent":"send_receipt","confidence":"high","entities":{"last":true},"requires_confirmation":false,"clarification_needed":null}
-
-User: "find mulenga" or "cstmr john"
-Response: {"intent":"check_customer","confidence":"high","entities":{"customer_name":"mulenga"},"requires_confirmation":false,"clarification_needed":null}
 
 User: "hello" or "help" or "hi" or "menu" or "?"
 Response: {"intent":"help","confidence":"high","entities":{},"requires_confirmation":false,"clarification_needed":null}

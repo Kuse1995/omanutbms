@@ -3934,6 +3934,7 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           display_name: string
+          employee_id: string | null
           id: string
           is_active: boolean | null
           is_verified: boolean | null
@@ -3948,6 +3949,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           display_name: string
+          employee_id?: string | null
           id?: string
           is_active?: boolean | null
           is_verified?: boolean | null
@@ -3962,6 +3964,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           display_name?: string
+          employee_id?: string | null
           id?: string
           is_active?: boolean | null
           is_verified?: boolean | null
@@ -3973,6 +3976,13 @@ export type Database = {
           whatsapp_number?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "whatsapp_user_mappings_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "whatsapp_user_mappings_tenant_id_fkey"
             columns: ["tenant_id"]
