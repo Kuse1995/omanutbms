@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { z } from "zod";
@@ -11,6 +11,9 @@ import { useAuth, checkAuthorizedEmail } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { PlanSelector } from "@/components/auth/PlanSelector";
 import { BillingPlan, BILLING_PLANS } from "@/lib/billing-plans";
+import { supabase } from "@/integrations/supabase/client";
+import { getBrandingFromProfile, DEFAULT_BRANDING, type BrandingConfig } from "@/lib/branding-config";
+import { hexToHSL } from "@/contexts/BrandingContext";
 
 interface ForgotPasswordFormProps {
   email: string;
@@ -22,6 +25,7 @@ interface ForgotPasswordFormProps {
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
   toast: ReturnType<typeof useToast>["toast"];
   onBack: () => void;
+  branding: BrandingConfig;
 }
 
 const ForgotPasswordForm = ({
@@ -34,6 +38,7 @@ const ForgotPasswordForm = ({
   resetPassword,
   toast,
   onBack,
+  branding,
 }: ForgotPasswordFormProps) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,6 +83,10 @@ const ForgotPasswordForm = ({
     }
   };
 
+  const buttonStyle = branding.isWhiteLabel ? {
+    background: `linear-gradient(to right, ${branding.primaryColor}, ${branding.secondaryColor})`,
+  } : {};
+
   return (
     <div>
       <button
@@ -108,7 +117,7 @@ const ForgotPasswordForm = ({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="your-email@company.com"
-              className="pl-11 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-[#004B8D] focus:ring-[#004B8D]"
+              className="pl-11 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-primary focus:ring-primary"
             />
           </div>
           {errors.email && (
@@ -122,7 +131,8 @@ const ForgotPasswordForm = ({
         <Button
           type="submit"
           disabled={isLoading}
-          className="w-full bg-gradient-to-r from-[#004B8D] to-[#0077B6] hover:from-[#003d73] hover:to-[#005a8a] text-white h-12 text-base font-medium"
+          className="w-full text-white h-12 text-base font-medium"
+          style={branding.isWhiteLabel ? buttonStyle : undefined}
         >
           {isLoading ? (
             <>
@@ -153,6 +163,11 @@ const Auth = () => {
   const [activeTab, setActiveTab] = useState("signin");
   const [forgotPasswordMode, setForgotPasswordMode] = useState(false);
   
+  // Tenant branding state
+  const tenantSlug = searchParams.get("tenant");
+  const [branding, setBranding] = useState<BrandingConfig>(DEFAULT_BRANDING);
+  const [brandingLoading, setBrandingLoading] = useState(!!tenantSlug);
+  
   // Plan selection for signup
   const urlPlan = searchParams.get("plan") as BillingPlan | null;
   const [selectedPlan, setSelectedPlan] = useState<BillingPlan>(
@@ -162,6 +177,80 @@ const Auth = () => {
   const { signIn, signUp, resetPassword, user, loading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // Fetch tenant branding if tenant slug is provided
+  useEffect(() => {
+    if (!tenantSlug) {
+      setBranding(DEFAULT_BRANDING);
+      return;
+    }
+
+    const fetchBranding = async () => {
+      setBrandingLoading(true);
+      try {
+        const { data: tenant } = await supabase
+          .from('tenants')
+          .select('id')
+          .eq('slug', tenantSlug)
+          .maybeSingle();
+
+        if (tenant) {
+          const { data: profile } = await supabase
+            .from('business_profiles')
+            .select('company_name, logo_url, primary_color, secondary_color, accent_color, tagline, slogan, white_label_enabled')
+            .eq('tenant_id', tenant.id)
+            .maybeSingle();
+
+          if (profile) {
+            const config = getBrandingFromProfile(profile);
+            setBranding(config);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch tenant branding:', error);
+      } finally {
+        setBrandingLoading(false);
+      }
+    };
+
+    fetchBranding();
+  }, [tenantSlug]);
+
+  // Generate dynamic styles from branding
+  const dynamicStyles = useMemo(() => {
+    if (!branding.isWhiteLabel) return {};
+    
+    const primary = hexToHSL(branding.primaryColor);
+    const secondary = hexToHSL(branding.secondaryColor);
+    
+    return {
+      '--auth-primary': branding.primaryColor,
+      '--auth-secondary': branding.secondaryColor,
+      '--auth-accent': branding.accentColor,
+    } as React.CSSProperties;
+  }, [branding]);
+
+  const buttonGradient = useMemo(() => {
+    if (!branding.isWhiteLabel) {
+      return 'bg-gradient-to-r from-[#004B8D] to-[#0077B6] hover:from-[#003d73] hover:to-[#005a8a]';
+    }
+    return '';
+  }, [branding.isWhiteLabel]);
+
+  const buttonStyle = useMemo(() => {
+    if (!branding.isWhiteLabel) return {};
+    return {
+      background: `linear-gradient(to right, ${branding.primaryColor}, ${branding.secondaryColor})`,
+    };
+  }, [branding]);
+
+  const tabActiveStyle = useMemo(() => {
+    if (!branding.isWhiteLabel) return {};
+    return {
+      backgroundColor: branding.primaryColor,
+      color: 'white',
+    };
+  }, [branding]);
 
   // If plan is in URL, switch to signup tab
   useEffect(() => {
@@ -200,7 +289,7 @@ const Auth = () => {
       if (!isAuthorized) {
         toast({
           title: "Access Denied",
-          description: "This email is not authorized to access the BMS. Only approved administrators can log in.",
+          description: "This email is not authorized to access the system. Only approved administrators can log in.",
           variant: "destructive",
         });
         setIsLoading(false);
@@ -259,45 +348,74 @@ const Auth = () => {
     }
   };
 
-  if (loading) {
+  if (loading || brandingLoading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-[#004B8D] animate-spin" />
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: branding.primaryColor }} />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4" style={dynamicStyles}>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md"
       >
-        {/* Header */}
+        {/* Header - Branded */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[#004B8D] to-[#0077B6] mb-4 shadow-lg">
-            <LayoutDashboard className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-white mb-2">Omanut BMS</h1>
-          <p className="text-slate-400">Business Management System</p>
+          {branding.isWhiteLabel && branding.logoUrl ? (
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/10 mb-4 shadow-lg overflow-hidden">
+              <img 
+                src={branding.logoUrl} 
+                alt={branding.companyName}
+                className="w-12 h-12 object-contain"
+              />
+            </div>
+          ) : (
+            <div 
+              className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 shadow-lg"
+              style={branding.isWhiteLabel ? {
+                background: `linear-gradient(135deg, ${branding.primaryColor}, ${branding.secondaryColor})`,
+              } : {
+                background: 'linear-gradient(135deg, #004B8D, #0077B6)',
+              }}
+            >
+              <LayoutDashboard className="w-8 h-8 text-white" />
+            </div>
+          )}
+          <h1 className="text-3xl font-bold text-white mb-2">
+            {branding.isWhiteLabel ? branding.companyName : 'Omanut BMS'}
+          </h1>
+          <p className="text-slate-400">
+            {branding.isWhiteLabel && branding.tagline ? branding.tagline : 'Business Management System'}
+          </p>
         </div>
 
         {/* Auth Card */}
         <div className="bg-slate-800 rounded-2xl border border-slate-700 p-8 shadow-xl">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-6 bg-slate-700/50">
-              <TabsTrigger value="signin" className="data-[state=active]:bg-[#004B8D] data-[state=active]:text-white">
+              <TabsTrigger 
+                value="signin" 
+                className="data-[state=active]:text-white"
+                style={activeTab === 'signin' && branding.isWhiteLabel ? tabActiveStyle : undefined}
+              >
                 Sign In
               </TabsTrigger>
-              <TabsTrigger value="signup" className="data-[state=active]:bg-[#004B8D] data-[state=active]:text-white">
+              <TabsTrigger 
+                value="signup" 
+                className="data-[state=active]:text-white"
+                style={activeTab === 'signup' && branding.isWhiteLabel ? tabActiveStyle : undefined}
+              >
                 Create Account
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="signin">
               <div className="flex items-center gap-2 mb-4">
-                <Shield className="w-5 h-5 text-emerald-400" />
+                <Shield className="w-5 h-5" style={{ color: branding.accentColor }} />
                 <h2 className="text-lg font-semibold text-white">
                   Welcome Back
                 </h2>
@@ -316,6 +434,7 @@ const Auth = () => {
                   resetPassword={resetPassword}
                   toast={toast}
                   onBack={() => setForgotPasswordMode(false)}
+                  branding={branding}
                 />
               ) : (
                 <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-5">
@@ -331,7 +450,10 @@ const Auth = () => {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="your-email@company.com"
-                        className="pl-11 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-[#004B8D] focus:ring-[#004B8D]"
+                        className="pl-11 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500"
+                        style={branding.isWhiteLabel ? {
+                          '--tw-ring-color': branding.primaryColor,
+                        } as React.CSSProperties : undefined}
                       />
                     </div>
                     {errors.email && (
@@ -354,7 +476,7 @@ const Auth = () => {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="Enter your password"
-                        className="pl-11 pr-11 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-[#004B8D] focus:ring-[#004B8D]"
+                        className="pl-11 pr-11 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500"
                       />
                       <button
                         type="button"
@@ -375,7 +497,8 @@ const Auth = () => {
                   <Button
                     type="submit"
                     disabled={isLoading}
-                    className="w-full bg-gradient-to-r from-[#004B8D] to-[#0077B6] hover:from-[#003d73] hover:to-[#005a8a] text-white h-12 text-base font-medium"
+                    className={`w-full text-white h-12 text-base font-medium ${buttonGradient}`}
+                    style={branding.isWhiteLabel ? buttonStyle : undefined}
                   >
                     {isLoading ? (
                       <>
@@ -391,7 +514,10 @@ const Auth = () => {
                     <button
                       type="button"
                       onClick={() => setForgotPasswordMode(true)}
-                      className="text-sm text-slate-400 hover:text-[#0077B6] transition-colors"
+                      className="text-sm text-slate-400 hover:text-slate-300 transition-colors"
+                      style={branding.isWhiteLabel ? { 
+                        '--hover-color': branding.primaryColor 
+                      } as React.CSSProperties : undefined}
                     >
                       Forgot your password?
                     </button>
@@ -402,7 +528,7 @@ const Auth = () => {
 
             <TabsContent value="signup">
               <div className="flex items-center gap-2 mb-4">
-                <Shield className="w-5 h-5 text-emerald-400" />
+                <Shield className="w-5 h-5" style={{ color: branding.accentColor }} />
                 <h2 className="text-lg font-semibold text-white">
                   Start Your Free Trial
                 </h2>
@@ -432,7 +558,7 @@ const Auth = () => {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="your-email@company.com"
-                      className="pl-11 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-[#004B8D] focus:ring-[#004B8D]"
+                      className="pl-11 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500"
                     />
                   </div>
                   {errors.email && (
@@ -455,7 +581,7 @@ const Auth = () => {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Enter your password"
-                      className="pl-11 pr-11 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-[#004B8D] focus:ring-[#004B8D]"
+                      className="pl-11 pr-11 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500"
                     />
                     <button
                       type="button"
@@ -476,7 +602,8 @@ const Auth = () => {
                 <Button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full bg-gradient-to-r from-[#004B8D] to-[#0077B6] hover:from-[#003d73] hover:to-[#005a8a] text-white h-12 text-base font-medium"
+                  className={`w-full text-white h-12 text-base font-medium ${buttonGradient}`}
+                  style={branding.isWhiteLabel ? buttonStyle : undefined}
                 >
                   {isLoading ? (
                     <>
