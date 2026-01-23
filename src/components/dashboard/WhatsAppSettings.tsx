@@ -473,12 +473,12 @@ export function WhatsAppSettings() {
             {/* Link to Employee (Optional) */}
             <div className="space-y-2">
               <Label>Link to Employee Record <span className="text-muted-foreground text-xs">(optional)</span></Label>
-              <Select value={newMapping.employee_id} onValueChange={(v) => setNewMapping({ ...newMapping, employee_id: v })}>
+              <Select value={newMapping.employee_id || "none"} onValueChange={(v) => setNewMapping({ ...newMapping, employee_id: v === "none" ? "" : v })}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select employee for tasks/attendance" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No employee link</SelectItem>
+                  <SelectItem value="none">No employee link</SelectItem>
                   {employees?.map((emp) => (
                     <SelectItem key={emp.id} value={emp.id}>
                       {emp.full_name} {emp.department && `(${emp.department})`}
@@ -495,12 +495,12 @@ export function WhatsAppSettings() {
             {isMultiBranchEnabled && branches && branches.length > 1 && (
               <div className="space-y-2">
                 <Label>Branch Assignment <span className="text-muted-foreground text-xs">(optional)</span></Label>
-                <Select value={newMapping.branch_id} onValueChange={(v) => setNewMapping({ ...newMapping, branch_id: v })}>
+                <Select value={newMapping.branch_id || "all"} onValueChange={(v) => setNewMapping({ ...newMapping, branch_id: v === "all" ? "" : v })}>
                   <SelectTrigger>
                     <SelectValue placeholder="All branches" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All branches</SelectItem>
+                    <SelectItem value="all">All branches</SelectItem>
                     {branches.map((branch) => (
                       <SelectItem key={branch.id} value={branch.id}>
                         {branch.name}
