@@ -12,6 +12,7 @@ interface Profile {
   full_name: string | null;
   avatar_url: string | null;
   department: string | null;
+  title?: string | null;
 }
 
 // Function to check if email is authorized (checks database)
@@ -37,6 +38,7 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
   updatePassword: (newPassword: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
   canAdd: boolean;    // Managers and admins can INSERT new records
   canEdit: boolean;   // Only admins can UPDATE records (fraud prevention)
   canDelete: boolean; // Only admins can DELETE records
@@ -271,6 +273,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error };
   };
 
+  const refreshProfile = async () => {
+    if (user) {
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("user_id", user.id)
+        .single();
+      
+      if (profileData) {
+        setProfile(profileData);
+      }
+    }
+  };
+
   // Permission checks using centralized role config
   const canAdd = canAddRecords(role);
   const canEdit = canEditRecords(role);
@@ -291,6 +307,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         resetPassword,
         updatePassword,
         signOut,
+        refreshProfile,
         canAdd,
         canEdit,
         canDelete,

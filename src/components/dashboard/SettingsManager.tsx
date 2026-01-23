@@ -3,12 +3,13 @@ import { PasswordResetManager } from "./PasswordResetManager";
 import { SystemResetManager } from "./SystemResetManager";
 import { AuditLogViewer } from "./AuditLogViewer";
 import { WhatsAppSettings } from "./WhatsAppSettings";
+import { UserProfileSettings } from "./UserProfileSettings";
 import { useAuth } from "@/hooks/useAuth";
 import { useFeatures } from "@/hooks/useFeatures";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, KeyRound, AlertTriangle, History, PlayCircle, HelpCircle, MessageCircle } from "lucide-react";
+import { Users, KeyRound, AlertTriangle, History, PlayCircle, HelpCircle, MessageCircle, UserCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function SettingsManager() {
@@ -33,8 +34,12 @@ export function SettingsManager() {
 
   return (
     <div className="space-y-6">
-      <Tabs defaultValue="users" className="space-y-6">
+      <Tabs defaultValue="profile" className="space-y-6">
         <TabsList className="flex-wrap h-auto gap-1">
+          <TabsTrigger value="profile" className="flex items-center gap-2">
+            <UserCircle className="h-4 w-4" />
+            My Profile
+          </TabsTrigger>
           <TabsTrigger value="users" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             Authorized Users
@@ -66,6 +71,10 @@ export function SettingsManager() {
             </TabsTrigger>
           )}
         </TabsList>
+
+        <TabsContent value="profile">
+          <UserProfileSettings />
+        </TabsContent>
 
         <TabsContent value="users">
           <AuthorizedEmailsManager />
