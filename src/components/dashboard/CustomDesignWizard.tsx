@@ -15,7 +15,8 @@ import {
   AlertCircle,
   Briefcase,
   Clock,
-  Calendar
+  Calendar,
+  Save
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,6 +83,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
   const { tenantId } = useTenant();
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   // Form state - Updated with Dodo Wear form fields
@@ -225,6 +227,121 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
     const laborCost = formData.laborHours * formData.hourlyRate;
     const { quotedPrice } = calculateQuote(materialCost, laborCost, formData.marginPercentage);
     return quotedPrice - (formData.depositAmount || 0);
+  };
+
+  // Save as draft - minimal validation, saves whatever data is filled
+  const handleSaveDraft = async () => {
+    if (!tenantId) {
+      toast({ title: "Error", description: "No tenant context found", variant: "destructive" });
+      return;
+    }
+
+    // Only require customer name for drafts
+    if (!formData.customerName.trim()) {
+      toast({
+        title: "Customer name required",
+        description: "Please enter at least a customer name to save as draft",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSavingDraft(true);
+    try {
+      // Create or get customer if we have name and phone
+      let customerId: string | null = null;
+      
+      if (formData.customerName && formData.customerPhone) {
+        const { data: existingCustomer } = await supabase
+          .from('customers')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .eq('phone', formData.customerPhone)
+          .maybeSingle();
+        
+        if (existingCustomer) {
+          customerId = existingCustomer.id;
+        } else {
+          const { data: newCustomer, error: customerError } = await supabase
+            .from('customers')
+            .insert({
+              tenant_id: tenantId,
+              name: formData.customerName,
+              phone: formData.customerPhone,
+              email: formData.customerEmail || null,
+              measurements: formData.measurements,
+              whatsapp_number: formData.customerWhatsApp || null,
+              residential_address: formData.residentialAddress || null,
+            })
+            .select('id')
+            .single();
+          
+          if (customerError) throw customerError;
+          customerId = newCustomer.id;
+        }
+      }
+
+      // Calculate pricing if materials exist
+      const materialCost = formData.materials.reduce(
+        (sum, m) => sum + m.quantity * m.unitCost, 0
+      );
+      const laborCost = formData.laborHours * formData.hourlyRate;
+      const { quotedPrice } = calculateQuote(materialCost, laborCost, formData.marginPercentage);
+
+      const insertData: Record<string, unknown> = {
+        tenant_id: tenantId,
+        customer_id: customerId,
+        design_type: formData.designType || null,
+        fabric: formData.fabric || null,
+        color: formData.color || null,
+        style_notes: formData.styleNotes || null,
+        measurements: Object.keys(formData.measurements).length > 0 ? formData.measurements : null,
+        estimated_cost: quotedPrice || formData.estimatedCost || null,
+        deposit_paid: formData.depositAmount || null,
+        due_date: formData.dueDate || null,
+        status: 'draft', // Draft status
+        reference_images: formData.sketchUrls.length > 0 ? formData.sketchUrls : null,
+        generated_images: formData.generatedImages.length > 0 ? formData.generatedImages : [],
+        assigned_tailor_id: formData.tailorId,
+        tailor_skill_level: formData.skillLevel,
+        estimated_labor_hours: formData.laborHours || null,
+        labor_hourly_rate: formData.hourlyRate || null,
+        estimated_material_cost: materialCost || null,
+        estimated_labor_cost: laborCost || null,
+        margin_percentage: formData.marginPercentage || null,
+        quoted_price: quotedPrice || null,
+        price_locked: false,
+        // New Dodo Wear form fields
+        whatsapp_number: formData.customerWhatsApp || null,
+        residential_address: formData.residentialAddress || null,
+        production_type: formData.productionType,
+        fitting_date: formData.fittingDate || null,
+        collection_date: formData.collectionDate || null,
+        collection_time: formData.collectionTime || null,
+      };
+      
+      const { error } = await supabase
+        .from('custom_orders')
+        .insert(insertData as any);
+
+      if (error) throw error;
+
+      toast({
+        title: "Draft Saved",
+        description: `Draft order for ${formData.customerName} has been saved. You can continue editing it later.`,
+      });
+
+      onSuccess?.();
+      onClose();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save draft",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingDraft(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -1026,15 +1143,42 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
 
         {/* Footer */}
         <div className="px-6 py-4 border-t bg-muted/30 backdrop-blur flex items-center justify-between">
-          <Button
-            variant="outline"
-            onClick={handleBack}
-            disabled={currentStep === 0}
-            className="gap-2"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Back
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handleBack}
+              disabled={currentStep === 0}
+              className="gap-2"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Back
+            </Button>
+
+            {/* Save as Draft button - always visible */}
+            <Button
+              variant="ghost"
+              onClick={handleSaveDraft}
+              disabled={isSavingDraft || isSubmitting}
+              className="gap-2 text-muted-foreground hover:text-foreground"
+            >
+              {isSavingDraft ? (
+                <>
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                  >
+                    <Save className="h-4 w-4" />
+                  </motion.div>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  Save Draft
+                </>
+              )}
+            </Button>
+          </div>
 
           <div className="flex items-center gap-3">
             {validationErrors.length > 0 && (
