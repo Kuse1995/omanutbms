@@ -185,16 +185,16 @@ export function StaffProfileModal({
 
     setIsLoading(true);
     try {
-      // Update profile including avatar_url
+      // Upsert profile including avatar_url (creates if missing)
       const { error: profileError } = await supabase
         .from("profiles")
-        .update({
+        .upsert({
+          user_id: staff.user_id,
           full_name: fullName,
           title: title,
           department: department,
           avatar_url: avatarUrl,
-        })
-        .eq("user_id", staff.user_id);
+        }, { onConflict: 'user_id' });
 
       if (profileError) throw profileError;
 

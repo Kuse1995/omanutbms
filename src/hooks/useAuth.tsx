@@ -192,11 +192,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user_agent: navigator.userAgent,
       });
 
-      // Update last_login in profiles
+      // Upsert last_login in profiles (creates profile if missing)
       await supabase
         .from("profiles")
-        .update({ last_login: new Date().toISOString() })
-        .eq("user_id", userId);
+        .upsert({ user_id: userId, last_login: new Date().toISOString() }, { onConflict: 'user_id' });
     } catch (error) {
       console.error("Error recording login activity:", error);
     }
