@@ -19,14 +19,44 @@ function getBearerToken(req: Request): string | null {
 
 // Role-based permissions for WhatsApp BMS operations
 const ROLE_PERMISSIONS: Record<string, string[]> = {
-  admin: ['record_sale', 'check_stock', 'list_products', 'generate_invoice', 'record_expense', 'get_sales_summary', 'get_sales_details', 'check_customer'],
-  manager: ['record_sale', 'check_stock', 'list_products', 'generate_invoice', 'record_expense', 'get_sales_summary', 'get_sales_details', 'check_customer'],
-  accountant: ['check_stock', 'list_products', 'generate_invoice', 'record_expense', 'get_sales_summary', 'get_sales_details'],
-  hr_manager: ['check_stock', 'list_products', 'get_sales_summary'],
-  sales_rep: ['record_sale', 'check_stock', 'list_products', 'get_sales_details', 'check_customer'],
-  cashier: ['record_sale', 'check_stock', 'list_products'],
-  staff: ['record_sale', 'check_stock', 'list_products', 'record_expense', 'get_sales_details'],
-  viewer: ['check_stock', 'list_products', 'get_sales_summary', 'get_sales_details'],
+  admin: [
+    'record_sale', 'check_stock', 'list_products', 'generate_invoice', 'record_expense', 
+    'get_sales_summary', 'get_sales_details', 'check_customer',
+    'my_tasks', 'task_details', 'my_schedule', 'clock_in', 'clock_out', 'my_attendance', 'my_pay',
+    'team_attendance', 'pending_orders', 'low_stock_alerts', 'update_order_status'
+  ],
+  manager: [
+    'record_sale', 'check_stock', 'list_products', 'generate_invoice', 'record_expense', 
+    'get_sales_summary', 'get_sales_details', 'check_customer',
+    'my_tasks', 'task_details', 'my_schedule', 'clock_in', 'clock_out', 'my_attendance', 'my_pay',
+    'team_attendance', 'pending_orders', 'low_stock_alerts', 'update_order_status'
+  ],
+  accountant: [
+    'check_stock', 'list_products', 'generate_invoice', 'record_expense', 'get_sales_summary', 'get_sales_details',
+    'my_tasks', 'my_schedule', 'clock_in', 'clock_out', 'my_attendance', 'my_pay'
+  ],
+  hr_manager: [
+    'check_stock', 'list_products', 'get_sales_summary',
+    'my_tasks', 'my_schedule', 'clock_in', 'clock_out', 'my_attendance', 'my_pay',
+    'team_attendance'
+  ],
+  sales_rep: [
+    'record_sale', 'check_stock', 'list_products', 'get_sales_details', 'check_customer',
+    'my_tasks', 'task_details', 'my_schedule', 'clock_in', 'clock_out', 'my_attendance', 'my_pay'
+  ],
+  cashier: [
+    'record_sale', 'check_stock', 'list_products',
+    'clock_in', 'clock_out', 'my_attendance', 'my_pay'
+  ],
+  staff: [
+    'record_sale', 'check_stock', 'list_products', 'record_expense', 'get_sales_details',
+    'my_tasks', 'task_details', 'my_schedule', 'clock_in', 'clock_out', 'my_attendance', 'my_pay',
+    'update_order_status'
+  ],
+  viewer: [
+    'check_stock', 'list_products', 'get_sales_summary', 'get_sales_details',
+    'clock_in', 'clock_out', 'my_attendance'
+  ],
 };
 
 // Confirmation thresholds (in ZMW)
@@ -322,6 +352,43 @@ serve(async (req) => {
         break;
       case 'generate_invoice':
         result = await handleGenerateInvoice(supabase, entities, context);
+        break;
+      // Employee task intents
+      case 'my_tasks':
+        result = await handleMyTasks(supabase, entities, context);
+        break;
+      case 'task_details':
+        result = await handleTaskDetails(supabase, entities, context);
+        break;
+      case 'my_schedule':
+        result = await handleMySchedule(supabase, entities, context);
+        break;
+      // Attendance intents
+      case 'clock_in':
+        result = await handleClockIn(supabase, entities, context);
+        break;
+      case 'clock_out':
+        result = await handleClockOut(supabase, entities, context);
+        break;
+      case 'my_attendance':
+        result = await handleMyAttendance(supabase, entities, context);
+        break;
+      // Payroll intent
+      case 'my_pay':
+        result = await handleMyPay(supabase, entities, context);
+        break;
+      // Management intents
+      case 'team_attendance':
+        result = await handleTeamAttendance(supabase, entities, context);
+        break;
+      case 'pending_orders':
+        result = await handlePendingOrders(supabase, entities, context);
+        break;
+      case 'low_stock_alerts':
+        result = await handleLowStockAlerts(supabase, entities, context);
+        break;
+      case 'update_order_status':
+        result = await handleUpdateOrderStatus(supabase, entities, context);
         break;
       default:
         result = { success: false, message: `Unknown intent: ${intent}` };
@@ -979,4 +1046,689 @@ async function handleGenerateInvoice(supabase: any, entities: Record<string, any
     message: `📋 To generate an invoice for ${customer_name}, please use the BMS dashboard.\n\nGo to: Dashboard → Accounts → Invoices → New Invoice`,
     data: null,
   };
+}
+
+// ========== EMPLOYEE TASK HANDLERS ==========
+
+async function handleMyTasks(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  // Get the employee ID linked to this user (via whatsapp_user_mappings or employees table)
+  const { data: employee } = await supabase
+    .from('employees')
+    .select('id, full_name')
+    .eq('tenant_id', context.tenant_id)
+    .eq('user_id', context.user_id)
+    .maybeSingle();
+
+  // Query custom orders assigned to this user or employee
+  let query = supabase
+    .from('custom_orders')
+    .select('order_number, customer_name, design_type, status, due_date, created_at')
+    .eq('tenant_id', context.tenant_id)
+    .not('status', 'in', '("delivered","cancelled")')
+    .order('due_date', { ascending: true, nullsFirst: false })
+    .limit(10);
+
+  // Filter by assigned_to (user_id) or assigned_tailor_id (employee_id)
+  if (employee?.id) {
+    query = query.or(`assigned_to.eq.${context.user_id},assigned_tailor_id.eq.${employee.id}`);
+  } else {
+    query = query.eq('assigned_to', context.user_id);
+  }
+
+  const { data: orders, error } = await query;
+
+  if (error) {
+    console.error('My tasks error:', error);
+    return { success: false, message: 'Failed to fetch your tasks.' };
+  }
+
+  if (!orders || orders.length === 0) {
+    return { 
+      success: true, 
+      message: '📋 No pending tasks assigned to you.\n\nYou\'re all caught up! 🎉',
+      data: [] 
+    };
+  }
+
+  const taskList = orders.map((order: any, idx: number) => {
+    const dueDate = order.due_date 
+      ? new Date(order.due_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+      : 'No date';
+    const statusEmoji = getStatusEmoji(order.status);
+    return `${idx + 1}. ${order.order_number}\n   ${statusEmoji} ${order.status}\n   👤 ${order.customer_name || 'N/A'}\n   📅 ${dueDate}`;
+  }).join('\n\n');
+
+  return {
+    success: true,
+    message: `📋 Your Tasks (${orders.length}):\n\n${taskList}\n\n💡 Reply "details CO-XXX" for measurements`,
+    data: orders,
+  };
+}
+
+async function handleTaskDetails(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  let { order_number } = entities;
+  
+  if (!order_number) {
+    return { success: false, message: 'Please specify the order number. Example: "details CO-001"' };
+  }
+
+  // Normalize order number format
+  order_number = String(order_number).toUpperCase();
+  if (!order_number.startsWith('CO-')) {
+    order_number = `CO-${order_number.replace(/\D/g, '').padStart(3, '0')}`;
+  }
+
+  const { data: order, error } = await supabase
+    .from('custom_orders')
+    .select('*')
+    .eq('tenant_id', context.tenant_id)
+    .eq('order_number', order_number)
+    .maybeSingle();
+
+  if (error || !order) {
+    return { success: false, message: `Order ${order_number} not found.` };
+  }
+
+  // Format measurements if available
+  let measurementsText = '';
+  if (order.measurements) {
+    const m = order.measurements;
+    const measurementLines: string[] = [];
+    if (m.chest) measurementLines.push(`Chest: ${m.chest}cm`);
+    if (m.waist) measurementLines.push(`Waist: ${m.waist}cm`);
+    if (m.hips) measurementLines.push(`Hips: ${m.hips}cm`);
+    if (m.shoulder) measurementLines.push(`Shoulder: ${m.shoulder}cm`);
+    if (m.sleeve) measurementLines.push(`Sleeve: ${m.sleeve}cm`);
+    if (m.length || m.dress_length) measurementLines.push(`Length: ${m.length || m.dress_length}cm`);
+    if (m.inseam) measurementLines.push(`Inseam: ${m.inseam}cm`);
+    if (m.neck) measurementLines.push(`Neck: ${m.neck}cm`);
+    measurementsText = measurementLines.length > 0 
+      ? `\n\n📏 MEASUREMENTS:\n${measurementLines.join('\n')}` 
+      : '';
+  }
+
+  const dueDate = order.due_date 
+    ? new Date(order.due_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    : 'Not set';
+  
+  const fittingDate = order.fitting_date
+    ? new Date(order.fitting_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+    : 'Not set';
+
+  return {
+    success: true,
+    message: `📋 ${order.order_number}\n\n👤 Customer: ${order.customer_name || 'N/A'}\n👗 Design: ${order.design_type || 'Custom'}\n🎨 Fabric: ${order.fabric_type || 'N/A'}\n🌈 Color: ${order.color_preference || 'N/A'}\n\n📊 Status: ${order.status}\n📅 Due: ${dueDate}\n🪡 Fitting: ${fittingDate}${measurementsText}\n\n📝 Notes: ${order.style_notes || 'None'}`,
+    data: order,
+  };
+}
+
+async function handleMySchedule(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const today = new Date();
+  const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  // Get employee ID
+  const { data: employee } = await supabase
+    .from('employees')
+    .select('id')
+    .eq('tenant_id', context.tenant_id)
+    .eq('user_id', context.user_id)
+    .maybeSingle();
+
+  let query = supabase
+    .from('custom_orders')
+    .select('order_number, customer_name, fitting_date, collection_date, status')
+    .eq('tenant_id', context.tenant_id)
+    .or(`fitting_date.gte.${today.toISOString()},collection_date.gte.${today.toISOString()}`)
+    .order('fitting_date', { ascending: true })
+    .limit(10);
+
+  if (employee?.id) {
+    query = query.or(`assigned_to.eq.${context.user_id},assigned_tailor_id.eq.${employee.id}`);
+  } else {
+    query = query.eq('assigned_to', context.user_id);
+  }
+
+  const { data: orders, error } = await query;
+
+  if (error) {
+    console.error('My schedule error:', error);
+    return { success: false, message: 'Failed to fetch your schedule.' };
+  }
+
+  if (!orders || orders.length === 0) {
+    return { 
+      success: true, 
+      message: '📅 No upcoming fittings or collections scheduled.',
+      data: [] 
+    };
+  }
+
+  const scheduleList = orders.map((order: any) => {
+    const lines: string[] = [`📌 ${order.order_number} - ${order.customer_name || 'N/A'}`];
+    if (order.fitting_date) {
+      const fd = new Date(order.fitting_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' });
+      lines.push(`   🪡 Fitting: ${fd}`);
+    }
+    if (order.collection_date) {
+      const cd = new Date(order.collection_date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' });
+      lines.push(`   📦 Collection: ${cd}`);
+    }
+    return lines.join('\n');
+  }).join('\n\n');
+
+  return {
+    success: true,
+    message: `📅 Upcoming Schedule:\n\n${scheduleList}`,
+    data: orders,
+  };
+}
+
+// ========== ATTENDANCE HANDLERS ==========
+
+async function handleClockIn(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  // Find employee by user_id
+  const { data: employee, error: empError } = await supabase
+    .from('employees')
+    .select('id, full_name')
+    .eq('tenant_id', context.tenant_id)
+    .eq('user_id', context.user_id)
+    .maybeSingle();
+
+  if (empError || !employee) {
+    return { 
+      success: false, 
+      message: '❌ You\'re not registered as an employee. Contact HR.' 
+    };
+  }
+
+  // Check if already clocked in today
+  const today = new Date().toISOString().split('T')[0];
+  const { data: existingAttendance } = await supabase
+    .from('employee_attendance')
+    .select('id, clock_in')
+    .eq('employee_id', employee.id)
+    .eq('date', today)
+    .is('clock_out', null)
+    .maybeSingle();
+
+  if (existingAttendance) {
+    const clockInTime = new Date(existingAttendance.clock_in).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    return { 
+      success: false, 
+      message: `⚠️ Already clocked in at ${clockInTime}.\n\nSay "clock out" when leaving.` 
+    };
+  }
+
+  // Create attendance record
+  const now = new Date();
+  const { error: insertError } = await supabase
+    .from('employee_attendance')
+    .insert({
+      employee_id: employee.id,
+      date: today,
+      clock_in: now.toISOString(),
+      status: 'present',
+    });
+
+  if (insertError) {
+    console.error('Clock in error:', insertError);
+    return { success: false, message: 'Failed to clock in. Try again.' };
+  }
+
+  const clockInTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+  return {
+    success: true,
+    message: `✅ Clocked in at ${clockInTime}\n\n👋 Good morning, ${employee.full_name?.split(' ')[0] || context.display_name}!\n\nHave a productive day! 💪`,
+    data: { clock_in: now.toISOString() },
+  };
+}
+
+async function handleClockOut(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  // Find employee by user_id
+  const { data: employee, error: empError } = await supabase
+    .from('employees')
+    .select('id, full_name')
+    .eq('tenant_id', context.tenant_id)
+    .eq('user_id', context.user_id)
+    .maybeSingle();
+
+  if (empError || !employee) {
+    return { 
+      success: false, 
+      message: '❌ You\'re not registered as an employee. Contact HR.' 
+    };
+  }
+
+  // Find today's open attendance record
+  const today = new Date().toISOString().split('T')[0];
+  const { data: attendance, error: attError } = await supabase
+    .from('employee_attendance')
+    .select('id, clock_in')
+    .eq('employee_id', employee.id)
+    .eq('date', today)
+    .is('clock_out', null)
+    .maybeSingle();
+
+  if (attError || !attendance) {
+    return { 
+      success: false, 
+      message: '⚠️ No clock-in found for today.\n\nSay "clock in" first.' 
+    };
+  }
+
+  // Calculate work hours
+  const now = new Date();
+  const clockIn = new Date(attendance.clock_in);
+  const workHours = (now.getTime() - clockIn.getTime()) / (1000 * 60 * 60);
+
+  // Update attendance record
+  const { error: updateError } = await supabase
+    .from('employee_attendance')
+    .update({
+      clock_out: now.toISOString(),
+      work_hours: Math.round(workHours * 100) / 100,
+    })
+    .eq('id', attendance.id);
+
+  if (updateError) {
+    console.error('Clock out error:', updateError);
+    return { success: false, message: 'Failed to clock out. Try again.' };
+  }
+
+  const clockOutTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const hoursFormatted = workHours.toFixed(1);
+
+  return {
+    success: true,
+    message: `✅ Clocked out at ${clockOutTime}\n\n⏱️ You worked ${hoursFormatted} hours today.\n\nSee you tomorrow! 👋`,
+    data: { clock_out: now.toISOString(), work_hours: workHours },
+  };
+}
+
+async function handleMyAttendance(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  // Find employee
+  const { data: employee } = await supabase
+    .from('employees')
+    .select('id, full_name')
+    .eq('tenant_id', context.tenant_id)
+    .eq('user_id', context.user_id)
+    .maybeSingle();
+
+  if (!employee) {
+    return { 
+      success: false, 
+      message: '❌ You\'re not registered as an employee.' 
+    };
+  }
+
+  // Get last 7 days of attendance
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+
+  const { data: records, error } = await supabase
+    .from('employee_attendance')
+    .select('date, clock_in, clock_out, work_hours, status')
+    .eq('employee_id', employee.id)
+    .gte('date', weekAgo.toISOString().split('T')[0])
+    .order('date', { ascending: false });
+
+  if (error) {
+    console.error('My attendance error:', error);
+    return { success: false, message: 'Failed to fetch attendance.' };
+  }
+
+  if (!records || records.length === 0) {
+    return { 
+      success: true, 
+      message: '📊 No attendance records for the past week.',
+      data: [] 
+    };
+  }
+
+  const totalHours = records.reduce((sum: number, r: any) => sum + (r.work_hours || 0), 0);
+  const daysWorked = records.filter((r: any) => r.status === 'present').length;
+
+  const recordsList = records.slice(0, 5).map((r: any) => {
+    const date = new Date(r.date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' });
+    const hours = r.work_hours ? `${r.work_hours.toFixed(1)}h` : 'In progress';
+    return `• ${date}: ${hours}`;
+  }).join('\n');
+
+  return {
+    success: true,
+    message: `📊 Your Attendance (Last 7 Days)\n\n${recordsList}\n\n━━━━━━━━━━━━━━━━\n📅 Days: ${daysWorked}\n⏱️ Total: ${totalHours.toFixed(1)} hours`,
+    data: records,
+  };
+}
+
+// ========== PAYROLL HANDLER ==========
+
+async function handleMyPay(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  // Find employee
+  const { data: employee } = await supabase
+    .from('employees')
+    .select('id, full_name, base_salary')
+    .eq('tenant_id', context.tenant_id)
+    .eq('user_id', context.user_id)
+    .maybeSingle();
+
+  if (!employee) {
+    return { 
+      success: false, 
+      message: '❌ You\'re not registered as an employee.' 
+    };
+  }
+
+  // Get latest payroll record
+  const { data: payroll, error } = await supabase
+    .from('payroll_records')
+    .select('*')
+    .eq('employee_id', employee.id)
+    .order('pay_period_end', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error('My pay error:', error);
+    return { success: false, message: 'Failed to fetch pay information.' };
+  }
+
+  if (!payroll) {
+    // Return base salary info if no payroll record
+    if (employee.base_salary) {
+      return {
+        success: true,
+        message: `💰 Pay Information\n\n📋 Base Salary: K${employee.base_salary.toLocaleString()}/month\n\n⚠️ No payroll records yet.\nContact HR for details.`,
+        data: null,
+      };
+    }
+    return { 
+      success: true, 
+      message: '📊 No payroll records found.\n\nContact HR for pay details.',
+      data: null 
+    };
+  }
+
+  const periodEnd = new Date(payroll.pay_period_end).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+  const statusEmoji = payroll.status === 'paid' ? '✅' : payroll.status === 'approved' ? '🟡' : '⏳';
+
+  return {
+    success: true,
+    message: `💰 Payslip - ${periodEnd}\n\n💵 Gross: K${(payroll.gross_salary || 0).toLocaleString()}\n➖ Deductions: K${(payroll.total_deductions || 0).toLocaleString()}\n━━━━━━━━━━━━━━━━\n💰 Net Pay: K${(payroll.net_salary || 0).toLocaleString()}\n\n${statusEmoji} Status: ${payroll.status}\n${payroll.payment_date ? `📅 Paid: ${new Date(payroll.payment_date).toLocaleDateString('en-GB')}` : ''}`,
+    data: payroll,
+  };
+}
+
+// ========== MANAGEMENT HANDLERS ==========
+
+async function handleTeamAttendance(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const today = new Date().toISOString().split('T')[0];
+
+  // Get today's attendance with employee names
+  const { data: attendance, error } = await supabase
+    .from('employee_attendance')
+    .select('clock_in, clock_out, employees(full_name)')
+    .eq('date', today)
+    .order('clock_in', { ascending: true });
+
+  if (error) {
+    console.error('Team attendance error:', error);
+    return { success: false, message: 'Failed to fetch team attendance.' };
+  }
+
+  // Also get total employee count
+  const { count: totalEmployees } = await supabase
+    .from('employees')
+    .select('id', { count: 'exact', head: true })
+    .eq('tenant_id', context.tenant_id)
+    .eq('employment_status', 'active');
+
+  const clockedIn = attendance?.filter((a: any) => !a.clock_out) || [];
+  const clockedOut = attendance?.filter((a: any) => a.clock_out) || [];
+
+  let message = `👥 Team Attendance - Today\n\n`;
+  message += `✅ Clocked In: ${clockedIn.length}/${totalEmployees || '?'}\n`;
+
+  if (clockedIn.length > 0) {
+    message += `\n🟢 Currently Working:\n`;
+    message += clockedIn.map((a: any) => {
+      const time = new Date(a.clock_in).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      return `• ${a.employees?.full_name || 'Unknown'} (${time})`;
+    }).join('\n');
+  }
+
+  if (clockedOut.length > 0) {
+    message += `\n\n🔴 Left for the day:\n`;
+    message += clockedOut.slice(0, 5).map((a: any) => {
+      return `• ${a.employees?.full_name || 'Unknown'}`;
+    }).join('\n');
+    if (clockedOut.length > 5) {
+      message += `\n  ...and ${clockedOut.length - 5} more`;
+    }
+  }
+
+  return {
+    success: true,
+    message,
+    data: { clocked_in: clockedIn.length, total: totalEmployees },
+  };
+}
+
+async function handlePendingOrders(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const { data: orders, error } = await supabase
+    .from('custom_orders')
+    .select('order_number, customer_name, status, due_date, assigned_to')
+    .eq('tenant_id', context.tenant_id)
+    .not('status', 'in', '("delivered","cancelled")')
+    .order('due_date', { ascending: true, nullsFirst: false })
+    .limit(15);
+
+  if (error) {
+    console.error('Pending orders error:', error);
+    return { success: false, message: 'Failed to fetch pending orders.' };
+  }
+
+  if (!orders || orders.length === 0) {
+    return { 
+      success: true, 
+      message: '📋 No pending orders in production.\n\n🎉 All caught up!',
+      data: [] 
+    };
+  }
+
+  // Group by status
+  const byStatus: Record<string, any[]> = {};
+  orders.forEach((o: any) => {
+    const status = o.status || 'pending';
+    if (!byStatus[status]) byStatus[status] = [];
+    byStatus[status].push(o);
+  });
+
+  let message = `📋 Production Queue (${orders.length} orders)\n\n`;
+  
+  for (const [status, statusOrders] of Object.entries(byStatus)) {
+    const emoji = getStatusEmoji(status);
+    message += `${emoji} ${status.toUpperCase()} (${statusOrders.length}):\n`;
+    message += statusOrders.slice(0, 3).map((o: any) => {
+      const due = o.due_date 
+        ? new Date(o.due_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+        : 'No date';
+      return `  • ${o.order_number} - ${o.customer_name || 'N/A'} (${due})`;
+    }).join('\n');
+    if (statusOrders.length > 3) {
+      message += `\n  ...+${statusOrders.length - 3} more`;
+    }
+    message += '\n\n';
+  }
+
+  return {
+    success: true,
+    message: message.trim(),
+    data: orders,
+  };
+}
+
+async function handleLowStockAlerts(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const { data: items, error } = await supabase
+    .from('inventory')
+    .select('name, current_stock, reorder_level, unit_price')
+    .eq('tenant_id', context.tenant_id)
+    .lt('current_stock', supabase.raw('reorder_level'))
+    .order('current_stock', { ascending: true })
+    .limit(15);
+
+  if (error) {
+    // Fallback: manual comparison since raw() might not work
+    const { data: allItems, error: allError } = await supabase
+      .from('inventory')
+      .select('name, current_stock, reorder_level, unit_price')
+      .eq('tenant_id', context.tenant_id);
+
+    if (allError) {
+      console.error('Low stock error:', allError);
+      return { success: false, message: 'Failed to check stock levels.' };
+    }
+
+    const lowStock = (allItems || [])
+      .filter((i: any) => i.current_stock < i.reorder_level)
+      .sort((a: any, b: any) => a.current_stock - b.current_stock)
+      .slice(0, 15);
+
+    if (lowStock.length === 0) {
+      return { 
+        success: true, 
+        message: '✅ All stock levels are healthy!\n\nNo items below reorder level.',
+        data: [] 
+      };
+    }
+
+    const alertsList = lowStock.map((item: any) => {
+      const emoji = item.current_stock <= 0 ? '🔴' : '🟡';
+      return `${emoji} ${item.name}\n   Stock: ${item.current_stock} / Reorder at: ${item.reorder_level}`;
+    }).join('\n\n');
+
+    return {
+      success: true,
+      message: `⚠️ Low Stock Alert (${lowStock.length} items)\n\n${alertsList}`,
+      data: lowStock,
+    };
+  }
+
+  if (!items || items.length === 0) {
+    return { 
+      success: true, 
+      message: '✅ All stock levels are healthy!\n\nNo items below reorder level.',
+      data: [] 
+    };
+  }
+
+  const alertsList = items.map((item: any) => {
+    const emoji = item.current_stock <= 0 ? '🔴' : '🟡';
+    return `${emoji} ${item.name}\n   Stock: ${item.current_stock} / Reorder at: ${item.reorder_level}`;
+  }).join('\n\n');
+
+  return {
+    success: true,
+    message: `⚠️ Low Stock Alert (${items.length} items)\n\n${alertsList}`,
+    data: items,
+  };
+}
+
+async function handleUpdateOrderStatus(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  let { order_number, new_status, completed_stage } = entities;
+
+  if (!order_number) {
+    return { success: false, message: 'Please specify the order number. Example: "CO-001 cutting done"' };
+  }
+
+  // Normalize order number
+  order_number = String(order_number).toUpperCase();
+  if (!order_number.startsWith('CO-')) {
+    order_number = `CO-${order_number.replace(/\D/g, '').padStart(3, '0')}`;
+  }
+
+  // Get current order
+  const { data: order, error: fetchError } = await supabase
+    .from('custom_orders')
+    .select('id, status, order_number')
+    .eq('tenant_id', context.tenant_id)
+    .eq('order_number', order_number)
+    .maybeSingle();
+
+  if (fetchError || !order) {
+    return { success: false, message: `Order ${order_number} not found.` };
+  }
+
+  // Map completed stage to new status if not explicitly provided
+  if (!new_status && completed_stage) {
+    const statusMap: Record<string, string> = {
+      'cutting': 'se wiring',
+      'sewing': 'fitting',
+      'se wiring': 'fitting',
+      'fitting': 'ready',
+      'ready': 'delivered',
+    };
+    new_status = statusMap[completed_stage.toLowerCase()] || completed_stage;
+  }
+
+  if (!new_status) {
+    return { success: false, message: 'Please specify the new status. Example: "CO-001 sewing done"' };
+  }
+
+  // Normalize status
+  new_status = String(new_status).toLowerCase();
+  const validStatuses = ['pending', 'confirmed', 'cutting', 'se wiring', 'fitting', 'ready', 'delivered', 'cancelled'];
+  if (!validStatuses.includes(new_status)) {
+    // Try to match partial
+    const matched = validStatuses.find(s => s.includes(new_status) || new_status.includes(s));
+    if (matched) {
+      new_status = matched;
+    } else {
+      return { 
+        success: false, 
+        message: `Invalid status "${new_status}".\n\nValid: ${validStatuses.join(', ')}` 
+      };
+    }
+  }
+
+  // Update the order
+  const { error: updateError } = await supabase
+    .from('custom_orders')
+    .update({ 
+      status: new_status,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', order.id);
+
+  if (updateError) {
+    console.error('Update order status error:', updateError);
+    return { success: false, message: 'Failed to update order status.' };
+  }
+
+  const statusEmoji = getStatusEmoji(new_status);
+
+  return {
+    success: true,
+    message: `✅ ${order_number} updated!\n\n${statusEmoji} New status: ${new_status}\n\n💡 Reply "pending orders" to see the queue.`,
+    data: { order_number, new_status },
+  };
+}
+
+// ========== HELPER FUNCTIONS ==========
+
+function getStatusEmoji(status: string): string {
+  const map: Record<string, string> = {
+    'pending': '⏳',
+    'confirmed': '✅',
+    'cutting': '✂️',
+    'se wiring': '🧵',
+    'sewing': '🧵',
+    'fitting': '👔',
+    'ready': '🎁',
+    'delivered': '📦',
+    'cancelled': '❌',
+    'draft': '📝',
+  };
+  return map[status?.toLowerCase()] || '📋';
 }
