@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { ProductModal } from "./ProductModal";
 import { ProductVariantsModal } from "./ProductVariantsModal";
+import { useTenant } from "@/hooks/useTenant";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -73,26 +74,33 @@ export function ProductsManager() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const { toast } = useToast();
+  const { tenantId } = useTenant();
 
   useEffect(() => {
-    fetchProducts();
-  }, []);
+    if (tenantId) {
+      fetchProducts();
+    }
+  }, [tenantId]);
 
   const fetchProducts = async () => {
+    if (!tenantId) return;
+    
     setIsLoading(true);
     try {
-      // Fetch products with variant counts
+      // Fetch products with variant counts - filtered by tenant
       const { data: productsData, error: productsError } = await supabase
         .from("inventory")
         .select("*")
+        .eq("tenant_id", tenantId)
         .order("name");
 
       if (productsError) throw productsError;
 
-      // Fetch variant counts for each product
+      // Fetch variant counts for each product - filtered by tenant
       const { data: variantsData, error: variantsError } = await supabase
         .from("product_variants")
-        .select("product_id, variant_type");
+        .select("product_id, variant_type")
+        .eq("tenant_id", tenantId);
 
       if (variantsError) throw variantsError;
 
