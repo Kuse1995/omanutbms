@@ -178,8 +178,15 @@ serve(async (req) => {
     
     const phoneNumber = rawPhoneNumber;
 
-    if (!body || body.length > 1000) {
-      return createTwiMLResponse('Message too long or empty.');
+    // Allow empty body if location is shared (for clock-in/clock-out)
+    // But still reject if message is too long
+    if (body.length > 1000) {
+      return createTwiMLResponse('Message too long.');
+    }
+    
+    // If no body AND no location, reject
+    if (!body && !hasLocation) {
+      return createTwiMLResponse('Please send a text message or share your location.');
     }
 
     // Look up user by phone number
@@ -282,6 +289,91 @@ Your admin can upgrade the plan to keep chatting, or it'll reset next month. Con
         execution_time_ms: Date.now() - startTime,
       });
       return createTwiMLResponse(cancelMessage);
+    }
+
+    // Handle location-only messages (for clock-in/clock-out)
+    if (!body && hasLocation) {
+      console.log('Location-only message received, checking for pending attendance action');
+      
+      // Check for pending confirmation first
+      const { data: pendingConfirmation } = await supabase
+        .from('whatsapp_pending_confirmations')
+        .select('*')
+        .eq('tenant_id', mapping.tenant_id)
+        .eq('whatsapp_number', phoneNumber)
+        .gte('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (pendingConfirmation && ['clock_in', 'clock_out'].includes(pendingConfirmation.intent)) {
+        // This is a location response for a pending clock-in/out
+        console.log('Found pending clock action, processing with location');
+        
+        // Clear the pending confirmation
+        await supabase
+          .from('whatsapp_pending_confirmations')
+          .delete()
+          .eq('id', pendingConfirmation.id);
+        
+        // Build context with location
+        const contextData: any = {
+          tenant_id: mapping.tenant_id,
+          user_id: mapping.user_id,
+          employee_id: mapping.employee_id,
+          role: mapping.role,
+          display_name: mapping.display_name,
+          is_self_service: mapping.is_employee_self_service,
+          location: { latitude, longitude },
+        };
+        
+        // Call bridge with the original intent
+        const bridgeResponse = await fetch(`${SUPABASE_URL}/functions/v1/bms-api-bridge`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            intent: pendingConfirmation.intent,
+            entities: pendingConfirmation.entities || {},
+            context: contextData,
+          }),
+        });
+        
+        const bridgeResult = await bridgeResponse.json();
+        console.log('Bridge result for location clock-in:', bridgeResult);
+        
+        const responseMessage = bridgeResult.message || (bridgeResult.success ? 'Done!' : 'Something went wrong.');
+        
+        await logAudit(supabase, {
+          tenant_id: mapping.tenant_id,
+          whatsapp_number: phoneNumber,
+          user_id: mapping.user_id,
+          display_name: mapping.display_name,
+          intent: pendingConfirmation.intent,
+          original_message: `[Location: ${latitude}, ${longitude}]`,
+          response_message: responseMessage,
+          success: bridgeResult.success,
+          execution_time_ms: Date.now() - startTime,
+        });
+        
+        return createTwiMLResponse(responseMessage);
+      }
+      
+      // No pending clock action - tell user to send a command first
+      const noContextMessage = "I see you shared your location! 📍 To clock in, just say 'clock in' first, then share your location when I ask.";
+      await logAudit(supabase, {
+        tenant_id: mapping.tenant_id,
+        whatsapp_number: phoneNumber,
+        user_id: mapping.user_id,
+        display_name: mapping.display_name,
+        original_message: `[Location: ${latitude}, ${longitude}]`,
+        response_message: noContextMessage,
+        success: true,
+        execution_time_ms: Date.now() - startTime,
+      });
+      return createTwiMLResponse(noContextMessage);
     }
 
 // Check for yes/no confirmations - VERY flexible natural language acceptance
@@ -637,6 +729,29 @@ Your admin can upgrade the plan to keep chatting, or it'll reset next month. Con
     const bridgeResult = await bridgeResponse.json();
     let responseMessage = bridgeResult.message || (bridgeResult.success ? '✅ Done!' : '❌ Failed.');
     let mediaUrl: string | null = null;
+
+    // If clock_in/clock_out failed because location is needed, store pending confirmation
+    if (!bridgeResult.success && 
+        ['clock_in', 'clock_out'].includes(parsedIntent.intent) &&
+        bridgeResult.message?.includes('location')) {
+      console.log('Storing pending clock action for location follow-up');
+      
+      // Store as pending confirmation so location-only message can be processed
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 minute expiry
+      await supabase
+        .from('whatsapp_pending_confirmations')
+        .upsert({
+          tenant_id: mapping.tenant_id,
+          whatsapp_number: phoneNumber,
+          user_id: mapping.user_id,
+          intent: parsedIntent.intent,
+          entities: mergedEntities || {},
+          pending_data: { awaiting_location: true },
+          expires_at: expiresAt,
+        }, {
+          onConflict: 'tenant_id,whatsapp_number'
+        });
+    }
 
     console.log('[whatsapp-bms-handler] Bridge result:', JSON.stringify({
       success: bridgeResult.success,
