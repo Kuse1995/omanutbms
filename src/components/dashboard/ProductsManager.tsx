@@ -128,7 +128,7 @@ export function ProductsManager() {
       console.error("Error fetching products:", error);
       toast({
         title: "Error",
-        description: "Failed to fetch products",
+        description: `Failed to fetch ${terminology.products.toLowerCase()}`,
         variant: "destructive",
       });
     } finally {
@@ -148,7 +148,7 @@ export function ProductsManager() {
       if (error) throw error;
 
       toast({
-        title: "Product Deleted",
+        title: `${terminology.product} Deleted`,
         description: `${productToDelete.name} has been removed`,
       });
       fetchProducts();
@@ -156,7 +156,7 @@ export function ProductsManager() {
       console.error("Error deleting product:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to delete product",
+        description: error.message || `Failed to delete ${terminology.product.toLowerCase()}`,
         variant: "destructive",
       });
     } finally {
