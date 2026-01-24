@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ExpiryAlertsCard } from "@/components/dashboard/ExpiryAlertsCard";
 import { VariantLowStockAlerts } from "@/components/dashboard/VariantLowStockAlerts";
 import { CustomDesignWizard } from "@/components/dashboard/CustomDesignWizard";
+import { throttle } from "@/lib/performance-utils";
 import type { DashboardTab } from "@/pages/Dashboard";
 
 interface DashboardHomeProps {
@@ -72,8 +73,10 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
   const { layout, terminology, businessType } = useBusinessConfig();
   const { tenantId } = useTenant();
   const { isCustomDesignerEnabled, isProductionTrackingEnabled } = useEnterpriseFeatures();
+  const isMountedRef = useRef(true);
+  const hasFetchedRef = useRef(false);
 
-  const fetchMetrics = async () => {
+  const fetchMetrics = useCallback(async () => {
     if (!tenantId) {
       setIsLoading(false);
       return;
@@ -188,70 +191,88 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
     } catch (error) {
       console.error("Error fetching metrics:", error);
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
-  };
+  }, [tenantId, features]);
+
+  // Throttled version for realtime updates (max once per 3 seconds)
+  const throttledFetchMetrics = useMemo(
+    () => throttle(() => {
+      if (isMountedRef.current) {
+        fetchMetrics();
+      }
+    }, 3000),
+    [fetchMetrics]
+  );
 
   useEffect(() => {
-    if (!featuresLoading && tenantId) {
+    isMountedRef.current = true;
+    
+    if (!featuresLoading && tenantId && !hasFetchedRef.current) {
+      hasFetchedRef.current = true;
       fetchMetrics();
-
-      // Set up real-time subscriptions for inventory and invoices
-      const inventoryChannel = supabase
-        .channel('dashboard-inventory')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'inventory',
-            filter: `tenant_id=eq.${tenantId}`
-          },
-          () => {
-            fetchMetrics();
-          }
-        )
-        .subscribe();
-
-      const invoicesChannel = supabase
-        .channel('dashboard-invoices')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'invoices',
-            filter: `tenant_id=eq.${tenantId}`
-          },
-          () => {
-            fetchMetrics();
-          }
-        )
-        .subscribe();
-
-      const salesChannel = supabase
-        .channel('dashboard-sales-transactions')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'sales_transactions',
-            filter: `tenant_id=eq.${tenantId}`,
-          },
-          () => {
-            fetchMetrics();
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(inventoryChannel);
-        supabase.removeChannel(invoicesChannel);
-        supabase.removeChannel(salesChannel);
-      };
     }
-  }, [tenantId, features, featuresLoading]);
+
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, [featuresLoading, tenantId, fetchMetrics]);
+
+  // Separate effect for realtime subscriptions to avoid re-subscribing on every render
+  useEffect(() => {
+    if (!tenantId) return;
+
+    // Set up real-time subscriptions with throttled callbacks
+    const inventoryChannel = supabase
+      .channel('dashboard-inventory')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'inventory',
+          filter: `tenant_id=eq.${tenantId}`
+        },
+        throttledFetchMetrics
+      )
+      .subscribe();
+
+    const invoicesChannel = supabase
+      .channel('dashboard-invoices')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'invoices',
+          filter: `tenant_id=eq.${tenantId}`
+        },
+        throttledFetchMetrics
+      )
+      .subscribe();
+
+    const salesChannel = supabase
+      .channel('dashboard-sales-transactions')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'sales_transactions',
+          filter: `tenant_id=eq.${tenantId}`,
+        },
+        throttledFetchMetrics
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(inventoryChannel);
+      supabase.removeChannel(invoicesChannel);
+      supabase.removeChannel(salesChannel);
+    };
+  }, [tenantId, throttledFetchMetrics]);
 
   // Get metric value based on metric type
   const getMetricValue = (metric: string): string => {

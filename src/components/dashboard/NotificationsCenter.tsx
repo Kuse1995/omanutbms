@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bell, Mail, Heart, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
+import { throttle } from "@/lib/performance-utils";
 
 interface Notification {
   id: string;
@@ -31,9 +32,12 @@ export function NotificationsCenter() {
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
   const isMountedRef = useRef(true);
+  const hasFetchedRef = useRef(false);
 
-  // Memoize fetchNotifications to prevent infinite re-renders
-  const fetchNotifications = useCallback(async () => {
+  // Stable fetch function that doesn't change between renders
+  const fetchNotifications = async () => {
+    // Prevent concurrent fetches
+    if (!isMountedRef.current) return;
     const allNotifications: Notification[] = [];
 
     try {
@@ -141,24 +145,34 @@ export function NotificationsCenter() {
     } catch (error) {
       console.error('[NotificationsCenter] Error fetching notifications:', error);
     }
-  }, []);
+  };
+
+  // Throttled version for realtime updates (max once per 5 seconds)
+  const throttledFetch = useMemo(
+    () => throttle(() => {
+      if (isMountedRef.current) {
+        fetchNotifications();
+      }
+    }, 5000),
+    []
+  );
 
   useEffect(() => {
     isMountedRef.current = true;
     
-    fetchNotifications();
+    // Only fetch once on mount
+    if (!hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+      fetchNotifications();
+    }
 
-    // Real-time subscriptions
+    // Real-time subscriptions with throttled callback
     const contactsChannel = supabase
       .channel("website-contacts-notifications")
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "website_contacts" },
-        () => {
-          if (isMountedRef.current) {
-            fetchNotifications();
-          }
-        }
+        throttledFetch
       )
       .subscribe();
 
@@ -167,11 +181,7 @@ export function NotificationsCenter() {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "community_messages" },
-        () => {
-          if (isMountedRef.current) {
-            fetchNotifications();
-          }
-        }
+        throttledFetch
       )
       .subscribe();
 
@@ -180,11 +190,7 @@ export function NotificationsCenter() {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "donation_requests" },
-        () => {
-          if (isMountedRef.current) {
-            fetchNotifications();
-          }
-        }
+        throttledFetch
       )
       .subscribe();
 
@@ -193,11 +199,7 @@ export function NotificationsCenter() {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "admin_alerts" },
-        () => {
-          if (isMountedRef.current) {
-            fetchNotifications();
-          }
-        }
+        throttledFetch
       )
       .subscribe();
 
@@ -208,7 +210,7 @@ export function NotificationsCenter() {
       supabase.removeChannel(donationsChannel);
       supabase.removeChannel(alertsChannel);
     };
-  }, [fetchNotifications]);
+  }, [throttledFetch]);
 
   const handleNotificationClick = async (notification: Notification) => {
     // Mark alert as read if it's an admin alert
