@@ -188,7 +188,7 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
     e.preventDefault();
     
     if (!clientName.trim()) {
-      toast({ title: "Error", description: "Client name is required", variant: "destructive" });
+      toast({ title: "Error", description: `${terminology.customer} name is required`, variant: "destructive" });
       return;
     }
 
@@ -299,27 +299,27 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
           {/* Client Details */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <Label htmlFor="clientName">Client Name *</Label>
+              <Label htmlFor="clientName">{terminology.customer} Name *</Label>
               <Input
                 id="clientName"
                 value={clientName}
                 onChange={(e) => setClientName(e.target.value)}
-                placeholder="Client name"
+                placeholder={`${terminology.customer} name`}
                 required
               />
             </div>
             <div>
-              <Label htmlFor="clientEmail">Client Email</Label>
+              <Label htmlFor="clientEmail">{terminology.customer} Email</Label>
               <Input
                 id="clientEmail"
                 type="email"
                 value={clientEmail}
                 onChange={(e) => setClientEmail(e.target.value)}
-                placeholder="client@email.com"
+                placeholder={`${terminology.customer.toLowerCase()}@email.com`}
               />
             </div>
             <div>
-              <Label htmlFor="clientPhone">Client Phone</Label>
+              <Label htmlFor="clientPhone">{terminology.customer} Phone</Label>
               <Input
                 id="clientPhone"
                 value={clientPhone}

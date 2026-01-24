@@ -24,6 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/hooks/useTenant";
 import { useAuth } from "@/hooks/useAuth";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 import { ProductCombobox, type ProductOption } from "./ProductCombobox";
 
 interface ReturnModalProps {
@@ -55,6 +56,7 @@ export function ReturnModal({ open, onOpenChange, onSuccess }: ReturnModalProps)
   const { toast } = useToast();
   const { tenantId } = useTenant();
   const { user } = useAuth();
+  const { terminology } = useBusinessConfig();
 
   // Fetch products for combobox
   useEffect(() => {
@@ -179,16 +181,16 @@ export function ReturnModal({ open, onOpenChange, onSuccess }: ReturnModalProps)
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-[#003366]">
             <RotateCcw className="w-5 h-5 text-[#0077B6]" />
-            Record Product Return
+            Record {terminology.product} Return
           </DialogTitle>
           <DialogDescription>
-            Record a product return. Returns require manager approval.
+            Record a {terminology.product.toLowerCase()} return. Returns require manager approval.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label>Product *</Label>
+            <Label>{terminology.product} *</Label>
             <ProductCombobox
               products={products}
               value={selectedProductId}
@@ -231,7 +233,7 @@ export function ReturnModal({ open, onOpenChange, onSuccess }: ReturnModalProps)
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="customerName">Customer Name</Label>
+            <Label htmlFor="customerName">{terminology.customer} Name</Label>
             <Input
               id="customerName"
               value={customerName}
@@ -247,14 +249,14 @@ export function ReturnModal({ open, onOpenChange, onSuccess }: ReturnModalProps)
               onCheckedChange={(checked) => setReturnToStock(checked === true)}
             />
             <Label htmlFor="returnToStock" className="text-sm font-normal cursor-pointer">
-              Return product to sellable stock (item is in good condition)
+              Return {terminology.product.toLowerCase()} to sellable stock (item is in good condition)
             </Label>
           </div>
 
           {!returnToStock && selectedProduct?.cost_price && (
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
               <p className="text-sm text-amber-700">
-                <strong>Note:</strong> Since the product won't be returned to stock, this will be recorded as a loss of K{((selectedProduct.cost_price || 0) * quantity).toLocaleString()}.
+                <strong>Note:</strong> Since the {terminology.product.toLowerCase()} won't be returned to stock, this will be recorded as a loss of K{((selectedProduct.cost_price || 0) * quantity).toLocaleString()}.
               </p>
             </div>
           )}
