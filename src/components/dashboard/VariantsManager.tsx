@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useTenant } from "@/hooks/useTenant";
 
 interface Variant {
   id: string;
@@ -33,17 +34,22 @@ export function VariantsManager() {
   const [filterProduct, setFilterProduct] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
   const { toast } = useToast();
+  const { tenantId } = useTenant();
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (tenantId) {
+      fetchData();
+    }
+  }, [tenantId]);
 
   const fetchData = async () => {
+    if (!tenantId) return;
+    
     setIsLoading(true);
     try {
       const [productsRes, variantsRes] = await Promise.all([
-        supabase.from("inventory").select("id, name").order("name"),
-        supabase.from("product_variants").select("*").order("variant_type").order("variant_value"),
+        supabase.from("inventory").select("id, name").eq("tenant_id", tenantId).order("name"),
+        supabase.from("product_variants").select("*").eq("tenant_id", tenantId).order("variant_type").order("variant_value"),
       ]);
 
       if (productsRes.error) throw productsRes.error;

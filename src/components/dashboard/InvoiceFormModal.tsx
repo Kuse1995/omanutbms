@@ -81,13 +81,18 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
   ]);
 
   useEffect(() => {
-    fetchProducts();
-  }, []);
+    if (tenantId) {
+      fetchProducts();
+    }
+  }, [tenantId]);
 
   const fetchProducts = async () => {
+    if (!tenantId) return;
+    
     const { data } = await supabase
       .from("inventory")
       .select("id, name, sku, unit_price, current_stock")
+      .eq("tenant_id", tenantId)
       .order("name");
     if (data) {
       setProducts(data.map(p => ({

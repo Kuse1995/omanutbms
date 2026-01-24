@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useTenant } from "@/hooks/useTenant";
 
 interface InventoryItem {
   id: string;
@@ -44,12 +45,16 @@ export function SmartInventory() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { toast } = useToast();
+  const { tenantId } = useTenant();
 
   const fetchInventory = async () => {
+    if (!tenantId) return;
+    
     try {
       const { data, error } = await supabase
         .from("inventory")
         .select("id, sku, name, current_stock, reserved, ai_prediction, status, item_type, category")
+        .eq("tenant_id", tenantId)
         .order("name");
 
       if (error) throw error;
@@ -67,7 +72,9 @@ export function SmartInventory() {
   };
 
   useEffect(() => {
-    fetchInventory();
+    if (tenantId) {
+      fetchInventory();
+    }
 
     // Subscribe to real-time changes
     const channel = supabase

@@ -77,25 +77,31 @@ export function CreditSalesReport() {
   const { tenantId } = useTenant();
 
   useEffect(() => {
-    fetchCreditSales();
-  }, []);
+    if (tenantId) {
+      fetchCreditSales();
+    }
+  }, [tenantId]);
 
   const fetchCreditSales = async () => {
+    if (!tenantId) return;
+    
     setIsLoading(true);
     try {
-      // Fetch credit sales
+      // Fetch credit sales - filtered by tenant
       const { data: salesData, error: salesError } = await supabase
         .from("sales_transactions")
         .select("*")
+        .eq("tenant_id", tenantId)
         .eq("payment_method", "credit_invoice")
         .order("created_at", { ascending: false });
 
       if (salesError) throw salesError;
 
-      // Fetch all invoices
+      // Fetch all invoices - filtered by tenant
       const { data: invoicesData, error: invoicesError } = await supabase
         .from("invoices")
         .select("id, invoice_number, client_name, total_amount, due_date, status, created_at")
+        .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
 
       if (invoicesError) throw invoicesError;

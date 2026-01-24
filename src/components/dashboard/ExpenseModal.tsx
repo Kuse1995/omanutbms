@@ -81,12 +81,15 @@ export function ExpenseModal({ isOpen, onClose, onSuccess, expenseToEdit }: Expe
     }
   }, [expenseToEdit, isOpen]);
 
-  // Fetch products for COGS linking
+  // Fetch products for COGS linking - filtered by tenant
   useEffect(() => {
     const fetchProducts = async () => {
+      if (!tenantId) return;
+      
       const { data, error } = await supabase
         .from("inventory")
         .select("id, name, sku, unit_price, current_stock")
+        .eq("tenant_id", tenantId)
         .order("name");
       
       if (!error && data) {
@@ -94,10 +97,10 @@ export function ExpenseModal({ isOpen, onClose, onSuccess, expenseToEdit }: Expe
       }
     };
     
-    if (isOpen) {
+    if (isOpen && tenantId) {
       fetchProducts();
     }
-  }, [isOpen]);
+  }, [isOpen, tenantId]);
 
   // Reset product selection when category changes
   useEffect(() => {
