@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Mail, Heart, AlertTriangle, Check, Eye } from "lucide-react";
+import { Bell, Mail, Heart, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
-import { format, formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 
 interface Notification {
   id: string;
@@ -30,111 +30,122 @@ export function NotificationsCenter() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
+  const isMountedRef = useRef(true);
 
-  const fetchNotifications = async () => {
+  // Memoize fetchNotifications to prevent infinite re-renders
+  const fetchNotifications = useCallback(async () => {
     const allNotifications: Notification[] = [];
 
-    // Fetch website contacts (pending)
-    const { data: contacts } = await supabase
-      .from("website_contacts")
-      .select("id, sender_name, message, created_at, status")
-      .eq("status", "pending")
-      .order("created_at", { ascending: false })
-      .limit(10);
+    try {
+      // Fetch website contacts (pending)
+      const { data: contacts } = await supabase
+        .from("website_contacts")
+        .select("id, sender_name, message, created_at, status")
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(10);
 
-    if (contacts) {
-      contacts.forEach((c) => {
-        allNotifications.push({
-          id: c.id,
-          type: "contact",
-          title: `New message from ${c.sender_name}`,
-          message: c.message.substring(0, 50) + (c.message.length > 50 ? "..." : ""),
-          created_at: c.created_at,
-          is_read: false,
-          source_table: "website_contacts",
-          navigate_to: "/bms?tab=website&subtab=contacts",
+      if (contacts) {
+        contacts.forEach((c) => {
+          allNotifications.push({
+            id: c.id,
+            type: "contact",
+            title: `New message from ${c.sender_name}`,
+            message: c.message.substring(0, 50) + (c.message.length > 50 ? "..." : ""),
+            created_at: c.created_at,
+            is_read: false,
+            source_table: "website_contacts",
+            navigate_to: "/bms?tab=website&subtab=contacts",
+          });
         });
-      });
-    }
+      }
 
-    // Fetch community messages (pending)
-    const { data: communityMsgs } = await supabase
-      .from("community_messages")
-      .select("id, donor_name, message, created_at, status")
-      .eq("status", "pending")
-      .order("created_at", { ascending: false })
-      .limit(10);
+      // Fetch community messages (pending)
+      const { data: communityMsgs } = await supabase
+        .from("community_messages")
+        .select("id, donor_name, message, created_at, status")
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(10);
 
-    if (communityMsgs) {
-      communityMsgs.forEach((c) => {
-        allNotifications.push({
-          id: c.id,
-          type: "community",
-          title: `Community message from ${c.donor_name}`,
-          message: c.message.substring(0, 50) + (c.message.length > 50 ? "..." : ""),
-          created_at: c.created_at,
-          is_read: false,
-          source_table: "community_messages",
-          navigate_to: "/bms?tab=website&subtab=community",
+      if (communityMsgs) {
+        communityMsgs.forEach((c) => {
+          allNotifications.push({
+            id: c.id,
+            type: "community",
+            title: `Community message from ${c.donor_name}`,
+            message: c.message.substring(0, 50) + (c.message.length > 50 ? "..." : ""),
+            created_at: c.created_at,
+            is_read: false,
+            source_table: "community_messages",
+            navigate_to: "/bms?tab=website&subtab=community",
+          });
         });
-      });
-    }
+      }
 
-    // Fetch donation requests (pending)
-    const { data: donations } = await supabase
-      .from("donation_requests")
-      .select("id, donor_name, message, created_at, status")
-      .eq("status", "pending")
-      .order("created_at", { ascending: false })
-      .limit(10);
+      // Fetch donation requests (pending)
+      const { data: donations } = await supabase
+        .from("donation_requests")
+        .select("id, donor_name, message, created_at, status")
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(10);
 
-    if (donations) {
-      donations.forEach((d) => {
-        allNotifications.push({
-          id: d.id,
-          type: "donation",
-          title: `Donation request from ${d.donor_name}`,
-          message: d.message?.substring(0, 50) + (d.message && d.message.length > 50 ? "..." : "") || "No message",
-          created_at: d.created_at,
-          is_read: false,
-          source_table: "donation_requests",
-          navigate_to: "/bms?tab=website&subtab=donations",
+      if (donations) {
+        donations.forEach((d) => {
+          allNotifications.push({
+            id: d.id,
+            type: "donation",
+            title: `Donation request from ${d.donor_name}`,
+            message: d.message?.substring(0, 50) + (d.message && d.message.length > 50 ? "..." : "") || "No message",
+            created_at: d.created_at,
+            is_read: false,
+            source_table: "donation_requests",
+            navigate_to: "/bms?tab=website&subtab=donations",
+          });
         });
-      });
-    }
+      }
 
-    // Fetch admin alerts (unread)
-    const { data: alerts } = await supabase
-      .from("admin_alerts")
-      .select("id, message, created_at, is_read, alert_type")
-      .eq("is_read", false)
-      .order("created_at", { ascending: false })
-      .limit(10);
+      // Fetch admin alerts (unread)
+      const { data: alerts } = await supabase
+        .from("admin_alerts")
+        .select("id, message, created_at, is_read, alert_type")
+        .eq("is_read", false)
+        .order("created_at", { ascending: false })
+        .limit(10);
 
-    if (alerts) {
-      alerts.forEach((a) => {
-        allNotifications.push({
-          id: a.id,
-          type: "alert",
-          title: a.alert_type === "low_stock" ? "Low Stock Alert" : "System Alert",
-          message: a.message.substring(0, 50) + (a.message.length > 50 ? "..." : ""),
-          created_at: a.created_at,
-          is_read: a.is_read,
-          source_table: "admin_alerts",
-          navigate_to: a.alert_type === "low_stock" ? "/bms?tab=inventory" : "/bms?tab=dashboard",
+      if (alerts) {
+        alerts.forEach((a) => {
+          allNotifications.push({
+            id: a.id,
+            type: "alert",
+            title: a.alert_type === "low_stock" ? "Low Stock Alert" : "System Alert",
+            message: a.message.substring(0, 50) + (a.message.length > 50 ? "..." : ""),
+            created_at: a.created_at,
+            is_read: a.is_read,
+            source_table: "admin_alerts",
+            navigate_to: a.alert_type === "low_stock" ? "/bms?tab=inventory" : "/bms?tab=dashboard",
+          });
         });
-      });
+      }
+
+      // Sort by date
+      allNotifications.sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      // Only update state if component is still mounted
+      if (isMountedRef.current) {
+        setNotifications(allNotifications.slice(0, 15));
+      }
+    } catch (error) {
+      console.error('[NotificationsCenter] Error fetching notifications:', error);
     }
-
-    // Sort by date
-    allNotifications.sort((a, b) => 
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    );
-
-    setNotifications(allNotifications.slice(0, 15));
-  };
+  }, []);
 
   useEffect(() => {
+    isMountedRef.current = true;
+    
     fetchNotifications();
 
     // Real-time subscriptions
@@ -143,7 +154,11 @@ export function NotificationsCenter() {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "website_contacts" },
-        () => fetchNotifications()
+        () => {
+          if (isMountedRef.current) {
+            fetchNotifications();
+          }
+        }
       )
       .subscribe();
 
@@ -152,7 +167,11 @@ export function NotificationsCenter() {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "community_messages" },
-        () => fetchNotifications()
+        () => {
+          if (isMountedRef.current) {
+            fetchNotifications();
+          }
+        }
       )
       .subscribe();
 
@@ -161,7 +180,11 @@ export function NotificationsCenter() {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "donation_requests" },
-        () => fetchNotifications()
+        () => {
+          if (isMountedRef.current) {
+            fetchNotifications();
+          }
+        }
       )
       .subscribe();
 
@@ -170,17 +193,22 @@ export function NotificationsCenter() {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "admin_alerts" },
-        () => fetchNotifications()
+        () => {
+          if (isMountedRef.current) {
+            fetchNotifications();
+          }
+        }
       )
       .subscribe();
 
     return () => {
+      isMountedRef.current = false;
       supabase.removeChannel(contactsChannel);
       supabase.removeChannel(communityChannel);
       supabase.removeChannel(donationsChannel);
       supabase.removeChannel(alertsChannel);
     };
-  }, []);
+  }, [fetchNotifications]);
 
   const handleNotificationClick = async (notification: Notification) => {
     // Mark alert as read if it's an admin alert
