@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ProductModal } from "./ProductModal";
 import { ProductVariantsModal } from "./ProductVariantsModal";
 import { useTenant } from "@/hooks/useTenant";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -75,6 +76,7 @@ export function ProductsManager() {
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const { toast } = useToast();
   const { tenantId } = useTenant();
+  const { terminology } = useBusinessConfig();
 
   useEffect(() => {
     if (tenantId) {
@@ -184,12 +186,12 @@ export function ProductsManager() {
     >
       <Card className="bg-white border-[#004B8D]/10 shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-[#003366]">All Products</CardTitle>
+          <CardTitle className="text-[#003366]">All {terminology.products}</CardTitle>
           <div className="flex items-center gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#004B8D]/50" />
               <Input
-                placeholder="Search products..."
+                placeholder={`Search ${terminology.products.toLowerCase()}...`}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 w-64 bg-[#f0f7fa] border-[#004B8D]/20"
@@ -203,7 +205,7 @@ export function ProductsManager() {
               className="bg-[#004B8D] hover:bg-[#003366] text-white"
             >
               <Plus className="w-4 h-4 mr-2" />
-              Add Product
+              Add {terminology.product}
             </Button>
           </div>
         </CardHeader>
@@ -211,7 +213,7 @@ export function ProductsManager() {
           <Table>
             <TableHeader>
               <TableRow className="border-[#004B8D]/10">
-                <TableHead className="text-[#004B8D]/70">Product</TableHead>
+                <TableHead className="text-[#004B8D]/70">{terminology.product}</TableHead>
                 <TableHead className="text-[#004B8D]/70">SKU</TableHead>
                 <TableHead className="text-[#004B8D]/70">Cost</TableHead>
                 <TableHead className="text-[#004B8D]/70">Price</TableHead>
@@ -226,7 +228,7 @@ export function ProductsManager() {
               {filteredProducts.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={9} className="text-center text-[#004B8D]/50 py-8">
-                    No products found
+                    No {terminology.products.toLowerCase()} found
                   </TableCell>
                 </TableRow>
               ) : (
@@ -395,7 +397,7 @@ export function ProductsManager() {
       <AlertDialog open={!!productToDelete} onOpenChange={() => setProductToDelete(null)}>
         <AlertDialogContent className="bg-white">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-[#003366]">Delete Product?</AlertDialogTitle>
+            <AlertDialogTitle className="text-[#003366]">Delete {terminology.product}?</AlertDialogTitle>
             <AlertDialogDescription className="text-[#004B8D]/70">
               This will permanently delete "{productToDelete?.name}" and all its variants.
               This action cannot be undone.

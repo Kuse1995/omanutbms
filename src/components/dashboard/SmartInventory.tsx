@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/hooks/useTenant";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 interface InventoryItem {
   id: string;
@@ -46,6 +47,7 @@ export function SmartInventory() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { toast } = useToast();
   const { tenantId } = useTenant();
+  const { terminology } = useBusinessConfig();
 
   const fetchInventory = async () => {
     if (!tenantId) return;
@@ -161,9 +163,9 @@ export function SmartInventory() {
             <Package className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-white">Smart Inventory</h2>
+            <h2 className="text-xl font-bold text-white">Smart {terminology.inventory}</h2>
           <p className="text-sm text-slate-400">
-            Warehouse View • {inventory.filter(i => !isServiceItem(i)).length} products • {inventory.filter(i => isServiceItem(i)).length} services
+            Warehouse View • {inventory.filter(i => !isServiceItem(i)).length} {terminology.products.toLowerCase()} • {inventory.filter(i => isServiceItem(i)).length} services
           </p>
           </div>
         </div>
@@ -173,7 +175,7 @@ export function SmartInventory() {
           className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
         >
           <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
-          Sync Inventory
+          Sync {terminology.inventory}
         </Button>
       </div>
 
@@ -182,7 +184,7 @@ export function SmartInventory() {
           <TableHeader>
             <TableRow className="border-slate-700 hover:bg-transparent">
               <TableHead className="text-slate-400 font-medium">SKU</TableHead>
-              <TableHead className="text-slate-400 font-medium">Product</TableHead>
+              <TableHead className="text-slate-400 font-medium">{terminology.product}</TableHead>
               <TableHead className="text-slate-400 font-medium text-right">Current Stock</TableHead>
               <TableHead className="text-slate-400 font-medium text-right">Reserved</TableHead>
               <TableHead className="text-slate-400 font-medium">AI Prediction</TableHead>
@@ -193,7 +195,7 @@ export function SmartInventory() {
             {inventory.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-slate-400 py-8">
-                  No inventory items found
+                  No {terminology.products.toLowerCase()} found
                 </TableCell>
               </TableRow>
             ) : (
