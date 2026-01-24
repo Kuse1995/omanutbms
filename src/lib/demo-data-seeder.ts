@@ -155,6 +155,7 @@ function getInventoryTemplate(businessType: BusinessType) {
 
 // Generate customers for demo
 async function seedCustomers(config: SeedConfig, count: number = 10) {
+  console.log('[Demo Seeder] Seeding customers...');
   const customers = [];
   
   for (let i = 0; i < count; i++) {
@@ -172,14 +173,19 @@ async function seedCustomers(config: SeedConfig, count: number = 10) {
     });
   }
   
-  const { error } = await supabase.from('customers').insert(customers);
-  if (error) console.error('Error seeding customers:', error);
+  const { data, error } = await supabase.from('customers').insert(customers).select();
+  if (error) {
+    console.error('[Demo Seeder] Error seeding customers:', error);
+    throw error;
+  }
   
-  return customers;
+  console.log(`[Demo Seeder] Seeded ${data?.length || 0} customers`);
+  return data || [];
 }
 
 // Generate inventory items for demo
 async function seedInventory(config: SeedConfig) {
+  console.log('[Demo Seeder] Seeding inventory...');
   const template = getInventoryTemplate(config.businessType);
   
   const items = template.map(item => ({
@@ -196,18 +202,24 @@ async function seedInventory(config: SeedConfig) {
   }));
   
   const { data, error } = await supabase.from('inventory').insert(items).select();
-  if (error) console.error('Error seeding inventory:', error);
+  if (error) {
+    console.error('[Demo Seeder] Error seeding inventory:', error);
+    throw error;
+  }
   
+  console.log(`[Demo Seeder] Seeded ${data?.length || 0} inventory items`);
   return data || [];
 }
 
 // Generate historical transactions (60 days)
+// Fixed: Uses correct column names (unit_price_zmw, total_amount_zmw, product_name, customer_name)
 async function seedTransactions(
   config: SeedConfig, 
   inventory: any[], 
   customers: any[],
   daysBack: number = 60
 ) {
+  console.log('[Demo Seeder] Seeding transactions...');
   const transactions = [];
   const today = new Date();
   
@@ -232,15 +244,20 @@ async function seedTransactions(
       const quantity = Math.floor(Math.random() * 3) + 1;
       const total = item.unit_price * quantity;
       
+      // Fixed column names to match schema
       transactions.push({
         tenant_id: config.tenantId,
         product_id: item.id,
-        customer_id: customer?.id,
+        product_name: item.name, // Required field
+        customer_name: customer?.name || 'Walk-in Customer',
+        customer_email: customer?.email || null,
+        customer_phone: customer?.phone || null,
         quantity,
-        unit_price: item.unit_price,
-        total_amount: total,
+        unit_price_zmw: item.unit_price, // Fixed: was unit_price
+        total_amount_zmw: total, // Fixed: was total_amount
         payment_method: ['cash', 'mobile_money', 'card'][Math.floor(Math.random() * 3)],
-        transaction_date: format(date, 'yyyy-MM-dd'),
+        transaction_type: 'sale', // Required field
+        item_type: 'product',
         created_at: date.toISOString(),
         is_demo: true,
         demo_session_id: config.sessionId,
@@ -250,18 +267,28 @@ async function seedTransactions(
   
   // Insert in batches
   const batchSize = 50;
+  let insertedCount = 0;
   for (let i = 0; i < transactions.length; i += batchSize) {
     const batch = transactions.slice(i, i + batchSize);
     const { error } = await supabase.from('sales_transactions').insert(batch);
-    if (error) console.error('Error seeding transactions batch:', error);
+    if (error) {
+      console.error('[Demo Seeder] Error seeding transactions batch:', error);
+      throw error;
+    }
+    insertedCount += batch.length;
   }
   
+  console.log(`[Demo Seeder] Seeded ${insertedCount} transactions`);
   return transactions;
 }
 
-// Generate invoices
+// Generate invoices (fixed: insert invoice_items separately, removed items_json)
 async function seedInvoices(config: SeedConfig, customers: any[], inventory: any[]) {
-  const invoices = [];
+  console.log('[Demo Seeder] Seeding invoices...');
+  const invoicesData: Array<{
+    invoiceRecord: any;
+    items: Array<{ description: string; quantity: number; unit_price: number; amount: number }>;
+  }> = [];
   const today = new Date();
   
   const statuses = ['paid', 'paid', 'paid', 'pending', 'pending', 'overdue'];
@@ -275,7 +302,7 @@ async function seedInvoices(config: SeedConfig, customers: any[], inventory: any
     
     const itemCount = Math.floor(Math.random() * 4) + 1;
     let subtotal = 0;
-    const items = [];
+    const items: Array<{ description: string; quantity: number; unit_price: number; amount: number }> = [];
     
     for (let j = 0; j < itemCount; j++) {
       const item = inventory[Math.floor(Math.random() * inventory.length)];
@@ -294,35 +321,83 @@ async function seedInvoices(config: SeedConfig, customers: any[], inventory: any
     const taxAmount = subtotal * 0.16;
     const totalAmount = subtotal + taxAmount;
     
-    invoices.push({
-      tenant_id: config.tenantId,
-      invoice_number: `INV-DEMO-${String(i + 1).padStart(4, '0')}`,
-      client_name: customer?.name || 'Walk-in Customer',
-      client_email: customer?.email,
-      client_phone: customer?.phone,
-      invoice_date: format(invoiceDate, 'yyyy-MM-dd'),
-      due_date: format(dueDate, 'yyyy-MM-dd'),
-      status,
-      subtotal,
-      tax_rate: 16,
-      tax_amount: taxAmount,
-      total_amount: totalAmount,
-      paid_amount: status === 'paid' ? totalAmount : (status === 'pending' ? 0 : totalAmount * 0.3),
-      is_demo: true,
-      demo_session_id: config.sessionId,
-      items_json: items,
+    // Fixed: removed items_json column
+    invoicesData.push({
+      invoiceRecord: {
+        tenant_id: config.tenantId,
+        invoice_number: `INV-DEMO-${String(i + 1).padStart(4, '0')}`,
+        client_name: customer?.name || 'Walk-in Customer',
+        client_email: customer?.email,
+        client_phone: customer?.phone,
+        invoice_date: format(invoiceDate, 'yyyy-MM-dd'),
+        due_date: format(dueDate, 'yyyy-MM-dd'),
+        status,
+        subtotal,
+        tax_rate: 16,
+        tax_amount: taxAmount,
+        total_amount: totalAmount,
+        paid_amount: status === 'paid' ? totalAmount : (status === 'pending' ? 0 : totalAmount * 0.3),
+        is_demo: true,
+        demo_session_id: config.sessionId,
+      },
+      items,
     });
   }
   
-  const { data, error } = await supabase.from('invoices').insert(invoices).select();
-  if (error) console.error('Error seeding invoices:', error);
+  // Insert invoices first
+  const invoiceRecords = invoicesData.map(d => d.invoiceRecord);
+  const { data: insertedInvoices, error: invoiceError } = await supabase
+    .from('invoices')
+    .insert(invoiceRecords)
+    .select();
   
-  return data || [];
+  if (invoiceError) {
+    console.error('[Demo Seeder] Error seeding invoices:', invoiceError);
+    throw invoiceError;
+  }
+  
+  console.log(`[Demo Seeder] Seeded ${insertedInvoices?.length || 0} invoices`);
+  
+  // Then insert invoice_items with the returned invoice IDs
+  if (insertedInvoices && insertedInvoices.length > 0) {
+    const allItems: any[] = [];
+    
+    for (let i = 0; i < insertedInvoices.length; i++) {
+      const invoice = insertedInvoices[i];
+      const itemsForInvoice = invoicesData[i].items;
+      
+      for (const item of itemsForInvoice) {
+        allItems.push({
+          invoice_id: invoice.id,
+          tenant_id: config.tenantId,
+          description: item.description,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          amount: item.amount,
+          item_type: 'product',
+          is_demo: true,
+          demo_session_id: config.sessionId,
+        });
+      }
+    }
+    
+    if (allItems.length > 0) {
+      const { error: itemsError } = await supabase.from('invoice_items').insert(allItems);
+      if (itemsError) {
+        console.error('[Demo Seeder] Error seeding invoice items:', itemsError);
+        throw itemsError;
+      }
+      console.log(`[Demo Seeder] Seeded ${allItems.length} invoice items`);
+    }
+  }
+  
+  return insertedInvoices || [];
 }
 
-// Generate employees
+// Generate employees (fixed: uses correct column names)
 async function seedEmployees(config: SeedConfig, count: number = 5) {
-  const roles = ['manager', 'cashier', 'sales_rep', 'accountant', 'hr_manager'];
+  console.log('[Demo Seeder] Seeding employees...');
+  const jobTitles = ['Manager', 'Cashier', 'Sales Representative', 'Accountant', 'HR Manager'];
   const employees = [];
   
   for (let i = 0; i < count; i++) {
@@ -330,32 +405,44 @@ async function seedEmployees(config: SeedConfig, count: number = 5) {
     const address = generateZambianAddress();
     const hireDate = subDays(new Date(), Math.floor(Math.random() * 365) + 30);
     
+    // Fixed column names to match schema
     employees.push({
       tenant_id: config.tenantId,
-      first_name: name.firstName,
-      last_name: name.surname,
+      full_name: name.fullName, // Fixed: was first_name + last_name
       email: generateZambianEmail(name),
       phone: generateZambianPhone(),
-      role: roles[i % roles.length],
+      job_title: jobTitles[i % jobTitles.length], // Fixed: was role
       department: ['Operations', 'Sales', 'Finance', 'HR', 'Admin'][i % 5],
       hire_date: format(hireDate, 'yyyy-MM-dd'),
-      basic_salary: [3500, 4500, 5500, 6500, 8000][i % 5],
-      status: 'active',
+      base_salary_zmw: [3500, 4500, 5500, 6500, 8000][i % 5], // Fixed: was basic_salary
+      employment_status: 'active', // Fixed: was status
+      employee_type: 'full_time', // Required field
+      pay_type: 'monthly', // Required field
       address: `${address.address}, ${address.city}`,
       is_demo: true,
       demo_session_id: config.sessionId,
     });
   }
   
-  const { error } = await supabase.from('employees').insert(employees);
-  if (error) console.error('Error seeding employees:', error);
+  const { data, error } = await supabase.from('employees').insert(employees).select();
+  if (error) {
+    console.error('[Demo Seeder] Error seeding employees:', error);
+    throw error;
+  }
   
-  return employees;
+  console.log(`[Demo Seeder] Seeded ${data?.length || 0} employees`);
+  return data || [];
 }
 
 // Main seeding function
 export async function seedDemoDataForBusinessType(config: SeedConfig) {
   const { onProgress } = config;
+  
+  console.log('[Demo Seeder] Starting demo data seeding...', {
+    businessType: config.businessType,
+    tenantId: config.tenantId,
+    sessionId: config.sessionId,
+  });
   
   try {
     onProgress?.(10);
@@ -382,9 +469,10 @@ export async function seedDemoDataForBusinessType(config: SeedConfig) {
     
     onProgress?.(100);
     
+    console.log('[Demo Seeder] Demo data seeding completed successfully!');
     return { success: true };
   } catch (error) {
-    console.error('Demo seeding failed:', error);
+    console.error('[Demo Seeder] Demo seeding failed:', error);
     throw error;
   }
 }

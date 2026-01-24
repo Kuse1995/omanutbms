@@ -96,11 +96,18 @@ export function DemoModeProvider({ children }: { children: React.ReactNode }) {
   }, [state.isDemoMode, state.demoBusinessType, state.demoSessionId, state.activeScenario, state.presentationMode, isSuperAdmin]);
 
   const seedDemoData = useCallback(async (businessType: BusinessType, sessionId: string) => {
-    if (!tenantId) return;
+    // Fixed: Show error toast when tenantId is missing instead of silent failure
+    if (!tenantId) {
+      toast.error('Unable to seed demo data: No tenant found. Please reload the page.');
+      console.error('[DemoMode] Cannot seed demo data: tenantId is null');
+      throw new Error('No tenant ID available for demo seeding');
+    }
     
     setState(prev => ({ ...prev, isSeeding: true, seedingProgress: 0 }));
     
     try {
+      console.log('[DemoMode] Starting demo seed for:', { businessType, tenantId, sessionId });
+      
       // Import seeder dynamically to avoid circular dependencies
       const { seedDemoDataForBusinessType } = await import('@/lib/demo-data-seeder');
       
@@ -115,8 +122,8 @@ export function DemoModeProvider({ children }: { children: React.ReactNode }) {
       
       toast.success(`Demo data seeded for ${businessType}!`);
     } catch (error) {
-      console.error('Failed to seed demo data:', error);
-      toast.error('Failed to seed demo data');
+      console.error('[DemoMode] Failed to seed demo data:', error);
+      toast.error('Failed to seed demo data. Check console for details.');
       throw error;
     } finally {
       setState(prev => ({ ...prev, isSeeding: false, seedingProgress: 100 }));
