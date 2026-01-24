@@ -4048,6 +4048,50 @@ export type Database = {
           },
         ]
       }
+      whatsapp_pending_confirmations: {
+        Row: {
+          created_at: string
+          entities: Json | null
+          expires_at: string
+          id: string
+          intent: string
+          pending_data: Json | null
+          tenant_id: string | null
+          user_id: string | null
+          whatsapp_number: string
+        }
+        Insert: {
+          created_at?: string
+          entities?: Json | null
+          expires_at: string
+          id?: string
+          intent: string
+          pending_data?: Json | null
+          tenant_id?: string | null
+          user_id?: string | null
+          whatsapp_number: string
+        }
+        Update: {
+          created_at?: string
+          entities?: Json | null
+          expires_at?: string
+          id?: string
+          intent?: string
+          pending_data?: Json | null
+          tenant_id?: string | null
+          user_id?: string | null
+          whatsapp_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_pending_confirmations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_usage_logs: {
         Row: {
           created_at: string
