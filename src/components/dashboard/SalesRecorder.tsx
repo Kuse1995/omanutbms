@@ -95,7 +95,7 @@ export function SalesRecorder() {
   const { toast } = useToast();
   const { tenantId } = useTenant();
   const { currentBranch, isMultiBranchEnabled, canAccessAllBranches } = useBranch();
-  const { isImpactEnabled, impact, businessType, currencySymbol } = useBusinessConfig();
+  const { isImpactEnabled, impact, businessType, currencySymbol, terminology } = useBusinessConfig();
 
   // Collections for fashion POS
   const [collections, setCollections] = useState<Array<{ id: string; name: string }>>([]);
@@ -532,7 +532,7 @@ export function SalesRecorder() {
     }
 
     if (paymentMethod === "credit_invoice" && !customerName.trim()) {
-      toast({ title: "Customer Name Required", description: "Please enter customer name for credit sales", variant: "destructive" });
+      toast({ title: `${terminology.customer} Name Required`, description: `Please enter ${terminology.customer.toLowerCase()} name for credit ${terminology.sales.toLowerCase()}`, variant: "destructive" });
       return;
     }
 
@@ -789,9 +789,9 @@ export function SalesRecorder() {
         <div>
           <h2 className="text-2xl font-display font-bold text-[#003366] flex items-center gap-2">
             <ShoppingCart className="w-6 h-6 text-[#0077B6]" />
-            Sales Recorder
+            {terminology.sales} Recorder
           </h2>
-          <p className="text-[#004B8D]/60 mt-1">Record sales with products & services bundled together</p>
+          <p className="text-[#004B8D]/60 mt-1">Record {terminology.sales.toLowerCase()} with {terminology.products.toLowerCase()} & services bundled together</p>
         </div>
       </div>
 
@@ -801,10 +801,10 @@ export function SalesRecorder() {
           <CardHeader>
             <CardTitle className="text-[#003366] flex items-center gap-2">
               <Plus className="w-5 h-5 text-[#0077B6]" />
-              {isFashionMode ? "Select Products" : "Add Items to Sale"}
+              {isFashionMode ? `Select ${terminology.products}` : `Add Items to ${terminology.sale}`}
             </CardTitle>
             <CardDescription className="text-[#004B8D]/60">
-              {isFashionMode ? "Click on products to add them to cart" : "Add products and services, then checkout together"}
+              {isFashionMode ? `Click on ${terminology.products.toLowerCase()} to add them to cart` : `Add ${terminology.products.toLowerCase()} and services, then checkout together`}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -842,6 +842,7 @@ export function SalesRecorder() {
                   type="button"
                   variant={saleType === "product" ? "default" : "outline"}
                   className={`flex-1 ${saleType === "product" ? "bg-[#004B8D] hover:bg-[#003366]" : ""}`}
+                  title={terminology.product}
                   onClick={() => setSaleType("product")}
                 >
                   <Package className="w-4 h-4 mr-2" />
@@ -863,12 +864,12 @@ export function SalesRecorder() {
             {saleType === "product" && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-[#003366]">Product *</Label>
+                  <Label className="text-[#003366]">{terminology.product} *</Label>
                   <ProductCombobox
                     products={inventory}
                     value={selectedProduct}
                     onValueChange={setSelectedProduct}
-                    placeholder="Search and select product..."
+                    placeholder={`Search and select ${terminology.product.toLowerCase()}...`}
                     showStock={true}
                     showPrice={true}
                   />
@@ -1101,7 +1102,7 @@ export function SalesRecorder() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label className="text-[#003366]">
-                  Customer Name {paymentMethod === "credit_invoice" && <span className="text-red-500">*</span>}
+                  {terminology.customer} Name {paymentMethod === "credit_invoice" && <span className="text-red-500">*</span>}
                 </Label>
                 <Input
                   value={customerName}
