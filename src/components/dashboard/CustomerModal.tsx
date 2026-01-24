@@ -9,6 +9,7 @@ import { MeasurementsForm, type Measurements } from "./MeasurementsForm";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/hooks/useTenant";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 import { User, Ruler, Save, Loader2 } from "lucide-react";
 
 interface Customer {
@@ -31,6 +32,7 @@ interface CustomerModalProps {
 export function CustomerModal({ open, onOpenChange, customer, onSuccess }: CustomerModalProps) {
   const { toast } = useToast();
   const { tenant } = useTenant();
+  const { terminology } = useBusinessConfig();
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("details");
 
@@ -63,7 +65,7 @@ export function CustomerModal({ open, onOpenChange, customer, onSuccess }: Custo
 
   const handleSubmit = async () => {
     if (!formData.name.trim()) {
-      toast({ title: "Error", description: "Customer name is required", variant: "destructive" });
+      toast({ title: "Error", description: `${terminology.customer} name is required`, variant: "destructive" });
       return;
     }
 
@@ -92,11 +94,11 @@ export function CustomerModal({ open, onOpenChange, customer, onSuccess }: Custo
           .eq("id", customer.id);
 
         if (error) throw error;
-        toast({ title: "Success", description: "Customer updated successfully" });
+        toast({ title: "Success", description: `${terminology.customer} updated successfully` });
       } else {
         const { error } = await supabase.from("customers").insert(payload);
         if (error) throw error;
-        toast({ title: "Success", description: "Customer added successfully" });
+        toast({ title: "Success", description: `${terminology.customer} added successfully` });
       }
 
       onSuccess();
@@ -115,7 +117,7 @@ export function CustomerModal({ open, onOpenChange, customer, onSuccess }: Custo
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <User className="h-5 w-5 text-primary" />
-            {customer ? "Edit Customer" : "Add New Customer"}
+            {customer ? `Edit ${terminology.customer}` : `Add New ${terminology.customer}`}
           </DialogTitle>
         </DialogHeader>
 
@@ -138,7 +140,7 @@ export function CustomerModal({ open, onOpenChange, customer, onSuccess }: Custo
                 id="name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Customer name"
+                placeholder={`${terminology.customer} name`}
               />
             </div>
 
@@ -207,7 +209,7 @@ export function CustomerModal({ open, onOpenChange, customer, onSuccess }: Custo
             ) : (
               <>
                 <Save className="h-4 w-4 mr-2" />
-                {customer ? "Update Customer" : "Add Customer"}
+                {customer ? `Update ${terminology.customer}` : `Add ${terminology.customer}`}
               </>
             )}
           </Button>

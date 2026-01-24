@@ -30,7 +30,7 @@ interface SaleDetailsModalProps {
 }
 
 export function SaleDetailsModal({ sale, isOpen, onClose }: SaleDetailsModalProps) {
-  const { isImpactEnabled, impact } = useBusinessConfig();
+  const { isImpactEnabled, impact, terminology } = useBusinessConfig();
   
   if (!sale) return null;
 
@@ -52,21 +52,21 @@ export function SaleDetailsModal({ sale, isOpen, onClose }: SaleDetailsModalProp
         <DialogHeader>
           <DialogTitle className="text-[#003366] flex items-center gap-2">
             <FileText className="w-5 h-5 text-[#0077B6]" />
-            Sale Details
+            {terminology.sale} Details
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
           {/* Customer Information */}
           <div className="space-y-3">
-            <h4 className="text-sm font-semibold text-[#004B8D] uppercase tracking-wide">Customer Information</h4>
+            <h4 className="text-sm font-semibold text-[#004B8D] uppercase tracking-wide">{terminology.customer} Information</h4>
             <div className="bg-[#f0f7fa] rounded-lg p-4 space-y-3">
               <div className="flex items-center gap-3">
                 <User className="w-4 h-4 text-[#004B8D]/60" />
                 <div>
                   <p className="text-xs text-[#004B8D]/60">Name</p>
                   <p className="text-[#003366] font-medium">
-                    {sale.customer_name || <span className="text-[#004B8D]/40 italic">Walk-in Customer</span>}
+                    {sale.customer_name || <span className="text-[#004B8D]/40 italic">Walk-in {terminology.customer}</span>}
                   </p>
                 </div>
               </div>
@@ -116,7 +116,7 @@ export function SaleDetailsModal({ sale, isOpen, onClose }: SaleDetailsModalProp
               ) : (
                 <>
                   <Package className="w-4 h-4 text-[#0077B6]" />
-                  Product Details
+                  {terminology.product} Details
                 </>
               )}
             </h4>
@@ -128,7 +128,7 @@ export function SaleDetailsModal({ sale, isOpen, onClose }: SaleDetailsModalProp
                   <Package className="w-4 h-4 text-[#004B8D]/60" />
                 )}
                 <div className="flex-1">
-                  <p className="text-xs text-[#004B8D]/60">{sale.item_type === "service" ? "Service" : "Product"}</p>
+                  <p className="text-xs text-[#004B8D]/60">{sale.item_type === "service" ? "Service" : terminology.product}</p>
                   <p className="text-[#003366] font-medium flex items-center gap-2">
                     {sale.product_name}
                     {sale.item_type === "service" && (

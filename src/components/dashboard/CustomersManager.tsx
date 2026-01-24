@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/hooks/useTenant";
 import { useAuth } from "@/hooks/useAuth";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,6 +29,7 @@ export function CustomersManager() {
   const { toast } = useToast();
   const { tenant } = useTenant();
   const { isAdmin, canEdit: canEditRole } = useAuth();
+  const { terminology } = useBusinessConfig();
   const [loading, setLoading] = useState(true);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -85,7 +87,7 @@ export function CustomersManager() {
         .eq("id", customerToDelete.id);
 
       if (error) throw error;
-      toast({ title: "Success", description: "Customer deleted successfully" });
+      toast({ title: "Success", description: `${terminology.customer} deleted successfully` });
       fetchCustomers();
     } catch (error: any) {
       console.error("Error deleting customer:", error);
@@ -121,33 +123,33 @@ export function CustomersManager() {
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Users className="h-6 w-6 text-primary" />
-            Customers
+            {terminology.customers}
           </h1>
           <p className="text-muted-foreground">
-            Manage client profiles and body measurements
+            Manage {terminology.customer.toLowerCase()} profiles and body measurements
           </p>
         </div>
 
         {canEdit && (
           <Button onClick={() => { setSelectedCustomer(null); setModalOpen(true); }}>
             <Plus className="h-4 w-4 mr-2" />
-            Add Customer
+            Add {terminology.customer}
           </Button>
         )}
       </div>
 
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search customers..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
+            <div className="flex items-center gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder={`Search ${terminology.customers.toLowerCase()}...`}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
           </div>
         </CardHeader>
 
@@ -156,7 +158,7 @@ export function CustomersManager() {
             <div className="text-center py-12">
               <Users className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
               <p className="text-muted-foreground">
-                {searchQuery ? "No customers match your search" : "No customers yet"}
+                {searchQuery ? `No ${terminology.customers.toLowerCase()} match your search` : `No ${terminology.customers.toLowerCase()} yet`}
               </p>
               {canEdit && !searchQuery && (
                 <Button
@@ -165,7 +167,7 @@ export function CustomersManager() {
                   onClick={() => { setSelectedCustomer(null); setModalOpen(true); }}
                 >
                   <Plus className="h-4 w-4 mr-2" />
-                  Add First Customer
+                  Add First {terminology.customer}
                 </Button>
               )}
             </div>
@@ -266,7 +268,7 @@ export function CustomersManager() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Customer</AlertDialogTitle>
+            <AlertDialogTitle>Delete {terminology.customer}</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete "{customerToDelete?.name}"? This action cannot be undone.
             </AlertDialogDescription>
