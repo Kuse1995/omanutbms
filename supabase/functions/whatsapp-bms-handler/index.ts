@@ -608,6 +608,14 @@ Your admin can upgrade the plan to keep chatting, or it'll reset next month. Con
       display_name: mapping.display_name,
     };
     
+    // Add employee_id and self-service flag for employee self-service mappings
+    if (mapping.employee_id) {
+      contextData.employee_id = mapping.employee_id;
+    }
+    if (mapping.is_employee_self_service) {
+      contextData.is_self_service = true;
+    }
+    
     // Add location for attendance intents if shared
     if ((parsedIntent.intent === 'clock_in' || parsedIntent.intent === 'clock_out') && hasLocation) {
       contextData.location = { latitude, longitude };
