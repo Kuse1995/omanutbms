@@ -1,5 +1,8 @@
 // Feature flags and configuration utilities for multi-tenant feature toggling
 // Module registry (modules-config.ts) is the source of truth for module definitions
+// Business type defaults come from business-type-config.ts
+
+import { getBusinessTypeConfig, BusinessType } from './business-type-config';
 
 export type FeatureKey = 'inventory' | 'payroll' | 'agents' | 'impact' | 'website' | 'advanced_accounting' | 'whatsapp' | 'warehouse';
 
@@ -29,19 +32,24 @@ export interface BusinessProfile {
 
 /**
  * Get feature configuration from business profile
- * Core modules default to true, add-ons respect explicit flags
+ * Uses business type defaults when tenant hasn't explicitly set a value
+ * Explicit tenant overrides (true/false) always take precedence
  */
 export function getFeatureConfig(businessProfile: BusinessProfile | null): FeatureConfig {
+  // Get business type defaults
+  const businessType = (businessProfile?.business_type as BusinessType) || 'retail';
+  const typeDefaults = getBusinessTypeConfig(businessType).defaultFeatures;
+
   return {
-    inventory: businessProfile?.inventory_enabled ?? true,
-    payroll: businessProfile?.payroll_enabled ?? true,
-    agents: businessProfile?.agents_enabled ?? true,
-    impact: businessProfile?.impact_enabled ?? true,
-    website: businessProfile?.website_enabled ?? true,
-    // Default to true so billing plan controls this; explicit false in tenant profile disables
-    advanced_accounting: businessProfile?.advanced_accounting_enabled ?? true,
-    whatsapp: businessProfile?.whatsapp_enabled ?? true,
-    warehouse: businessProfile?.warehouse_enabled ?? true,
+    // Use explicit tenant setting if set, otherwise fall back to business type default
+    inventory: businessProfile?.inventory_enabled ?? typeDefaults.inventory,
+    payroll: businessProfile?.payroll_enabled ?? typeDefaults.payroll,
+    agents: businessProfile?.agents_enabled ?? typeDefaults.agents,
+    impact: businessProfile?.impact_enabled ?? typeDefaults.impact,
+    website: businessProfile?.website_enabled ?? typeDefaults.website,
+    advanced_accounting: businessProfile?.advanced_accounting_enabled ?? typeDefaults.advanced_accounting,
+    whatsapp: businessProfile?.whatsapp_enabled ?? typeDefaults.whatsapp,
+    warehouse: businessProfile?.warehouse_enabled ?? typeDefaults.warehouse,
   };
 }
 

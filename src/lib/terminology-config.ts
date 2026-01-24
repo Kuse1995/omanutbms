@@ -3,7 +3,7 @@
 // NOTE: This file is maintained for backward compatibility
 // New code should use business-type-config.ts as the single source of truth
 
-export type BusinessType = 'distribution' | 'retail' | 'school' | 'ngo' | 'services' | 'agriculture' | 'hospitality' | 'salon' | 'healthcare' | 'autoshop' | 'hybrid';
+export type BusinessType = 'distribution' | 'retail' | 'school' | 'ngo' | 'services' | 'agriculture' | 'hospitality' | 'salon' | 'healthcare' | 'autoshop' | 'hybrid' | 'fashion';
 
 export interface TerminologyMap {
   // Sales/Transaction-related (unified internally as "transactions")
@@ -298,6 +298,29 @@ const terminologyMaps: Record<BusinessType, TerminologyMap> = {
     impactDescription: 'Track your business impact',
     communityLabel: 'Partner',
     communitiesLabel: 'Partners',
+  },
+  fashion: {
+    salesLabel: 'Sales',
+    salesDescription: 'Record and manage fashion sales',
+    transactionLabel: 'Sale',
+    transactionsLabel: 'Sales',
+    revenueLabel: 'Revenue',
+    customerLabel: 'Customer',
+    customersLabel: 'Customers',
+    customerIdLabel: 'Customer ID',
+    inventoryLabel: 'Inventory',
+    productLabel: 'Product',
+    productsLabel: 'Products',
+    itemTypeLabel: 'Product Type',
+    defaultItemType: 'product',
+    isServiceBased: false,
+    invoiceLabel: 'Invoice',
+    invoicesLabel: 'Invoices',
+    impactLabel: 'Impact',
+    impactUnitLabel: 'Units',
+    impactDescription: 'Track your fashion impact',
+    communityLabel: 'Community',
+    communitiesLabel: 'Communities',
   },
 };
 
