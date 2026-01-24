@@ -92,6 +92,18 @@ export interface DashboardLayoutConfig {
   dashboardIcon: string;
 }
 
+// Default feature configuration per business type
+export interface DefaultFeaturesConfig {
+  inventory: boolean;
+  payroll: boolean;
+  agents: boolean;
+  impact: boolean;
+  website: boolean;
+  advanced_accounting: boolean;
+  whatsapp: boolean;
+  warehouse: boolean;
+}
+
 export interface BusinessTypeConfig {
   label: string;
   description: string;
@@ -100,6 +112,7 @@ export interface BusinessTypeConfig {
   impact: ImpactConfig;
   formFields: FormFieldConfig;
   layout: DashboardLayoutConfig;
+  defaultFeatures: DefaultFeaturesConfig;
 }
 
 export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
@@ -186,6 +199,16 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       welcomeMessage: 'Manage your distribution network and agent inventory',
       dashboardIcon: 'Truck',
     },
+    defaultFeatures: {
+      inventory: true,
+      payroll: true,
+      agents: true,
+      impact: true,
+      website: true,
+      advanced_accounting: false,
+      whatsapp: true,
+      warehouse: true,
+    },
   },
 
   retail: {
@@ -265,6 +288,16 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       welcomeMessage: 'Manage your retail sales and inventory',
       dashboardIcon: 'Store',
     },
+    defaultFeatures: {
+      inventory: true,
+      payroll: true,
+      agents: false,
+      impact: false,
+      website: true,
+      advanced_accounting: false,
+      whatsapp: true,
+      warehouse: false,
+    },
   },
 
   school: {
@@ -339,6 +372,16 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       ],
       welcomeMessage: 'Manage student fees and academic resources',
       dashboardIcon: 'GraduationCap',
+    },
+    defaultFeatures: {
+      inventory: false,
+      payroll: true,
+      agents: false,
+      impact: true,
+      website: true,
+      advanced_accounting: false,
+      whatsapp: true,
+      warehouse: false,
     },
   },
 
@@ -421,6 +464,16 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       welcomeMessage: 'Track donations, beneficiaries, and social impact',
       dashboardIcon: 'Heart',
     },
+    defaultFeatures: {
+      inventory: true,
+      payroll: false,
+      agents: false,
+      impact: true,
+      website: true,
+      advanced_accounting: false,
+      whatsapp: true,
+      warehouse: false,
+    },
   },
 
   services: {
@@ -500,6 +553,16 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       ],
       welcomeMessage: 'Manage client projects, invoices, and service delivery',
       dashboardIcon: 'Briefcase',
+    },
+    defaultFeatures: {
+      inventory: false,
+      payroll: true,
+      agents: false,
+      impact: false,
+      website: true,
+      advanced_accounting: false,
+      whatsapp: true,
+      warehouse: false,
     },
   },
 
@@ -586,6 +649,16 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       welcomeMessage: 'Manage your farm operations and produce sales',
       dashboardIcon: 'Wheat',
     },
+    defaultFeatures: {
+      inventory: true,
+      payroll: true,
+      agents: false,
+      impact: true,
+      website: false,
+      advanced_accounting: false,
+      whatsapp: true,
+      warehouse: false,
+    },
   },
 
   hospitality: {
@@ -660,6 +733,16 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       ],
       welcomeMessage: 'Manage orders, bookings, and guest services',
       dashboardIcon: 'UtensilsCrossed',
+    },
+    defaultFeatures: {
+      inventory: true,
+      payroll: true,
+      agents: false,
+      impact: false,
+      website: true,
+      advanced_accounting: false,
+      whatsapp: true,
+      warehouse: false,
     },
   },
 
@@ -736,6 +819,16 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       ],
       welcomeMessage: 'Manage appointments, services, and client beauty needs',
       dashboardIcon: 'Scissors',
+    },
+    defaultFeatures: {
+      inventory: true,
+      payroll: true,
+      agents: false,
+      impact: false,
+      website: true,
+      advanced_accounting: false,
+      whatsapp: true,
+      warehouse: false,
     },
   },
 
@@ -817,6 +910,16 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       welcomeMessage: 'Manage patient consultations and healthcare services',
       dashboardIcon: 'Stethoscope',
     },
+    defaultFeatures: {
+      inventory: true,
+      payroll: true,
+      agents: false,
+      impact: true,
+      website: true,
+      advanced_accounting: false,
+      whatsapp: true,
+      warehouse: false,
+    },
   },
 
   autoshop: {
@@ -891,6 +994,16 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       ],
       welcomeMessage: 'Manage vehicle repairs, parts, and job cards',
       dashboardIcon: 'Wrench',
+    },
+    defaultFeatures: {
+      inventory: true,
+      payroll: true,
+      agents: false,
+      impact: false,
+      website: true,
+      advanced_accounting: false,
+      whatsapp: true,
+      warehouse: false,
     },
   },
 
@@ -970,6 +1083,16 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       ],
       welcomeMessage: 'Manage your products, services, and customer transactions',
       dashboardIcon: 'Layers',
+    },
+    defaultFeatures: {
+      inventory: true,
+      payroll: true,
+      agents: false,
+      impact: false,
+      website: true,
+      advanced_accounting: false,
+      whatsapp: true,
+      warehouse: false,
     },
   },
 
@@ -1081,6 +1204,16 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       welcomeMessage: 'Manage your fashion collections and inventory',
       dashboardIcon: 'Shirt',
     },
+    defaultFeatures: {
+      inventory: true,
+      payroll: true,
+      agents: false,
+      impact: false,
+      website: true,
+      advanced_accounting: false,
+      whatsapp: true,
+      warehouse: true,
+    },
   },
 };
 
@@ -1114,4 +1247,12 @@ export function isInventoryEnabledForType(businessType: string | null | undefine
 export function isImpactEnabledForType(businessType: string | null | undefined): boolean {
   const config = getBusinessTypeConfig(businessType);
   return config.impact.enabled;
+}
+
+/**
+ * Get the default feature configuration for a business type
+ */
+export function getDefaultFeaturesForType(businessType: string | null | undefined): DefaultFeaturesConfig {
+  const config = getBusinessTypeConfig(businessType);
+  return config.defaultFeatures;
 }
