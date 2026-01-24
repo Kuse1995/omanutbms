@@ -2616,6 +2616,75 @@ export type Database = {
         }
         Relationships: []
       }
+      platform_config: {
+        Row: {
+          bank_account_name: string | null
+          bank_account_number: string | null
+          bank_branch: string | null
+          bank_name: string | null
+          bank_swift_code: string | null
+          billing_email: string | null
+          created_at: string
+          data_processing_agreement_url: string | null
+          id: string
+          legal_company_name: string | null
+          physical_address: string | null
+          platform_name: string
+          privacy_policy_url: string | null
+          registration_number: string | null
+          support_email: string | null
+          support_phone: string | null
+          support_whatsapp: string | null
+          terms_of_service_url: string | null
+          tpin_number: string | null
+          updated_at: string
+        }
+        Insert: {
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_branch?: string | null
+          bank_name?: string | null
+          bank_swift_code?: string | null
+          billing_email?: string | null
+          created_at?: string
+          data_processing_agreement_url?: string | null
+          id?: string
+          legal_company_name?: string | null
+          physical_address?: string | null
+          platform_name?: string
+          privacy_policy_url?: string | null
+          registration_number?: string | null
+          support_email?: string | null
+          support_phone?: string | null
+          support_whatsapp?: string | null
+          terms_of_service_url?: string | null
+          tpin_number?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_branch?: string | null
+          bank_name?: string | null
+          bank_swift_code?: string | null
+          billing_email?: string | null
+          created_at?: string
+          data_processing_agreement_url?: string | null
+          id?: string
+          legal_company_name?: string | null
+          physical_address?: string | null
+          platform_name?: string
+          privacy_policy_url?: string | null
+          registration_number?: string | null
+          support_email?: string | null
+          support_phone?: string | null
+          support_whatsapp?: string | null
+          terms_of_service_url?: string | null
+          tpin_number?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       product_variants: {
         Row: {
           additional_price: number | null
