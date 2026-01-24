@@ -1,23 +1,25 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FlaskConical, X } from "lucide-react";
+import { FlaskConical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
-import { useDemoMode } from "@/contexts/DemoModeContext";
+import { useDemoModeSafe } from "@/contexts/DemoModeContext";
 import { DemoModeModal } from "./DemoModeModal";
 import { DemoControlPanel } from "./DemoControlPanel";
 import { getBusinessTypeConfig } from "@/lib/business-type-config";
 
 export function DemoModeToggle() {
   const { isSuperAdmin } = useAuth();
-  const { isDemoMode, demoBusinessType, isSeeding } = useDemoMode();
+  const demoContext = useDemoModeSafe();
   const [showModal, setShowModal] = useState(false);
   const [showControlPanel, setShowControlPanel] = useState(false);
 
-  // Only render for super admins
-  if (!isSuperAdmin) return null;
+  // Only render for super admins or if context is not available
+  if (!isSuperAdmin || !demoContext) return null;
+
+  const { isDemoMode, demoBusinessType, isSeeding } = demoContext;
 
   const businessConfig = demoBusinessType ? getBusinessTypeConfig(demoBusinessType) : null;
 

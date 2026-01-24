@@ -28,7 +28,7 @@ import {
   TrendingUp, Calendar, AlertTriangle, Sparkles,
   Clock, Wallet, Shirt, Loader2
 } from "lucide-react";
-import { useDemoMode, DemoScenario } from "@/contexts/DemoModeContext";
+import { useDemoModeSafe, DemoScenario } from "@/contexts/DemoModeContext";
 import { getBusinessTypeConfig } from "@/lib/business-type-config";
 import { scenarioDescriptions } from "@/lib/demo-scenarios";
 import { DemoModeModal } from "./DemoModeModal";
@@ -49,6 +49,13 @@ const scenarioIcons: Record<DemoScenario, React.ComponentType<{ className?: stri
 };
 
 export function DemoControlPanel({ open, onOpenChange }: DemoControlPanelProps) {
+  const demoContext = useDemoModeSafe();
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [showSwitchModal, setShowSwitchModal] = useState(false);
+
+  // If context not available, don't render the control panel
+  if (!demoContext) return null;
+  
   const { 
     demoBusinessType, 
     activeScenario,
@@ -59,10 +66,7 @@ export function DemoControlPanel({ open, onOpenChange }: DemoControlPanelProps) 
     loadScenario,
     togglePresentationMode,
     cleanupDemoData,
-  } = useDemoMode();
-  
-  const [showExitConfirm, setShowExitConfirm] = useState(false);
-  const [showSwitchModal, setShowSwitchModal] = useState(false);
+  } = demoContext;
 
   const businessConfig = demoBusinessType ? getBusinessTypeConfig(demoBusinessType) : null;
   

@@ -3,13 +3,18 @@ import { motion } from "framer-motion";
 import { FlaskConical, Settings, X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { useDemoMode } from "@/contexts/DemoModeContext";
+import { useDemoModeSafe } from "@/contexts/DemoModeContext";
 import { getBusinessTypeConfig } from "@/lib/business-type-config";
 import { DemoControlPanel } from "./DemoControlPanel";
 
 export function DemoModeIndicator() {
-  const { isDemoMode, demoBusinessType, disableDemoMode, isSeeding } = useDemoMode();
+  const demoContext = useDemoModeSafe();
   const [showControlPanel, setShowControlPanel] = useState(false);
+
+  // If context is not available, don't render anything
+  if (!demoContext) return null;
+  
+  const { isDemoMode, demoBusinessType, disableDemoMode, isSeeding } = demoContext;
 
   if (!isDemoMode) return null;
 

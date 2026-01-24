@@ -14,7 +14,7 @@ import {
   Truck, GraduationCap, HandHeart, Briefcase, Car, Layers,
   AlertTriangle, Loader2
 } from "lucide-react";
-import { useDemoMode } from "@/contexts/DemoModeContext";
+import { useDemoModeSafe } from "@/contexts/DemoModeContext";
 import { BusinessType, BUSINESS_TYPE_CONFIG } from "@/lib/business-type-config";
 
 interface DemoModeModalProps {
@@ -53,8 +53,13 @@ const businessTypeDescriptions: Record<BusinessType, string> = {
 };
 
 export function DemoModeModal({ open, onOpenChange }: DemoModeModalProps) {
-  const { enableDemoMode, isSeeding, seedingProgress } = useDemoMode();
+  const demoContext = useDemoModeSafe();
   const [selectedType, setSelectedType] = useState<BusinessType | null>(null);
+  
+  // If context not available, don't render
+  if (!demoContext) return null;
+  
+  const { enableDemoMode, isSeeding, seedingProgress } = demoContext;
 
   const handleEnable = async () => {
     if (!selectedType) return;
