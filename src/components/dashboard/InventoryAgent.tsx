@@ -32,6 +32,7 @@ import { FeatureGuard } from "./FeatureGuard";
 import { useTenant } from "@/hooks/useTenant";
 import { useBranch } from "@/hooks/useBranch";
 import { useFeatures } from "@/hooks/useFeatures";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 interface TechnicalSpec {
   label: string;
@@ -84,6 +85,8 @@ export function InventoryAgent() {
   const { tenantId } = useTenant();
   const { currentBranch, isMultiBranchEnabled } = useBranch();
   const { terminology, currencySymbol } = useFeatures();
+  const { config } = useBusinessConfig();
+  const formFields = config.formFields;
 
   const fetchInventory = async () => {
     if (!tenantId) return;
@@ -389,15 +392,19 @@ export function InventoryAgent() {
                       <Building2 className="w-4 h-4 inline mr-1" />
                       Location
                     </TableHead>
-                    <TableHead className="text-center">
-                      <Palette className="w-4 h-4 inline mr-1" />
-                      Colors
-                    </TableHead>
-                    <TableHead className="text-center">
-                      <Ruler className="w-4 h-4 inline mr-1" />
-                      Sizes
-                    </TableHead>
-                    <TableHead className="text-right">Stock</TableHead>
+                    {!formFields.hideVariants && (
+                      <TableHead className="text-center">
+                        <Palette className="w-4 h-4 inline mr-1" />
+                        Colors
+                      </TableHead>
+                    )}
+                    {!formFields.hideVariants && (
+                      <TableHead className="text-center">
+                        <Ruler className="w-4 h-4 inline mr-1" />
+                        Sizes
+                      </TableHead>
+                    )}
+                    {!formFields.hideStock && <TableHead className="text-right">Stock</TableHead>}
                     <TableHead className="text-right">Price</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -441,19 +448,25 @@ export function InventoryAgent() {
                           <span className="text-sm text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant="outline" className="bg-pink-50 text-pink-700 border-pink-200">
-                          {item.color_count || 0}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                          {item.size_count || 0}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {item.current_stock} {item.unit_of_measure && item.unit_of_measure !== 'pcs' ? item.unit_of_measure : ''}
-                      </TableCell>
+                      {!formFields.hideVariants && (
+                        <TableCell className="text-center">
+                          <Badge variant="outline" className="bg-pink-50 text-pink-700 border-pink-200">
+                            {item.color_count || 0}
+                          </Badge>
+                        </TableCell>
+                      )}
+                      {!formFields.hideVariants && (
+                        <TableCell className="text-center">
+                          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                            {item.size_count || 0}
+                          </Badge>
+                        </TableCell>
+                      )}
+                      {!formFields.hideStock && (
+                        <TableCell className="text-right">
+                          {item.current_stock} {item.unit_of_measure && item.unit_of_measure !== 'pcs' ? item.unit_of_measure : ''}
+                        </TableCell>
+                      )}
                       <TableCell className="text-right">
                         {currencySymbol} {item.unit_price.toLocaleString()}
                       </TableCell>
@@ -472,15 +485,18 @@ export function InventoryAgent() {
                               <PackagePlus className="w-4 h-4" />
                             </Button>
                           )}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleManageVariants(item)}
-                            className="text-[#004B8D] hover:bg-[#004B8D]/10"
-                            title="Manage Variants"
-                          >
-                            <Palette className="w-4 h-4" />
-                          </Button>
+                          {/* Only show variant management when variants are not hidden for this business type */}
+                          {!formFields.hideVariants && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleManageVariants(item)}
+                              className="text-[#004B8D] hover:bg-[#004B8D]/10"
+                              title="Manage Variants"
+                            >
+                              <Palette className="w-4 h-4" />
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             variant="ghost"

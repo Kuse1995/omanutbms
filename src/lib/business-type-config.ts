@@ -50,7 +50,12 @@ export interface FormFieldConfig {
   certificationsLabel: string;
   certifications: Array<{ value: string; label: string }>;
   defaultSpecs: Array<{ label: string; value: string }>;
+  // Form field visibility flags for service-based businesses
   hideStock?: boolean;
+  hideVariants?: boolean;
+  hideExpiry?: boolean;
+  // Service-specific field for duration tracking
+  showDuration?: boolean;
   // Impact units configuration (replaces hardcoded "liters per unit")
   impactUnitsField?: {
     enabled: boolean;
@@ -79,6 +84,8 @@ export interface KPICardConfig {
   icon: string;
   color: string;
   bgColor: string;
+  // Optional subtitle explaining aliased/derived metrics
+  subtitle?: string;
 }
 
 // Dashboard Layout configuration per business type
@@ -354,6 +361,9 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
         { label: 'Term', value: '' },
       ],
       hideStock: true,
+      hideVariants: true,
+      hideExpiry: true,
+      showDuration: true,
       impactUnitsField: { enabled: false, label: 'Impact Units' },
     },
     layout: {
@@ -367,7 +377,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       ],
       kpiCards: [
         { id: 'fee-collections', title: 'Fee Collections', metric: 'total_revenue', icon: 'CreditCard', color: 'text-emerald-600', bgColor: 'bg-emerald-500/10' },
-        { id: 'students-enrolled', title: 'Students Enrolled', metric: 'students_enrolled', icon: 'GraduationCap', color: 'text-[#004B8D]', bgColor: 'bg-[#004B8D]/10' },
+        { id: 'students-enrolled', title: 'Students Enrolled', metric: 'students_enrolled', icon: 'GraduationCap', color: 'text-[#004B8D]', bgColor: 'bg-[#004B8D]/10', subtitle: 'Based on unique customers' },
         { id: 'pending-fees', title: 'Outstanding Fees', metric: 'pending_invoices', icon: 'Clock', color: 'text-amber-600', bgColor: 'bg-amber-500/10' },
       ],
       welcomeMessage: 'Manage student fees and academic resources',
@@ -456,8 +466,8 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
         { id: 'impact-tracking', label: 'Impact Tracking', icon: 'TrendingUp', targetTab: 'communities' },
       ],
       kpiCards: [
-        { id: 'donations', title: 'Donations Received', metric: 'donations_received', icon: 'Heart', color: 'text-rose-600', bgColor: 'bg-rose-500/10' },
-        { id: 'beneficiaries', title: 'Beneficiaries Reached', metric: 'active_clients', icon: 'Users', color: 'text-[#004B8D]', bgColor: 'bg-[#004B8D]/10' },
+        { id: 'donations', title: 'Donations Received', metric: 'donations_received', icon: 'Heart', color: 'text-rose-600', bgColor: 'bg-rose-500/10', subtitle: 'Total revenue this month' },
+        { id: 'beneficiaries', title: 'Beneficiaries Reached', metric: 'active_clients', icon: 'Users', color: 'text-[#004B8D]', bgColor: 'bg-[#004B8D]/10', subtitle: 'Unique recipients served' },
         { id: 'inventory-value', title: 'Relief Supplies', metric: 'inventory_value', icon: 'Package', color: 'text-teal-600', bgColor: 'bg-teal-500/10' },
         { id: 'pending', title: 'Pending Pledges', metric: 'pending_invoices', icon: 'Clock', color: 'text-amber-600', bgColor: 'bg-amber-500/10' },
       ],
@@ -535,6 +545,9 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
         { label: 'Service Guarantee', value: '' },
       ],
       hideStock: true,
+      hideVariants: true,
+      hideExpiry: true,
+      showDuration: true,
       impactUnitsField: { enabled: false, label: 'Impact Units' },
     },
     layout: {
@@ -548,7 +561,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       ],
       kpiCards: [
         { id: 'revenue', title: 'Revenue MTD', metric: 'total_revenue', icon: 'TrendingUp', color: 'text-emerald-600', bgColor: 'bg-emerald-500/10' },
-        { id: 'active-clients', title: 'Active Clients', metric: 'active_clients', icon: 'Users', color: 'text-[#004B8D]', bgColor: 'bg-[#004B8D]/10' },
+        { id: 'active-clients', title: 'Active Clients', metric: 'active_clients', icon: 'Users', color: 'text-[#004B8D]', bgColor: 'bg-[#004B8D]/10', subtitle: 'Unique invoice recipients' },
         { id: 'pending-invoices', title: 'Pending Invoices', metric: 'pending_invoices', icon: 'Clock', color: 'text-amber-600', bgColor: 'bg-amber-500/10' },
       ],
       welcomeMessage: 'Manage client projects, invoices, and service delivery',
@@ -727,7 +740,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       ],
       kpiCards: [
         { id: 'todays-revenue', title: "Today's Revenue", metric: 'total_revenue', icon: 'DollarSign', color: 'text-emerald-600', bgColor: 'bg-emerald-500/10' },
-        { id: 'bookings-today', title: 'Bookings Today', metric: 'bookings_today', icon: 'Calendar', color: 'text-[#004B8D]', bgColor: 'bg-[#004B8D]/10' },
+        { id: 'bookings-today', title: 'Bookings Today', metric: 'bookings_today', icon: 'Calendar', color: 'text-[#004B8D]', bgColor: 'bg-[#004B8D]/10', subtitle: 'Based on today\'s orders' },
         { id: 'food-stock', title: 'Food Stock Value', metric: 'inventory_value', icon: 'Package', color: 'text-teal-600', bgColor: 'bg-teal-500/10' },
         { id: 'pending-bills', title: 'Pending Bills', metric: 'pending_invoices', icon: 'Clock', color: 'text-amber-600', bgColor: 'bg-amber-500/10' },
       ],
@@ -800,6 +813,9 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
         { label: 'Aftercare', value: '' },
       ],
       hideStock: true,
+      hideVariants: true,
+      hideExpiry: true,
+      showDuration: true,
       impactUnitsField: { enabled: false, label: 'Impact Units' },
     },
     layout: {
@@ -813,7 +829,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       ],
       kpiCards: [
         { id: 'todays-revenue', title: "Today's Revenue", metric: 'total_revenue', icon: 'DollarSign', color: 'text-emerald-600', bgColor: 'bg-emerald-500/10' },
-        { id: 'appointments-today', title: 'Appointments Today', metric: 'appointments_today', icon: 'Calendar', color: 'text-[#004B8D]', bgColor: 'bg-[#004B8D]/10' },
+        { id: 'appointments-today', title: 'Appointments Today', metric: 'appointments_today', icon: 'Calendar', color: 'text-[#004B8D]', bgColor: 'bg-[#004B8D]/10', subtitle: 'Based on today\'s sales' },
         { id: 'product-stock', title: 'Product Stock', metric: 'inventory_value', icon: 'Package', color: 'text-pink-600', bgColor: 'bg-pink-500/10' },
         { id: 'outstanding-bills', title: 'Outstanding Bills', metric: 'pending_invoices', icon: 'Clock', color: 'text-amber-600', bgColor: 'bg-amber-500/10' },
       ],
@@ -886,6 +902,9 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
         { label: 'Duration', value: '' },
         { label: 'Instructions', value: '' },
       ],
+      // Healthcare has mixed inventory: services don't track stock, medications do
+      hideVariants: true,
+      showDuration: true,
       impactUnitsField: {
         enabled: true,
         label: 'Patients per Treatment',
@@ -903,7 +922,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       ],
       kpiCards: [
         { id: 'daily-revenue', title: 'Daily Revenue', metric: 'total_revenue', icon: 'DollarSign', color: 'text-emerald-600', bgColor: 'bg-emerald-500/10' },
-        { id: 'patients-today', title: 'Patients Today', metric: 'patients_today', icon: 'Stethoscope', color: 'text-[#004B8D]', bgColor: 'bg-[#004B8D]/10' },
+        { id: 'patients-today', title: 'Patients Today', metric: 'patients_today', icon: 'Stethoscope', color: 'text-[#004B8D]', bgColor: 'bg-[#004B8D]/10', subtitle: 'Based on today\'s consultations' },
         { id: 'pharmacy-stock', title: 'Pharmacy Stock', metric: 'inventory_value', icon: 'Package', color: 'text-teal-600', bgColor: 'bg-teal-500/10' },
         { id: 'pending-bills', title: 'Pending Bills', metric: 'pending_invoices', icon: 'Clock', color: 'text-amber-600', bgColor: 'bg-amber-500/10' },
       ],
