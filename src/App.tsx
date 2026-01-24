@@ -7,7 +7,9 @@ import { AnimatePresence } from "framer-motion";
 import { AuthProvider } from "@/hooks/useAuth";
 import { TenantProvider } from "@/hooks/useTenant";
 import { BrandingProvider } from "@/contexts/BrandingContext";
+import { DemoModeProvider } from "@/contexts/DemoModeContext";
 import { ProtectedRoute } from "@/components/dashboard/ProtectedRoute";
+import { DemoModeToggle } from "@/components/demo/DemoModeToggle";
 import Index from "./pages/Index";
 import About from "./pages/About";
 import Products from "./pages/Products";
@@ -61,13 +63,16 @@ const App = () => (
     <TooltipProvider>
       <AuthProvider>
         <TenantProvider>
-          <BrandingProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <AnimatedRoutes />
-            </BrowserRouter>
-          </BrandingProvider>
+          <DemoModeProvider>
+            <BrandingProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <AnimatedRoutes />
+                <DemoModeToggle />
+              </BrowserRouter>
+            </BrandingProvider>
+          </DemoModeProvider>
         </TenantProvider>
       </AuthProvider>
     </TooltipProvider>
