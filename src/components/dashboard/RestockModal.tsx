@@ -56,7 +56,7 @@ export function RestockModal({
   const { tenantId } = useTenant();
   const { currentBranch } = useBranch();
   const { user } = useAuth();
-  const { businessType } = useBusinessConfig();
+  const { businessType, terminology } = useBusinessConfig();
 
   const isFashionMode = businessType === "fashion";
   const selectedVariant = variants.find(v => v.id === selectedVariantId);
@@ -219,7 +219,7 @@ export function RestockModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <PackagePlus className="h-5 w-5 text-[#0077B6]" />
-            Restock Product
+            Restock {terminology.product}
           </DialogTitle>
           <DialogDescription>
             Add stock for <span className="font-semibold text-[#003366]">{product.name}</span> ({product.sku})
@@ -237,7 +237,7 @@ export function RestockModal({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="base">
-                    Base Product (all stock)
+                    Base {terminology.product} (all stock)
                   </SelectItem>
                   {variants.map((v) => (
                     <SelectItem key={v.id} value={v.id}>

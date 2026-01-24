@@ -8,6 +8,7 @@ import { Loader2, Plus, Trash2, Palette, Ruler } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/hooks/useTenant";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 interface ProductVariantsModalProps {
   open: boolean;
@@ -37,6 +38,7 @@ export function ProductVariantsModal({ open, onOpenChange, product, onSuccess }:
   const [activeTab, setActiveTab] = useState("colors");
   const { toast } = useToast();
   const { tenantId } = useTenant();
+  const { terminology } = useBusinessConfig();
 
   // New variant form state
   const [newColor, setNewColor] = useState({ value: "", display: "", hex: "#000000", price: 0, stock: 0 });
@@ -187,7 +189,7 @@ export function ProductVariantsModal({ open, onOpenChange, product, onSuccess }:
         <DialogHeader>
           <DialogTitle className="text-[#003366] flex items-center gap-2">
             <Palette className="w-5 h-5 text-purple-500" />
-            Manage Variants
+            Manage {terminology.product} Variants
           </DialogTitle>
           <DialogDescription className="text-[#004B8D]/60">
             Add colors and sizes for <strong>{product?.name}</strong>
