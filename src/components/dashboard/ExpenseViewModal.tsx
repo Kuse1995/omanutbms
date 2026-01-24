@@ -7,7 +7,7 @@ import { Receipt, Building2, Calendar, Tag, Image, Download, Loader2 } from "luc
 import { format } from "date-fns";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
-import { TenantDocumentHeader } from "./TenantDocumentHeader";
+import { TenantDocumentHeader, DocumentComplianceFooter } from "./TenantDocumentHeader";
 
 interface Expense {
   id: string;
@@ -180,6 +180,9 @@ export function ExpenseViewModal({ expense, isOpen, onClose }: ExpenseViewModalP
               </div>
             </>
           )}
+
+          {/* Compliance Footer */}
+          <DocumentComplianceFooter />
         </div>
 
         <div className="flex justify-end gap-3 mt-4 pt-4 border-t">

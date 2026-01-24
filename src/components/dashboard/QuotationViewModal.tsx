@@ -7,7 +7,7 @@ import { Loader2, Download, Printer, FileCheck } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
-import { TenantDocumentHeader, DocumentBankDetails } from "./TenantDocumentHeader";
+import { TenantDocumentHeader, DocumentBankDetails, DocumentComplianceFooter } from "./TenantDocumentHeader";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 interface Quotation {
@@ -224,6 +224,9 @@ export function QuotationViewModal({ isOpen, onClose, quotation, onConvertToInvo
                   <p className="text-sm text-gray-600 whitespace-pre-line">{quotation.notes}</p>
                 </div>
               )}
+
+              {/* Compliance Footer */}
+              <DocumentComplianceFooter />
             </div>
           </div>
         )}

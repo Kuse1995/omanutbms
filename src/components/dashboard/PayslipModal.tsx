@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Download, Printer } from "lucide-react";
 import { format } from "date-fns";
-import { TenantDocumentHeader } from "./TenantDocumentHeader";
+import { TenantDocumentHeader, DocumentComplianceFooter } from "./TenantDocumentHeader";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -186,6 +186,9 @@ export const PayslipModal = ({ isOpen, onClose, payroll }: PayslipModalProps) =>
           <div className="text-center text-xs text-muted-foreground pt-4 border-t">
             This is a computer-generated payslip and does not require a signature.
           </div>
+
+          {/* Compliance Footer */}
+          <DocumentComplianceFooter />
         </div>
       </DialogContent>
     </Dialog>

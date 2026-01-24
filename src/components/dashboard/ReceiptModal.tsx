@@ -14,7 +14,7 @@ import { Loader2, Sparkles, Download, Printer, AlertCircle } from "lucide-react"
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
-import { TenantDocumentHeader } from "./TenantDocumentHeader";
+import { TenantDocumentHeader, DocumentComplianceFooter } from "./TenantDocumentHeader";
 
 interface Invoice {
   id: string;
@@ -300,6 +300,9 @@ export function ReceiptModal({ isOpen, onClose, onSuccess, invoice }: ReceiptMod
                     <span className="font-medium">Notes:</span> {createdReceipt.notes}
                   </div>
                 )}
+
+                {/* Compliance Footer */}
+                <DocumentComplianceFooter />
               </div>
             </div>
 
