@@ -2,6 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Printer } from "lucide-react";
 import { useRef } from "react";
+import { TenantDocumentHeader, DocumentBankDetails } from "./TenantDocumentHeader";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 interface Transaction {
@@ -20,7 +21,7 @@ interface InvoiceModalProps {
 
 export function InvoiceModal({ isOpen, onClose, transaction }: InvoiceModalProps) {
   const invoiceRef = useRef<HTMLDivElement>(null);
-  const { companyName, tagline } = useBusinessConfig();
+  const { currencySymbol, terminology } = useBusinessConfig();
 
   if (!transaction) return null;
 
@@ -81,23 +82,17 @@ export function InvoiceModal({ isOpen, onClose, transaction }: InvoiceModalProps
 
         <div className="flex-1 overflow-y-auto pr-1">
           <div ref={invoiceRef} className="p-6 bg-white">
-            {/* Header */}
-            <div className="flex justify-between items-start mb-8">
-              <div>
-                <h1 className="text-2xl font-bold text-[#004B8D]">{companyName || 'Your Company'}</h1>
-                {tagline && <p className="text-gray-600 text-sm">{tagline}</p>}
-              </div>
-              <div className="text-right">
-                <h2 className="text-3xl font-light text-gray-800">INVOICE</h2>
-                <p className="text-gray-500">{invoiceNumber}</p>
-              </div>
-            </div>
+            {/* Tenant-branded Header */}
+            <TenantDocumentHeader 
+              documentType="INVOICE" 
+              documentNumber={invoiceNumber}
+            />
 
             {/* Details */}
             <div className="flex justify-between mb-8">
               <div>
                 <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-2">Bill To</h3>
-                <p className="font-semibold">{transaction.ai_client || "Client"}</p>
+                <p className="font-semibold">{transaction.ai_client || terminology.customer}</p>
               </div>
               <div className="text-right">
                 <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-2">Invoice Date</h3>
@@ -115,17 +110,20 @@ export function InvoiceModal({ isOpen, onClose, transaction }: InvoiceModalProps
               </thead>
               <tbody>
                 <tr className="border-b border-gray-100">
-                  <td className="py-3">Products &amp; Services</td>
-                  <td className="text-right py-3">K {Number(transaction.bank_amount).toLocaleString()}</td>
+                  <td className="py-3">{terminology.products} &amp; Services</td>
+                  <td className="text-right py-3">{currencySymbol} {Number(transaction.bank_amount).toLocaleString()}</td>
                 </tr>
                 <tr className="font-bold text-lg">
                   <td className="py-4 border-t-2 border-gray-800">Total</td>
                   <td className="text-right py-4 border-t-2 border-gray-800">
-                    K {Number(transaction.bank_amount).toLocaleString()}
+                    {currencySymbol} {Number(transaction.bank_amount).toLocaleString()}
                   </td>
                 </tr>
               </tbody>
             </table>
+
+            {/* Bank Details */}
+            <DocumentBankDetails />
 
             {/* Footer */}
             <div className="mt-8 text-center text-gray-400 text-xs">
