@@ -434,45 +434,91 @@ async function seedEmployees(config: SeedConfig, count: number = 5) {
   return data || [];
 }
 
-// Main seeding function
+// Main seeding function with enhanced error handling
 export async function seedDemoDataForBusinessType(config: SeedConfig) {
   const { onProgress } = config;
   
-  console.log('[Demo Seeder] Starting demo data seeding...', {
+  console.log('[Demo Seeder] ============================================');
+  console.log('[Demo Seeder] Starting demo data seeding...');
+  console.log('[Demo Seeder] Config:', {
     businessType: config.businessType,
     tenantId: config.tenantId,
     sessionId: config.sessionId,
   });
+  console.log('[Demo Seeder] ============================================');
   
   try {
     onProgress?.(10);
     
-    // 1. Seed inventory
-    const inventory = await seedInventory(config);
+    // Step 1: Seed inventory
+    console.log('[Demo Seeder] Step 1/5: Seeding inventory...');
+    let inventory: any[];
+    try {
+      inventory = await seedInventory(config);
+      console.log(`[Demo Seeder] ✓ Step 1 complete: ${inventory.length} inventory items`);
+    } catch (error: any) {
+      console.error('[Demo Seeder] ✗ Step 1 FAILED (inventory):', error.message);
+      throw new Error(`Inventory seeding failed: ${error.message}`);
+    }
     onProgress?.(30);
     
-    // 2. Seed customers
-    const customers = await seedCustomers(config, 10);
+    // Step 2: Seed customers
+    console.log('[Demo Seeder] Step 2/5: Seeding customers...');
+    let customers: any[];
+    try {
+      customers = await seedCustomers(config, 10);
+      console.log(`[Demo Seeder] ✓ Step 2 complete: ${customers.length} customers`);
+    } catch (error: any) {
+      console.error('[Demo Seeder] ✗ Step 2 FAILED (customers):', error.message);
+      throw new Error(`Customer seeding failed: ${error.message}`);
+    }
     onProgress?.(45);
     
-    // 3. Seed employees
-    await seedEmployees(config, 5);
+    // Step 3: Seed employees
+    console.log('[Demo Seeder] Step 3/5: Seeding employees...');
+    try {
+      const employees = await seedEmployees(config, 5);
+      console.log(`[Demo Seeder] ✓ Step 3 complete: ${employees.length} employees`);
+    } catch (error: any) {
+      console.error('[Demo Seeder] ✗ Step 3 FAILED (employees):', error.message);
+      throw new Error(`Employee seeding failed: ${error.message}`);
+    }
     onProgress?.(55);
     
-    // 4. Seed transactions (60 days of history)
-    await seedTransactions(config, inventory, customers, 60);
+    // Step 4: Seed transactions
+    console.log('[Demo Seeder] Step 4/5: Seeding transactions (60 days)...');
+    try {
+      const transactions = await seedTransactions(config, inventory, customers, 60);
+      console.log(`[Demo Seeder] ✓ Step 4 complete: ${transactions.length} transactions`);
+    } catch (error: any) {
+      console.error('[Demo Seeder] ✗ Step 4 FAILED (transactions):', error.message);
+      throw new Error(`Transaction seeding failed: ${error.message}`);
+    }
     onProgress?.(80);
     
-    // 5. Seed invoices
-    await seedInvoices(config, customers, inventory);
+    // Step 5: Seed invoices
+    console.log('[Demo Seeder] Step 5/5: Seeding invoices...');
+    try {
+      const invoices = await seedInvoices(config, customers, inventory);
+      console.log(`[Demo Seeder] ✓ Step 5 complete: ${invoices.length} invoices`);
+    } catch (error: any) {
+      console.error('[Demo Seeder] ✗ Step 5 FAILED (invoices):', error.message);
+      throw new Error(`Invoice seeding failed: ${error.message}`);
+    }
     onProgress?.(95);
     
     onProgress?.(100);
     
-    console.log('[Demo Seeder] Demo data seeding completed successfully!');
+    console.log('[Demo Seeder] ============================================');
+    console.log('[Demo Seeder] ✓ Demo data seeding completed successfully!');
+    console.log('[Demo Seeder] ============================================');
     return { success: true };
-  } catch (error) {
-    console.error('[Demo Seeder] Demo seeding failed:', error);
+  } catch (error: any) {
+    console.error('[Demo Seeder] ============================================');
+    console.error('[Demo Seeder] ✗ DEMO SEEDING FAILED');
+    console.error('[Demo Seeder] Error:', error.message);
+    console.error('[Demo Seeder] Full error:', error);
+    console.error('[Demo Seeder] ============================================');
     throw error;
   }
 }

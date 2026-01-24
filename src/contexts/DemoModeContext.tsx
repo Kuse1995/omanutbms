@@ -36,6 +36,7 @@ interface DemoModeContextValue extends DemoModeState {
 const DemoModeContext = createContext<DemoModeContextValue | undefined>(undefined);
 
 const DEMO_MODE_KEY = 'omanut_demo_mode';
+const SEEDING_TIMEOUT_MS = 60000; // 60 seconds timeout
 
 interface StoredDemoState {
   isDemoMode: boolean;
@@ -46,7 +47,7 @@ interface StoredDemoState {
 }
 
 export function DemoModeProvider({ children }: { children: React.ReactNode }) {
-  const { isSuperAdmin } = useAuth();
+  const { isSuperAdmin, user } = useAuth();
   const { tenantId } = useTenant();
   
   const [state, setState] = useState<DemoModeState>({
@@ -77,7 +78,7 @@ export function DemoModeProvider({ children }: { children: React.ReactNode }) {
         }));
       }
     } catch (e) {
-      console.error('Failed to load demo mode state:', e);
+      console.error('[DemoMode] Failed to load demo mode state:', e);
     }
   }, [isSuperAdmin]);
 
@@ -96,39 +97,94 @@ export function DemoModeProvider({ children }: { children: React.ReactNode }) {
   }, [state.isDemoMode, state.demoBusinessType, state.demoSessionId, state.activeScenario, state.presentationMode, isSuperAdmin]);
 
   const seedDemoData = useCallback(async (businessType: BusinessType, sessionId: string) => {
-    // Fixed: Show error toast when tenantId is missing instead of silent failure
+    // Enhanced validation with detailed error messages
     if (!tenantId) {
-      toast.error('Unable to seed demo data: No tenant found. Please reload the page.');
+      const errorMsg = 'Unable to seed demo data: No tenant found. Please reload the page.';
+      toast.error(errorMsg);
       console.error('[DemoMode] Cannot seed demo data: tenantId is null');
       throw new Error('No tenant ID available for demo seeding');
     }
+
+    if (!user?.id) {
+      const errorMsg = 'Unable to seed demo data: Not authenticated. Please log in again.';
+      toast.error(errorMsg);
+      console.error('[DemoMode] Cannot seed demo data: user is not authenticated');
+      throw new Error('User not authenticated');
+    }
+
+    console.log('[DemoMode] Starting demo seed with:', { 
+      businessType, 
+      tenantId, 
+      sessionId,
+      userId: user.id 
+    });
     
     setState(prev => ({ ...prev, isSeeding: true, seedingProgress: 0 }));
-    
+
+    // Check user permissions before seeding
     try {
-      console.log('[DemoMode] Starting demo seed for:', { businessType, tenantId, sessionId });
+      const { data: membership, error: membershipError } = await supabase
+        .from('tenant_users')
+        .select('role')
+        .eq('tenant_id', tenantId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (membershipError) {
+        console.error('[DemoMode] Failed to check membership:', membershipError);
+        throw new Error(`Permission check failed: ${membershipError.message}`);
+      }
+
+      if (!membership || !['admin', 'manager'].includes(membership.role)) {
+        const errorMsg = `Insufficient permissions. You have role "${membership?.role || 'none'}" but need "admin" or "manager".`;
+        toast.error(errorMsg);
+        console.error('[DemoMode]', errorMsg);
+        throw new Error(errorMsg);
+      }
+
+      console.log('[DemoMode] User has valid role:', membership.role);
+    } catch (permError: any) {
+      setState(prev => ({ ...prev, isSeeding: false }));
+      throw permError;
+    }
+    
+    // Create a timeout promise
+    const timeoutPromise = new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error('Demo seeding timed out after 60 seconds')), SEEDING_TIMEOUT_MS)
+    );
+
+    try {
+      console.log('[DemoMode] Importing demo-data-seeder...');
       
       // Import seeder dynamically to avoid circular dependencies
       const { seedDemoDataForBusinessType } = await import('@/lib/demo-data-seeder');
       
-      await seedDemoDataForBusinessType({
-        businessType,
-        tenantId,
-        sessionId,
-        onProgress: (progress) => {
-          setState(prev => ({ ...prev, seedingProgress: progress }));
-        },
-      });
+      console.log('[DemoMode] Starting seedDemoDataForBusinessType...');
+      
+      // Race between seeding and timeout
+      await Promise.race([
+        seedDemoDataForBusinessType({
+          businessType,
+          tenantId,
+          sessionId,
+          onProgress: (progress) => {
+            console.log(`[DemoMode] Seeding progress: ${progress}%`);
+            setState(prev => ({ ...prev, seedingProgress: progress }));
+          },
+        }),
+        timeoutPromise
+      ]);
       
       toast.success(`Demo data seeded for ${businessType}!`);
-    } catch (error) {
+      console.log('[DemoMode] Demo seeding completed successfully');
+    } catch (error: any) {
       console.error('[DemoMode] Failed to seed demo data:', error);
-      toast.error('Failed to seed demo data. Check console for details.');
+      toast.error(error.message || 'Failed to seed demo data. Check console for details.');
       throw error;
     } finally {
       setState(prev => ({ ...prev, isSeeding: false, seedingProgress: 100 }));
     }
-  }, [tenantId]);
+  }, [tenantId, user?.id]);
 
   const cleanupDemoData = useCallback(async () => {
     if (!state.demoSessionId || !tenantId) return;
@@ -136,6 +192,8 @@ export function DemoModeProvider({ children }: { children: React.ReactNode }) {
     setState(prev => ({ ...prev, isSeeding: true }));
     
     try {
+      console.log('[DemoMode] Starting cleanup for session:', state.demoSessionId);
+      
       // Delete in order to respect foreign keys
       const tables = [
         'invoice_items',
@@ -149,16 +207,22 @@ export function DemoModeProvider({ children }: { children: React.ReactNode }) {
       ];
       
       for (const table of tables) {
-        await supabase
+        console.log(`[DemoMode] Cleaning up ${table}...`);
+        const { error } = await supabase
           .from(table as any)
           .delete()
           .eq('demo_session_id', state.demoSessionId)
           .eq('tenant_id', tenantId);
+        
+        if (error) {
+          console.warn(`[DemoMode] Error cleaning up ${table}:`, error);
+        }
       }
       
       toast.success('Demo data cleaned up');
+      console.log('[DemoMode] Cleanup completed');
     } catch (error) {
-      console.error('Failed to cleanup demo data:', error);
+      console.error('[DemoMode] Failed to cleanup demo data:', error);
       toast.error('Failed to cleanup demo data');
     } finally {
       setState(prev => ({ ...prev, isSeeding: false }));
@@ -170,8 +234,14 @@ export function DemoModeProvider({ children }: { children: React.ReactNode }) {
       toast.error('Only super admins can enable demo mode');
       return;
     }
+
+    if (!tenantId) {
+      toast.error('No tenant found. Please reload the page.');
+      return;
+    }
     
     const sessionId = crypto.randomUUID();
+    console.log('[DemoMode] Enabling demo mode:', { businessType, sessionId, tenantId });
     
     setState(prev => ({
       ...prev,
@@ -181,8 +251,21 @@ export function DemoModeProvider({ children }: { children: React.ReactNode }) {
       activeScenario: null,
     }));
     
-    await seedDemoData(businessType, sessionId);
-  }, [isSuperAdmin, seedDemoData]);
+    try {
+      await seedDemoData(businessType, sessionId);
+    } catch (error) {
+      // Revert state on failure
+      console.error('[DemoMode] Seeding failed, reverting state');
+      setState(prev => ({
+        ...prev,
+        isDemoMode: false,
+        demoBusinessType: null,
+        demoSessionId: null,
+        activeScenario: null,
+      }));
+      localStorage.removeItem(DEMO_MODE_KEY);
+    }
+  }, [isSuperAdmin, tenantId, seedDemoData]);
 
   const disableDemoMode = useCallback(async () => {
     await cleanupDemoData();
@@ -212,7 +295,11 @@ export function DemoModeProvider({ children }: { children: React.ReactNode }) {
       activeScenario: null,
     }));
     
-    await seedDemoData(businessType, sessionId);
+    try {
+      await seedDemoData(businessType, sessionId);
+    } catch (error) {
+      console.error('[DemoMode] Switch business type failed');
+    }
   }, [cleanupDemoData, seedDemoData]);
 
   const loadScenario = useCallback(async (scenario: DemoScenario) => {
@@ -232,7 +319,7 @@ export function DemoModeProvider({ children }: { children: React.ReactNode }) {
       setState(prev => ({ ...prev, activeScenario: scenario }));
       toast.success(`Loaded scenario: ${scenario}`);
     } catch (error) {
-      console.error('Failed to load scenario:', error);
+      console.error('[DemoMode] Failed to load scenario:', error);
       toast.error('Failed to load scenario');
     } finally {
       setState(prev => ({ ...prev, isSeeding: false }));
