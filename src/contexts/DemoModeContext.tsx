@@ -187,15 +187,25 @@ export function DemoModeProvider({ children }: { children: React.ReactNode }) {
   }, [tenantId, user?.id]);
 
   const cleanupDemoData = useCallback(async () => {
-    if (!state.demoSessionId || !tenantId) return;
+    if (!state.demoSessionId || !tenantId) {
+      console.log('[DemoMode] Skipping cleanup - no sessionId or tenantId', { 
+        sessionId: state.demoSessionId, 
+        tenantId 
+      });
+      return;
+    }
     
     setState(prev => ({ ...prev, isSeeding: true }));
     
     try {
+      console.log('[DemoMode] ============================================');
       console.log('[DemoMode] Starting cleanup for session:', state.demoSessionId);
+      console.log('[DemoMode] Tenant ID:', tenantId);
+      console.log('[DemoMode] ============================================');
       
-      // Delete in order to respect foreign keys
-      const tables = [
+      // Delete in order to respect foreign keys (children first, then parents)
+      // Using is_demo flag as primary filter since demo_session_id might not be on all tables
+      const tablesWithSessionId = [
         'invoice_items',
         'sales_transactions',
         'invoices',
@@ -206,21 +216,48 @@ export function DemoModeProvider({ children }: { children: React.ReactNode }) {
         'inventory',
       ];
       
-      for (const table of tables) {
+      let deletedCounts: Record<string, number> = {};
+      
+      for (const table of tablesWithSessionId) {
         console.log(`[DemoMode] Cleaning up ${table}...`);
-        const { error } = await supabase
+        
+        // Try deleting by demo_session_id first
+        const { data, error } = await supabase
           .from(table as any)
           .delete()
           .eq('demo_session_id', state.demoSessionId)
-          .eq('tenant_id', tenantId);
+          .eq('tenant_id', tenantId)
+          .select('id');
         
         if (error) {
-          console.warn(`[DemoMode] Error cleaning up ${table}:`, error);
+          console.warn(`[DemoMode] Error cleaning up ${table} by session_id:`, error.message);
+          
+          // Fallback: try deleting by is_demo flag
+          console.log(`[DemoMode] Trying fallback cleanup for ${table} using is_demo flag...`);
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from(table as any)
+            .delete()
+            .eq('is_demo', true)
+            .eq('tenant_id', tenantId)
+            .select('id');
+          
+          if (fallbackError) {
+            console.warn(`[DemoMode] Fallback cleanup also failed for ${table}:`, fallbackError.message);
+          } else {
+            deletedCounts[table] = fallbackData?.length || 0;
+            console.log(`[DemoMode] ✓ Fallback deleted ${fallbackData?.length || 0} rows from ${table}`);
+          }
+        } else {
+          deletedCounts[table] = data?.length || 0;
+          console.log(`[DemoMode] ✓ Deleted ${data?.length || 0} rows from ${table}`);
         }
       }
       
+      console.log('[DemoMode] ============================================');
+      console.log('[DemoMode] Cleanup summary:', deletedCounts);
+      console.log('[DemoMode] ============================================');
+      
       toast.success('Demo data cleaned up');
-      console.log('[DemoMode] Cleanup completed');
     } catch (error) {
       console.error('[DemoMode] Failed to cleanup demo data:', error);
       toast.error('Failed to cleanup demo data');
