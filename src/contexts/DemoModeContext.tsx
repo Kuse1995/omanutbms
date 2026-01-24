@@ -362,6 +362,14 @@ export function DemoModeProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+// Safe hook that returns null instead of throwing when context is missing
+// Use this in components that might render before/outside the provider (e.g., during HMR)
+export function useDemoModeSafe(): DemoModeContextValue | null {
+  const context = useContext(DemoModeContext);
+  return context ?? null;
+}
+
+// Standard hook that throws if used outside provider (for components that require the context)
 export function useDemoMode() {
   const context = useContext(DemoModeContext);
   if (context === undefined) {
