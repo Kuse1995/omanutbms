@@ -410,15 +410,7 @@ export type Database = {
           table_name?: string
           tenant_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "audit_log_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       authorized_emails: {
         Row: {
