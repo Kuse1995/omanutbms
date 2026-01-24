@@ -8,6 +8,7 @@ import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 import { TenantDocumentHeader, DocumentBankDetails } from "./TenantDocumentHeader";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 interface Quotation {
   id: string;
@@ -45,6 +46,7 @@ export function QuotationViewModal({ isOpen, onClose, quotation, onConvertToInvo
   const [isLoading, setIsLoading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const { toast } = useToast();
+  const { terminology, currencySymbol } = useBusinessConfig();
 
   useEffect(() => {
     if (isOpen && quotation) {
@@ -145,7 +147,7 @@ export function QuotationViewModal({ isOpen, onClose, quotation, onConvertToInvo
               {/* Client Info */}
               <div className="grid grid-cols-2 gap-8">
                 <div>
-                  <h4 className="font-semibold text-gray-700 mb-2">Quote To:</h4>
+                  <h4 className="font-semibold text-gray-700 mb-2">Quote To ({terminology.customer}):</h4>
                   <p className="font-medium">{quotation.client_name}</p>
                   {quotation.client_email && <p className="text-sm text-gray-600">{quotation.client_email}</p>}
                   {quotation.client_phone && <p className="text-sm text-gray-600">{quotation.client_phone}</p>}
@@ -183,8 +185,8 @@ export function QuotationViewModal({ isOpen, onClose, quotation, onConvertToInvo
                     <tr key={item.id}>
                       <td className="border p-2">{item.description}</td>
                       <td className="border p-2 text-right">{item.quantity}</td>
-                      <td className="border p-2 text-right">K {Number(item.unit_price).toLocaleString()}</td>
-                      <td className="border p-2 text-right">K {Number(item.amount).toLocaleString()}</td>
+                      <td className="border p-2 text-right">{currencySymbol} {Number(item.unit_price).toLocaleString()}</td>
+                      <td className="border p-2 text-right">{currencySymbol} {Number(item.amount).toLocaleString()}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -195,19 +197,19 @@ export function QuotationViewModal({ isOpen, onClose, quotation, onConvertToInvo
                 <div className="w-64 space-y-1">
                   <div className="flex justify-between">
                     <span>Subtotal:</span>
-                    <span>K {Number(quotation.subtotal).toLocaleString()}</span>
+                    <span>{currencySymbol} {Number(quotation.subtotal).toLocaleString()}</span>
                   </div>
                   {quotation.tax_rate && quotation.tax_rate > 0 && (
                     <>
                       <div className="flex justify-between text-gray-600">
                         <span>Tax ({quotation.tax_rate}%):</span>
-                        <span>K {Number(quotation.tax_amount || 0).toLocaleString()}</span>
+                        <span>{currencySymbol} {Number(quotation.tax_amount || 0).toLocaleString()}</span>
                       </div>
                     </>
                   )}
                   <div className="flex justify-between font-bold text-lg border-t pt-1">
                     <span>Total:</span>
-                    <span>K {Number(quotation.total_amount).toLocaleString()}</span>
+                    <span>{currencySymbol} {Number(quotation.total_amount).toLocaleString()}</span>
                   </div>
                 </div>
               </div>
