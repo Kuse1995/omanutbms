@@ -210,6 +210,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Record login activity on successful sign in
     if (!error && data.user) {
       recordLoginActivity(data.user.id);
+      // Reset Omanut Advisor visibility so it's visible for new sessions
+      localStorage.removeItem("omanut-advisor-hidden");
     }
     
     return { error };
