@@ -190,3 +190,34 @@ export function DocumentBankDetails() {
     </div>
   );
 }
+
+/**
+ * Compliance footer with company address and TPIN for official documents
+ */
+export function DocumentComplianceFooter() {
+  const { 
+    companyName,
+    companyAddress,
+    companyPhone,
+    companyEmail,
+    tpinNumber
+  } = useBusinessConfig();
+
+  const hasComplianceInfo = companyAddress || tpinNumber;
+
+  if (!hasComplianceInfo) return null;
+
+  return (
+    <div className="mt-8 pt-4 border-t border-gray-300 text-center text-xs text-gray-500">
+      <p className="font-medium text-gray-700">{companyName}</p>
+      {companyAddress && <p className="mt-1">{companyAddress}</p>}
+      <div className="mt-1 flex flex-wrap justify-center gap-x-4">
+        {companyPhone && <span>Tel: {companyPhone}</span>}
+        {companyEmail && <span>Email: {companyEmail}</span>}
+      </div>
+      {tpinNumber && (
+        <p className="mt-2 font-medium text-gray-600">TPIN: {tpinNumber}</p>
+      )}
+    </div>
+  );
+}

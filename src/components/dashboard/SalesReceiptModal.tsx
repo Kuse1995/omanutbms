@@ -5,7 +5,7 @@ import { Loader2, Download, Printer } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
-import { TenantDocumentHeader } from "./TenantDocumentHeader";
+import { TenantDocumentHeader, DocumentComplianceFooter } from "./TenantDocumentHeader";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 interface SaleItem {
@@ -279,12 +279,8 @@ export function SalesReceiptModal({
               </div>
             )}
 
-            <div className="text-center text-gray-500 text-xs pt-3 sm:pt-4 border-t">
-              <p>Thank you for your purchase!</p>
-              {(companyName || tagline) && (
-                <p className="mt-1">{[companyName, tagline].filter(Boolean).join(' - ')}</p>
-              )}
-            </div>
+            {/* Compliance Footer */}
+            <DocumentComplianceFooter />
           </div>
         </div>
 

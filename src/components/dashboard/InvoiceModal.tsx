@@ -2,7 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Printer } from "lucide-react";
 import { useRef } from "react";
-import { TenantDocumentHeader, DocumentBankDetails } from "./TenantDocumentHeader";
+import { TenantDocumentHeader, DocumentBankDetails, DocumentComplianceFooter } from "./TenantDocumentHeader";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 interface Transaction {
@@ -125,10 +125,8 @@ export function InvoiceModal({ isOpen, onClose, transaction }: InvoiceModalProps
             {/* Bank Details */}
             <DocumentBankDetails />
 
-            {/* Footer */}
-            <div className="mt-8 text-center text-gray-400 text-xs">
-              <p>Thank you for your business.</p>
-            </div>
+            {/* Compliance Footer */}
+            <DocumentComplianceFooter />
           </div>
         </div>
 
