@@ -1,27 +1,34 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, Users, BarChart3, CreditCard, Package, Activity } from "lucide-react";
+import { Building2, Users, BarChart3, CreditCard, Package, Activity, Settings2 } from "lucide-react";
 import { TenantManager } from "./TenantManager";
 import { SuperAdminUsersManager } from "./SuperAdminUsersManager";
 import { PlatformStats } from "./PlatformStats";
 import { PlanConfigManager } from "./PlanConfigManager";
 import { AddonsConfigManager } from "./AddonsConfigManager";
 import { UsageAnalyticsDashboard } from "./UsageAnalyticsDashboard";
+import { PlatformConfigManager } from "./PlatformConfigManager";
+import { PlatformComplianceChecklist } from "./PlatformComplianceChecklist";
+import { PlatformRevenueStats } from "./PlatformRevenueStats";
 
 export function SuperAdminPanel() {
-  const [activeTab, setActiveTab] = useState("tenants");
+  const [activeTab, setActiveTab] = useState("platform");
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-foreground">Platform Administration</h1>
         <p className="text-muted-foreground mt-1">
-          Manage tenants, users, billing plans, add-ons, and platform settings
+          Manage your platform identity, tenants, billing plans, and settings
         </p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-6 lg:w-[750px]">
+        <TabsList className="grid w-full grid-cols-7 lg:w-[900px]">
+          <TabsTrigger value="platform" className="flex items-center gap-2">
+            <Settings2 className="h-4 w-4" />
+            <span className="hidden sm:inline">Platform</span>
+          </TabsTrigger>
           <TabsTrigger value="tenants" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
             <span className="hidden sm:inline">Tenants</span>
@@ -48,6 +55,11 @@ export function SuperAdminPanel() {
           </TabsTrigger>
         </TabsList>
 
+        <TabsContent value="platform" className="space-y-6">
+          <PlatformComplianceChecklist />
+          <PlatformConfigManager />
+        </TabsContent>
+
         <TabsContent value="tenants">
           <TenantManager />
         </TabsContent>
@@ -68,7 +80,8 @@ export function SuperAdminPanel() {
           <UsageAnalyticsDashboard />
         </TabsContent>
 
-        <TabsContent value="stats">
+        <TabsContent value="stats" className="space-y-6">
+          <PlatformRevenueStats />
           <PlatformStats />
         </TabsContent>
       </Tabs>
