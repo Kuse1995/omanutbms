@@ -59,6 +59,13 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
   ],
 };
 
+// Intents allowed for self-service employees (no BMS user account)
+const SELF_SERVICE_INTENTS = [
+  'clock_in', 'clock_out', 'my_attendance', 
+  'my_tasks', 'task_details', 'my_schedule',
+  'my_pay', 'help'
+];
+
 // Confirmation thresholds (in ZMW)
 const CONFIRMATION_THRESHOLDS = {
   record_sale: 10000,
@@ -68,7 +75,9 @@ const CONFIRMATION_THRESHOLDS = {
 
 interface ExecutionContext {
   tenant_id: string;
-  user_id: string;
+  user_id: string | null;
+  employee_id?: string;
+  is_self_service?: boolean;
   role: string;
   display_name: string;
 }
@@ -280,49 +289,99 @@ serve(async (req) => {
       context: ExecutionContext;
     };
 
-    if (!intent || !context?.tenant_id || !context?.user_id || !context?.role) {
+    // For self-service employees, user_id may be null but employee_id must exist
+    if (!intent || !context?.tenant_id || !context?.role) {
       return new Response(
         JSON.stringify({ success: false, error: 'Missing required parameters' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    // Must have either user_id or employee_id
+    if (!context?.user_id && !context?.employee_id) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Missing user_id or employee_id' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const isSelfService = context.is_self_service || (!context.user_id && !!context.employee_id);
+
     // If this is a user JWT call, ensure the caller is the same user claimed in context.
-    if (!isInternal && callerUserId && callerUserId !== context.user_id) {
+    if (!isInternal && callerUserId && context.user_id && callerUserId !== context.user_id) {
       return new Response(
         JSON.stringify({ success: false, error: 'Unauthorized: user mismatch' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Defense-in-depth: validate user belongs to the tenant, and derive role from DB.
-    const { data: tenantUser, error: tuErr } = await supabase
-      .from('tenant_users')
-      .select('role')
-      .eq('tenant_id', context.tenant_id)
-      .eq('user_id', context.user_id)
-      .maybeSingle();
+    // Authorization: different paths for self-service vs full BMS users
+    if (isSelfService) {
+      // Self-service employee: validate employee belongs to tenant
+      const { data: employee, error: empErr } = await supabase
+        .from('employees')
+        .select('id, full_name, branch_id, employment_status')
+        .eq('tenant_id', context.tenant_id)
+        .eq('id', context.employee_id)
+        .maybeSingle();
 
-    if (tuErr || !tenantUser) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Unauthorized: tenant access denied' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+      if (empErr || !employee) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Unauthorized: employee not found' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
-    // Override role from DB (don’t trust client-supplied role)
-    context.role = String(tenantUser.role);
+      if (employee.employment_status !== 'active') {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Unauthorized: employee not active' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
-    // Check role permissions
-    const allowedIntents = ROLE_PERMISSIONS[context.role] || [];
-    if (!allowedIntents.includes(intent)) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: `You don't have permission to ${intent.replace('_', ' ')}. Your role: ${context.role}` 
-        }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      // Self-service employees can only access limited intents
+      if (!SELF_SERVICE_INTENTS.includes(intent)) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: `This action isn't available for self-service. Ask your manager for help with ${intent.replace('_', ' ')}.` 
+          }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Store employee data in context for handlers
+      (context as any).employee_data = employee;
+    } else {
+      // Standard BMS user: validate against tenant_users table
+      const { data: tenantUser, error: tuErr } = await supabase
+        .from('tenant_users')
+        .select('role')
+        .eq('tenant_id', context.tenant_id)
+        .eq('user_id', context.user_id)
+        .maybeSingle();
+
+      if (tuErr || !tenantUser) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Unauthorized: tenant access denied' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Override role from DB (don't trust client-supplied role)
+      context.role = String(tenantUser.role);
+
+      // Check role permissions
+      const allowedIntents = ROLE_PERMISSIONS[context.role] || [];
+      if (!allowedIntents.includes(intent)) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: `You don't have permission to ${intent.replace('_', ' ')}. Your role: ${context.role}` 
+          }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     const startTime = Date.now();
@@ -1231,20 +1290,39 @@ function calculateDistanceMeters(lat1: number, lon1: number, lat2: number, lon2:
   return R * c;
 }
 
-async function handleClockIn(supabase: any, entities: Record<string, any>, context: ExecutionContext & { location?: { latitude: number; longitude: number } }) {
-  // Find employee by user_id (include branch_id for geofencing)
-  const { data: employee, error: empError } = await supabase
-    .from('employees')
-    .select('id, full_name, branch_id')
-    .eq('tenant_id', context.tenant_id)
-    .eq('user_id', context.user_id)
-    .maybeSingle();
-
-  if (empError || !employee) {
-    return { 
-      success: false, 
-      message: '❌ You\'re not registered as an employee. Contact HR.' 
-    };
+async function handleClockIn(supabase: any, entities: Record<string, any>, context: ExecutionContext & { location?: { latitude: number; longitude: number }; employee_data?: any }) {
+  let employee;
+  
+  // Self-service path: use pre-validated employee data from context
+  if (context.is_self_service && context.employee_id) {
+    // Employee data was already validated during authorization
+    if ((context as any).employee_data) {
+      employee = (context as any).employee_data;
+    } else {
+      // Fallback: fetch by employee_id
+      const { data, error } = await supabase
+        .from('employees')
+        .select('id, full_name, branch_id')
+        .eq('id', context.employee_id)
+        .eq('tenant_id', context.tenant_id)
+        .maybeSingle();
+      if (error || !data) {
+        return { success: false, message: '❌ You\'re not registered as an employee. Contact HR.' };
+      }
+      employee = data;
+    }
+  } else {
+    // Standard path: find employee by user_id
+    const { data, error } = await supabase
+      .from('employees')
+      .select('id, full_name, branch_id')
+      .eq('tenant_id', context.tenant_id)
+      .eq('user_id', context.user_id)
+      .maybeSingle();
+    if (error || !data) {
+      return { success: false, message: '❌ You\'re not registered as an employee. Contact HR.' };
+    }
+    employee = data;
   }
 
   // Check if already clocked in today
@@ -1386,20 +1464,37 @@ async function handleClockIn(supabase: any, entities: Record<string, any>, conte
   };
 }
 
-async function handleClockOut(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
-  // Find employee by user_id
-  const { data: employee, error: empError } = await supabase
-    .from('employees')
-    .select('id, full_name')
-    .eq('tenant_id', context.tenant_id)
-    .eq('user_id', context.user_id)
-    .maybeSingle();
-
-  if (empError || !employee) {
-    return { 
-      success: false, 
-      message: '❌ You\'re not registered as an employee. Contact HR.' 
-    };
+async function handleClockOut(supabase: any, entities: Record<string, any>, context: ExecutionContext & { employee_data?: any }) {
+  let employee;
+  
+  // Self-service path: use pre-validated employee data from context
+  if (context.is_self_service && context.employee_id) {
+    if ((context as any).employee_data) {
+      employee = (context as any).employee_data;
+    } else {
+      const { data, error } = await supabase
+        .from('employees')
+        .select('id, full_name')
+        .eq('id', context.employee_id)
+        .eq('tenant_id', context.tenant_id)
+        .maybeSingle();
+      if (error || !data) {
+        return { success: false, message: '❌ You\'re not registered as an employee. Contact HR.' };
+      }
+      employee = data;
+    }
+  } else {
+    // Standard path: find employee by user_id
+    const { data, error } = await supabase
+      .from('employees')
+      .select('id, full_name')
+      .eq('tenant_id', context.tenant_id)
+      .eq('user_id', context.user_id)
+      .maybeSingle();
+    if (error || !data) {
+      return { success: false, message: '❌ You\'re not registered as an employee. Contact HR.' };
+    }
+    employee = data;
   }
 
   // Find today's open attendance record
@@ -1449,14 +1544,31 @@ async function handleClockOut(supabase: any, entities: Record<string, any>, cont
   };
 }
 
-async function handleMyAttendance(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
-  // Find employee
-  const { data: employee } = await supabase
-    .from('employees')
-    .select('id, full_name')
-    .eq('tenant_id', context.tenant_id)
-    .eq('user_id', context.user_id)
-    .maybeSingle();
+async function handleMyAttendance(supabase: any, entities: Record<string, any>, context: ExecutionContext & { employee_data?: any }) {
+  let employee;
+  
+  // Self-service path
+  if (context.is_self_service && context.employee_id) {
+    if ((context as any).employee_data) {
+      employee = (context as any).employee_data;
+    } else {
+      const { data } = await supabase
+        .from('employees')
+        .select('id, full_name')
+        .eq('id', context.employee_id)
+        .eq('tenant_id', context.tenant_id)
+        .maybeSingle();
+      employee = data;
+    }
+  } else {
+    const { data } = await supabase
+      .from('employees')
+      .select('id, full_name')
+      .eq('tenant_id', context.tenant_id)
+      .eq('user_id', context.user_id)
+      .maybeSingle();
+    employee = data;
+  }
 
   if (!employee) {
     return { 
