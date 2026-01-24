@@ -25,6 +25,13 @@ export interface UseBusinessConfigReturn {
   companyPhone: string | null;
   companyAddress: string | null;
   currencySymbol: string;
+  // TPIN and banking details
+  tpinNumber: string | null;
+  bankName: string | null;
+  bankAccountName: string | null;
+  bankAccountNumber: string | null;
+  bankBranch: string | null;
+  bankSwiftCode: string | null;
   // Feature checks
   isImpactEnabled: boolean;
   isInventoryEnabled: boolean;
@@ -56,6 +63,13 @@ export function useBusinessConfig(): UseBusinessConfigReturn {
     companyPhone: businessProfile?.company_phone ?? null,
     companyAddress: businessProfile?.company_address ?? null,
     currencySymbol: businessProfile?.currency_symbol ?? 'K',
+    // TPIN and banking details
+    tpinNumber: businessProfile?.tpin_number ?? null,
+    bankName: businessProfile?.bank_name ?? null,
+    bankAccountName: businessProfile?.bank_account_name ?? null,
+    bankAccountNumber: businessProfile?.bank_account_number ?? null,
+    bankBranch: businessProfile?.bank_branch ?? null,
+    bankSwiftCode: businessProfile?.bank_swift_code ?? null,
     // Feature checks
     isImpactEnabled: config.impact.enabled && (businessProfile?.impact_enabled !== false),
     isInventoryEnabled: config.inventory.enabled && (businessProfile?.inventory_enabled !== false),

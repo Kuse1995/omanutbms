@@ -7,7 +7,7 @@ import { Loader2, Download, Printer, FileCheck } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
-import { TenantDocumentHeader } from "./TenantDocumentHeader";
+import { TenantDocumentHeader, DocumentBankDetails } from "./TenantDocumentHeader";
 
 interface Quotation {
   id: string;
@@ -211,6 +211,9 @@ export function QuotationViewModal({ isOpen, onClose, quotation, onConvertToInvo
                   </div>
                 </div>
               </div>
+
+              {/* Banking Details */}
+              <DocumentBankDetails />
 
               {/* Notes */}
               {quotation.notes && (

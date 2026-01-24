@@ -732,6 +732,11 @@ export type Database = {
           advanced_accounting_enabled: boolean | null
           agents_enabled: boolean | null
           attendance_location_required: boolean | null
+          bank_account_name: string | null
+          bank_account_number: string | null
+          bank_branch: string | null
+          bank_name: string | null
+          bank_swift_code: string | null
           billing_end_date: string | null
           billing_notes: string | null
           billing_plan: string
@@ -763,6 +768,7 @@ export type Database = {
           tax_enabled: boolean | null
           tax_rate: number | null
           tenant_id: string
+          tpin_number: string | null
           trial_expires_at: string | null
           updated_at: string
           warehouse_enabled: boolean | null
@@ -777,6 +783,11 @@ export type Database = {
           advanced_accounting_enabled?: boolean | null
           agents_enabled?: boolean | null
           attendance_location_required?: boolean | null
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_branch?: string | null
+          bank_name?: string | null
+          bank_swift_code?: string | null
           billing_end_date?: string | null
           billing_notes?: string | null
           billing_plan?: string
@@ -808,6 +819,7 @@ export type Database = {
           tax_enabled?: boolean | null
           tax_rate?: number | null
           tenant_id: string
+          tpin_number?: string | null
           trial_expires_at?: string | null
           updated_at?: string
           warehouse_enabled?: boolean | null
@@ -822,6 +834,11 @@ export type Database = {
           advanced_accounting_enabled?: boolean | null
           agents_enabled?: boolean | null
           attendance_location_required?: boolean | null
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_branch?: string | null
+          bank_name?: string | null
+          bank_swift_code?: string | null
           billing_end_date?: string | null
           billing_notes?: string | null
           billing_plan?: string
@@ -853,6 +870,7 @@ export type Database = {
           tax_enabled?: boolean | null
           tax_rate?: number | null
           tenant_id?: string
+          tpin_number?: string | null
           trial_expires_at?: string | null
           updated_at?: string
           warehouse_enabled?: boolean | null

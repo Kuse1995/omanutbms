@@ -48,6 +48,13 @@ export interface BusinessProfile {
   billing_notes: string | null;
   billing_start_date: string | null;
   billing_end_date: string | null;
+  // TPIN and banking details
+  tpin_number?: string | null;
+  bank_name?: string | null;
+  bank_account_name?: string | null;
+  bank_account_number?: string | null;
+  bank_branch?: string | null;
+  bank_swift_code?: string | null;
 }
 
 import { AppRole } from "@/lib/role-config";
