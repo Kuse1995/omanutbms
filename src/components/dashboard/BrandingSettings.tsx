@@ -17,8 +17,17 @@ export function BrandingSettings() {
   
   const [formData, setFormData] = useState({
     company_name: businessProfile?.company_name || '',
+    company_address: businessProfile?.company_address || '',
+    company_email: businessProfile?.company_email || '',
+    company_phone: businessProfile?.company_phone || '',
     tagline: businessProfile?.tagline || '',
     slogan: (businessProfile as any)?.slogan || '',
+    tpin_number: businessProfile?.tpin_number || '',
+    bank_name: businessProfile?.bank_name || '',
+    bank_account_name: businessProfile?.bank_account_name || '',
+    bank_account_number: businessProfile?.bank_account_number || '',
+    bank_branch: businessProfile?.bank_branch || '',
+    bank_swift_code: businessProfile?.bank_swift_code || '',
     primary_color: businessProfile?.primary_color || '#004B8D',
     secondary_color: businessProfile?.secondary_color || '#0077B6',
     accent_color: (businessProfile as any)?.accent_color || '#10B981',
@@ -82,8 +91,17 @@ export function BrandingSettings() {
         .from('business_profiles')
         .update({
           company_name: formData.company_name || null,
+          company_address: formData.company_address || null,
+          company_email: formData.company_email || null,
+          company_phone: formData.company_phone || null,
           tagline: formData.tagline || null,
           slogan: formData.slogan || null,
+          tpin_number: formData.tpin_number || null,
+          bank_name: formData.bank_name || null,
+          bank_account_name: formData.bank_account_name || null,
+          bank_account_number: formData.bank_account_number || null,
+          bank_branch: formData.bank_branch || null,
+          bank_swift_code: formData.bank_swift_code || null,
           primary_color: formData.primary_color,
           secondary_color: formData.secondary_color,
           accent_color: formData.accent_color,
@@ -169,18 +187,60 @@ export function BrandingSettings() {
         <CardHeader>
           <CardTitle>Company Information</CardTitle>
           <CardDescription>
-            Set your company name and taglines.
+            Set your company name, contact details, and taglines.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="company_name">Company Name</Label>
+              <Input
+                id="company_name"
+                value={formData.company_name}
+                onChange={(e) => handleInputChange('company_name', e.target.value)}
+                placeholder="Your Company Name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tpin_number">TPIN Number</Label>
+              <Input
+                id="tpin_number"
+                value={formData.tpin_number}
+                onChange={(e) => handleInputChange('tpin_number', e.target.value)}
+                placeholder="1234567890"
+              />
+            </div>
+          </div>
           <div className="space-y-2">
-            <Label htmlFor="company_name">Company Name</Label>
-            <Input
-              id="company_name"
-              value={formData.company_name}
-              onChange={(e) => handleInputChange('company_name', e.target.value)}
-              placeholder="Your Company Name"
+            <Label htmlFor="company_address">Company Address</Label>
+            <Textarea
+              id="company_address"
+              value={formData.company_address}
+              onChange={(e) => handleInputChange('company_address', e.target.value)}
+              placeholder="123 Main Street, City, Country"
+              rows={2}
             />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="company_email">Company Email</Label>
+              <Input
+                id="company_email"
+                type="email"
+                value={formData.company_email}
+                onChange={(e) => handleInputChange('company_email', e.target.value)}
+                placeholder="info@yourcompany.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="company_phone">Company Phone</Label>
+              <Input
+                id="company_phone"
+                value={formData.company_phone}
+                onChange={(e) => handleInputChange('company_phone', e.target.value)}
+                placeholder="+260 XXX XXX XXX"
+              />
+            </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="tagline">Tagline</Label>
@@ -203,6 +263,70 @@ export function BrandingSettings() {
               placeholder="Your company motto or mission statement"
               rows={2}
             />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Bank Details */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Bank Details</CardTitle>
+          <CardDescription>
+            Add your banking information to display on invoices and quotations.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="bank_name">Bank Name</Label>
+              <Input
+                id="bank_name"
+                value={formData.bank_name}
+                onChange={(e) => handleInputChange('bank_name', e.target.value)}
+                placeholder="e.g. Zanaco, Stanbic, FNB"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="bank_branch">Branch</Label>
+              <Input
+                id="bank_branch"
+                value={formData.bank_branch}
+                onChange={(e) => handleInputChange('bank_branch', e.target.value)}
+                placeholder="e.g. Lusaka Main Branch"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="bank_account_name">Account Name</Label>
+              <Input
+                id="bank_account_name"
+                value={formData.bank_account_name}
+                onChange={(e) => handleInputChange('bank_account_name', e.target.value)}
+                placeholder="Your Company Ltd"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="bank_account_number">Account Number</Label>
+              <Input
+                id="bank_account_number"
+                value={formData.bank_account_number}
+                onChange={(e) => handleInputChange('bank_account_number', e.target.value)}
+                placeholder="1234567890"
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="bank_swift_code">SWIFT/BIC Code (Optional)</Label>
+            <Input
+              id="bank_swift_code"
+              value={formData.bank_swift_code}
+              onChange={(e) => handleInputChange('bank_swift_code', e.target.value)}
+              placeholder="e.g. ZABORLUX"
+            />
+            <p className="text-xs text-muted-foreground">
+              Required for international transfers
+            </p>
           </div>
         </CardContent>
       </Card>

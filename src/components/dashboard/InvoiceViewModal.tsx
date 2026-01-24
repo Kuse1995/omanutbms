@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Printer, Loader2, Download } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
-import { TenantDocumentHeader } from "./TenantDocumentHeader";
+import { TenantDocumentHeader, DocumentBankDetails } from "./TenantDocumentHeader";
 
 interface Invoice {
   id: string;
@@ -285,12 +285,7 @@ export function InvoiceViewModal({ isOpen, onClose, invoice }: InvoiceViewModalP
               </div>
 
               {/* Banking Details */}
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="font-semibold mb-2">Banking Details</h3>
-                <p className="text-sm text-gray-500 italic">
-                  Contact us for banking details or payment instructions.
-                </p>
-              </div>
+              <DocumentBankDetails />
 
               {invoice.notes && (
                 <div className="mt-6 p-4 bg-blue-50 rounded-lg">
