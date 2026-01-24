@@ -1024,75 +1024,77 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
             </div>
           </div>
 
-          {/* Inventory Classification Section */}
-          <div className="border border-[#004B8D]/10 rounded-lg p-4 bg-[#f8fafc]">
-            <Label className="text-[#003366] font-medium mb-3 block">Inventory Classification</Label>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label className="text-[#004B8D]/70 text-sm">Type</Label>
-                <Select
-                  value={formData.inventory_class}
-                  onValueChange={(value) => setFormData({ ...formData, inventory_class: value })}
-                >
-                  <SelectTrigger className="bg-white border-[#004B8D]/20 text-[#003366]">
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="finished_good">📦 Finished Good</SelectItem>
-                    <SelectItem value="raw_material">🧵 Raw Material</SelectItem>
-                    <SelectItem value="consumable">📋 Consumable</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+          {/* Inventory Classification Section - hidden for service-based businesses */}
+          {!formFields.hideStock && (
+            <div className="border border-[#004B8D]/10 rounded-lg p-4 bg-[#f8fafc]">
+              <Label className="text-[#003366] font-medium mb-3 block">Inventory Classification</Label>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[#004B8D]/70 text-sm">Type</Label>
+                  <Select
+                    value={formData.inventory_class}
+                    onValueChange={(value) => setFormData({ ...formData, inventory_class: value })}
+                  >
+                    <SelectTrigger className="bg-white border-[#004B8D]/20 text-[#003366]">
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="finished_good">📦 Finished Good</SelectItem>
+                      <SelectItem value="raw_material">🧵 Raw Material</SelectItem>
+                      <SelectItem value="consumable">📋 Consumable</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="space-y-2">
-                <Label className="text-[#004B8D]/70 text-sm">Storage Location</Label>
-                <Select
-                  value={formData.default_location_id || "none"}
-                  onValueChange={(value) => setFormData({ ...formData, default_location_id: value === "none" ? "" : value })}
-                >
-                  <SelectTrigger className="bg-white border-[#004B8D]/20 text-[#003366]">
-                    <SelectValue placeholder="Select location" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No default location</SelectItem>
-                    {locations.map((loc) => (
-                      <SelectItem key={loc.id} value={loc.id}>
-                        {loc.type === 'Warehouse' ? '🏭' : loc.type === 'Store' ? '🏪' : '🔧'} {loc.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                <div className="space-y-2">
+                  <Label className="text-[#004B8D]/70 text-sm">Storage Location</Label>
+                  <Select
+                    value={formData.default_location_id || "none"}
+                    onValueChange={(value) => setFormData({ ...formData, default_location_id: value === "none" ? "" : value })}
+                  >
+                    <SelectTrigger className="bg-white border-[#004B8D]/20 text-[#003366]">
+                      <SelectValue placeholder="Select location" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No default location</SelectItem>
+                      {locations.map((loc) => (
+                        <SelectItem key={loc.id} value={loc.id}>
+                          {loc.type === 'Warehouse' ? '🏭' : loc.type === 'Store' ? '🏪' : '🔧'} {loc.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="space-y-2">
-                <Label className="text-[#004B8D]/70 text-sm">Unit of Measure</Label>
-                <Select
-                  value={formData.unit_of_measure}
-                  onValueChange={(value) => setFormData({ ...formData, unit_of_measure: value })}
-                >
-                  <SelectTrigger className="bg-white border-[#004B8D]/20 text-[#003366]">
-                    <SelectValue placeholder="Select unit" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pcs">Pieces (pcs)</SelectItem>
-                    <SelectItem value="meters">Meters (m)</SelectItem>
-                    <SelectItem value="yards">Yards (yd)</SelectItem>
-                    <SelectItem value="kg">Kilograms (kg)</SelectItem>
-                    <SelectItem value="liters">Liters (L)</SelectItem>
-                    <SelectItem value="rolls">Rolls</SelectItem>
-                    <SelectItem value="spools">Spools</SelectItem>
-                    <SelectItem value="boxes">Boxes</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="space-y-2">
+                  <Label className="text-[#004B8D]/70 text-sm">Unit of Measure</Label>
+                  <Select
+                    value={formData.unit_of_measure}
+                    onValueChange={(value) => setFormData({ ...formData, unit_of_measure: value })}
+                  >
+                    <SelectTrigger className="bg-white border-[#004B8D]/20 text-[#003366]">
+                      <SelectValue placeholder="Select unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pcs">Pieces (pcs)</SelectItem>
+                      <SelectItem value="meters">Meters (m)</SelectItem>
+                      <SelectItem value="yards">Yards (yd)</SelectItem>
+                      <SelectItem value="kg">Kilograms (kg)</SelectItem>
+                      <SelectItem value="liters">Liters (L)</SelectItem>
+                      <SelectItem value="rolls">Rolls</SelectItem>
+                      <SelectItem value="spools">Spools</SelectItem>
+                      <SelectItem value="boxes">Boxes</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
+              {formData.inventory_class === 'raw_material' && isCustomDesignerEnabled && (
+                <p className="text-xs text-purple-600 mt-2">
+                  ✨ Raw materials will be available in the Custom Order material selector
+                </p>
+              )}
             </div>
-            {formData.inventory_class === 'raw_material' && isCustomDesignerEnabled && (
-              <p className="text-xs text-purple-600 mt-2">
-                ✨ Raw materials will be available in the Custom Order material selector
-              </p>
-            )}
-          </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
