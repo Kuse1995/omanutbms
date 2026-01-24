@@ -364,6 +364,9 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
                   <div className="text-2xl font-bold text-[#003366]">
                     {isLoading ? "..." : getMetricValue(card.metric)}
                   </div>
+                  {card.subtitle && (
+                    <p className="text-xs text-[#004B8D]/50 mt-1">{card.subtitle}</p>
+                  )}
                 </CardContent>
               </Card>
             </motion.div>

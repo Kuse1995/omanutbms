@@ -1245,8 +1245,8 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
                 </div>
               </div>
 
-              {/* Quick Variant Generator - only for new products in fashion mode */}
-              {!product && (
+              {/* Quick Variant Generator - only for new products in fashion mode when variants not hidden */}
+              {!product && !formFields.hideVariants && (
                 <div className="space-y-2">
                   <QuickVariantGenerator
                     isOpen={variantGeneratorOpen}
@@ -1580,8 +1580,8 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
             </div>
           )}
 
-          {/* Expiry Tracking Section */}
-          {!formFields.hideStock && (
+          {/* Expiry Tracking Section - hidden for services that don't track expiry */}
+          {!formFields.hideStock && !formFields.hideExpiry && (
             <div className="space-y-3 p-4 bg-amber-50/50 rounded-lg border border-amber-200/50">
               <div className="flex items-center gap-3">
                 <Checkbox
