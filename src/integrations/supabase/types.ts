@@ -1106,6 +1106,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           customer_id: string | null
+          demo_session_id: string | null
           deposit_paid: number | null
           design_type: string | null
           due_date: string | null
@@ -1119,6 +1120,7 @@ export type Database = {
           generated_images: Json | null
           id: string
           invoice_id: string | null
+          is_demo: boolean | null
           labor_hourly_rate: number | null
           margin_percentage: number | null
           measurements: Json | null
@@ -1152,6 +1154,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           customer_id?: string | null
+          demo_session_id?: string | null
           deposit_paid?: number | null
           design_type?: string | null
           due_date?: string | null
@@ -1165,6 +1168,7 @@ export type Database = {
           generated_images?: Json | null
           id?: string
           invoice_id?: string | null
+          is_demo?: boolean | null
           labor_hourly_rate?: number | null
           margin_percentage?: number | null
           measurements?: Json | null
@@ -1198,6 +1202,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           customer_id?: string | null
+          demo_session_id?: string | null
           deposit_paid?: number | null
           design_type?: string | null
           due_date?: string | null
@@ -1211,6 +1216,7 @@ export type Database = {
           generated_images?: Json | null
           id?: string
           invoice_id?: string | null
+          is_demo?: boolean | null
           labor_hourly_rate?: number | null
           margin_percentage?: number | null
           measurements?: Json | null
@@ -1290,8 +1296,10 @@ export type Database = {
         Row: {
           address: string | null
           created_at: string
+          demo_session_id: string | null
           email: string | null
           id: string
+          is_demo: boolean | null
           measurements: Json | null
           name: string
           notes: string | null
@@ -1304,8 +1312,10 @@ export type Database = {
         Insert: {
           address?: string | null
           created_at?: string
+          demo_session_id?: string | null
           email?: string | null
           id?: string
+          is_demo?: boolean | null
           measurements?: Json | null
           name: string
           notes?: string | null
@@ -1318,8 +1328,10 @@ export type Database = {
         Update: {
           address?: string | null
           created_at?: string
+          demo_session_id?: string | null
           email?: string | null
           id?: string
+          is_demo?: boolean | null
           measurements?: Json | null
           name?: string
           notes?: string | null
@@ -1523,6 +1535,7 @@ export type Database = {
           branch_id: string | null
           created_at: string
           daily_rate: number | null
+          demo_session_id: string | null
           department: string | null
           email: string | null
           emergency_contact_name: string | null
@@ -1533,6 +1546,7 @@ export type Database = {
           hire_date: string
           hourly_rate: number | null
           id: string
+          is_demo: boolean | null
           job_title: string | null
           notes: string | null
           nrc_number: string | null
@@ -1554,6 +1568,7 @@ export type Database = {
           branch_id?: string | null
           created_at?: string
           daily_rate?: number | null
+          demo_session_id?: string | null
           department?: string | null
           email?: string | null
           emergency_contact_name?: string | null
@@ -1564,6 +1579,7 @@ export type Database = {
           hire_date?: string
           hourly_rate?: number | null
           id?: string
+          is_demo?: boolean | null
           job_title?: string | null
           notes?: string | null
           nrc_number?: string | null
@@ -1585,6 +1601,7 @@ export type Database = {
           branch_id?: string | null
           created_at?: string
           daily_rate?: number | null
+          demo_session_id?: string | null
           department?: string | null
           email?: string | null
           emergency_contact_name?: string | null
@@ -1595,6 +1612,7 @@ export type Database = {
           hire_date?: string
           hourly_rate?: number | null
           id?: string
+          is_demo?: boolean | null
           job_title?: string | null
           notes?: string | null
           nrc_number?: string | null
@@ -1631,7 +1649,9 @@ export type Database = {
           category: string
           created_at: string
           date_incurred: string
+          demo_session_id: string | null
           id: string
+          is_demo: boolean | null
           notes: string | null
           payroll_record_id: string | null
           receipt_image_url: string | null
@@ -1646,7 +1666,9 @@ export type Database = {
           category: string
           created_at?: string
           date_incurred?: string
+          demo_session_id?: string | null
           id?: string
+          is_demo?: boolean | null
           notes?: string | null
           payroll_record_id?: string | null
           receipt_image_url?: string | null
@@ -1661,7 +1683,9 @@ export type Database = {
           category?: string
           created_at?: string
           date_incurred?: string
+          demo_session_id?: string | null
           id?: string
+          is_demo?: boolean | null
           notes?: string | null
           payroll_record_id?: string | null
           receipt_image_url?: string | null
@@ -1942,6 +1966,7 @@ export type Database = {
           current_stock: number
           datasheet_url: string | null
           default_location_id: string | null
+          demo_session_id: string | null
           description: string | null
           expiry_date: string | null
           features: string[] | null
@@ -1951,6 +1976,7 @@ export type Database = {
           id: string
           image_url: string | null
           inventory_class: string | null
+          is_demo: boolean | null
           item_type: string
           liters_per_unit: number
           manual_url: string | null
@@ -1980,6 +2006,7 @@ export type Database = {
           current_stock?: number
           datasheet_url?: string | null
           default_location_id?: string | null
+          demo_session_id?: string | null
           description?: string | null
           expiry_date?: string | null
           features?: string[] | null
@@ -1989,6 +2016,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           inventory_class?: string | null
+          is_demo?: boolean | null
           item_type?: string
           liters_per_unit?: number
           manual_url?: string | null
@@ -2018,6 +2046,7 @@ export type Database = {
           current_stock?: number
           datasheet_url?: string | null
           default_location_id?: string | null
+          demo_session_id?: string | null
           description?: string | null
           expiry_date?: string | null
           features?: string[] | null
@@ -2027,6 +2056,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           inventory_class?: string | null
+          is_demo?: boolean | null
           item_type?: string
           liters_per_unit?: number
           manual_url?: string | null
@@ -2161,10 +2191,12 @@ export type Database = {
         Row: {
           amount: number
           created_at: string
+          demo_session_id: string | null
           description: string
           discount_applied: number | null
           id: string
           invoice_id: string
+          is_demo: boolean | null
           item_type: string
           original_amount: number | null
           quantity: number
@@ -2174,10 +2206,12 @@ export type Database = {
         Insert: {
           amount?: number
           created_at?: string
+          demo_session_id?: string | null
           description: string
           discount_applied?: number | null
           id?: string
           invoice_id: string
+          is_demo?: boolean | null
           item_type?: string
           original_amount?: number | null
           quantity?: number
@@ -2187,10 +2221,12 @@ export type Database = {
         Update: {
           amount?: number
           created_at?: string
+          demo_session_id?: string | null
           description?: string
           discount_applied?: number | null
           id?: string
           invoice_id?: string
+          is_demo?: boolean | null
           item_type?: string
           original_amount?: number | null
           quantity?: number
@@ -2222,12 +2258,14 @@ export type Database = {
           client_phone: string | null
           created_at: string
           created_by: string | null
+          demo_session_id: string | null
           discount_amount: number | null
           discount_reason: string | null
           due_date: string | null
           id: string
           invoice_date: string
           invoice_number: string
+          is_demo: boolean | null
           notes: string | null
           paid_amount: number
           source_quotation_id: string | null
@@ -2246,12 +2284,14 @@ export type Database = {
           client_phone?: string | null
           created_at?: string
           created_by?: string | null
+          demo_session_id?: string | null
           discount_amount?: number | null
           discount_reason?: string | null
           due_date?: string | null
           id?: string
           invoice_date?: string
           invoice_number: string
+          is_demo?: boolean | null
           notes?: string | null
           paid_amount?: number
           source_quotation_id?: string | null
@@ -2270,12 +2310,14 @@ export type Database = {
           client_phone?: string | null
           created_at?: string
           created_by?: string | null
+          demo_session_id?: string | null
           discount_amount?: number | null
           discount_reason?: string | null
           due_date?: string | null
           id?: string
           invoice_date?: string
           invoice_number?: string
+          is_demo?: boolean | null
           notes?: string | null
           paid_amount?: number
           source_quotation_id?: string | null
@@ -3090,9 +3132,11 @@ export type Database = {
           customer_email: string | null
           customer_name: string | null
           customer_phone: string | null
+          demo_session_id: string | null
           discount_amount: number | null
           discount_reason: string | null
           id: string
+          is_demo: boolean | null
           item_type: string
           liters_impact: number
           notes: string | null
@@ -3114,9 +3158,11 @@ export type Database = {
           customer_email?: string | null
           customer_name?: string | null
           customer_phone?: string | null
+          demo_session_id?: string | null
           discount_amount?: number | null
           discount_reason?: string | null
           id?: string
+          is_demo?: boolean | null
           item_type?: string
           liters_impact?: number
           notes?: string | null
@@ -3138,9 +3184,11 @@ export type Database = {
           customer_email?: string | null
           customer_name?: string | null
           customer_phone?: string | null
+          demo_session_id?: string | null
           discount_amount?: number | null
           discount_reason?: string | null
           id?: string
+          is_demo?: boolean | null
           item_type?: string
           liters_impact?: number
           notes?: string | null

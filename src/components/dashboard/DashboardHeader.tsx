@@ -21,6 +21,7 @@ import { NotificationsCenter } from "./NotificationsCenter";
 import { TrialBanner } from "./TrialBanner";
 import { UpgradePlanModal } from "./UpgradePlanModal";
 import { BranchSelector } from "./BranchSelector";
+import { DemoModeIndicator } from "@/components/demo/DemoModeIndicator";
 
 export function DashboardHeader() {
   const { user, profile, role, signOut, isSuperAdmin } = useAuth();
@@ -64,6 +65,7 @@ export function DashboardHeader() {
           </AlertDescription>
         </Alert>
       )}
+      <DemoModeIndicator />
       <TrialBanner onUpgrade={() => setUpgradeModalOpen(true)} />
       <header className="h-16 border-b border-[var(--brand-primary,#004B8D)]/10 bg-white/80 backdrop-blur-sm px-6 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-4">
