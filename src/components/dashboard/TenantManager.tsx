@@ -329,22 +329,76 @@ export function TenantManager() {
   const deleteTenantMutation = useMutation({
     mutationFn: async (tenantId: string) => {
       // Delete in order to respect foreign key constraints
-      // Some tables use SET NULL instead of CASCADE, so we delete them explicitly
+      // Must delete child tables before parents to avoid FK violations
       
-      // WhatsApp tables (whatsapp_audit_logs uses SET NULL)
+      // 1. WhatsApp tables (some use SET NULL instead of CASCADE)
       await supabase.from("whatsapp_audit_logs").delete().eq("tenant_id", tenantId);
       await supabase.from("whatsapp_usage_logs").delete().eq("tenant_id", tenantId);
       await supabase.from("whatsapp_pending_actions").delete().eq("tenant_id", tenantId);
       await supabase.from("whatsapp_conversation_drafts").delete().eq("tenant_id", tenantId);
       await supabase.from("whatsapp_user_mappings").delete().eq("tenant_id", tenantId);
       
-      // Core tenant tables
+      // 2. Transaction child tables (must delete before sales/invoices/inventory)
+      await supabase.from("sales_transactions").delete().eq("tenant_id", tenantId);
+      await supabase.from("invoice_items").delete().eq("tenant_id", tenantId);
+      await supabase.from("quotation_items").delete().eq("tenant_id", tenantId);
+      await supabase.from("custom_order_items").delete().eq("tenant_id", tenantId);
+      
+      // 3. Payroll child records
+      await supabase.from("payroll_records").delete().eq("tenant_id", tenantId);
+      await supabase.from("employee_attendance").delete().eq("tenant_id", tenantId);
+      await supabase.from("employee_documents").delete().eq("tenant_id", tenantId);
+      
+      // 4. Agent tables
+      await supabase.from("agent_transactions").delete().eq("tenant_id", tenantId);
+      await supabase.from("agent_inventory").delete().eq("tenant_id", tenantId);
+      
+      // 5. Product-related child tables
+      await supabase.from("product_variants").delete().eq("tenant_id", tenantId);
+      await supabase.from("branch_inventory").delete().eq("tenant_id", tenantId);
+      await supabase.from("inventory_adjustments").delete().eq("tenant_id", tenantId);
+      
+      // 6. Financial tables
+      await supabase.from("payment_receipts").delete().eq("tenant_id", tenantId);
+      await supabase.from("expenses").delete().eq("tenant_id", tenantId);
+      await supabase.from("accounts_payable").delete().eq("tenant_id", tenantId);
+      await supabase.from("recurring_expenses").delete().eq("tenant_id", tenantId);
+      
+      // 7. Parent transaction tables (after child records deleted)
+      await supabase.from("sales").delete().eq("tenant_id", tenantId);
+      await supabase.from("invoices").delete().eq("tenant_id", tenantId);
+      await supabase.from("quotations").delete().eq("tenant_id", tenantId);
+      await supabase.from("custom_orders").delete().eq("tenant_id", tenantId);
+      
+      // 8. Core entities
+      await supabase.from("inventory").delete().eq("tenant_id", tenantId);
+      await supabase.from("customers").delete().eq("tenant_id", tenantId);
+      await supabase.from("employees").delete().eq("tenant_id", tenantId);
+      await supabase.from("agent_applications").delete().eq("tenant_id", tenantId);
+      await supabase.from("branches").delete().eq("tenant_id", tenantId);
+      await supabase.from("collections").delete().eq("tenant_id", tenantId);
+      
+      // 9. System/config tables
+      await supabase.from("admin_alerts").delete().eq("tenant_id", tenantId);
+      await supabase.from("audit_log").delete().eq("tenant_id", tenantId);
+      await supabase.from("feature_usage_logs").delete().eq("tenant_id", tenantId);
+      await supabase.from("financial_reports").delete().eq("tenant_id", tenantId);
+      await supabase.from("impact_certificates").delete().eq("tenant_id", tenantId);
+      await supabase.from("impact_metrics").delete().eq("tenant_id", tenantId);
+      await supabase.from("hero_announcements").delete().eq("tenant_id", tenantId);
+      await supabase.from("blog_posts").delete().eq("tenant_id", tenantId);
+      await supabase.from("wash_forums").delete().eq("tenant_id", tenantId);
+      await supabase.from("donation_requests").delete().eq("tenant_id", tenantId);
+      await supabase.from("community_messages").delete().eq("tenant_id", tenantId);
+      await supabase.from("website_contacts").delete().eq("tenant_id", tenantId);
+      
+      // 10. Core tenant tables
       await supabase.from("tenant_users").delete().eq("tenant_id", tenantId);
       await supabase.from("authorized_emails").delete().eq("tenant_id", tenantId);
       await supabase.from("business_profiles").delete().eq("tenant_id", tenantId);
       await supabase.from("tenant_statistics").delete().eq("tenant_id", tenantId);
       
-      // Finally delete tenant (CASCADE will handle remaining tables)
+      // 11. Finally delete tenant
       const { error } = await supabase.from("tenants").delete().eq("id", tenantId);
       if (error) throw error;
     },
