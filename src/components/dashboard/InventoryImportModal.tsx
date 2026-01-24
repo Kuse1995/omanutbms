@@ -23,6 +23,7 @@ import { Progress } from "@/components/ui/progress";
 import { Upload, FileSpreadsheet, Download, CheckCircle2, XCircle, Loader2, Wand2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/hooks/useTenant";
+import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 import { ImportConverterModal } from "./ImportConverterModal";
 interface InventoryImportModalProps {
   open: boolean;
@@ -66,6 +67,7 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
   const [activeTab, setActiveTab] = useState<string>("spreadsheet");
   const { toast } = useToast();
   const { tenantId } = useTenant();
+  const { terminology } = useBusinessConfig();
 
   const resetState = () => {
     setParsedData([]);
@@ -351,7 +353,7 @@ PROD-003,Premium Product,5,8500,6000,2,premium,High-end product with full featur
           <DialogHeader>
             <DialogTitle className="text-[#003366] flex items-center gap-2">
               <FileSpreadsheet className="h-5 w-5 text-[#0077B6]" />
-              Import Inventory
+              Import {terminology.inventory}
             </DialogTitle>
             <DialogDescription className="text-[#004B8D]/60">
               Upload a CSV/Excel file or convert from Word/PDF documents
@@ -424,7 +426,7 @@ PROD-003,Premium Product,5,8500,6000,2,premium,High-end product with full featur
                     AI-Powered Document Conversion
                   </p>
                   <p className="text-[#004B8D]/60 text-sm mb-4">
-                    Upload a Word document, PDF, or image and AI will extract product data for you
+                    Upload a Word document, PDF, or image and AI will extract {terminology.product.toLowerCase()} data for you
                   </p>
                   <Button onClick={() => setIsConverterOpen(true)}>
                     <Wand2 className="h-4 w-4 mr-2" />
@@ -436,7 +438,7 @@ PROD-003,Premium Product,5,8500,6000,2,premium,High-end product with full featur
                     <strong>Supported formats:</strong> Word (.docx), PDF, Images (JPG, PNG)
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Works great with product lists, price sheets, supplier catalogs, and more.
+                    Works great with {terminology.product.toLowerCase()} lists, price sheets, supplier catalogs, and more.
                   </p>
                 </div>
               </TabsContent>
