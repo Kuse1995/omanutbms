@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { OmanutAdvisor } from "@/components/dashboard/OmanutAdvisor";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
@@ -230,6 +231,9 @@ const Dashboard = () => {
         {!tourLoading && (
           <OnboardingTour run={runTour} onComplete={completeTour} />
         )}
+        
+        {/* AI Advisor Chat */}
+        <OmanutAdvisor />
       </SidebarProvider>
     </BranchProvider>
   );
