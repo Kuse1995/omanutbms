@@ -102,17 +102,25 @@ serve(async (req) => {
         return expiry <= thirtyDaysFromNow && expiry > new Date();
       }) || [];
 
-      // Get pending and overdue invoices
+      // Get pending and overdue invoices with client details
       const { data: allInvoices } = await supabase
         .from("invoices")
-        .select("total_amount, paid_amount, status, due_date, client_name")
+        .select("total_amount, paid_amount, status, due_date, client_name, client_phone, invoice_number")
         .eq("tenant_id", tenantId)
-        .in("status", ["pending", "partial"]);
+        .in("status", ["pending", "partial"])
+        .order("due_date", { ascending: true });
 
       const pendingInvoices = allInvoices || [];
       const pendingAmount = pendingInvoices.reduce((sum, i) => sum + ((i.total_amount || 0) - (i.paid_amount || 0)), 0);
       const overdueInvoices = pendingInvoices.filter(i => i.due_date && new Date(i.due_date) < new Date());
       const overdueAmount = overdueInvoices.reduce((sum, i) => sum + ((i.total_amount || 0) - (i.paid_amount || 0)), 0);
+      
+      // Calculate days overdue for each invoice
+      const overdueDetails = overdueInvoices.slice(0, 5).map(inv => {
+        const daysOverdue = Math.floor((new Date().getTime() - new Date(inv.due_date!).getTime()) / (1000 * 60 * 60 * 24));
+        const amountOwed = (inv.total_amount || 0) - (inv.paid_amount || 0);
+        return `${inv.client_name} owes ${currency}${amountOwed.toLocaleString()} (${daysOverdue} days overdue, Invoice #${inv.invoice_number})`;
+      });
 
       // Get expenses this month
       const { data: monthExpenses } = await supabase
@@ -136,25 +144,55 @@ serve(async (req) => {
         .eq("tenant_id", tenantId)
         .eq("employment_status", "active");
 
-      // Get customer count (unique from sales)
-      const { data: allCustomers } = await supabase
+      // Get customer count and top customers
+      const { data: allCustomerSales } = await supabase
         .from("sales_transactions")
-        .select("customer_name, customer_email")
+        .select("customer_name, customer_email, customer_phone, total_amount_zmw")
         .eq("tenant_id", tenantId)
         .not("customer_name", "is", null);
 
-      const uniqueCustomers = new Set(allCustomers?.map(c => c.customer_email || c.customer_name)).size;
+      const uniqueCustomers = new Set(allCustomerSales?.map(c => c.customer_email || c.customer_name)).size;
+      
+      // Calculate top customers by revenue
+      const customerRevenue = allCustomerSales?.reduce((acc, sale) => {
+        const key = sale.customer_name || 'Unknown';
+        acc[key] = (acc[key] || 0) + (sale.total_amount_zmw || 0);
+        return acc;
+      }, {} as Record<string, number>) || {};
+      const topCustomers = Object.entries(customerRevenue)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([name, amount]) => `${name}: ${currency}${amount.toLocaleString()}`);
 
-      // Get pending quotations
+      // Get pending quotations with client details
       const { data: pendingQuotations } = await supabase
         .from("quotations")
-        .select("total_amount")
+        .select("total_amount, client_name, client_phone, quotation_number, created_at")
         .eq("tenant_id", tenantId)
-        .eq("status", "pending");
+        .eq("status", "pending")
+        .order("created_at", { ascending: true });
 
       const quotationsPendingValue = pendingQuotations?.reduce((sum, q) => sum + (q.total_amount || 0), 0) || 0;
+      
+      // Calculate days waiting for each quotation
+      const quotationDetails = pendingQuotations?.slice(0, 5).map(q => {
+        const daysWaiting = Math.floor((new Date().getTime() - new Date(q.created_at).getTime()) / (1000 * 60 * 60 * 24));
+        return `${q.client_name}: ${currency}${(q.total_amount || 0).toLocaleString()} (waiting ${daysWaiting} days, #${q.quotation_number})`;
+      }) || [];
 
-      // Build comprehensive business context
+      // Get low stock items with reorder quantities
+      const lowStockDetails = lowStockItems.slice(0, 5).map(item => {
+        const deficit = (item.reorder_level || 10) - (item.quantity || 0);
+        return `${item.name}: ${item.quantity} left (reorder ${deficit}+ units)`;
+      });
+
+      // Get expiring items with dates
+      const expiringDetails = expiringItems.slice(0, 5).map(item => {
+        const daysUntilExpiry = Math.floor((new Date(item.expiry_date!).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+        return `${item.name}: expires in ${daysUntilExpiry} days`;
+      });
+
+      // Build comprehensive business context with actionable details
       businessContext = `
 BUSINESS PROFILE:
 - Company: ${companyName}
@@ -171,17 +209,23 @@ SALES PERFORMANCE:
 - Last Month: ${currency}${lastMonthRevenue.toLocaleString()}
 ${revenueGrowth !== null ? `- Month-over-Month Growth: ${parseFloat(revenueGrowth) >= 0 ? '+' : ''}${revenueGrowth}%` : ''}
 
+TOP CUSTOMERS (by total revenue):
+${topCustomers.length > 0 ? topCustomers.map(c => `  • ${c}`).join('\n') : '  No customer data yet'}
+
 INVENTORY STATUS:
 - Total Products: ${totalItems}
 - Total Inventory Value: ${currency}${totalInventoryValue.toLocaleString()}
-${outOfStockItems.length > 0 ? `- OUT OF STOCK (${outOfStockItems.length}): ${outOfStockItems.slice(0, 3).map(i => i.name).join(', ')}${outOfStockItems.length > 3 ? '...' : ''}` : '- No items out of stock ✓'}
-${lowStockItems.length > 0 ? `- Low Stock Warning (${lowStockItems.length}): ${lowStockItems.slice(0, 3).map(i => i.name).join(', ')}${lowStockItems.length > 3 ? '...' : ''}` : ''}
-${expiringItems.length > 0 ? `- Expiring Soon (${expiringItems.length}): ${expiringItems.slice(0, 3).map(i => i.name).join(', ')}` : ''}
+${outOfStockItems.length > 0 ? `\n⚠️ OUT OF STOCK - URGENT ACTION NEEDED:\n${outOfStockItems.slice(0, 5).map(i => `  • ${i.name}`).join('\n')}` : '✓ No items out of stock'}
+${lowStockDetails.length > 0 ? `\n⚠️ LOW STOCK - REORDER SOON:\n${lowStockDetails.map(d => `  • ${d}`).join('\n')}` : ''}
+${expiringDetails.length > 0 ? `\n⏰ EXPIRING SOON - SELL OR DISCOUNT:\n${expiringDetails.map(d => `  • ${d}`).join('\n')}` : ''}
 
-RECEIVABLES:
-- Pending Invoices: ${pendingInvoices.length} worth ${currency}${pendingAmount.toLocaleString()}
-${overdueInvoices.length > 0 ? `- OVERDUE (${overdueInvoices.length}): ${currency}${overdueAmount.toLocaleString()} - needs attention!` : '- No overdue invoices ✓'}
-${pendingQuotations && pendingQuotations.length > 0 ? `- Pending Quotations: ${pendingQuotations.length} worth ${currency}${quotationsPendingValue.toLocaleString()}` : ''}
+RECEIVABLES - ACTION ITEMS:
+- Total Pending: ${pendingInvoices.length} invoices worth ${currency}${pendingAmount.toLocaleString()}
+${overdueDetails.length > 0 ? `\n🔴 OVERDUE - FOLLOW UP IMMEDIATELY:\n${overdueDetails.map(d => `  • ${d}`).join('\n')}` : '✓ No overdue invoices'}
+
+QUOTATIONS AWAITING RESPONSE:
+${quotationDetails.length > 0 ? quotationDetails.map(d => `  • ${d}`).join('\n') : '  No pending quotations'}
+${quotationsPendingValue > 0 ? `  → Total potential value: ${currency}${quotationsPendingValue.toLocaleString()}` : ''}
 
 EXPENSES THIS MONTH:
 - Total: ${currency}${totalExpenses.toLocaleString()}
@@ -205,20 +249,26 @@ Your personality:
 - Warm, encouraging, and supportive
 - Keep responses SHORT (2-3 sentences max unless asked for detail)
 - Use casual language, light humor when appropriate
-- Give actionable tips, not lengthy reports
+- Give SPECIFIC, ACTIONABLE recommendations with names, amounts, dates
 - Celebrate wins, gently flag concerns
 - Use emojis sparingly but naturally 👍
 
 ${businessContext}
 
-When asked about the business, reference actual data. Be specific but conversational. If something looks concerning, mention it gently with a suggestion. If things are going well, celebrate it!
+IMPORTANT - ACTIONABLE ADVICE RULES:
+1. Always mention SPECIFIC customer names, product names, and amounts when suggesting actions
+2. Prioritize urgent items: overdue invoices first, then expiring stock, then low stock
+3. When suggesting follow-ups, include the customer name and amount owed
+4. When suggesting restocking, name the specific products
+5. Format action items clearly: "→ Action: [specific thing to do]"
 
-Examples of your tone:
-- "Hey! Today's looking solid with X sales 🎉 Keep it up!"
-- "Hmm, noticed a few items running low. Might want to check on those before the weekend rush."
-- "That's a great question! Based on your numbers..."
+Examples of your tone with specific actions:
+- "Hey! Today's looking solid with 5 sales 🎉 Quick note: John Mwape still owes K2,500 from last week. → Action: Send him a friendly reminder today!"
+- "Heads up - Paracetamol 500mg is down to 3 units. → Action: Reorder before you run out this weekend."
+- "Great month so far! But I noticed Zambia Sugar Ltd hasn't paid their K15,000 invoice due 5 days ago. → Action: Give them a call to check on payment status."
+- "You have 3 quotations pending worth K45,000. → Action: Follow up with ABC Company (K20,000) - they've been waiting 4 days."
 
-Never make up data. If you don't have info, just say so naturally.`;
+Never make up data. If you don't have info, just say so naturally. Always be specific when data is available.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
