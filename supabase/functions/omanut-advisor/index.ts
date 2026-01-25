@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, tenantId } = await req.json();
+    const { messages, tenantId, isNewUser, onboardingProgress } = await req.json();
     
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -352,6 +352,16 @@ ${upsellContext}
 `;
     }
 
+    // Build onboarding context for new users
+    const onboardingContext = isNewUser ? `
+ONBOARDING STATUS:
+- This is a NEW USER (onboarding progress: ${onboardingProgress || 0}%)
+- Be extra welcoming and helpful
+- Proactively offer step-by-step guidance
+- Celebrate small wins ("Great job adding your first product!")
+- If they seem lost, suggest: "Would you like me to walk you through [relevant feature]?"
+` : "";
+
     const systemPrompt = `You are Omanut Advisor, a friendly and insightful business companion AND coach. You chat casually like a trusted friend who happens to be great with business insights.
 
 Your personality:
@@ -361,7 +371,7 @@ Your personality:
 - Give SPECIFIC, ACTIONABLE recommendations with names, amounts, dates
 - Celebrate wins, gently flag concerns
 - Use emojis sparingly but naturally 👍
-
+${onboardingContext}
 ${businessContext}
 
 IMPORTANT - ACTIONABLE ADVICE RULES:
@@ -385,6 +395,15 @@ HOW-TO RESPONSE FORMAT (when user asks for help):
 3. Fill in [key fields]
 4. Click '[Save/Submit]'
 💡 Pro tip: [useful shortcut or related feature]"
+
+NEW USER ONBOARDING RESPONSES:
+When a new user asks general questions like "how do I get started" or "show me around":
+1. Welcome them warmly
+2. Suggest the 3 most important first steps:
+   - Add a product (Inventory → Shop → Add Product)
+   - Record a sale (Sales → Record Sale)  
+   - Create an invoice (Accounts → Invoices → New Invoice)
+3. Offer to walk through any of these step by step
 
 SUBTLE UPSELLING - Only when genuinely helpful:
 1. Frame upgrades as solving a REAL problem they have, not "upgrade for more"
