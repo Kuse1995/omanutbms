@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { motion, AnimatePresence } from "framer-motion";
-import { useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion, useMotionValue, useDragControls } from "framer-motion";
 import { X, Send, Minimize2, Loader2, HelpCircle, TrendingUp, Package, Users, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +10,41 @@ import { useAdvisorOnboarding } from "@/hooks/useAdvisorOnboarding";
 import { AdvisorOnboardingPanel } from "./AdvisorOnboardingPanel";
 import { cn } from "@/lib/utils";
 import advisorLogo from "@/assets/advisor-logo-client.png";
+
+const ADVISOR_POSITION_KEY = "omanut-advisor-position-v1";
+const VIEWPORT_MARGIN_PX = 16;
+
+function safeParsePosition(raw: string | null): { x: number; y: number } | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      "x" in parsed &&
+      "y" in parsed &&
+      typeof (parsed as any).x === "number" &&
+      typeof (parsed as any).y === "number"
+    ) {
+      return { x: (parsed as any).x, y: (parsed as any).y };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function clamp(n: number, min: number, max: number) {
+  return Math.min(Math.max(n, min), max);
+}
+
+function getWidgetSize(isOpen: boolean, isHidden: boolean) {
+  // These are used purely for initial placement + clamping.
+  // The actual drag constraints will still keep the element in-bounds.
+  if (isHidden) return { w: 160, h: 40 };
+  if (isOpen) return { w: 360, h: 520 };
+  return { w: 56, h: 56 };
+}
 interface Message {
   id: string;
   role: "user" | "assistant";
@@ -22,6 +56,10 @@ const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/omanut-advis
 export function OmanutAdvisor() {
   const { tenantId, businessProfile } = useTenant();
   const prefersReducedMotion = useReducedMotion();
+  const dragControls = useDragControls();
+  const constraintsRef = useRef<HTMLDivElement>(null);
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
   const {
     isNewUser,
     hasSeenWelcome,
@@ -34,7 +72,8 @@ export function OmanutAdvisor() {
   
   const [isOpen, setIsOpen] = useState(false);
   const [isHidden, setIsHidden] = useState(() => {
-    return localStorage.getItem("omanut-advisor-hidden") === "true";
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("omanut-advisor-hidden") === "true";
   });
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -45,6 +84,51 @@ export function OmanutAdvisor() {
 
   // Render into a portal so the widget isn't affected by parent transforms/stacking contexts.
   const portalTarget = typeof document !== "undefined" ? document.body : null;
+
+  const setFloatingPositionClamped = useCallback(
+    (nextX: number, nextY: number) => {
+      if (typeof window === "undefined") return;
+
+      const { w, h } = getWidgetSize(isOpen, isHidden);
+      const minX = VIEWPORT_MARGIN_PX;
+      const minY = VIEWPORT_MARGIN_PX;
+      const maxX = Math.max(minX, window.innerWidth - w - VIEWPORT_MARGIN_PX);
+      const maxY = Math.max(minY, window.innerHeight - h - VIEWPORT_MARGIN_PX);
+
+      x.set(clamp(nextX, minX, maxX));
+      y.set(clamp(nextY, minY, maxY));
+    },
+    [isHidden, isOpen, x, y]
+  );
+
+  // Initial position: restore from localStorage, otherwise default to bottom-right.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = safeParsePosition(window.localStorage.getItem(ADVISOR_POSITION_KEY));
+
+    const { w, h } = getWidgetSize(false, isHidden);
+    const defaultX = window.innerWidth - w - VIEWPORT_MARGIN_PX;
+    const defaultY = window.innerHeight - h - VIEWPORT_MARGIN_PX;
+
+    setFloatingPositionClamped(stored?.x ?? defaultX, stored?.y ?? defaultY);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep the widget on-screen when size changes (open/close/hidden) or on resize.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setFloatingPositionClamped(x.get(), y.get());
+
+    const handleResize = () => setFloatingPositionClamped(x.get(), y.get());
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [isOpen, isHidden, setFloatingPositionClamped, x, y]);
+
+  const persistPosition = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const payload = { x: x.get(), y: y.get() };
+    window.localStorage.setItem(ADVISOR_POSITION_KEY, JSON.stringify(payload));
+  }, [x, y]);
 
   // Auto-show onboarding panel for new users
   useEffect(() => {
@@ -68,7 +152,9 @@ export function OmanutAdvisor() {
   const toggleHidden = () => {
     const newHidden = !isHidden;
     setIsHidden(newHidden);
-    localStorage.setItem("omanut-advisor-hidden", String(newHidden));
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("omanut-advisor-hidden", String(newHidden));
+    }
     if (newHidden) setIsOpen(false);
   };
 
@@ -230,40 +316,62 @@ export function OmanutAdvisor() {
 
   if (!portalTarget) return null;
 
-  if (isHidden) {
-    return createPortal(
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={toggleHidden}
-        className="fixed bottom-4 right-4 z-50 opacity-60 hover:opacity-100 text-xs bg-background/70 backdrop-blur supports-[backdrop-filter]:bg-background/50 border border-border"
-      >
-        <img src={advisorLogo} alt="Advisor" className="h-4 w-4 mr-1 object-contain" />
-        Show Advisor
-      </Button>,
-      portalTarget
-    );
-  }
-
   return createPortal(
     <>
-      {/* Floating button with progress indicator for new users */}
-      <AnimatePresence>
-        {!isOpen && (
-          <motion.button
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            whileHover={prefersReducedMotion ? undefined : { scale: 1.03 }}
-            whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
-            onClick={() => setIsOpen(true)}
-            className={cn(
-              "fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full",
-              "bg-background border border-border shadow-elevated",
-              "transition-shadow flex items-center justify-center group relative",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background"
-            )}
+      {/* Drag constraints area (viewport). */}
+      <div ref={constraintsRef} className="fixed inset-0 pointer-events-none" />
+
+      {isHidden ? (
+        <motion.div
+          className="fixed left-0 top-0 z-50"
+          style={{ x, y }}
+          drag
+          dragElastic={0.12}
+          dragMomentum={false}
+          dragConstraints={constraintsRef}
+          onDragEnd={() => {
+            setFloatingPositionClamped(x.get(), y.get());
+            persistPosition();
+          }}
+        >
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={toggleHidden}
+            className="opacity-70 hover:opacity-100 text-xs bg-background/70 backdrop-blur supports-[backdrop-filter]:bg-background/50 border border-border"
           >
+            <img src={advisorLogo} alt="Advisor" className="h-4 w-4 mr-1 object-contain" />
+            Show Advisor
+          </Button>
+        </motion.div>
+      ) : (
+        <>
+          {/* Floating button with progress indicator for new users */}
+          <AnimatePresence>
+            {!isOpen && (
+              <motion.button
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                whileHover={prefersReducedMotion ? undefined : { scale: 1.03 }}
+                whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
+                onClick={() => setIsOpen(true)}
+                drag
+                dragElastic={0.12}
+                dragMomentum={false}
+                dragConstraints={constraintsRef}
+                onDragEnd={() => {
+                  setFloatingPositionClamped(x.get(), y.get());
+                  persistPosition();
+                }}
+                style={{ x, y }}
+                className={cn(
+                  "fixed left-0 top-0 z-50 w-14 h-14 rounded-full",
+                  "bg-background border border-border shadow-elevated",
+                  "transition-shadow flex items-center justify-center group relative",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background"
+                )}
+              >
             {/* Glow halo */}
             <motion.span
               aria-hidden
@@ -316,22 +424,37 @@ export function OmanutAdvisor() {
                 <span className="text-[10px] font-bold">!</span>
               </span>
             )}
-          </motion.button>
-        )}
-      </AnimatePresence>
+              </motion.button>
+            )}
+          </AnimatePresence>
 
-      {/* Chat window */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed bottom-6 right-6 z-50 w-[360px] h-[520px] bg-background border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-          >
+          {/* Chat window */}
+          <AnimatePresence>
+            {isOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 20, scale: 0.95 }}
+                transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                className="fixed left-0 top-0 z-50 w-[360px] h-[520px] bg-background border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+                style={{ x, y }}
+                drag
+                dragListener={false}
+                dragControls={dragControls}
+                dragElastic={0.06}
+                dragMomentum={false}
+                dragConstraints={constraintsRef}
+                onDragEnd={() => {
+                  setFloatingPositionClamped(x.get(), y.get());
+                  persistPosition();
+                }}
+              >
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b bg-gradient-to-r from-primary/10 to-transparent">
+            <div
+              className="flex items-center justify-between px-4 py-3 border-b bg-gradient-to-r from-primary/10 to-transparent cursor-move select-none"
+              onPointerDown={(e) => dragControls.start(e)}
+              title="Drag to move"
+            >
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-background flex items-center justify-center overflow-hidden border border-border/30">
                   <img src={advisorLogo} alt="Advisor" className="h-6 w-6 object-contain" />
@@ -503,9 +626,11 @@ export function OmanutAdvisor() {
                 </Button>
               </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </>
+      )}
     </>
   , portalTarget);
 }
