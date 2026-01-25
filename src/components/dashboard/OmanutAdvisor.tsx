@@ -246,7 +246,7 @@ export function OmanutAdvisor() {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
             onClick={() => setIsOpen(true)}
-            className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-br from-[var(--brand-primary,#004B8D)] to-[var(--brand-secondary,#0077B6)] text-white shadow-lg hover:shadow-xl transition-shadow flex items-center justify-center group relative"
+            className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-white shadow-lg hover:shadow-xl transition-all flex items-center justify-center group relative border border-border/50"
           >
             {/* Progress ring for new users */}
             {isNewUser && progress < 100 && (
@@ -256,7 +256,7 @@ export function OmanutAdvisor() {
                   cy="28"
                   r="26"
                   fill="none"
-                  stroke="rgba(255,255,255,0.2)"
+                  stroke="rgba(0,0,0,0.1)"
                   strokeWidth="3"
                 />
                 <circle
@@ -264,14 +264,18 @@ export function OmanutAdvisor() {
                   cy="28"
                   r="26"
                   fill="none"
-                  stroke="rgba(255,255,255,0.8)"
+                  stroke="hsl(var(--primary))"
                   strokeWidth="3"
                   strokeDasharray={`${(progress / 100) * 163} 163`}
                   className="transition-all duration-500"
                 />
               </svg>
             )}
-            <img src={advisorLogo} alt="Advisor" className="h-7 w-7 group-hover:scale-110 transition-transform" />
+            <img 
+              src={advisorLogo} 
+              alt="Advisor" 
+              className="h-9 w-9 group-hover:scale-110 transition-transform object-contain" 
+            />
             
             {/* New user badge */}
             {isNewUser && !hasSeenWelcome && (
@@ -296,8 +300,8 @@ export function OmanutAdvisor() {
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b bg-gradient-to-r from-[var(--brand-primary,#004B8D)]/5 to-transparent">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center overflow-hidden">
-                  <img src={advisorLogo} alt="Advisor" className="h-6 w-6" />
+                <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center overflow-hidden border border-border/30">
+                  <img src={advisorLogo} alt="Advisor" className="h-6 w-6 object-contain" />
                 </div>
                 <div>
                   <h3 className="font-semibold text-sm">Omanut Advisor</h3>
@@ -372,8 +376,8 @@ export function OmanutAdvisor() {
               <ScrollArea className="flex-1 p-4" ref={scrollRef}>
                 {messages.length === 0 && !showOnboarding ? (
                   <div className="h-full flex flex-col items-center justify-center text-center px-4">
-                    <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center mb-3 shadow-sm">
-                      <img src={advisorLogo} alt="Advisor" className="h-8 w-8" />
+                    <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center mb-3 shadow-sm border border-border/30">
+                      <img src={advisorLogo} alt="Advisor" className="h-9 w-9 object-contain" />
                     </div>
                     <h4 className="font-medium text-sm mb-1">
                       {isNewUser ? "Welcome! 👋" : "Hey there! 👋"}
