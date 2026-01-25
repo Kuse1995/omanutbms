@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, X, Send, Minimize2, Sparkles, Loader2 } from "lucide-react";
+import { MessageCircle, X, Send, Minimize2, Sparkles, Loader2, HelpCircle, TrendingUp, Package, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -16,7 +16,7 @@ interface Message {
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/omanut-advisor`;
 
 export function OmanutAdvisor() {
-  const { tenantId } = useTenant();
+  const { tenantId, businessProfile } = useTenant();
   const [isOpen, setIsOpen] = useState(false);
   const [isHidden, setIsHidden] = useState(() => {
     return localStorage.getItem("omanut-advisor-hidden") === "true";
@@ -46,13 +46,46 @@ export function OmanutAdvisor() {
     if (newHidden) setIsOpen(false);
   };
 
-  const sendMessage = useCallback(async () => {
-    if (!input.trim() || isLoading) return;
+  // Generate contextual quick prompts based on business state
+  const quickPrompts = useMemo(() => {
+    const prompts: { text: string; icon?: React.ReactNode }[] = [
+      { text: "How's business today?", icon: <TrendingUp className="h-3 w-3" /> },
+    ];
+
+    // Add contextual prompts based on what features might need attention
+    if (businessProfile) {
+      // If inventory is enabled, add inventory-related prompt
+      if (businessProfile.inventory_enabled !== false) {
+        prompts.push({ text: "What should I restock?", icon: <Package className="h-3 w-3" /> });
+      }
+
+      // If payroll enabled but might be underused
+      if (businessProfile.payroll_enabled) {
+        prompts.push({ text: "How do I run payroll?", icon: <HelpCircle className="h-3 w-3" /> });
+      } else {
+        // Teach about quotations if they might not know
+        prompts.push({ text: "How do I send a quotation?", icon: <HelpCircle className="h-3 w-3" /> });
+      }
+
+      // Add customer follow-up prompt
+      prompts.push({ text: "Who should I follow up with?", icon: <Users className="h-3 w-3" /> });
+    } else {
+      // Default prompts for new users
+      prompts.push({ text: "Show me around" });
+      prompts.push({ text: "What can you help with?" });
+    }
+
+    return prompts.slice(0, 4);
+  }, [businessProfile]);
+
+  const sendMessage = useCallback(async (messageText?: string) => {
+    const textToSend = messageText || input.trim();
+    if (!textToSend || isLoading) return;
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
       role: "user",
-      content: input.trim(),
+      content: textToSend,
     };
 
     setMessages(prev => [...prev, userMessage]);
@@ -147,11 +180,11 @@ export function OmanutAdvisor() {
     }
   };
 
-  const quickPrompts = [
-    "How's business today?",
-    "Any concerns I should know about?",
-    "Quick summary of this month",
-  ];
+  const handleQuickPrompt = (prompt: string) => {
+    setInput(prompt);
+    // Use setTimeout to ensure input is set before sending
+    setTimeout(() => sendMessage(prompt), 50);
+  };
 
   if (isHidden) {
     return (
@@ -202,7 +235,7 @@ export function OmanutAdvisor() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-sm">Omanut Advisor</h3>
-                  <p className="text-[10px] text-muted-foreground">Your business companion</p>
+                  <p className="text-[10px] text-muted-foreground">Your business coach</p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
@@ -235,19 +268,17 @@ export function OmanutAdvisor() {
                   </div>
                   <h4 className="font-medium text-sm mb-1">Hey there! 👋</h4>
                   <p className="text-xs text-muted-foreground mb-4">
-                    I'm your business advisor. Ask me anything about how things are going!
+                    I'm your business coach. Ask me anything about your business or how to use the system!
                   </p>
                   <div className="flex flex-wrap gap-2 justify-center">
                     {quickPrompts.map((prompt) => (
                       <button
-                        key={prompt}
-                        onClick={() => {
-                          setInput(prompt);
-                          setTimeout(() => sendMessage(), 100);
-                        }}
-                        className="px-3 py-1.5 text-xs bg-muted hover:bg-muted/80 rounded-full transition-colors"
+                        key={prompt.text}
+                        onClick={() => handleQuickPrompt(prompt.text)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-muted hover:bg-muted/80 rounded-full transition-colors"
                       >
-                        {prompt}
+                        {prompt.icon}
+                        {prompt.text}
                       </button>
                     ))}
                   </div>
@@ -299,7 +330,7 @@ export function OmanutAdvisor() {
                 />
                 <Button
                   size="icon"
-                  onClick={sendMessage}
+                  onClick={() => sendMessage()}
                   disabled={!input.trim() || isLoading}
                   className="h-9 w-9 rounded-full bg-[var(--brand-primary,#004B8D)] hover:bg-[var(--brand-primary,#004B8D)]/90"
                 >

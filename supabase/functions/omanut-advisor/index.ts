@@ -25,6 +25,8 @@ serve(async (req) => {
 
     // Fetch comprehensive business context
     let businessContext = "";
+    let teachingContext = "";
+    let upsellContext = "";
     
     if (tenantId) {
       // Get full business profile
@@ -37,6 +39,7 @@ serve(async (req) => {
       const currency = profile?.currency_symbol || "K";
       const businessType = profile?.business_type || "retail";
       const companyName = profile?.company_name || "Business";
+      const billingPlan = profile?.billing_plan || "starter";
 
       // Get today's sales
       const today = new Date().toISOString().split('T')[0];
@@ -192,12 +195,114 @@ serve(async (req) => {
         return `${item.name}: expires in ${daysUntilExpiry} days`;
       });
 
+      // ============ FEATURE USAGE ANALYSIS FOR TEACHING ============
+      
+      // Get quotation usage
+      const { count: quotationCount } = await supabase
+        .from("quotations")
+        .select("*", { count: "exact", head: true })
+        .eq("tenant_id", tenantId);
+
+      // Get receipt usage
+      const { count: receiptCount } = await supabase
+        .from("payment_receipts")
+        .select("*", { count: "exact", head: true })
+        .eq("tenant_id", tenantId);
+
+      // Get payroll usage
+      const { count: payrollCount } = await supabase
+        .from("payroll_records")
+        .select("*", { count: "exact", head: true })
+        .eq("tenant_id", tenantId);
+
+      // Get recurring expenses count
+      const { count: recurringExpenseCount } = await supabase
+        .from("recurring_expenses")
+        .select("*", { count: "exact", head: true })
+        .eq("tenant_id", tenantId);
+
+      // Get WhatsApp usage this month
+      const { count: whatsappUsage } = await supabase
+        .from("whatsapp_audit_logs")
+        .select("*", { count: "exact", head: true })
+        .eq("tenant_id", tenantId)
+        .gte("created_at", monthStart.toISOString());
+
+      // Calculate inventory limit based on plan
+      const inventoryLimits: Record<string, number> = {
+        starter: 100,
+        growth: 1000,
+        enterprise: Infinity
+      };
+      const inventoryLimit = inventoryLimits[billingPlan] || 100;
+      const inventoryUsagePercent = inventoryLimit === Infinity ? 0 : Math.round((totalItems / inventoryLimit) * 100);
+      const isNearInventoryLimit = inventoryUsagePercent >= 80;
+
+      // Build feature adoption status for teaching
+      const featureAdoption: string[] = [];
+      
+      if ((quotationCount || 0) === 0) {
+        featureAdoption.push("📝 Quotations: Never used → Great for locking in prices before invoicing");
+      } else if ((quotationCount || 0) < 5) {
+        featureAdoption.push(`📝 Quotations: ${quotationCount} created → Getting started! Convert more leads to sales`);
+      }
+
+      if ((receiptCount || 0) === 0) {
+        featureAdoption.push("🧾 Receipts: Never generated → Professional receipts build customer trust");
+      } else if ((receiptCount || 0) > 5) {
+        featureAdoption.push(`🧾 Receipts: ${receiptCount} generated → Great work! Remind about auto-emailing option`);
+      }
+
+      if (profile?.payroll_enabled && (employeeCount || 0) > 0 && (payrollCount || 0) === 0) {
+        featureAdoption.push("💰 Payroll: Enabled with staff but no payslips → Set up to automate salary payments with tax calculations");
+      }
+
+      if ((recurringExpenseCount || 0) === 0 && (monthExpenses?.length || 0) > 3) {
+        featureAdoption.push("🔄 Recurring Expenses: Not used → Save time by automating regular bills like rent and utilities");
+      }
+
+      if (!profile?.multi_branch_enabled && (employeeCount || 0) >= 3) {
+        featureAdoption.push("🏢 Multi-Branch: Not enabled → Could help track staff across locations");
+      }
+
+      teachingContext = featureAdoption.length > 0 
+        ? `\nFEATURE OPPORTUNITIES (teach when relevant):\n${featureAdoption.map(f => `  • ${f}`).join('\n')}`
+        : "";
+
+      // Build upsell triggers (subtle, value-focused)
+      const upsellTriggers: string[] = [];
+
+      if (isNearInventoryLimit) {
+        upsellTriggers.push(`📦 Inventory at ${inventoryUsagePercent}% capacity (${totalItems}/${inventoryLimit}). Growth plan offers 1,000 items.`);
+      }
+
+      if (!profile?.advanced_accounting_enabled && monthCount > 50) {
+        upsellTriggers.push(`📊 High sales volume (${monthCount} this month). Advanced Accounting can auto-generate P&L reports.`);
+      }
+
+      if (!profile?.whatsapp_enabled && overdueAmount > 10000) {
+        upsellTriggers.push(`📱 ${currency}${overdueAmount.toLocaleString()} overdue. WhatsApp reminders can help collect faster.`);
+      }
+
+      if (!profile?.warehouse_enabled && lowStockItems.length > 5) {
+        upsellTriggers.push(`📍 ${lowStockItems.length} items low on stock. Warehouse module has smart reorder alerts.`);
+      }
+
+      if (!profile?.multi_branch_enabled && (employeeCount || 0) >= 5) {
+        upsellTriggers.push(`👥 ${employeeCount} employees. Multi-branch helps track staff locations and inventory per branch.`);
+      }
+
+      upsellContext = upsellTriggers.length > 0
+        ? `\nUPSELL OPPORTUNITIES (mention naturally when solving a real problem):\n${upsellTriggers.map(t => `  • ${t}`).join('\n')}`
+        : "";
+
       // Build comprehensive business context with actionable details
       businessContext = `
 BUSINESS PROFILE:
 - Company: ${companyName}
 - Type: ${businessType}
 - Currency: ${currency}
+- Plan: ${billingPlan.charAt(0).toUpperCase() + billingPlan.slice(1)}
 ${profile?.company_address ? `- Address: ${profile.company_address}` : ''}
 ${profile?.tpin_number ? `- TPIN: ${profile.tpin_number}` : ''}
 ${employeeCount ? `- Active Employees: ${employeeCount}` : ''}
@@ -213,7 +318,7 @@ TOP CUSTOMERS (by total revenue):
 ${topCustomers.length > 0 ? topCustomers.map(c => `  • ${c}`).join('\n') : '  No customer data yet'}
 
 INVENTORY STATUS:
-- Total Products: ${totalItems}
+- Total Products: ${totalItems}${inventoryLimit !== Infinity ? ` / ${inventoryLimit} (${inventoryUsagePercent}% of plan limit)` : ''}
 - Total Inventory Value: ${currency}${totalInventoryValue.toLocaleString()}
 ${outOfStockItems.length > 0 ? `\n⚠️ OUT OF STOCK - URGENT ACTION NEEDED:\n${outOfStockItems.slice(0, 5).map(i => `  • ${i.name}`).join('\n')}` : '✓ No items out of stock'}
 ${lowStockDetails.length > 0 ? `\n⚠️ LOW STOCK - REORDER SOON:\n${lowStockDetails.map(d => `  • ${d}`).join('\n')}` : ''}
@@ -233,21 +338,25 @@ ${topExpenseCategory ? `- Top Category: ${topExpenseCategory[0]} (${currency}${t
 - Net Profit Estimate: ${currency}${(monthRevenue - totalExpenses).toLocaleString()}
 
 ENABLED FEATURES:
-${profile?.inventory_enabled !== false ? '✓ Inventory Management' : ''}
-${profile?.payroll_enabled ? '✓ Payroll & HR' : ''}
-${profile?.agents_enabled ? '✓ Sales Agents' : ''}
+${profile?.inventory_enabled !== false ? '✓ Inventory Management' : '○ Inventory Management (disabled)'}
+${profile?.payroll_enabled ? '✓ Payroll & HR' : '○ Payroll & HR (not enabled)'}
+${profile?.agents_enabled ? '✓ Sales Agents' : '○ Sales Agents (not enabled)'}
 ${profile?.impact_enabled ? '✓ Impact Tracking' : ''}
 ${profile?.website_enabled ? '✓ Website/CMS' : ''}
-${profile?.warehouse_enabled ? '✓ Multi-Location Warehouse' : ''}
+${profile?.warehouse_enabled ? '✓ Multi-Location Warehouse' : '○ Warehouse (not enabled)'}
 ${profile?.multi_branch_enabled ? '✓ Multi-Branch Operations' : ''}
+${profile?.advanced_accounting_enabled ? '✓ Advanced Accounting' : '○ Advanced Accounting (not enabled)'}
+${profile?.whatsapp_enabled ? '✓ WhatsApp Integration' : '○ WhatsApp (not enabled)'}
+${teachingContext}
+${upsellContext}
 `;
     }
 
-    const systemPrompt = `You are Omanut Advisor, a friendly and insightful business companion. You chat casually like a trusted friend who happens to be great with business insights.
+    const systemPrompt = `You are Omanut Advisor, a friendly and insightful business companion AND coach. You chat casually like a trusted friend who happens to be great with business insights.
 
 Your personality:
 - Warm, encouraging, and supportive
-- Keep responses SHORT (2-3 sentences max unless asked for detail)
+- Keep responses SHORT (2-4 sentences max unless asked for detail)
 - Use casual language, light humor when appropriate
 - Give SPECIFIC, ACTIONABLE recommendations with names, amounts, dates
 - Celebrate wins, gently flag concerns
@@ -262,11 +371,46 @@ IMPORTANT - ACTIONABLE ADVICE RULES:
 4. When suggesting restocking, name the specific products
 5. Format action items clearly: "→ Action: [specific thing to do]"
 
-Examples of your tone with specific actions:
-- "Hey! Today's looking solid with 5 sales 🎉 Quick note: John Mwape still owes K2,500 from last week. → Action: Send him a friendly reminder today!"
-- "Heads up - Paracetamol 500mg is down to 3 units. → Action: Reorder before you run out this weekend."
-- "Great month so far! But I noticed Zambia Sugar Ltd hasn't paid their K15,000 invoice due 5 days ago. → Action: Give them a call to check on payment status."
-- "You have 3 quotations pending worth K45,000. → Action: Follow up with ABC Company (K20,000) - they've been waiting 4 days."
+TEACHING MODE - Weave these naturally into conversations:
+1. When user mentions invoices → Gently teach: "Did you know you can send quotations first to lock in prices? Go to Accounts → Quotations"
+2. When discussing low stock → Teach: "Quick tip: Set up reorder alerts in Settings → Notifications so you never miss restocking"
+3. When payroll mentioned → Teach: "The HR module can auto-calculate PAYE and NAPSA deductions - just add employee details first"
+4. If user seems new → Offer: "Would you like a quick walkthrough of any feature? Just ask 'How do I [feature]?'"
+5. When user asks "How do I..." → Provide step-by-step guidance with navigation paths
+
+HOW-TO RESPONSE FORMAT (when user asks for help):
+"Here's how to [task]:
+1. Go to [Menu] → [Submenu]
+2. Click '[Button name]' (top right)
+3. Fill in [key fields]
+4. Click '[Save/Submit]'
+💡 Pro tip: [useful shortcut or related feature]"
+
+SUBTLE UPSELLING - Only when genuinely helpful:
+1. Frame upgrades as solving a REAL problem they have, not "upgrade for more"
+2. Use phrases like "this might make your life easier" or "something that could save you time"
+3. Never hard-sell; always tie to their actual business situation
+4. Example: "I noticed you're tracking 95 products. If you're planning to add more, the Growth plan includes up to 1,000 items plus HR features."
+5. Only mention one upgrade opportunity per conversation, if any
+
+Examples of good responses:
+
+Simple check-in:
+"Hey! Solid day so far - 5 sales totaling K4,500 🎉 Quick heads up: Zambia Sugar Ltd is 6 days overdue on K15,000. → Action: Give them a call today!"
+
+With teaching:
+"Your invoicing is looking good! Quick tip: if you want to lock in prices before the final invoice, try sending a Quotation first (Accounts → Quotations). It converts to an invoice in one click 📋"
+
+With subtle upsell:
+"You're managing 92 products really well! Since you're getting close to the 100-item limit, the Growth plan gives you room for 1,000 items - might be worth considering as you grow. Either way, let me know if you need help optimizing what you have!"
+
+How-to response:
+"Here's how to create an invoice:
+1. Go to Accounts → Invoices
+2. Click 'New Invoice' (top right)
+3. Add customer details and line items
+4. Set due date and click 'Save'
+💡 Pro tip: You can convert quotations directly to invoices to save time!"
 
 Never make up data. If you don't have info, just say so naturally. Always be specific when data is available.`;
 
