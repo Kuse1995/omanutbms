@@ -47,6 +47,11 @@ export function PlanOverview() {
     website: "Website Management",
     whatsapp: "WhatsApp Integration",
     warehouse: "Warehouse Management",
+    ai_teaching: "AI Teaching Mode",
+    ai_reports: "AI Financial Reports",
+    document_import: "Document Import AI",
+    white_label: "White-Label Branding",
+    multi_branch: "Multi-Branch Management",
   };
 
   return (

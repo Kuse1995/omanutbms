@@ -69,6 +69,8 @@ function mergePlanConfig(plan: BillingPlan, override: PlanConfigOverride | null)
     limits: {
       users: override.max_users === 0 ? Infinity : (override.max_users ?? defaults.limits.users),
       inventoryItems: override.max_inventory_items === 0 ? Infinity : (override.max_inventory_items ?? defaults.limits.inventoryItems),
+      whatsappMessages: defaults.limits.whatsappMessages,
+      aiQueriesDaily: defaults.limits.aiQueriesDaily,
     },
     features: {
       inventory: override.feature_inventory ?? defaults.features.inventory,
@@ -79,6 +81,11 @@ function mergePlanConfig(plan: BillingPlan, override: PlanConfigOverride | null)
       website: override.feature_website ?? defaults.features.website,
       whatsapp: override.feature_whatsapp ?? defaults.features.whatsapp,
       warehouse: override.feature_warehouse ?? defaults.features.warehouse,
+      ai_teaching: defaults.features.ai_teaching,
+      ai_reports: defaults.features.ai_reports,
+      document_import: defaults.features.document_import,
+      white_label: defaults.features.white_label,
+      multi_branch: defaults.features.multi_branch,
     },
     highlights: override.highlights ?? defaults.highlights,
   };

@@ -37,6 +37,11 @@ export function useFeatures(): UseFeaturesReturn {
       advanced_accounting: isFeatureAllowed('advanced_accounting') && profileConfig.advanced_accounting,
       whatsapp: isFeatureAllowed('whatsapp') && profileConfig.whatsapp,
       warehouse: isFeatureAllowed('warehouse') && profileConfig.warehouse,
+      ai_teaching: isFeatureAllowed('ai_teaching') && profileConfig.ai_teaching,
+      ai_reports: isFeatureAllowed('ai_reports') && profileConfig.ai_reports,
+      document_import: isFeatureAllowed('document_import') && profileConfig.document_import,
+      white_label: isFeatureAllowed('white_label') && profileConfig.white_label,
+      multi_branch: isFeatureAllowed('multi_branch') && profileConfig.multi_branch,
     };
   };
 
