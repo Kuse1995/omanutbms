@@ -12,7 +12,15 @@ import { cn } from "@/lib/utils";
 import advisorLogo from "@/assets/advisor-logo-client.png";
 
 const ADVISOR_POSITION_KEY = "omanut-advisor-position-v1";
-const VIEWPORT_MARGIN_PX = 16;
+
+// Responsive margins for mobile and desktop
+const MOBILE_MARGIN = 16;
+const DESKTOP_MARGIN = 24;
+const MOBILE_BREAKPOINT = 768;
+
+function getMargin() {
+  return window.innerWidth < MOBILE_BREAKPOINT ? MOBILE_MARGIN : DESKTOP_MARGIN;
+}
 
 function safeParsePosition(raw: string | null): { x: number; y: number } | null {
   if (!raw) return null;
@@ -90,10 +98,11 @@ export function OmanutAdvisor() {
       if (typeof window === "undefined") return;
 
       const { w, h } = getWidgetSize(isOpen, isHidden);
-      const minX = VIEWPORT_MARGIN_PX;
-      const minY = VIEWPORT_MARGIN_PX;
-      const maxX = Math.max(minX, window.innerWidth - w - VIEWPORT_MARGIN_PX);
-      const maxY = Math.max(minY, window.innerHeight - h - VIEWPORT_MARGIN_PX);
+      const margin = getMargin();
+      const minX = margin;
+      const minY = margin;
+      const maxX = Math.max(minX, window.innerWidth - w - margin);
+      const maxY = Math.max(minY, window.innerHeight - h - margin);
 
       x.set(clamp(nextX, minX, maxX));
       y.set(clamp(nextY, minY, maxY));
@@ -101,16 +110,16 @@ export function OmanutAdvisor() {
     [x, y]
   );
 
-  // Update dependency array to include isOpen and isHidden
   const setFloatingPositionClampedMemo = useCallback(
     (nextX: number, nextY: number) => {
       if (typeof window === "undefined") return;
 
       const { w, h } = getWidgetSize(isOpen, isHidden);
-      const minX = VIEWPORT_MARGIN_PX;
-      const minY = VIEWPORT_MARGIN_PX;
-      const maxX = Math.max(minX, window.innerWidth - w - VIEWPORT_MARGIN_PX);
-      const maxY = Math.max(minY, window.innerHeight - h - VIEWPORT_MARGIN_PX);
+      const margin = getMargin();
+      const minX = margin;
+      const minY = margin;
+      const maxX = Math.max(minX, window.innerWidth - w - margin);
+      const maxY = Math.max(minY, window.innerHeight - h - margin);
 
       x.set(clamp(nextX, minX, maxX));
       y.set(clamp(nextY, minY, maxY));
@@ -118,29 +127,36 @@ export function OmanutAdvisor() {
     [isOpen, isHidden, x, y]
   );
 
-  // Initial position: restore from localStorage, otherwise default to bottom-right.
+  // Initial position: restore from localStorage or default to bottom-right corner
   useEffect(() => {
     if (typeof window === "undefined") return;
     const stored = safeParsePosition(window.localStorage.getItem(ADVISOR_POSITION_KEY));
 
-    const { w, h } = getWidgetSize(false, isHidden);
-    const defaultX = window.innerWidth - w - VIEWPORT_MARGIN_PX;
-    const defaultY = window.innerHeight - h - VIEWPORT_MARGIN_PX;
+    if (stored) {
+      setFloatingPositionClampedMemo(stored.x, stored.y);
+    } else {
+      // Default to bottom-right corner
+      const { w } = getWidgetSize(false, isHidden);
+      const margin = getMargin();
+      const defaultX = window.innerWidth - w - margin;
+      const defaultY = window.innerHeight - 56 - margin; // 56 = button height
 
-    setFloatingPositionClampedMemo(stored?.x ?? defaultX, stored?.y ?? defaultY);
+      setFloatingPositionClampedMemo(defaultX, defaultY);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Keep the widget on-screen when size changes (open/close/hidden) or on resize.
+  // Keep widget on-screen when size changes or viewport resizes
   useEffect(() => {
     if (typeof window === "undefined") return;
     
     const updatePosition = () => {
       const { w, h } = getWidgetSize(isOpen, isHidden);
-      const minX = VIEWPORT_MARGIN_PX;
-      const minY = VIEWPORT_MARGIN_PX;
-      const maxX = Math.max(minX, window.innerWidth - w - VIEWPORT_MARGIN_PX);
-      const maxY = Math.max(minY, window.innerHeight - h - VIEWPORT_MARGIN_PX);
+      const margin = getMargin();
+      const minX = margin;
+      const minY = margin;
+      const maxX = Math.max(minX, window.innerWidth - w - margin);
+      const maxY = Math.max(minY, window.innerHeight - h - margin);
       
       const currentX = x.get();
       const currentY = y.get();
@@ -357,17 +373,21 @@ export function OmanutAdvisor() {
 
       {isHidden ? (
         <motion.div
-          className="pointer-events-none"
           style={{
-            position: "fixed",
-            left: "0px",
-            top: "0px",
-            zIndex: 9999,
-            transform: `translate(${x.get()}px, ${y.get()}px)`
+            position: "fixed !important" as any,
+            left: 0,
+            top: 0,
+            right: "auto",
+            bottom: "auto",
+            zIndex: 100,
+            pointerEvents: "none",
+            x,
+            y,
           }}
+          className="pointer-events-none"
           drag
-          dragElastic={0.12}
           dragMomentum={false}
+          dragElastic={0.12}
           dragConstraints={constraintsRef}
           onDrag={(_, info) => {
             const newX = x.get() + info.delta.x;
@@ -398,17 +418,25 @@ export function OmanutAdvisor() {
                 whileHover={prefersReducedMotion ? undefined : { scale: 1.03 }}
                 whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
                 onClick={() => setIsOpen(true)}
+                className={cn(
+                  "pointer-events-auto w-14 h-14 rounded-full",
+                  "bg-background border border-border shadow-elevated",
+                  "transition-shadow flex items-center justify-center group relative",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background"
+                )}
                 style={{
-                  position: "fixed",
-                  left: "0px",
-                  top: "0px",
-                  zIndex: 9999,
-                  transform: `translate(${x.get()}px, ${y.get()}px)`,
-                  pointerEvents: "auto"
+                  position: "fixed !important" as any,
+                  left: 0,
+                  top: 0,
+                  right: "auto",
+                  bottom: "auto",
+                  zIndex: 100,
+                  x,
+                  y,
                 }}
                 drag
-                dragElastic={0.12}
                 dragMomentum={false}
+                dragElastic={0.12}
                 dragConstraints={constraintsRef}
                 onDrag={(_, info) => {
                   const newX = x.get() + info.delta.x;
@@ -416,12 +444,6 @@ export function OmanutAdvisor() {
                   setFloatingPositionClampedMemo(newX, newY);
                 }}
                 onDragEnd={persistPosition}
-                className={cn(
-                  "w-14 h-14 rounded-full",
-                  "bg-background border border-border shadow-elevated",
-                  "transition-shadow flex items-center justify-center group relative",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background"
-                )}
               >
             {/* Glow halo */}
             <motion.span
@@ -487,22 +509,22 @@ export function OmanutAdvisor() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 20, scale: 0.95 }}
                 transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                className="pointer-events-auto bg-background border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden w-[360px] h-[520px] max-w-[calc(100vw-32px)] max-h-[calc(100vh-32px)]"
                 style={{
-                  position: "fixed",
-                  left: "0px",
-                  top: "0px",
-                  zIndex: 9999,
-                  transform: `translate(${x.get()}px, ${y.get()}px)`,
-                  width: "360px",
-                  height: "520px",
-                  pointerEvents: "auto"
+                  position: "fixed !important" as any,
+                  left: 0,
+                  top: 0,
+                  right: "auto",
+                  bottom: "auto",
+                  zIndex: 100,
+                  x,
+                  y,
                 }}
-                className="bg-background border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden"
                 drag
+                dragMomentum={false}
                 dragListener={false}
                 dragControls={dragControls}
                 dragElastic={0.06}
-                dragMomentum={false}
                 dragConstraints={constraintsRef}
                 onDrag={(_, info) => {
                   const newX = x.get() + info.delta.x;
