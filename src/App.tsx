@@ -10,6 +10,7 @@ import { BrandingProvider } from "@/contexts/BrandingContext";
 import { DemoModeProvider } from "@/contexts/DemoModeContext";
 import { ProtectedRoute } from "@/components/dashboard/ProtectedRoute";
 import { DemoModeToggle } from "@/components/demo/DemoModeToggle";
+import { OmanutAdvisor } from "@/components/dashboard/OmanutAdvisor";
 import Index from "./pages/Index";
 import About from "./pages/About";
 import Products from "./pages/Products";
@@ -66,6 +67,7 @@ const App = () => (
         <TenantProvider>
           <DemoModeProvider>
             <BrandingProvider>
+              <OmanutAdvisor />
               <Toaster />
               <Sonner />
               <BrowserRouter>
