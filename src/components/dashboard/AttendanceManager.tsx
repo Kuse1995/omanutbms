@@ -7,16 +7,43 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Clock, LogIn, LogOut, Calendar, Users, Timer, MapPin, MapPinOff } from "lucide-react";
+import { Clock, LogIn, LogOut, Calendar, Users, Timer, MapPin, MapPinOff, Pencil, AlertCircle } from "lucide-react";
 import { format, differenceInMinutes, startOfMonth, endOfMonth } from "date-fns";
 import { useTenant } from "@/hooks/useTenant";
+import { useAuth } from "@/hooks/useAuth";
+import { AttendanceEditModal } from "./AttendanceEditModal";
+import { AttendanceApprovalCenter } from "./AttendanceApprovalCenter";
+import { AttendanceHistoryTooltip } from "./AttendanceHistoryTooltip";
+
+interface AttendanceRecord {
+  id: string;
+  employee_id: string;
+  date: string;
+  clock_in: string;
+  clock_out: string | null;
+  work_hours: number | null;
+  status: string;
+  clock_in_verified: boolean | null;
+  clock_in_distance_meters: number | null;
+  change_log?: any[];
+  edit_status?: string;
+  requested_times?: { clock_in?: string; clock_out?: string };
+  employees: { full_name: string } | null;
+}
 
 export const AttendanceManager = () => {
   const queryClient = useQueryClient();
   const [selectedEmployee, setSelectedEmployee] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), "yyyy-MM"));
+  const [editingRecord, setEditingRecord] = useState<AttendanceRecord | null>(null);
+  const [activeTab, setActiveTab] = useState("history");
   const { tenantId } = useTenant();
+  const { role, isAdmin } = useAuth();
+
+  // Check if user can edit attendance (admin or manager)
+  const canEditAttendance = role === "admin" || role === "manager";
 
   const { data: employees = [] } = useQuery({
     queryKey: ["employees-active"],
@@ -44,19 +71,21 @@ export const AttendanceManager = () => {
         .lte("date", format(monthEnd, "yyyy-MM-dd"))
         .order("date", { ascending: false });
       if (error) throw error;
-      return data as Array<{
-        id: string;
-        employee_id: string;
-        date: string;
-        clock_in: string;
-        clock_out: string | null;
-        work_hours: number | null;
-        status: string;
-        clock_in_verified: boolean | null;
-        clock_in_distance_meters: number | null;
-        employees: { full_name: string } | null;
-      }>;
+      return data as AttendanceRecord[];
     },
+  });
+
+  const { data: pendingCount = 0 } = useQuery({
+    queryKey: ["attendance-pending-count", tenantId],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("employee_attendance")
+        .select("id", { count: "exact", head: true })
+        .eq("edit_status", "pending");
+      if (error) throw error;
+      return count || 0;
+    },
+    enabled: isAdmin && !!tenantId,
   });
 
   const { data: todayAttendance = [] } = useQuery({
@@ -270,76 +299,140 @@ export const AttendanceManager = () => {
         </CardContent>
       </Card>
 
-      {/* Attendance History */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Attendance History</CardTitle>
-            <Input
-              type="month"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="w-48"
-            />
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="text-center py-8 text-muted-foreground">Loading...</div>
-          ) : attendance.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No attendance records for this month
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Employee</TableHead>
-                  <TableHead>Clock In</TableHead>
-                  <TableHead>Clock Out</TableHead>
-                  <TableHead>Hours</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {attendance.map((record) => (
-                  <TableRow key={record.id}>
-                    <TableCell>{format(new Date(record.date), "MMM dd, yyyy")}</TableCell>
-                    <TableCell className="font-medium">{record.employees?.full_name}</TableCell>
-                    <TableCell>{format(new Date(record.clock_in), "HH:mm")}</TableCell>
-                    <TableCell>
-                      {record.clock_out ? format(new Date(record.clock_out), "HH:mm") : "-"}
-                    </TableCell>
-                    <TableCell>{record.work_hours ? `${record.work_hours}h` : "-"}</TableCell>
-                    <TableCell>
-                      {record.clock_in_verified === true ? (
-                        <div className="flex items-center gap-1 text-green-600">
-                          <MapPin className="h-3 w-3" />
-                          <span className="text-xs">{record.clock_in_distance_meters}m</span>
-                        </div>
-                      ) : record.clock_in_verified === false ? (
-                        <div className="flex items-center gap-1 text-amber-500">
-                          <MapPinOff className="h-3 w-3" />
-                          <span className="text-xs">Unverified</span>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={record.status === "clocked_in" ? "default" : "secondary"}>
-                        {record.status === "clocked_in" ? "Active" : "Completed"}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+      {/* Attendance Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="history" className="flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
+            Attendance History
+          </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="approvals" className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              Pending Approvals
+              {pendingCount > 0 && (
+                <Badge variant="destructive" className="ml-1 h-5 w-5 p-0 flex items-center justify-center text-xs">
+                  {pendingCount}
+                </Badge>
+              )}
+            </TabsTrigger>
           )}
-        </CardContent>
-      </Card>
+        </TabsList>
+
+        <TabsContent value="history" className="mt-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Attendance History</CardTitle>
+                <Input
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="w-48"
+                />
+              </div>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="text-center py-8 text-muted-foreground">Loading...</div>
+              ) : attendance.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No attendance records for this month
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Employee</TableHead>
+                        <TableHead>Clock In</TableHead>
+                        <TableHead>Clock Out</TableHead>
+                        <TableHead>Hours</TableHead>
+                        <TableHead>Location</TableHead>
+                        <TableHead>Status</TableHead>
+                        {canEditAttendance && <TableHead className="text-right">Actions</TableHead>}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {attendance.map((record) => (
+                        <TableRow 
+                          key={record.id}
+                          className={record.edit_status === "pending" ? "bg-amber-50/50" : ""}
+                        >
+                          <TableCell>{format(new Date(record.date), "MMM dd, yyyy")}</TableCell>
+                          <TableCell className="font-medium">{record.employees?.full_name}</TableCell>
+                          <TableCell>{format(new Date(record.clock_in), "HH:mm")}</TableCell>
+                          <TableCell>
+                            {record.clock_out ? format(new Date(record.clock_out), "HH:mm") : "-"}
+                          </TableCell>
+                          <TableCell>{record.work_hours ? `${record.work_hours}h` : "-"}</TableCell>
+                          <TableCell>
+                            {record.clock_in_verified === true ? (
+                              <div className="flex items-center gap-1 text-green-600">
+                                <MapPin className="h-3 w-3" />
+                                <span className="text-xs">{record.clock_in_distance_meters}m</span>
+                              </div>
+                            ) : record.clock_in_verified === false ? (
+                              <div className="flex items-center gap-1 text-amber-500">
+                                <MapPinOff className="h-3 w-3" />
+                                <span className="text-xs">Unverified</span>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              {record.edit_status === "pending" ? (
+                                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300">
+                                  <Clock className="h-3 w-3 mr-1" />
+                                  Pending
+                                </Badge>
+                              ) : (
+                                <Badge variant={record.status === "clocked_in" ? "default" : "secondary"}>
+                                  {record.status === "clocked_in" ? "Active" : "Completed"}
+                                </Badge>
+                              )}
+                              {/* History tooltip for edited records */}
+                              <AttendanceHistoryTooltip changeLog={record.change_log} />
+                            </div>
+                          </TableCell>
+                          {canEditAttendance && (
+                            <TableCell className="text-right">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setEditingRecord(record)}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {isAdmin && (
+          <TabsContent value="approvals" className="mt-4">
+            <AttendanceApprovalCenter />
+          </TabsContent>
+        )}
+      </Tabs>
+
+      {/* Edit Modal */}
+      <AttendanceEditModal
+        record={editingRecord}
+        isOpen={!!editingRecord}
+        onClose={() => setEditingRecord(null)}
+      />
     </div>
   );
 };
