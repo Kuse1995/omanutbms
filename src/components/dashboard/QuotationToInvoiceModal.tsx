@@ -21,12 +21,16 @@ interface QuotationItem {
   unit_price: number;
   amount: number;
   item_type?: ItemType;
+  is_sourcing?: boolean;
+  lead_time?: string;
 }
 
 interface ConversionItem extends QuotationItem {
   original_amount: number;
   adjusted_price: number;
   discount_applied: number;
+  is_sourcing: boolean;
+  lead_time: string;
 }
 
 interface Quotation {
@@ -89,7 +93,7 @@ export function QuotationToInvoiceModal({ isOpen, onClose, onSuccess, quotation 
       .eq("quotation_id", quotation.id);
 
     if (!error && data) {
-      setItems(data.map(item => ({
+      setItems(data.map((item: any) => ({
         id: item.id,
         description: item.description,
         quantity: item.quantity,
@@ -99,6 +103,8 @@ export function QuotationToInvoiceModal({ isOpen, onClose, onSuccess, quotation 
         original_amount: Number(item.amount),
         adjusted_price: Number(item.unit_price),
         discount_applied: 0,
+        is_sourcing: item.is_sourcing || false,
+        lead_time: item.lead_time || "",
       })));
     }
     setIsLoading(false);
@@ -187,7 +193,7 @@ export function QuotationToInvoiceModal({ isOpen, onClose, onSuccess, quotation 
 
       if (invoiceError) throw invoiceError;
 
-      // Create invoice items with discount tracking
+      // Create invoice items with discount and sourcing tracking
       const invoiceItems = items.map(item => ({
         invoice_id: invoice.id,
         tenant_id: tenantId,
@@ -198,6 +204,9 @@ export function QuotationToInvoiceModal({ isOpen, onClose, onSuccess, quotation 
         item_type: item.item_type || defaultItemType,
         original_amount: item.original_amount,
         discount_applied: item.discount_applied,
+        is_sourcing: item.is_sourcing || false,
+        lead_time: item.lead_time || null,
+        sourcing_status: item.is_sourcing ? 'pending' : null,
       }));
 
       const { error: itemsError } = await supabase

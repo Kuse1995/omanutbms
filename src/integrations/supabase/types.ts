@@ -762,6 +762,7 @@ export type Database = {
           primary_color: string | null
           secondary_color: string | null
           slogan: string | null
+          sourcing_label: string | null
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
           tagline: string | null
@@ -813,6 +814,7 @@ export type Database = {
           primary_color?: string | null
           secondary_color?: string | null
           slogan?: string | null
+          sourcing_label?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           tagline?: string | null
@@ -864,6 +866,7 @@ export type Database = {
           primary_color?: string | null
           secondary_color?: string | null
           slogan?: string | null
+          sourcing_label?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           tagline?: string | null
@@ -2207,9 +2210,13 @@ export type Database = {
           id: string
           invoice_id: string
           is_demo: boolean | null
+          is_sourcing: boolean | null
           item_type: string
+          lead_time: string | null
           original_amount: number | null
+          product_id: string | null
           quantity: number
+          sourcing_status: string | null
           tenant_id: string | null
           unit_price: number
         }
@@ -2222,9 +2229,13 @@ export type Database = {
           id?: string
           invoice_id: string
           is_demo?: boolean | null
+          is_sourcing?: boolean | null
           item_type?: string
+          lead_time?: string | null
           original_amount?: number | null
+          product_id?: string | null
           quantity?: number
+          sourcing_status?: string | null
           tenant_id?: string | null
           unit_price?: number
         }
@@ -2237,9 +2248,13 @@ export type Database = {
           id?: string
           invoice_id?: string
           is_demo?: boolean | null
+          is_sourcing?: boolean | null
           item_type?: string
+          lead_time?: string | null
           original_amount?: number | null
+          product_id?: string | null
           quantity?: number
+          sourcing_status?: string | null
           tenant_id?: string | null
           unit_price?: number
         }
@@ -2249,6 +2264,13 @@ export type Database = {
             columns: ["invoice_id"]
             isOneToOne: false
             referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "inventory"
             referencedColumns: ["id"]
           },
           {
@@ -2820,6 +2842,9 @@ export type Database = {
           created_at: string
           description: string
           id: string
+          is_sourcing: boolean | null
+          lead_time: string | null
+          product_id: string | null
           quantity: number
           quotation_id: string
           tenant_id: string | null
@@ -2830,6 +2855,9 @@ export type Database = {
           created_at?: string
           description: string
           id?: string
+          is_sourcing?: boolean | null
+          lead_time?: string | null
+          product_id?: string | null
           quantity?: number
           quotation_id: string
           tenant_id?: string | null
@@ -2840,12 +2868,22 @@ export type Database = {
           created_at?: string
           description?: string
           id?: string
+          is_sourcing?: boolean | null
+          lead_time?: string | null
+          product_id?: string | null
           quantity?: number
           quotation_id?: string
           tenant_id?: string | null
           unit_price?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "quotation_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "inventory"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "quotation_items_quotation_id_fkey"
             columns: ["quotation_id"]
@@ -2870,6 +2908,7 @@ export type Database = {
           converted_to_invoice_id: string | null
           created_at: string
           created_by: string | null
+          estimated_delivery_date: string | null
           id: string
           notes: string | null
           quotation_date: string
@@ -2890,6 +2929,7 @@ export type Database = {
           converted_to_invoice_id?: string | null
           created_at?: string
           created_by?: string | null
+          estimated_delivery_date?: string | null
           id?: string
           notes?: string | null
           quotation_date?: string
@@ -2910,6 +2950,7 @@ export type Database = {
           converted_to_invoice_id?: string | null
           created_at?: string
           created_by?: string | null
+          estimated_delivery_date?: string | null
           id?: string
           notes?: string | null
           quotation_date?: string

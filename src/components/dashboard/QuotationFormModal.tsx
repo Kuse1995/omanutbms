@@ -6,11 +6,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Trash2, Package, Wrench, Truck, Settings, HardHat } from "lucide-react";
+import { Loader2, Plus, Trash2, Package, Wrench, Truck, Settings, HardHat, Clock, AlertTriangle } from "lucide-react";
 import { ProductCombobox, ProductOption } from "./ProductCombobox";
 import { Badge } from "@/components/ui/badge";
 import { useTenant } from "@/hooks/useTenant";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Item type for database - aligns with business type
 type ItemType = 'product' | 'service' | 'item' | 'resource';
@@ -23,6 +24,9 @@ interface QuotationItem {
   unit_price: number;
   amount: number;
   item_type: ItemType;
+  is_sourcing?: boolean;
+  lead_time?: string;
+  current_stock?: number;
 }
 
 interface Quotation {
@@ -39,6 +43,7 @@ interface Quotation {
   tax_amount: number | null;
   total_amount: number;
   notes: string | null;
+  estimated_delivery_date?: string | null;
 }
 
 interface QuotationFormModalProps {
@@ -55,6 +60,14 @@ const QUICK_SERVICES = [
   { label: "Labor", icon: HardHat, description: "Labor" },
 ];
 
+const LEAD_TIME_OPTIONS = [
+  "1-2 Business Days",
+  "3-5 Business Days",
+  "1-2 Weeks",
+  "2-3 Weeks",
+  "3-4 Weeks",
+];
+
 export function QuotationFormModal({ isOpen, onClose, onSuccess, quotation }: QuotationFormModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [products, setProducts] = useState<ProductOption[]>([]);
@@ -63,15 +76,19 @@ export function QuotationFormModal({ isOpen, onClose, onSuccess, quotation }: Qu
   const [clientPhone, setClientPhone] = useState("");
   const [quotationDate, setQuotationDate] = useState(new Date().toISOString().split("T")[0]);
   const [validUntil, setValidUntil] = useState("");
+  const [estimatedDeliveryDate, setEstimatedDeliveryDate] = useState("");
   const [taxRate, setTaxRate] = useState(0);
   const [notes, setNotes] = useState("");
   const { toast } = useToast();
-  const { tenantId } = useTenant();
-  const { terminology } = useBusinessConfig();
+  const { tenantId, businessProfile } = useTenant();
+  const { terminology, currencySymbol } = useBusinessConfig();
   
   // Get the default item type from business configuration
   const defaultItemType = terminology.defaultItemType;
   const isServiceBased = terminology.isServiceBased;
+  
+  // Get customizable sourcing label from business profile
+  const sourcingLabel = (businessProfile as any)?.sourcing_label || "Sourcing";
   
   const [items, setItems] = useState<QuotationItem[]>([
     { description: "", quantity: 1, unit_price: 0, amount: 0, item_type: defaultItemType },
@@ -109,6 +126,7 @@ export function QuotationFormModal({ isOpen, onClose, onSuccess, quotation }: Qu
       setClientPhone(quotation.client_phone || "");
       setQuotationDate(quotation.quotation_date);
       setValidUntil(quotation.valid_until || "");
+      setEstimatedDeliveryDate(quotation.estimated_delivery_date || "");
       setTaxRate(quotation.tax_rate || 0);
       setNotes(quotation.notes || "");
       fetchQuotationItems(quotation.id);
@@ -124,17 +142,20 @@ export function QuotationFormModal({ isOpen, onClose, onSuccess, quotation }: Qu
       .eq("quotation_id", quotationId);
     
     if (!error && data && data.length > 0) {
-      setItems(data.map(item => {
+      setItems(data.map((item: any) => {
         // Determine if this is a product or service based on whether we can find a matching product
         const matchingProduct = products.find(p => p.name === item.description);
         return {
           id: item.id,
-          productId: matchingProduct?.id,
+          productId: item.product_id || matchingProduct?.id,
           description: item.description,
           quantity: item.quantity,
           unit_price: Number(item.unit_price),
           amount: Number(item.amount),
           item_type: matchingProduct ? defaultItemType : (isServiceBased ? 'service' : defaultItemType) as ItemType,
+          is_sourcing: item.is_sourcing || false,
+          lead_time: item.lead_time || "",
+          current_stock: matchingProduct?.current_stock,
         };
       }));
     }
@@ -149,6 +170,7 @@ export function QuotationFormModal({ isOpen, onClose, onSuccess, quotation }: Qu
     const thirtyDaysFromNow = new Date();
     thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
     setValidUntil(thirtyDaysFromNow.toISOString().split("T")[0]);
+    setEstimatedDeliveryDate("");
     setTaxRate(0);
     setNotes("");
     setItems([{ description: "", quantity: 1, unit_price: 0, amount: 0, item_type: defaultItemType }]);
@@ -208,16 +230,46 @@ export function QuotationFormModal({ isOpen, onClose, onSuccess, quotation }: Qu
     const product = products.find(p => p.id === productId);
     if (product) {
       const newItems = [...items];
+      const isSourcing = product.current_stock < newItems[index].quantity;
       newItems[index] = {
         ...newItems[index],
         productId: product.id,
         description: product.name,
         unit_price: product.unit_price,
         amount: newItems[index].quantity * product.unit_price,
+        current_stock: product.current_stock,
+        is_sourcing: isSourcing,
+        lead_time: isSourcing ? (newItems[index].lead_time || "3-5 Business Days") : "",
       };
       setItems(newItems);
     }
   };
+
+  // Update sourcing status when quantity changes
+  const handleQuantityChangeWithSourcing = (index: number, value: string | number) => {
+    const numValue = Number(value) || 0;
+    const newItems = [...items];
+    const item = newItems[index];
+    const isSourcing = item.current_stock !== undefined && item.current_stock < numValue;
+    
+    newItems[index] = {
+      ...item,
+      quantity: numValue,
+      amount: numValue * item.unit_price,
+      is_sourcing: item.item_type === 'product' ? isSourcing : false,
+      lead_time: isSourcing ? (item.lead_time || "3-5 Business Days") : item.lead_time,
+    };
+    setItems(newItems);
+  };
+
+  const handleLeadTimeChange = (index: number, leadTime: string) => {
+    const newItems = [...items];
+    newItems[index] = { ...newItems[index], lead_time: leadTime };
+    setItems(newItems);
+  };
+
+  // Check if any item requires sourcing
+  const hasSourcingItems = items.some(item => item.is_sourcing);
 
   const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
   const taxAmount = subtotal * (taxRate / 100);
@@ -247,6 +299,7 @@ export function QuotationFormModal({ isOpen, onClose, onSuccess, quotation }: Qu
         client_phone: clientPhone.trim() || null,
         quotation_date: quotationDate,
         valid_until: validUntil || null,
+        estimated_delivery_date: estimatedDeliveryDate || null,
         status: "draft",
         subtotal,
         tax_rate: taxRate,
@@ -291,6 +344,9 @@ export function QuotationFormModal({ isOpen, onClose, onSuccess, quotation }: Qu
         quantity: item.quantity,
         unit_price: item.unit_price,
         amount: item.amount,
+        is_sourcing: item.is_sourcing || false,
+        lead_time: item.lead_time || null,
+        product_id: item.productId || null,
       }));
 
       const { error: itemsError } = await supabase
@@ -360,7 +416,7 @@ export function QuotationFormModal({ isOpen, onClose, onSuccess, quotation }: Qu
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <Label htmlFor="quotationDate">Quotation Date *</Label>
               <Input
@@ -378,6 +434,29 @@ export function QuotationFormModal({ isOpen, onClose, onSuccess, quotation }: Qu
                 type="date"
                 value={validUntil}
                 onChange={(e) => setValidUntil(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="estimatedDeliveryDate" className="flex items-center gap-1">
+                Estimated Delivery
+                {hasSourcingItems && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <AlertTriangle className="h-3 w-3 text-amber-500" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-xs">Some items require {sourcingLabel.toLowerCase()}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </Label>
+              <Input
+                id="estimatedDeliveryDate"
+                type="date"
+                value={estimatedDeliveryDate}
+                onChange={(e) => setEstimatedDeliveryDate(e.target.value)}
               />
             </div>
           </div>
@@ -417,103 +496,137 @@ export function QuotationFormModal({ isOpen, onClose, onSuccess, quotation }: Qu
 
             <div className="space-y-2">
               {items.map((item, index) => (
-                <div key={index} className="grid grid-cols-12 gap-2 items-end p-2 rounded-lg bg-muted/30">
-                  {/* Type Toggle */}
-                  <div className="col-span-2">
-                    <div className="flex gap-1">
+                <div 
+                  key={index} 
+                  className={`p-2 rounded-lg ${item.is_sourcing ? 'bg-amber-50 border border-amber-200' : 'bg-muted/30'}`}
+                >
+                  <div className="grid grid-cols-12 gap-2 items-end">
+                    {/* Type Toggle */}
+                    <div className="col-span-2">
+                      <div className="flex gap-1">
+                        <Button
+                          type="button"
+                          variant={item.item_type === "product" ? "default" : "outline"}
+                          size="sm"
+                          className={`h-8 px-2 text-xs ${item.item_type === "product" ? "bg-[#004B8D]" : ""}`}
+                          onClick={() => handleItemTypeChange(index, "product")}
+                        >
+                          <Package className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={item.item_type === "service" ? "default" : "outline"}
+                          size="sm"
+                          className={`h-8 px-2 text-xs ${item.item_type === "service" ? "bg-amber-600" : ""}`}
+                          onClick={() => handleItemTypeChange(index, "service")}
+                        >
+                          <Wrench className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Description/Product Selector */}
+                    <div className="col-span-4">
+                      {item.item_type === "product" ? (
+                        <div className="space-y-1">
+                          <ProductCombobox
+                            products={products}
+                            value={item.productId || ""}
+                            onValueChange={(productId) => handleProductSelect(index, productId)}
+                            placeholder="Select product..."
+                          />
+                          {item.is_sourcing && (
+                            <Badge className="bg-amber-100 text-amber-700 border-amber-300 text-[10px]">
+                              <AlertTriangle className="h-2.5 w-2.5 mr-1" />
+                              {sourcingLabel}
+                            </Badge>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <Input
+                            value={item.description}
+                            onChange={(e) => handleItemChange(index, "description", e.target.value)}
+                            placeholder="Service description..."
+                            className="pr-16"
+                          />
+                          <Badge 
+                            variant="secondary" 
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] bg-amber-100 text-amber-700"
+                          >
+                            Service
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Quantity */}
+                    <div className="col-span-2">
+                      <Input
+                        type="number"
+                        placeholder="Qty"
+                        min="1"
+                        value={item.quantity}
+                        onChange={(e) => handleQuantityChangeWithSourcing(index, e.target.value)}
+                      />
+                    </div>
+
+                    {/* Unit Price */}
+                    <div className="col-span-2">
+                      <Input
+                        type="number"
+                        placeholder="Price"
+                        min="0"
+                        step="0.01"
+                        value={item.unit_price}
+                        onChange={(e) => handleItemChange(index, "unit_price", e.target.value)}
+                      />
+                    </div>
+
+                    {/* Amount */}
+                    <div className="col-span-1">
+                      <Input
+                        type="text"
+                        value={`${currencySymbol} ${item.amount.toLocaleString()}`}
+                        disabled
+                        className="bg-gray-50 text-xs"
+                      />
+                    </div>
+
+                    {/* Delete */}
+                    <div className="col-span-1">
                       <Button
                         type="button"
-                        variant={item.item_type === "product" ? "default" : "outline"}
-                        size="sm"
-                        className={`h-8 px-2 text-xs ${item.item_type === "product" ? "bg-[#004B8D]" : ""}`}
-                        onClick={() => handleItemTypeChange(index, "product")}
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveItem(index)}
+                        disabled={items.length === 1}
                       >
-                        <Package className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={item.item_type === "service" ? "default" : "outline"}
-                        size="sm"
-                        className={`h-8 px-2 text-xs ${item.item_type === "service" ? "bg-amber-600" : ""}`}
-                        onClick={() => handleItemTypeChange(index, "service")}
-                      >
-                        <Wrench className="h-3 w-3" />
+                        <Trash2 className="h-4 w-4 text-red-500" />
                       </Button>
                     </div>
                   </div>
 
-                  {/* Description/Product Selector */}
-                  <div className="col-span-4">
-                    {item.item_type === "product" ? (
-                      <ProductCombobox
-                        products={products}
-                        value={item.productId || ""}
-                        onValueChange={(productId) => handleProductSelect(index, productId)}
-                        placeholder="Select product..."
-                      />
-                    ) : (
-                      <div className="relative">
-                        <Input
-                          value={item.description}
-                          onChange={(e) => handleItemChange(index, "description", e.target.value)}
-                          placeholder="Service description..."
-                          className="pr-16"
-                        />
-                        <Badge 
-                          variant="secondary" 
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] bg-amber-100 text-amber-700"
-                        >
-                          Service
-                        </Badge>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Quantity */}
-                  <div className="col-span-2">
-                    <Input
-                      type="number"
-                      placeholder="Qty"
-                      min="1"
-                      value={item.quantity}
-                      onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
-                    />
-                  </div>
-
-                  {/* Unit Price */}
-                  <div className="col-span-2">
-                    <Input
-                      type="number"
-                      placeholder="Price"
-                      min="0"
-                      step="0.01"
-                      value={item.unit_price}
-                      onChange={(e) => handleItemChange(index, "unit_price", e.target.value)}
-                    />
-                  </div>
-
-                  {/* Amount */}
-                  <div className="col-span-1">
-                    <Input
-                      type="text"
-                      value={`K ${item.amount.toLocaleString()}`}
-                      disabled
-                      className="bg-gray-50 text-xs"
-                    />
-                  </div>
-
-                  {/* Delete */}
-                  <div className="col-span-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleRemoveItem(index)}
-                      disabled={items.length === 1}
-                    >
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </Button>
-                  </div>
+                  {/* Lead Time Row for Sourcing Items */}
+                  {item.is_sourcing && (
+                    <div className="mt-2 pt-2 border-t border-amber-200 flex items-center gap-3">
+                      <Clock className="h-4 w-4 text-amber-600" />
+                      <Label className="text-xs text-amber-700 shrink-0">Delivery Timeline:</Label>
+                      <select
+                        value={item.lead_time || ""}
+                        onChange={(e) => handleLeadTimeChange(index, e.target.value)}
+                        className="text-xs bg-white border border-amber-300 rounded px-2 py-1 text-amber-800"
+                      >
+                        <option value="">Select timeline...</option>
+                        {LEAD_TIME_OPTIONS.map(opt => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                      <span className="text-xs text-amber-600">
+                        (Stock: {item.current_stock ?? 0}, Need: {item.quantity})
+                      </span>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
