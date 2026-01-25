@@ -98,7 +98,7 @@ export function OmanutAdvisor() {
       x.set(clamp(nextX, minX, maxX));
       y.set(clamp(nextY, minY, maxY));
     },
-    [isHidden, isOpen, x, y]
+    [x, y]
   );
 
   // Initial position: restore from localStorage, otherwise default to bottom-right.
@@ -117,12 +117,31 @@ export function OmanutAdvisor() {
   // Keep the widget on-screen when size changes (open/close/hidden) or on resize.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    setFloatingPositionClamped(x.get(), y.get());
+    
+    const updatePosition = () => {
+      const { w, h } = getWidgetSize(isOpen, isHidden);
+      const minX = VIEWPORT_MARGIN_PX;
+      const minY = VIEWPORT_MARGIN_PX;
+      const maxX = Math.max(minX, window.innerWidth - w - VIEWPORT_MARGIN_PX);
+      const maxY = Math.max(minY, window.innerHeight - h - VIEWPORT_MARGIN_PX);
+      
+      const currentX = x.get();
+      const currentY = y.get();
+      const clampedX = clamp(currentX, minX, maxX);
+      const clampedY = clamp(currentY, minY, maxY);
+      
+      if (currentX !== clampedX || currentY !== clampedY) {
+        x.set(clampedX);
+        y.set(clampedY);
+      }
+    };
+    
+    updatePosition();
 
-    const handleResize = () => setFloatingPositionClamped(x.get(), y.get());
+    const handleResize = updatePosition;
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, [isOpen, isHidden, setFloatingPositionClamped, x, y]);
+  }, [isOpen, isHidden, x, y]);
 
   const persistPosition = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -323,7 +342,7 @@ export function OmanutAdvisor() {
 
       {isHidden ? (
         <motion.div
-          className="fixed left-0 top-0 z-50"
+          className="fixed left-0 top-0 z-[9999]"
           style={{ x, y }}
           drag
           dragElastic={0.12}
@@ -366,7 +385,7 @@ export function OmanutAdvisor() {
                 }}
                 style={{ x, y }}
                 className={cn(
-                  "fixed left-0 top-0 z-50 w-14 h-14 rounded-full",
+                  "fixed left-0 top-0 z-[9999] w-14 h-14 rounded-full",
                   "bg-background border border-border shadow-elevated",
                   "transition-shadow flex items-center justify-center group relative",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background"
@@ -436,7 +455,7 @@ export function OmanutAdvisor() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 20, scale: 0.95 }}
                 transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                className="fixed left-0 top-0 z-50 w-[360px] h-[520px] bg-background border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+                className="fixed left-0 top-0 z-[9999] w-[360px] h-[520px] bg-background border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden"
                 style={{ x, y }}
                 drag
                 dragListener={false}
