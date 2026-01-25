@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Send, Minimize2, Sparkles, Loader2, HelpCircle, TrendingUp, Package, Users, GraduationCap, ChevronDown } from "lucide-react";
+import { X, Send, Minimize2, Loader2, HelpCircle, TrendingUp, Package, Users, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -8,7 +8,7 @@ import { useTenant } from "@/hooks/useTenant";
 import { useAdvisorOnboarding } from "@/hooks/useAdvisorOnboarding";
 import { AdvisorOnboardingPanel } from "./AdvisorOnboardingPanel";
 import { cn } from "@/lib/utils";
-
+import advisorLogo from "@/assets/advisor-logo.png";
 interface Message {
   id: string;
   role: "user" | "assistant";
@@ -230,7 +230,7 @@ export function OmanutAdvisor() {
         onClick={toggleHidden}
         className="fixed bottom-4 right-4 z-50 opacity-50 hover:opacity-100 text-xs"
       >
-        <Sparkles className="h-3 w-3 mr-1" />
+        <img src={advisorLogo} alt="Advisor" className="h-4 w-4 mr-1" />
         Show Advisor
       </Button>
     );
@@ -271,7 +271,7 @@ export function OmanutAdvisor() {
                 />
               </svg>
             )}
-            <Sparkles className="h-6 w-6 group-hover:scale-110 transition-transform" />
+            <img src={advisorLogo} alt="Advisor" className="h-7 w-7 group-hover:scale-110 transition-transform" />
             
             {/* New user badge */}
             {isNewUser && !hasSeenWelcome && (
@@ -296,8 +296,8 @@ export function OmanutAdvisor() {
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b bg-gradient-to-r from-[var(--brand-primary,#004B8D)]/5 to-transparent">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--brand-primary,#004B8D)] to-[var(--brand-secondary,#0077B6)] flex items-center justify-center">
-                  <Sparkles className="h-4 w-4 text-white" />
+                <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center overflow-hidden">
+                  <img src={advisorLogo} alt="Advisor" className="h-6 w-6" />
                 </div>
                 <div>
                   <h3 className="font-semibold text-sm">Omanut Advisor</h3>
@@ -372,8 +372,8 @@ export function OmanutAdvisor() {
               <ScrollArea className="flex-1 p-4" ref={scrollRef}>
                 {messages.length === 0 && !showOnboarding ? (
                   <div className="h-full flex flex-col items-center justify-center text-center px-4">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[var(--brand-primary,#004B8D)]/10 to-[var(--brand-secondary,#0077B6)]/10 flex items-center justify-center mb-3">
-                      <Sparkles className="h-6 w-6 text-[var(--brand-primary,#004B8D)]" />
+                    <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center mb-3 shadow-sm">
+                      <img src={advisorLogo} alt="Advisor" className="h-8 w-8" />
                     </div>
                     <h4 className="font-medium text-sm mb-1">
                       {isNewUser ? "Welcome! 👋" : "Hey there! 👋"}
