@@ -101,6 +101,23 @@ export function OmanutAdvisor() {
     [x, y]
   );
 
+  // Update dependency array to include isOpen and isHidden
+  const setFloatingPositionClampedMemo = useCallback(
+    (nextX: number, nextY: number) => {
+      if (typeof window === "undefined") return;
+
+      const { w, h } = getWidgetSize(isOpen, isHidden);
+      const minX = VIEWPORT_MARGIN_PX;
+      const minY = VIEWPORT_MARGIN_PX;
+      const maxX = Math.max(minX, window.innerWidth - w - VIEWPORT_MARGIN_PX);
+      const maxY = Math.max(minY, window.innerHeight - h - VIEWPORT_MARGIN_PX);
+
+      x.set(clamp(nextX, minX, maxX));
+      y.set(clamp(nextY, minY, maxY));
+    },
+    [isOpen, isHidden, x, y]
+  );
+
   // Initial position: restore from localStorage, otherwise default to bottom-right.
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -110,7 +127,7 @@ export function OmanutAdvisor() {
     const defaultX = window.innerWidth - w - VIEWPORT_MARGIN_PX;
     const defaultY = window.innerHeight - h - VIEWPORT_MARGIN_PX;
 
-    setFloatingPositionClamped(stored?.x ?? defaultX, stored?.y ?? defaultY);
+    setFloatingPositionClampedMemo(stored?.x ?? defaultX, stored?.y ?? defaultY);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -130,10 +147,8 @@ export function OmanutAdvisor() {
       const clampedX = clamp(currentX, minX, maxX);
       const clampedY = clamp(currentY, minY, maxY);
       
-      if (currentX !== clampedX || currentY !== clampedY) {
-        x.set(clampedX);
-        y.set(clampedY);
-      }
+      x.set(clampedX);
+      y.set(clampedY);
     };
     
     updatePosition();
@@ -141,7 +156,7 @@ export function OmanutAdvisor() {
     const handleResize = updatePosition;
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, [isOpen, isHidden, x, y]);
+  }, [isOpen, isHidden, x, y, setFloatingPositionClampedMemo]);
 
   const persistPosition = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -342,22 +357,30 @@ export function OmanutAdvisor() {
 
       {isHidden ? (
         <motion.div
-          className="fixed left-0 top-0 z-[9999]"
-          style={{ x, y }}
+          className="pointer-events-none"
+          style={{
+            position: "fixed",
+            left: "0px",
+            top: "0px",
+            zIndex: 9999,
+            transform: `translate(${x.get()}px, ${y.get()}px)`
+          }}
           drag
           dragElastic={0.12}
           dragMomentum={false}
           dragConstraints={constraintsRef}
-          onDragEnd={() => {
-            setFloatingPositionClamped(x.get(), y.get());
-            persistPosition();
+          onDrag={(_, info) => {
+            const newX = x.get() + info.delta.x;
+            const newY = y.get() + info.delta.y;
+            setFloatingPositionClampedMemo(newX, newY);
           }}
+          onDragEnd={persistPosition}
         >
           <Button
             size="sm"
             variant="ghost"
             onClick={toggleHidden}
-            className="opacity-70 hover:opacity-100 text-xs bg-background/70 backdrop-blur supports-[backdrop-filter]:bg-background/50 border border-border"
+            className="pointer-events-auto opacity-70 hover:opacity-100 text-xs bg-background/70 backdrop-blur supports-[backdrop-filter]:bg-background/50 border border-border"
           >
             <img src={advisorLogo} alt="Advisor" className="h-4 w-4 mr-1 object-contain" />
             Show Advisor
@@ -375,17 +398,26 @@ export function OmanutAdvisor() {
                 whileHover={prefersReducedMotion ? undefined : { scale: 1.03 }}
                 whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
                 onClick={() => setIsOpen(true)}
+                style={{
+                  position: "fixed",
+                  left: "0px",
+                  top: "0px",
+                  zIndex: 9999,
+                  transform: `translate(${x.get()}px, ${y.get()}px)`,
+                  pointerEvents: "auto"
+                }}
                 drag
                 dragElastic={0.12}
                 dragMomentum={false}
                 dragConstraints={constraintsRef}
-                onDragEnd={() => {
-                  setFloatingPositionClamped(x.get(), y.get());
-                  persistPosition();
+                onDrag={(_, info) => {
+                  const newX = x.get() + info.delta.x;
+                  const newY = y.get() + info.delta.y;
+                  setFloatingPositionClampedMemo(newX, newY);
                 }}
-                style={{ x, y }}
+                onDragEnd={persistPosition}
                 className={cn(
-                  "fixed left-0 top-0 z-[9999] w-14 h-14 rounded-full",
+                  "w-14 h-14 rounded-full",
                   "bg-background border border-border shadow-elevated",
                   "transition-shadow flex items-center justify-center group relative",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background"
@@ -455,18 +487,29 @@ export function OmanutAdvisor() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 20, scale: 0.95 }}
                 transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                className="fixed left-0 top-0 z-[9999] w-[360px] h-[520px] bg-background border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-                style={{ x, y }}
+                style={{
+                  position: "fixed",
+                  left: "0px",
+                  top: "0px",
+                  zIndex: 9999,
+                  transform: `translate(${x.get()}px, ${y.get()}px)`,
+                  width: "360px",
+                  height: "520px",
+                  pointerEvents: "auto"
+                }}
+                className="bg-background border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden"
                 drag
                 dragListener={false}
                 dragControls={dragControls}
                 dragElastic={0.06}
                 dragMomentum={false}
                 dragConstraints={constraintsRef}
-                onDragEnd={() => {
-                  setFloatingPositionClamped(x.get(), y.get());
-                  persistPosition();
+                onDrag={(_, info) => {
+                  const newX = x.get() + info.delta.x;
+                  const newY = y.get() + info.delta.y;
+                  setFloatingPositionClampedMemo(newX, newY);
                 }}
+                onDragEnd={persistPosition}
               >
             {/* Header */}
             <div
