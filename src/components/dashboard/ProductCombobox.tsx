@@ -91,7 +91,7 @@ export function ProductCombobox({
               No products found.
             </CommandEmpty>
             <CommandGroup>
-              {products.map((product) => {
+            {products.map((product) => {
                 const isLowStock = product.current_stock < 10;
                 const isOutOfStock = product.current_stock === 0;
                 
@@ -103,11 +103,9 @@ export function ProductCombobox({
                       onValueChange(product.id === value ? "" : product.id);
                       setOpen(false);
                     }}
-                    disabled={isOutOfStock}
                     className={cn(
                       "flex flex-col items-start gap-1 py-3 cursor-pointer",
-                      "text-[#003366] hover:bg-[#004B8D]/5",
-                      isOutOfStock && "opacity-50 cursor-not-allowed"
+                      "text-[#003366] hover:bg-[#004B8D]/5"
                     )}
                   >
                     <div className="flex items-center w-full gap-2">
@@ -119,7 +117,14 @@ export function ProductCombobox({
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="font-medium truncate">{product.name}</span>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="font-medium truncate">{product.name}</span>
+                            {isOutOfStock && (
+                              <span className="text-[10px] text-amber-600 whitespace-nowrap">
+                                (Will be Sourced)
+                              </span>
+                            )}
+                          </div>
                           {showPrice && (
                             <span className="text-[#0077B6] font-semibold shrink-0">
                               K{product.unit_price.toLocaleString()}
@@ -134,13 +139,13 @@ export function ProductCombobox({
                               className={cn(
                                 "text-xs",
                                 isOutOfStock 
-                                  ? "bg-red-50 text-red-600 border-red-200" 
+                                  ? "bg-amber-50 text-amber-600 border-amber-200" 
                                   : isLowStock 
                                     ? "bg-amber-50 text-amber-600 border-amber-200"
                                     : "bg-green-50 text-green-600 border-green-200"
                               )}
                             >
-                              {isOutOfStock ? "Out of Stock" : `${product.current_stock} in stock`}
+                              {isOutOfStock ? "Sourcing Required" : `${product.current_stock} in stock`}
                             </Badge>
                           )}
                         </div>
