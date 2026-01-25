@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBillingPlans } from "@/hooks/useBillingPlans";
 import { BillingPlan, formatPrice } from "@/lib/billing-plans";
+import { PlanComparisonTable } from "./PlanComparisonTable";
 
 export function PricingSection() {
   const [isAnnual, setIsAnnual] = useState(true);
@@ -199,6 +200,9 @@ export function PricingSection() {
             );
           })}
         </div>
+
+        {/* Plan Comparison Table */}
+        <PlanComparisonTable />
 
         {/* FAQ Link */}
         <motion.div 
