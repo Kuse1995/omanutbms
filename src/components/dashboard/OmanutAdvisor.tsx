@@ -95,6 +95,7 @@ export function OmanutAdvisor() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [hasAnimated, setHasAnimated] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -199,6 +200,16 @@ export function OmanutAdvisor() {
       inputRef.current.focus();
     }
   }, [isOpen, showOnboarding]);
+
+  // Trigger bounce animation after initial mount
+  useEffect(() => {
+    if (!isOpen && !isHidden && !hasAnimated) {
+      const timer = setTimeout(() => {
+        setHasAnimated(true);
+      }, 500); // Delay before bounce starts
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, isHidden, hasAnimated]);
 
   const toggleHidden = () => {
     const newHidden = !isHidden;
@@ -432,7 +443,8 @@ export function OmanutAdvisor() {
                   "pointer-events-auto w-14 h-14 rounded-full",
                   "bg-background border border-border shadow-elevated",
                   "transition-shadow flex items-center justify-center group relative",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background"
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background",
+                  hasAnimated && "animate-bounce-subtle"
                 )}
                 style={hasBeenDragged ? { ...draggedPositionStyle, x, y } : defaultPositionStyle}
                 drag
