@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -6,9 +6,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-import { format, startOfMonth, endOfMonth } from "date-fns";
+import { format, startOfMonth, endOfMonth, parseISO } from "date-fns";
 import { useTenant } from "@/hooks/useTenant";
 
 interface Employee {
@@ -30,6 +31,12 @@ interface PayrollRunModalProps {
   selectedMonth: string;
 }
 
+interface AttendanceData {
+  verified_hours: number;
+  pending_count: number;
+  has_pending: boolean;
+}
+
 interface PayrollEntry {
   employee_id: string;
   selected: boolean;
@@ -37,6 +44,7 @@ interface PayrollEntry {
   basic_salary: number;
   hourly_rate: number;
   hours_worked: number;
+  verified_hours: number;
   shifts_worked: number;
   shift_rate: number;
   allowances: number;
@@ -44,6 +52,8 @@ interface PayrollEntry {
   bonus: number;
   loan_deduction: number;
   other_deductions: number;
+  has_pending_adjustments: boolean;
+  pending_adjustment_count: number;
 }
 
 // Zambian PAYE brackets (2024)
@@ -74,15 +84,21 @@ export const PayrollRunModal = ({
   selectedMonth,
 }: PayrollRunModalProps) => {
   const [loading, setLoading] = useState(false);
+  const [fetchingAttendance, setFetchingAttendance] = useState(false);
   const { tenantId } = useTenant();
-  const [entries, setEntries] = useState<PayrollEntry[]>(() =>
-    employees.map((emp) => ({
+  const [entries, setEntries] = useState<PayrollEntry[]>([]);
+  const [attendanceDataMap, setAttendanceDataMap] = useState<Map<string, AttendanceData>>(new Map());
+
+  // Initialize entries when employees change
+  const initializeEntries = useCallback(() => {
+    return employees.map((emp) => ({
       employee_id: emp.id,
       selected: true,
       pay_type: emp.pay_type || "monthly",
       basic_salary: emp.base_salary_zmw || 0,
       hourly_rate: emp.hourly_rate || 0,
       hours_worked: 0,
+      verified_hours: 0,
       shifts_worked: 0,
       shift_rate: emp.shift_rate || 0,
       allowances: 0,
@@ -90,8 +106,100 @@ export const PayrollRunModal = ({
       bonus: 0,
       loan_deduction: 0,
       other_deductions: 0,
-    }))
-  );
+      has_pending_adjustments: false,
+      pending_adjustment_count: 0,
+    }));
+  }, [employees]);
+
+  // Fetch verified attendance hours for all employees
+  const fetchAttendanceData = useCallback(async () => {
+    if (!tenantId || !isOpen) return;
+    
+    setFetchingAttendance(true);
+    try {
+      const monthDate = new Date(selectedMonth + "-01");
+      const periodStart = format(startOfMonth(monthDate), "yyyy-MM-dd");
+      const periodEnd = format(endOfMonth(monthDate), "yyyy-MM-dd");
+
+      // Query attendance records for the pay period
+      const { data: attendanceRecords, error } = await supabase
+        .from("employee_attendance")
+        .select("employee_id, work_hours, edit_status, date")
+        .eq("tenant_id", tenantId)
+        .gte("date", periodStart)
+        .lte("date", periodEnd);
+
+      if (error) throw error;
+
+      // Process attendance data per employee
+      const attendanceMap = new Map<string, AttendanceData>();
+      
+      employees.forEach((emp) => {
+        const empRecords = (attendanceRecords || []).filter(
+          (r) => r.employee_id === emp.id
+        );
+
+        // Sum ONLY verified hours (approved or null status)
+        // Explicitly EXCLUDE pending records
+        const verifiedRecords = empRecords.filter(
+          (r) => r.edit_status === "approved" || r.edit_status === null
+        );
+        const pendingRecords = empRecords.filter(
+          (r) => r.edit_status === "pending"
+        );
+
+        const verifiedHours = verifiedRecords.reduce(
+          (sum, r) => sum + (r.work_hours || 0),
+          0
+        );
+
+        if (pendingRecords.length > 0) {
+          console.warn(
+            `[Payroll] Employee ${emp.full_name} (${emp.id}): Pending attendance adjustments found (${pendingRecords.length} records) - excluded from calculation.`
+          );
+        }
+
+        attendanceMap.set(emp.id, {
+          verified_hours: verifiedHours,
+          pending_count: pendingRecords.length,
+          has_pending: pendingRecords.length > 0,
+        });
+      });
+
+      setAttendanceDataMap(attendanceMap);
+
+      // Update entries with attendance data
+      setEntries((prev) =>
+        prev.map((entry) => {
+          const attendance = attendanceMap.get(entry.employee_id);
+          if (attendance) {
+            return {
+              ...entry,
+              verified_hours: attendance.verified_hours,
+              hours_worked: attendance.verified_hours,
+              has_pending_adjustments: attendance.has_pending,
+              pending_adjustment_count: attendance.pending_count,
+            };
+          }
+          return entry;
+        })
+      );
+    } catch (error) {
+      console.error("Error fetching attendance data:", error);
+      toast.error("Failed to load attendance data");
+    } finally {
+      setFetchingAttendance(false);
+    }
+  }, [tenantId, selectedMonth, employees, isOpen]);
+
+  // Initialize and fetch data when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      const initialEntries = initializeEntries();
+      setEntries(initialEntries);
+      fetchAttendanceData();
+    }
+  }, [isOpen, initializeEntries, fetchAttendanceData]);
 
   const updateEntry = (id: string, field: keyof PayrollEntry, value: number | boolean | string) => {
     setEntries((prev) =>
@@ -103,22 +211,32 @@ export const PayrollRunModal = ({
     let basePay = 0;
     
     // Calculate base pay based on pay type
+    // For hourly/daily workers, use verified_hours from attendance system
     if (entry.pay_type === "hourly") {
-      basePay = entry.hourly_rate * entry.hours_worked;
+      // Use verified hours from attendance audit trail
+      const hoursToUse = entry.verified_hours > 0 ? entry.verified_hours : entry.hours_worked;
+      basePay = entry.hourly_rate * hoursToUse;
     } else if (entry.pay_type === "per_shift") {
       basePay = entry.shift_rate * entry.shifts_worked;
     } else if (entry.pay_type === "daily") {
-      basePay = entry.hourly_rate * entry.hours_worked;
+      // Daily rate workers also use verified hours
+      const hoursToUse = entry.verified_hours > 0 ? entry.verified_hours : entry.hours_worked;
+      basePay = entry.hourly_rate * hoursToUse;
     } else {
+      // Monthly salary employees
       basePay = entry.basic_salary;
     }
     
+    // Gross pay calculation using verified attendance data
     const gross = basePay + entry.allowances + entry.overtime_pay + entry.bonus;
+    
+    // Statutory deductions based on verified gross pay
     const napsa = calculateNAPSA(gross);
     const nhima = calculateNHIMA(gross);
     const paye = calculatePAYE(gross - napsa);
     const totalDeductions = napsa + nhima + paye + entry.loan_deduction + entry.other_deductions;
     const net = gross - totalDeductions;
+    
     return { basePay, gross, napsa, nhima, paye, totalDeductions, net };
   };
 
@@ -142,6 +260,14 @@ export const PayrollRunModal = ({
 
       const payrollRecords = selectedEntries.map((entry) => {
         const { basePay, gross, napsa, nhima, paye, totalDeductions, net } = calculateTotals(entry);
+        
+        // Log warning for employees with pending adjustments
+        if (entry.has_pending_adjustments) {
+          console.warn(
+            `[Payroll Generation] Employee ID: ${entry.employee_id} - Pending attendance adjustments found (${entry.pending_adjustment_count} records) - excluded from this calculation.`
+          );
+        }
+        
         return {
           employee_id: entry.employee_id,
           employee_type: "employee",
@@ -149,7 +275,7 @@ export const PayrollRunModal = ({
           pay_period_end: payPeriodEnd,
           basic_salary: entry.pay_type === "monthly" ? entry.basic_salary : 0,
           shift_pay: entry.pay_type !== "monthly" ? basePay : 0,
-          hours_worked: entry.hours_worked,
+          hours_worked: entry.verified_hours > 0 ? entry.verified_hours : entry.hours_worked,
           shifts_worked: entry.shifts_worked,
           hourly_rate: entry.hourly_rate,
           allowances: entry.allowances,
@@ -165,6 +291,10 @@ export const PayrollRunModal = ({
           net_pay: net,
           status: "draft",
           tenant_id: tenantId,
+          // Flag for pending adjustments in notes
+          notes: entry.has_pending_adjustments 
+            ? `Warning: ${entry.pending_adjustment_count} pending attendance adjustment(s) were excluded from this calculation.`
+            : null,
         };
       });
 
@@ -211,14 +341,34 @@ export const PayrollRunModal = ({
         </DialogHeader>
 
         <div className="space-y-4">
+          {fetchingAttendance && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading verified attendance data...
+            </div>
+          )}
+          
           <div className="bg-muted/50 p-3 rounded-lg text-sm">
             <p>
               <strong>NAPSA:</strong> 5% of gross (ceiling: K26,055) |{" "}
               <strong>NHIMA:</strong> 1% of gross |{" "}
               <strong>PAYE:</strong> Progressive tax brackets applied |{" "}
-              <strong>Shift Pay:</strong> Enter hours/shifts for non-monthly workers
+              <strong>Verified Hours:</strong> Only approved attendance records are included
             </p>
           </div>
+          
+          {entries.some((e) => e.has_pending_adjustments) && (
+            <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg text-sm flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <strong className="text-amber-800">Pending Adjustments Detected:</strong>
+                <span className="text-amber-700 ml-1">
+                  Some employees have pending attendance adjustments that are excluded from this calculation.
+                  Approve them in the Attendance module before running payroll for accurate figures.
+                </span>
+              </div>
+            </div>
+          )}
 
           <Table>
             <TableHeader>
@@ -257,7 +407,15 @@ export const PayrollRunModal = ({
                       />
                     </TableCell>
                     <TableCell className="font-medium">
-                      {empInfo?.name}
+                      <div className="flex items-center gap-2">
+                        {empInfo?.name}
+                        {entry.has_pending_adjustments && (
+                          <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-300">
+                            <AlertTriangle className="h-3 w-3 mr-1" />
+                            {entry.pending_adjustment_count} pending
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <span className={`text-xs px-2 py-1 rounded ${
@@ -314,15 +472,22 @@ export const PayrollRunModal = ({
                             placeholder="Shifts"
                           />
                         ) : (
-                          <Input
-                            type="number"
-                            value={entry.hours_worked}
-                            onChange={(e) =>
-                              updateEntry(entry.employee_id, "hours_worked", parseFloat(e.target.value) || 0)
-                            }
-                            className="h-8 w-16"
-                            placeholder="Hours"
-                          />
+                          <div className="flex flex-col gap-1">
+                            <Input
+                              type="number"
+                              value={entry.verified_hours > 0 ? entry.verified_hours : entry.hours_worked}
+                              onChange={(e) => {
+                                const newHours = parseFloat(e.target.value) || 0;
+                                updateEntry(entry.employee_id, "hours_worked", newHours);
+                                updateEntry(entry.employee_id, "verified_hours", newHours);
+                              }}
+                              className="h-8 w-16"
+                              placeholder="Hours"
+                            />
+                            {entry.verified_hours > 0 && (
+                              <span className="text-[10px] text-green-600">✓ Verified</span>
+                            )}
+                          </div>
                         )
                       )}
                       {entry.pay_type === "monthly" && <span className="text-muted-foreground">-</span>}
