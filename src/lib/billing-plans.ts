@@ -54,7 +54,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
     popular: false,
     limits: {
       users: 1,
-      inventoryItems: 50,
+      inventoryItems: 100,
       whatsappMessages: 30,
       aiQueriesDaily: 10,
     },
