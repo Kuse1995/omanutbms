@@ -4,7 +4,20 @@
 
 import { getBusinessTypeConfig, BusinessType } from './business-type-config';
 
-export type FeatureKey = 'inventory' | 'payroll' | 'agents' | 'impact' | 'website' | 'advanced_accounting' | 'whatsapp' | 'warehouse';
+export type FeatureKey = 
+  | 'inventory' 
+  | 'payroll' 
+  | 'agents' 
+  | 'impact' 
+  | 'website' 
+  | 'advanced_accounting' 
+  | 'whatsapp' 
+  | 'warehouse'
+  | 'ai_teaching'
+  | 'ai_reports'
+  | 'document_import'
+  | 'white_label'
+  | 'multi_branch';
 
 export interface FeatureConfig {
   inventory: boolean;
@@ -15,6 +28,11 @@ export interface FeatureConfig {
   advanced_accounting: boolean;
   whatsapp: boolean;
   warehouse: boolean;
+  ai_teaching: boolean;
+  ai_reports: boolean;
+  document_import: boolean;
+  white_label: boolean;
+  multi_branch: boolean;
 }
 
 export interface BusinessProfile {
@@ -27,6 +45,7 @@ export interface BusinessProfile {
   whatsapp_enabled?: boolean | null;
   warehouse_enabled?: boolean | null;
   white_label_enabled?: boolean | null;
+  multi_branch_enabled?: boolean | null;
   business_type?: string | null;
 }
 
@@ -50,6 +69,12 @@ export function getFeatureConfig(businessProfile: BusinessProfile | null): Featu
     advanced_accounting: businessProfile?.advanced_accounting_enabled ?? typeDefaults.advanced_accounting,
     whatsapp: businessProfile?.whatsapp_enabled ?? typeDefaults.whatsapp,
     warehouse: businessProfile?.warehouse_enabled ?? typeDefaults.warehouse,
+    // New AI/premium features - default to false unless explicitly enabled
+    ai_teaching: false,
+    ai_reports: false,
+    document_import: false,
+    white_label: businessProfile?.white_label_enabled ?? false,
+    multi_branch: businessProfile?.multi_branch_enabled ?? false,
   };
 }
 

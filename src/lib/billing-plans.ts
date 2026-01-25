@@ -8,6 +8,8 @@ export type BillingStatus = "inactive" | "active" | "suspended" | "trial";
 export interface PlanLimits {
   users: number;
   inventoryItems: number;
+  whatsappMessages: number;
+  aiQueriesDaily: number;
 }
 
 export interface PlanFeatures {
@@ -19,6 +21,11 @@ export interface PlanFeatures {
   website: boolean;
   whatsapp: boolean;
   warehouse: boolean;
+  ai_teaching: boolean;
+  ai_reports: boolean;
+  document_import: boolean;
+  white_label: boolean;
+  multi_branch: boolean;
 }
 
 export interface BillingPlanConfig {
@@ -38,7 +45,7 @@ export interface BillingPlanConfig {
 export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
   starter: {
     label: "Starter",
-    description: "For small teams and early businesses",
+    description: "For solo entrepreneurs and micro businesses",
     tagline: "Perfect for getting started",
     monthlyPrice: 299,
     annualPrice: 3000,
@@ -46,8 +53,10 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
     trialDays: 14,
     popular: false,
     limits: {
-      users: 3,
-      inventoryItems: 100,
+      users: 1,
+      inventoryItems: 50,
+      whatsappMessages: 30,
+      aiQueriesDaily: 10,
     },
     features: {
       inventory: true,
@@ -58,19 +67,27 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       website: false,
       whatsapp: true,
       warehouse: false,
+      ai_teaching: false,
+      ai_reports: false,
+      document_import: false,
+      white_label: false,
+      multi_branch: false,
     },
     highlights: [
-      "Up to 3 team members",
-      "100 inventory items",
-      "Basic accounting",
+      "1 user account",
+      "50 inventory items",
       "Sales & invoicing",
+      "Payment receipts",
+      "Basic accounting (Cashbook)",
+      "WhatsApp assistant (30/month)",
+      "AI Advisor (10 queries/day)",
       "Email support",
     ],
   },
 
   growth: {
     label: "Pro",
-    description: "For growing organizations",
+    description: "For growing teams and established businesses",
     tagline: "Most popular for scaling teams",
     monthlyPrice: 799,
     annualPrice: 9000,
@@ -80,32 +97,44 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
     limits: {
       users: 10,
       inventoryItems: 1000,
+      whatsappMessages: 500,
+      aiQueriesDaily: 50,
     },
     features: {
       inventory: true,
       payroll: true,
       agents: true,
       impact: true,
-      advanced_accounting: false,
+      advanced_accounting: true,
       website: true,
       whatsapp: true,
-      warehouse: true,
+      warehouse: false,
+      ai_teaching: true,
+      ai_reports: false,
+      document_import: true,
+      white_label: false,
+      multi_branch: false,
     },
     highlights: [
       "Up to 10 team members",
       "1,000 inventory items",
-      "HR & Payroll",
-      "Agent network",
-      "Impact reporting",
-      "Website management",
+      "HR & Payroll (NAPSA, PAYE, NHIMA)",
+      "Agent network & distribution",
+      "Impact reporting & certificates",
+      "Website & CMS management",
+      "Advanced accounting suite",
+      "AI Teaching Mode",
+      "Document import AI",
+      "WhatsApp assistant (500/month)",
+      "AI Advisor (50 queries/day)",
       "Priority support",
     ],
   },
 
   enterprise: {
     label: "Enterprise",
-    description: "Custom solution for large organizations",
-    tagline: "Full power, unlimited scale",
+    description: "Full power for established organizations",
+    tagline: "Unlimited scale, premium support",
     monthlyPrice: 1999,
     annualPrice: 22999,
     currency: "ZMW",
@@ -114,6 +143,8 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
     limits: {
       users: Infinity,
       inventoryItems: Infinity,
+      whatsappMessages: Infinity,
+      aiQueriesDaily: Infinity,
     },
     features: {
       inventory: true,
@@ -124,14 +155,23 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       website: true,
       whatsapp: true,
       warehouse: true,
+      ai_teaching: true,
+      ai_reports: true,
+      document_import: true,
+      white_label: true,
+      multi_branch: true,
     },
     highlights: [
       "Unlimited team members",
-      "Unlimited inventory",
-      "Advanced accounting",
+      "Unlimited inventory items",
+      "Multi-branch management",
+      "Warehouse & stock transfers",
+      "White-label branding",
+      "AI Financial Report Generator",
+      "Unlimited WhatsApp messages",
+      "Unlimited AI Advisor queries",
       "Custom integrations",
-      "White-label options",
-      "Dedicated support",
+      "Dedicated account manager",
       "SLA guarantee",
     ],
   },
@@ -199,4 +239,19 @@ export function getAnnualSavingsPercent(plan: BillingPlan): number {
 export function formatPrice(amount: number, currency: string = "ZMW"): string {
   if (amount === 0) return "Custom";
   return `K${amount.toLocaleString()}`;
+}
+
+/**
+ * Check if a limit is unlimited
+ */
+export function isUnlimited(value: number): boolean {
+  return value === Infinity || value === 0;
+}
+
+/**
+ * Format limit for display
+ */
+export function formatLimit(value: number): string {
+  if (isUnlimited(value)) return "Unlimited";
+  return value.toLocaleString();
 }
