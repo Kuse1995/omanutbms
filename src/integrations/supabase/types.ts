@@ -1420,6 +1420,7 @@ export type Database = {
       }
       employee_attendance: {
         Row: {
+          change_log: Json | null
           clock_in: string
           clock_in_distance_meters: number | null
           clock_in_latitude: number | null
@@ -1430,15 +1431,20 @@ export type Database = {
           clock_out_longitude: number | null
           created_at: string
           date: string
+          edit_status: string | null
           employee_id: string
           id: string
           notes: string | null
           recorded_by: string | null
+          requested_at: string | null
+          requested_by: string | null
+          requested_times: Json | null
           status: string
           tenant_id: string | null
           work_hours: number | null
         }
         Insert: {
+          change_log?: Json | null
           clock_in?: string
           clock_in_distance_meters?: number | null
           clock_in_latitude?: number | null
@@ -1449,15 +1455,20 @@ export type Database = {
           clock_out_longitude?: number | null
           created_at?: string
           date?: string
+          edit_status?: string | null
           employee_id: string
           id?: string
           notes?: string | null
           recorded_by?: string | null
+          requested_at?: string | null
+          requested_by?: string | null
+          requested_times?: Json | null
           status?: string
           tenant_id?: string | null
           work_hours?: number | null
         }
         Update: {
+          change_log?: Json | null
           clock_in?: string
           clock_in_distance_meters?: number | null
           clock_in_latitude?: number | null
@@ -1468,10 +1479,14 @@ export type Database = {
           clock_out_longitude?: number | null
           created_at?: string
           date?: string
+          edit_status?: string | null
           employee_id?: string
           id?: string
           notes?: string | null
           recorded_by?: string | null
+          requested_at?: string | null
+          requested_by?: string | null
+          requested_times?: Json | null
           status?: string
           tenant_id?: string | null
           work_hours?: number | null
