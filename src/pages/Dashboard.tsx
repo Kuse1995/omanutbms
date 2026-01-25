@@ -212,30 +212,32 @@ const Dashboard = () => {
   };
 
   return (
-    <BranchProvider>
-      <SidebarProvider>
-        <div 
-          className="min-h-screen flex w-full bg-gradient-to-br from-brand-bg-light to-brand-bg-dark"
-          style={brandingStyles}
-        >
-          <DashboardSidebar activeTab={activeTab} setActiveTab={handleSetActiveTab} />
-          <div className="flex-1 flex flex-col">
-            <DashboardHeader />
-            <main className="flex-1 p-6 overflow-auto">
-              {renderContent()}
-            </main>
+    <>
+      {/* AI Advisor Chat - rendered outside all providers for correct fixed positioning */}
+      <OmanutAdvisor />
+      
+      <BranchProvider>
+        <SidebarProvider>
+          <div 
+            className="min-h-screen flex w-full bg-gradient-to-br from-brand-bg-light to-brand-bg-dark"
+            style={brandingStyles}
+          >
+            <DashboardSidebar activeTab={activeTab} setActiveTab={handleSetActiveTab} />
+            <div className="flex-1 flex flex-col">
+              <DashboardHeader />
+              <main className="flex-1 p-6 overflow-auto">
+                {renderContent()}
+              </main>
+            </div>
           </div>
-        </div>
-        
-        {/* Onboarding Tour */}
-        {!tourLoading && (
-          <OnboardingTour run={runTour} onComplete={completeTour} />
-        )}
-        
-        {/* AI Advisor Chat */}
-        <OmanutAdvisor />
-      </SidebarProvider>
-    </BranchProvider>
+          
+          {/* Onboarding Tour */}
+          {!tourLoading && (
+            <OnboardingTour run={runTour} onComplete={completeTour} />
+          )}
+        </SidebarProvider>
+      </BranchProvider>
+    </>
   );
 };
 
