@@ -47,12 +47,11 @@ function clamp(n: number, min: number, max: number) {
 }
 
 function getWidgetSize(isOpen: boolean, isHidden: boolean) {
-  // These are used purely for initial placement + clamping.
-  // The actual drag constraints will still keep the element in-bounds.
   if (isHidden) return { w: 160, h: 40 };
   if (isOpen) return { w: 360, h: 520 };
   return { w: 56, h: 56 };
 }
+
 interface Message {
   id: string;
   role: "user" | "assistant";
@@ -66,8 +65,17 @@ export function OmanutAdvisor() {
   const prefersReducedMotion = useReducedMotion();
   const dragControls = useDragControls();
   const constraintsRef = useRef<HTMLDivElement>(null);
+  
+  // Track whether user has dragged the widget
+  const [hasBeenDragged, setHasBeenDragged] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(ADVISOR_POSITION_KEY) !== null;
+  });
+  
+  // Position values for when dragged
   const x = useMotionValue(0);
   const y = useMotionValue(0);
+  
   const {
     isNewUser,
     hasSeenWelcome,
@@ -93,92 +101,85 @@ export function OmanutAdvisor() {
   // Render into a portal so the widget isn't affected by parent transforms/stacking contexts.
   const portalTarget = typeof document !== "undefined" ? document.body : null;
 
-  const setFloatingPositionClamped = useCallback(
-    (nextX: number, nextY: number) => {
-      if (typeof window === "undefined") return;
+  // Calculate clamped position without causing re-renders
+  const clampPosition = useCallback((nextX: number, nextY: number) => {
+    if (typeof window === "undefined") return { x: nextX, y: nextY };
 
-      const { w, h } = getWidgetSize(isOpen, isHidden);
-      const margin = getMargin();
-      const minX = margin;
-      const minY = margin;
-      const maxX = Math.max(minX, window.innerWidth - w - margin);
-      const maxY = Math.max(minY, window.innerHeight - h - margin);
+    const { w, h } = getWidgetSize(isOpen, isHidden);
+    const margin = getMargin();
+    const minX = margin;
+    const minY = margin;
+    const maxX = Math.max(minX, window.innerWidth - w - margin);
+    const maxY = Math.max(minY, window.innerHeight - h - margin);
 
-      x.set(clamp(nextX, minX, maxX));
-      y.set(clamp(nextY, minY, maxY));
-    },
-    [x, y]
-  );
-
-  const setFloatingPositionClampedMemo = useCallback(
-    (nextX: number, nextY: number) => {
-      if (typeof window === "undefined") return;
-
-      const { w, h } = getWidgetSize(isOpen, isHidden);
-      const margin = getMargin();
-      const minX = margin;
-      const minY = margin;
-      const maxX = Math.max(minX, window.innerWidth - w - margin);
-      const maxY = Math.max(minY, window.innerHeight - h - margin);
-
-      x.set(clamp(nextX, minX, maxX));
-      y.set(clamp(nextY, minY, maxY));
-    },
-    [isOpen, isHidden, x, y]
-  );
-
-  // Initial position: restore from localStorage or default to bottom-right corner
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const stored = safeParsePosition(window.localStorage.getItem(ADVISOR_POSITION_KEY));
-
-    if (stored) {
-      setFloatingPositionClampedMemo(stored.x, stored.y);
-    } else {
-      // Default to bottom-right corner
-      const { w } = getWidgetSize(false, isHidden);
-      const margin = getMargin();
-      const defaultX = window.innerWidth - w - margin;
-      const defaultY = window.innerHeight - 56 - margin; // 56 = button height
-
-      setFloatingPositionClampedMemo(defaultX, defaultY);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Keep widget on-screen when size changes or viewport resizes
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    
-    const updatePosition = () => {
-      const { w, h } = getWidgetSize(isOpen, isHidden);
-      const margin = getMargin();
-      const minX = margin;
-      const minY = margin;
-      const maxX = Math.max(minX, window.innerWidth - w - margin);
-      const maxY = Math.max(minY, window.innerHeight - h - margin);
-      
-      const currentX = x.get();
-      const currentY = y.get();
-      const clampedX = clamp(currentX, minX, maxX);
-      const clampedY = clamp(currentY, minY, maxY);
-      
-      x.set(clampedX);
-      y.set(clampedY);
+    return {
+      x: clamp(nextX, minX, maxX),
+      y: clamp(nextY, minY, maxY),
     };
-    
-    updatePosition();
+  }, [isOpen, isHidden]);
 
-    const handleResize = updatePosition;
+  // Initialize position from localStorage if previously dragged
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    
+    const stored = safeParsePosition(window.localStorage.getItem(ADVISOR_POSITION_KEY));
+    if (stored) {
+      const clamped = clampPosition(stored.x, stored.y);
+      x.set(clamped.x);
+      y.set(clamped.y);
+      setHasBeenDragged(true);
+    }
+  }, []); // Only run once on mount
+
+  // Re-clamp when widget size changes (open/close) - only if already dragged
+  useEffect(() => {
+    if (!hasBeenDragged || typeof window === "undefined") return;
+    
+    const clamped = clampPosition(x.get(), y.get());
+    x.set(clamped.x);
+    y.set(clamped.y);
+  }, [isOpen, isHidden, hasBeenDragged]);
+
+  // Handle window resize - only if already dragged
+  useEffect(() => {
+    if (!hasBeenDragged || typeof window === "undefined") return;
+
+    const handleResize = () => {
+      const clamped = clampPosition(x.get(), y.get());
+      x.set(clamped.x);
+      y.set(clamped.y);
+    };
+
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, [isOpen, isHidden, x, y, setFloatingPositionClampedMemo]);
+  }, [hasBeenDragged, clampPosition]);
 
   const persistPosition = useCallback(() => {
     if (typeof window === "undefined") return;
     const payload = { x: x.get(), y: y.get() };
     window.localStorage.setItem(ADVISOR_POSITION_KEY, JSON.stringify(payload));
   }, [x, y]);
+
+  const handleDrag = useCallback((_: any, info: { delta: { x: number; y: number } }) => {
+    if (!hasBeenDragged) {
+      // First drag - calculate initial position from bottom-right
+      const { w, h } = getWidgetSize(isOpen, isHidden);
+      const margin = getMargin();
+      const initialX = window.innerWidth - w - margin;
+      const initialY = window.innerHeight - h - margin;
+      x.set(initialX);
+      y.set(initialY);
+      setHasBeenDragged(true);
+    }
+    
+    const clamped = clampPosition(x.get() + info.delta.x, y.get() + info.delta.y);
+    x.set(clamped.x);
+    y.set(clamped.y);
+  }, [hasBeenDragged, isOpen, isHidden, clampPosition, x, y]);
+
+  const handleDragEnd = useCallback(() => {
+    persistPosition();
+  }, [persistPosition]);
 
   // Auto-show onboarding panel for new users
   useEffect(() => {
@@ -366,35 +367,44 @@ export function OmanutAdvisor() {
 
   if (!portalTarget) return null;
 
+  // CSS-based default position (bottom-right)
+  const margin = typeof window !== "undefined" ? getMargin() : DESKTOP_MARGIN;
+  
+  // Default style anchored to bottom-right
+  const defaultPositionStyle: React.CSSProperties = {
+    position: "fixed",
+    bottom: margin,
+    right: margin,
+    top: "auto",
+    left: "auto",
+    zIndex: 100,
+  };
+  
+  // Dragged style uses x/y translation from top-left
+  const draggedPositionStyle: React.CSSProperties = {
+    position: "fixed",
+    left: 0,
+    top: 0,
+    right: "auto",
+    bottom: "auto",
+    zIndex: 100,
+  };
+
   return createPortal(
     <>
       {/* Drag constraints area (viewport). */}
-      <div ref={constraintsRef} className="fixed inset-0 pointer-events-none" />
+      <div ref={constraintsRef} className="fixed inset-0 pointer-events-none" style={{ zIndex: 99 }} />
 
       {isHidden ? (
         <motion.div
-          style={{
-            position: "fixed !important" as any,
-            left: 0,
-            top: 0,
-            right: "auto",
-            bottom: "auto",
-            zIndex: 100,
-            pointerEvents: "none",
-            x,
-            y,
-          }}
+          style={hasBeenDragged ? { ...draggedPositionStyle, x, y, pointerEvents: "none" } : { ...defaultPositionStyle, pointerEvents: "none" }}
           className="pointer-events-none"
           drag
           dragMomentum={false}
           dragElastic={0.12}
           dragConstraints={constraintsRef}
-          onDrag={(_, info) => {
-            const newX = x.get() + info.delta.x;
-            const newY = y.get() + info.delta.y;
-            setFloatingPositionClampedMemo(newX, newY);
-          }}
-          onDragEnd={persistPosition}
+          onDrag={handleDrag}
+          onDragEnd={handleDragEnd}
         >
           <Button
             size="sm"
@@ -424,79 +434,66 @@ export function OmanutAdvisor() {
                   "transition-shadow flex items-center justify-center group relative",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background"
                 )}
-                style={{
-                  position: "fixed !important" as any,
-                  left: 0,
-                  top: 0,
-                  right: "auto",
-                  bottom: "auto",
-                  zIndex: 100,
-                  x,
-                  y,
-                }}
+                style={hasBeenDragged ? { ...draggedPositionStyle, x, y } : defaultPositionStyle}
                 drag
                 dragMomentum={false}
                 dragElastic={0.12}
                 dragConstraints={constraintsRef}
-                onDrag={(_, info) => {
-                  const newX = x.get() + info.delta.x;
-                  const newY = y.get() + info.delta.y;
-                  setFloatingPositionClampedMemo(newX, newY);
-                }}
-                onDragEnd={persistPosition}
+                onDrag={handleDrag}
+                onDragEnd={handleDragEnd}
               >
-            {/* Glow halo */}
-            <motion.span
-              aria-hidden
-              className="absolute -inset-3 rounded-full bg-primary/25 blur-2xl"
-              initial={prefersReducedMotion ? { opacity: 0.35 } : { opacity: 0.35, scale: 0.95 }}
-              animate={
-                prefersReducedMotion
-                  ? { opacity: 0.35 }
-                  : { opacity: [0.25, 0.55, 0.25], scale: [0.95, 1.08, 0.95] }
-              }
-              transition={
-                prefersReducedMotion
-                  ? undefined
-                  : { duration: 2.6, repeat: Infinity, ease: "easeInOut" }
-              }
-            />
+                {/* Glow halo */}
+                <motion.span
+                  aria-hidden
+                  className="absolute -inset-3 rounded-full bg-primary/25 blur-2xl"
+                  initial={prefersReducedMotion ? { opacity: 0.35 } : { opacity: 0.35, scale: 0.95 }}
+                  animate={
+                    prefersReducedMotion
+                      ? { opacity: 0.35 }
+                      : { opacity: [0.25, 0.55, 0.25], scale: [0.95, 1.08, 0.95] }
+                  }
+                  transition={
+                    prefersReducedMotion
+                      ? undefined
+                      : { duration: 2.6, repeat: Infinity, ease: "easeInOut" }
+                  }
+                />
 
-            {/* Progress ring for new users */}
-            {isNewUser && progress < 100 && (
-              <svg className="absolute inset-0 w-14 h-14 -rotate-90">
-                <circle
-                  cx="28"
-                  cy="28"
-                  r="26"
-                  fill="none"
-                  stroke="hsl(var(--border) / 0.9)"
-                  strokeWidth="3"
+                {/* Progress ring for new users */}
+                {isNewUser && progress < 100 && (
+                  <svg className="absolute inset-0 w-14 h-14 -rotate-90">
+                    <circle
+                      cx="28"
+                      cy="28"
+                      r="26"
+                      fill="none"
+                      stroke="hsl(var(--border) / 0.9)"
+                      strokeWidth="3"
+                    />
+                    <circle
+                      cx="28"
+                      cy="28"
+                      r="26"
+                      fill="none"
+                      stroke="hsl(var(--primary))"
+                      strokeWidth="3"
+                      strokeDasharray={`${(progress / 100) * 163} 163`}
+                      className="transition-all duration-500"
+                    />
+                  </svg>
+                )}
+                <img 
+                  src={advisorLogo} 
+                  alt="Advisor" 
+                  className="h-9 w-9 group-hover:scale-110 transition-transform object-contain relative" 
                 />
-                <circle
-                  cx="28"
-                  cy="28"
-                  r="26"
-                  fill="none"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth="3"
-                  strokeDasharray={`${(progress / 100) * 163} 163`}
-                  className="transition-all duration-500"
-                />
-              </svg>
-            )}
-            <img 
-              src={advisorLogo} 
-              alt="Advisor" 
-              className="h-9 w-9 group-hover:scale-110 transition-transform object-contain relative" 
-            />
-            
-            {/* New user badge */}
-            {isNewUser && !hasSeenWelcome && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-accent text-accent-foreground rounded-full flex items-center justify-center shadow-soft">
-                <span className="text-[10px] font-bold">!</span>
-              </span>
-            )}
+                
+                {/* New user badge */}
+                {isNewUser && !hasSeenWelcome && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-accent text-accent-foreground rounded-full flex items-center justify-center shadow-soft">
+                    <span className="text-[10px] font-bold">!</span>
+                  </span>
+                )}
               </motion.button>
             )}
           </AnimatePresence>
@@ -510,211 +507,199 @@ export function OmanutAdvisor() {
                 exit={{ opacity: 0, y: 20, scale: 0.95 }}
                 transition={{ type: "spring", damping: 25, stiffness: 300 }}
                 className="pointer-events-auto bg-background border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden w-[360px] h-[520px] max-w-[calc(100vw-32px)] max-h-[calc(100vh-32px)]"
-                style={{
-                  position: "fixed !important" as any,
-                  left: 0,
-                  top: 0,
-                  right: "auto",
-                  bottom: "auto",
-                  zIndex: 100,
-                  x,
-                  y,
-                }}
+                style={hasBeenDragged ? { ...draggedPositionStyle, x, y } : defaultPositionStyle}
                 drag
                 dragMomentum={false}
                 dragListener={false}
                 dragControls={dragControls}
                 dragElastic={0.06}
                 dragConstraints={constraintsRef}
-                onDrag={(_, info) => {
-                  const newX = x.get() + info.delta.x;
-                  const newY = y.get() + info.delta.y;
-                  setFloatingPositionClampedMemo(newX, newY);
-                }}
-                onDragEnd={persistPosition}
+                onDrag={handleDrag}
+                onDragEnd={handleDragEnd}
               >
-            {/* Header */}
-            <div
-              className="flex items-center justify-between px-4 py-3 border-b bg-gradient-to-r from-primary/10 to-transparent cursor-move select-none"
-              onPointerDown={(e) => dragControls.start(e)}
-              title="Drag to move"
-            >
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-background flex items-center justify-center overflow-hidden border border-border/30">
-                  <img src={advisorLogo} alt="Advisor" className="h-6 w-6 object-contain" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-sm">Omanut Advisor</h3>
-                  <p className="text-[10px] text-muted-foreground">
-                    {isNewUser && progress < 100 
-                      ? `Getting started • ${progress}% complete`
-                      : "Your business coach"
-                    }
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-1">
-                {/* Toggle onboarding panel */}
-                {isNewUser && progress < 100 && messages.length > 0 && (
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7"
-                    onClick={() => setShowOnboarding(!showOnboarding)}
-                    title="Show tutorials"
-                  >
-                    <GraduationCap className={cn(
-                      "h-3.5 w-3.5 transition-colors",
-                      showOnboarding && "text-primary"
-                    )} />
-                  </Button>
-                )}
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-7 w-7"
-                  onClick={toggleHidden}
-                  title="Hide advisor"
+                {/* Header */}
+                <div
+                  className="flex items-center justify-between px-4 py-3 border-b bg-gradient-to-r from-primary/10 to-transparent cursor-move select-none"
+                  onPointerDown={(e) => dragControls.start(e)}
+                  title="Drag to move"
                 >
-                  <Minimize2 className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-7 w-7"
-                  onClick={() => setIsOpen(false)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            {/* Content area */}
-            <div className="flex-1 flex flex-col overflow-hidden">
-              {/* Onboarding panel (collapsible) */}
-              <AnimatePresence>
-                {showOnboarding && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="border-b overflow-hidden bg-muted/30"
-                  >
-                    <AdvisorOnboardingPanel
-                      onStartChat={handleStartChat}
-                      onClose={() => {
-                        setShowOnboarding(false);
-                        markWelcomeSeen();
-                      }}
-                    />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Messages */}
-              <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-                {messages.length === 0 && !showOnboarding ? (
-                  <div className="h-full flex flex-col items-center justify-center text-center px-4">
-                    <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center mb-3 shadow-sm border border-border/30">
-                      <img src={advisorLogo} alt="Advisor" className="h-9 w-9 object-contain" />
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-background flex items-center justify-center overflow-hidden border border-border/30">
+                      <img src={advisorLogo} alt="Advisor" className="h-6 w-6 object-contain" />
                     </div>
-                    <h4 className="font-medium text-sm mb-1">
-                      {isNewUser ? "Welcome! 👋" : "Hey there! 👋"}
-                    </h4>
-                    <p className="text-xs text-muted-foreground mb-4">
-                      {isNewUser 
-                        ? "I'm here to help you get started. Ask me anything!"
-                        : "I'm your business coach. Ask me anything!"
-                      }
-                    </p>
-                    <div className="flex flex-wrap gap-2 justify-center">
-                      {quickPrompts.map((prompt) => (
-                        <button
-                          key={prompt.text}
-                          onClick={() => handleQuickPrompt(prompt.text)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-muted hover:bg-muted/80 rounded-full transition-colors"
-                        >
-                          {prompt.icon}
-                          {prompt.text}
-                        </button>
-                      ))}
+                    <div>
+                      <h3 className="font-semibold text-sm">Omanut Advisor</h3>
+                      <p className="text-[10px] text-muted-foreground">
+                        {isNewUser && progress < 100 
+                          ? `Getting started • ${progress}% complete`
+                          : "Your business coach"
+                        }
+                      </p>
                     </div>
-                    
-                    {/* Show onboarding button for new users */}
-                    {isNewUser && progress < 100 && (
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {/* Toggle onboarding panel */}
+                    {isNewUser && progress < 100 && messages.length > 0 && (
                       <Button
-                        variant="outline"
-                        size="sm"
-                        className="mt-4 gap-2"
-                        onClick={() => setShowOnboarding(true)}
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={() => setShowOnboarding(!showOnboarding)}
+                        title="Show tutorials"
                       >
-                        <GraduationCap className="h-3.5 w-3.5" />
-                        View Tutorials ({progress}% done)
+                        <GraduationCap className={cn(
+                          "h-3.5 w-3.5 transition-colors",
+                          showOnboarding && "text-primary"
+                        )} />
                       </Button>
                     )}
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7"
+                      onClick={toggleHidden}
+                      title="Hide advisor"
+                    >
+                      <Minimize2 className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
                   </div>
-                ) : messages.length === 0 ? null : (
-                  <div className="space-y-3">
-                    {messages.map((msg) => (
-                      <div
-                        key={msg.id}
-                        className={cn(
-                          "flex",
-                          msg.role === "user" ? "justify-end" : "justify-start"
-                        )}
+                </div>
+
+                {/* Content area */}
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  {/* Onboarding panel (collapsible) */}
+                  <AnimatePresence>
+                    {showOnboarding && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="border-b overflow-hidden bg-muted/30"
                       >
-                        <div
-                          className={cn(
-                            "max-w-[85%] px-3 py-2 rounded-2xl text-sm",
-                            msg.role === "user"
-                              ? "bg-primary text-primary-foreground rounded-br-md"
-                              : "bg-muted rounded-bl-md"
-                          )}
-                        >
-                          <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                        <AdvisorOnboardingPanel
+                          onStartChat={handleStartChat}
+                          onClose={() => {
+                            setShowOnboarding(false);
+                            markWelcomeSeen();
+                          }}
+                        />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Messages */}
+                  <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+                    {messages.length === 0 && !showOnboarding ? (
+                      <div className="h-full flex flex-col items-center justify-center text-center px-4">
+                        <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center mb-3 shadow-sm border border-border/30">
+                          <img src={advisorLogo} alt="Advisor" className="h-9 w-9 object-contain" />
                         </div>
+                        <h4 className="font-medium text-sm mb-1">
+                          {isNewUser ? "Welcome! 👋" : "Hey there! 👋"}
+                        </h4>
+                        <p className="text-xs text-muted-foreground mb-4">
+                          {isNewUser 
+                            ? "I'm here to help you get started. Ask me anything!"
+                            : "I'm your business coach. Ask me anything!"
+                          }
+                        </p>
+                        <div className="flex flex-wrap gap-2 justify-center">
+                          {quickPrompts.map((prompt) => (
+                            <button
+                              key={prompt.text}
+                              onClick={() => handleQuickPrompt(prompt.text)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-muted hover:bg-muted/80 rounded-full transition-colors"
+                            >
+                              {prompt.icon}
+                              {prompt.text}
+                            </button>
+                          ))}
+                        </div>
+                        
+                        {/* Show onboarding button for new users */}
+                        {isNewUser && progress < 100 && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-4 gap-2"
+                            onClick={() => setShowOnboarding(true)}
+                          >
+                            <GraduationCap className="h-3.5 w-3.5" />
+                            View Tutorials ({progress}% done)
+                          </Button>
+                        )}
                       </div>
-                    ))}
-                    {isLoading && messages[messages.length - 1]?.role === "user" && (
-                      <div className="flex justify-start">
-                        <div className="bg-muted px-3 py-2 rounded-2xl rounded-bl-md">
-                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                        </div>
+                    ) : messages.length === 0 ? null : (
+                      <div className="space-y-3">
+                        {messages.map((msg) => (
+                          <div
+                            key={msg.id}
+                            className={cn(
+                              "flex",
+                              msg.role === "user" ? "justify-end" : "justify-start"
+                            )}
+                          >
+                            <div
+                              className={cn(
+                                "max-w-[85%] px-3 py-2 rounded-2xl text-sm",
+                                msg.role === "user"
+                                  ? "bg-primary text-primary-foreground rounded-br-md"
+                                  : "bg-muted rounded-bl-md"
+                              )}
+                            >
+                              <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                            </div>
+                          </div>
+                        ))}
+                        {isLoading && messages[messages.length - 1]?.role === "user" && (
+                          <div className="flex justify-start">
+                            <div className="bg-muted px-3 py-2 rounded-2xl rounded-bl-md">
+                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
-                  </div>
-                )}
-              </ScrollArea>
-            </div>
+                  </ScrollArea>
+                </div>
 
-            {/* Input */}
-            <div className="p-3 border-t bg-background">
-              <div className="flex gap-2">
-                <Input
-                  ref={inputRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Ask about your business..."
-                  className="flex-1 h-9 text-sm rounded-full px-4"
-                  disabled={isLoading}
-                />
-                <Button
-                  size="icon"
-                  onClick={() => sendMessage()}
-                  disabled={!input.trim() || isLoading}
-                  className="h-9 w-9 rounded-full bg-primary hover:bg-primary/90"
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
+                {/* Input */}
+                <div className="p-3 border-t bg-background">
+                  <div className="flex gap-2">
+                    <Input
+                      ref={inputRef}
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder="Ask about your business..."
+                      className="flex-1 h-9 text-sm rounded-full px-4"
+                      disabled={isLoading}
+                    />
+                    <Button
+                      size="icon"
+                      onClick={() => sendMessage()}
+                      disabled={!input.trim() || isLoading}
+                      className="h-9 w-9 rounded-full bg-primary hover:bg-primary/90"
+                    >
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
         </>
       )}
-    </>
-  , portalTarget);
+    </>,
+    portalTarget
+  );
 }
