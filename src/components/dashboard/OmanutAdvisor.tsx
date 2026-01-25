@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { useReducedMotion } from "framer-motion";
 import { X, Send, Minimize2, Loader2, HelpCircle, TrendingUp, Package, Users, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +10,7 @@ import { useTenant } from "@/hooks/useTenant";
 import { useAdvisorOnboarding } from "@/hooks/useAdvisorOnboarding";
 import { AdvisorOnboardingPanel } from "./AdvisorOnboardingPanel";
 import { cn } from "@/lib/utils";
-import advisorLogo from "@/assets/advisor-logo.png";
+import advisorLogo from "@/assets/advisor-logo-client.png";
 interface Message {
   id: string;
   role: "user" | "assistant";
@@ -19,6 +21,7 @@ const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/omanut-advis
 
 export function OmanutAdvisor() {
   const { tenantId, businessProfile } = useTenant();
+  const prefersReducedMotion = useReducedMotion();
   const {
     isNewUser,
     hasSeenWelcome,
@@ -39,6 +42,9 @@ export function OmanutAdvisor() {
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Render into a portal so the widget isn't affected by parent transforms/stacking contexts.
+  const portalTarget = typeof document !== "undefined" ? document.body : null;
 
   // Auto-show onboarding panel for new users
   useEffect(() => {
@@ -222,21 +228,24 @@ export function OmanutAdvisor() {
     handleQuickPrompt(message);
   };
 
+  if (!portalTarget) return null;
+
   if (isHidden) {
-    return (
+    return createPortal(
       <Button
         size="sm"
         variant="ghost"
         onClick={toggleHidden}
-        className="fixed bottom-4 right-4 z-50 opacity-50 hover:opacity-100 text-xs"
+        className="fixed bottom-4 right-4 z-50 opacity-60 hover:opacity-100 text-xs bg-background/70 backdrop-blur supports-[backdrop-filter]:bg-background/50 border border-border"
       >
-        <img src={advisorLogo} alt="Advisor" className="h-4 w-4 mr-1" />
+        <img src={advisorLogo} alt="Advisor" className="h-4 w-4 mr-1 object-contain" />
         Show Advisor
-      </Button>
+      </Button>,
+      portalTarget
     );
   }
 
-  return (
+  return createPortal(
     <>
       {/* Floating button with progress indicator for new users */}
       <AnimatePresence>
@@ -245,9 +254,33 @@ export function OmanutAdvisor() {
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
+            whileHover={prefersReducedMotion ? undefined : { scale: 1.03 }}
+            whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
             onClick={() => setIsOpen(true)}
-            className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-white shadow-lg hover:shadow-xl transition-all flex items-center justify-center group relative border border-border/50"
+            className={cn(
+              "fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full",
+              "bg-background border border-border shadow-elevated",
+              "transition-shadow flex items-center justify-center group relative",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background"
+            )}
           >
+            {/* Glow halo */}
+            <motion.span
+              aria-hidden
+              className="absolute -inset-3 rounded-full bg-primary/25 blur-2xl"
+              initial={prefersReducedMotion ? { opacity: 0.35 } : { opacity: 0.35, scale: 0.95 }}
+              animate={
+                prefersReducedMotion
+                  ? { opacity: 0.35 }
+                  : { opacity: [0.25, 0.55, 0.25], scale: [0.95, 1.08, 0.95] }
+              }
+              transition={
+                prefersReducedMotion
+                  ? undefined
+                  : { duration: 2.6, repeat: Infinity, ease: "easeInOut" }
+              }
+            />
+
             {/* Progress ring for new users */}
             {isNewUser && progress < 100 && (
               <svg className="absolute inset-0 w-14 h-14 -rotate-90">
@@ -256,7 +289,7 @@ export function OmanutAdvisor() {
                   cy="28"
                   r="26"
                   fill="none"
-                  stroke="rgba(0,0,0,0.1)"
+                  stroke="hsl(var(--border) / 0.9)"
                   strokeWidth="3"
                 />
                 <circle
@@ -274,13 +307,13 @@ export function OmanutAdvisor() {
             <img 
               src={advisorLogo} 
               alt="Advisor" 
-              className="h-9 w-9 group-hover:scale-110 transition-transform object-contain" 
+              className="h-9 w-9 group-hover:scale-110 transition-transform object-contain relative" 
             />
             
             {/* New user badge */}
             {isNewUser && !hasSeenWelcome && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-400 rounded-full flex items-center justify-center">
-                <span className="text-[10px] font-bold text-amber-900">!</span>
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-accent text-accent-foreground rounded-full flex items-center justify-center shadow-soft">
+                <span className="text-[10px] font-bold">!</span>
               </span>
             )}
           </motion.button>
@@ -298,9 +331,9 @@ export function OmanutAdvisor() {
             className="fixed bottom-6 right-6 z-50 w-[360px] h-[520px] bg-background border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden"
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b bg-gradient-to-r from-[var(--brand-primary,#004B8D)]/5 to-transparent">
+            <div className="flex items-center justify-between px-4 py-3 border-b bg-gradient-to-r from-primary/10 to-transparent">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center overflow-hidden border border-border/30">
+                <div className="w-8 h-8 rounded-full bg-background flex items-center justify-center overflow-hidden border border-border/30">
                   <img src={advisorLogo} alt="Advisor" className="h-6 w-6 object-contain" />
                 </div>
                 <div>
@@ -428,7 +461,7 @@ export function OmanutAdvisor() {
                           className={cn(
                             "max-w-[85%] px-3 py-2 rounded-2xl text-sm",
                             msg.role === "user"
-                              ? "bg-[var(--brand-primary,#004B8D)] text-white rounded-br-md"
+                              ? "bg-primary text-primary-foreground rounded-br-md"
                               : "bg-muted rounded-bl-md"
                           )}
                         >
@@ -464,7 +497,7 @@ export function OmanutAdvisor() {
                   size="icon"
                   onClick={() => sendMessage()}
                   disabled={!input.trim() || isLoading}
-                  className="h-9 w-9 rounded-full bg-[var(--brand-primary,#004B8D)] hover:bg-[var(--brand-primary,#004B8D)]/90"
+                  className="h-9 w-9 rounded-full bg-primary hover:bg-primary/90"
                 >
                   <Send className="h-4 w-4" />
                 </Button>
@@ -474,5 +507,5 @@ export function OmanutAdvisor() {
         )}
       </AnimatePresence>
     </>
-  );
+  , portalTarget);
 }
