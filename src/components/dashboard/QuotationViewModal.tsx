@@ -1,14 +1,16 @@
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Download, Printer, FileCheck } from "lucide-react";
+import { Loader2, Download, Printer, FileCheck, Clock, AlertTriangle } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 import { TenantDocumentHeader, DocumentBankDetails, DocumentComplianceFooter } from "./TenantDocumentHeader";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
+import { useTenant } from "@/hooks/useTenant";
 
 interface Quotation {
   id: string;
@@ -24,6 +26,7 @@ interface Quotation {
   tax_amount: number | null;
   total_amount: number;
   notes: string | null;
+  estimated_delivery_date?: string | null;
 }
 
 interface QuotationItem {
@@ -32,6 +35,8 @@ interface QuotationItem {
   quantity: number;
   unit_price: number;
   amount: number;
+  is_sourcing?: boolean;
+  lead_time?: string;
 }
 
 interface QuotationViewModalProps {
@@ -47,6 +52,10 @@ export function QuotationViewModal({ isOpen, onClose, quotation, onConvertToInvo
   const [isDownloading, setIsDownloading] = useState(false);
   const { toast } = useToast();
   const { terminology, currencySymbol } = useBusinessConfig();
+  const { businessProfile } = useTenant();
+  
+  // Get customizable sourcing label
+  const sourcingLabel = (businessProfile as any)?.sourcing_label || "Sourcing";
 
   useEffect(() => {
     if (isOpen && quotation) {
@@ -64,7 +73,15 @@ export function QuotationViewModal({ isOpen, onClose, quotation, onConvertToInvo
         .eq("quotation_id", quotation.id);
 
       if (error) throw error;
-      setItems(data || []);
+      setItems((data || []).map((item: any) => ({
+        id: item.id,
+        description: item.description,
+        quantity: item.quantity,
+        unit_price: Number(item.unit_price),
+        amount: Number(item.amount),
+        is_sourcing: item.is_sourcing || false,
+        lead_time: item.lead_time || null,
+      })));
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
@@ -157,6 +174,11 @@ export function QuotationViewModal({ isOpen, onClose, quotation, onConvertToInvo
                   {quotation.valid_until && (
                     <p><span className="text-gray-600">Valid Until:</span> {format(new Date(quotation.valid_until), "dd MMM yyyy")}</p>
                   )}
+                  {quotation.estimated_delivery_date && (
+                    <p className="text-amber-700 font-medium">
+                      <span className="text-gray-600">Est. Delivery:</span> {format(new Date(quotation.estimated_delivery_date), "dd MMM yyyy")}
+                    </p>
+                  )}
                   <p className="mt-2">
                     <span className={`px-2 py-1 rounded text-xs font-medium ${
                       quotation.status === 'accepted' ? 'bg-green-100 text-green-800' :
@@ -182,8 +204,26 @@ export function QuotationViewModal({ isOpen, onClose, quotation, onConvertToInvo
                 </thead>
                 <tbody>
                   {items.map((item) => (
-                    <tr key={item.id}>
-                      <td className="border p-2">{item.description}</td>
+                    <tr key={item.id} className={item.is_sourcing ? 'bg-amber-50' : ''}>
+                      <td className="border p-2">
+                        <div className="flex flex-col gap-1">
+                          <span>{item.description}</span>
+                          {item.is_sourcing && (
+                            <div className="flex items-center gap-2 text-xs">
+                              <Badge className="bg-amber-100 text-amber-700 border-amber-300">
+                                <AlertTriangle className="h-2.5 w-2.5 mr-1" />
+                                {sourcingLabel}
+                              </Badge>
+                              {item.lead_time && (
+                                <span className="flex items-center gap-1 text-amber-600">
+                                  <Clock className="h-3 w-3" />
+                                  {item.lead_time}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </td>
                       <td className="border p-2 text-right">{item.quantity}</td>
                       <td className="border p-2 text-right">{currencySymbol} {Number(item.unit_price).toLocaleString()}</td>
                       <td className="border p-2 text-right">{currencySymbol} {Number(item.amount).toLocaleString()}</td>
