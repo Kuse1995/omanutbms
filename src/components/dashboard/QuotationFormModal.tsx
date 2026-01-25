@@ -230,13 +230,15 @@ export function QuotationFormModal({ isOpen, onClose, onSuccess, quotation }: Qu
     const product = products.find(p => p.id === productId);
     if (product) {
       const newItems = [...items];
-      const isSourcing = product.current_stock < newItems[index].quantity;
+      const quantity = newItems[index].quantity || 1;
+      // For quotations: flag as sourcing if stock is 0 or insufficient
+      const isSourcing = product.current_stock === 0 || product.current_stock < quantity;
       newItems[index] = {
         ...newItems[index],
         productId: product.id,
         description: product.name,
         unit_price: product.unit_price,
-        amount: newItems[index].quantity * product.unit_price,
+        amount: quantity * product.unit_price,
         current_stock: product.current_stock,
         is_sourcing: isSourcing,
         lead_time: isSourcing ? (newItems[index].lead_time || "3-5 Business Days") : "",
