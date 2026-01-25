@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, X, Send, Minimize2, Sparkles, Loader2, HelpCircle, TrendingUp, Package, Users } from "lucide-react";
+import { X, Send, Minimize2, Sparkles, Loader2, HelpCircle, TrendingUp, Package, Users, GraduationCap, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useTenant } from "@/hooks/useTenant";
+import { useAdvisorOnboarding } from "@/hooks/useAdvisorOnboarding";
+import { AdvisorOnboardingPanel } from "./AdvisorOnboardingPanel";
 import { cn } from "@/lib/utils";
 
 interface Message {
@@ -17,15 +19,33 @@ const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/omanut-advis
 
 export function OmanutAdvisor() {
   const { tenantId, businessProfile } = useTenant();
+  const {
+    isNewUser,
+    hasSeenWelcome,
+    progress,
+    markWelcomeSeen,
+    startTutorial,
+    getSuggestedTutorial,
+    activeTutorial,
+  } = useAdvisorOnboarding();
+  
   const [isOpen, setIsOpen] = useState(false);
   const [isHidden, setIsHidden] = useState(() => {
     return localStorage.getItem("omanut-advisor-hidden") === "true";
   });
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-show onboarding panel for new users
+  useEffect(() => {
+    if (isOpen && isNewUser && !hasSeenWelcome && messages.length === 0) {
+      setShowOnboarding(true);
+    }
+  }, [isOpen, isNewUser, hasSeenWelcome, messages.length]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -34,10 +54,10 @@ export function OmanutAdvisor() {
   }, [messages]);
 
   useEffect(() => {
-    if (isOpen && inputRef.current) {
+    if (isOpen && inputRef.current && !showOnboarding) {
       inputRef.current.focus();
     }
-  }, [isOpen]);
+  }, [isOpen, showOnboarding]);
 
   const toggleHidden = () => {
     const newHidden = !isHidden;
@@ -46,41 +66,50 @@ export function OmanutAdvisor() {
     if (newHidden) setIsOpen(false);
   };
 
-  // Generate contextual quick prompts based on business state
+  // Generate contextual quick prompts based on business state and onboarding
   const quickPrompts = useMemo(() => {
-    const prompts: { text: string; icon?: React.ReactNode }[] = [
-      { text: "How's business today?", icon: <TrendingUp className="h-3 w-3" /> },
-    ];
+    const prompts: { text: string; icon?: React.ReactNode }[] = [];
+
+    // For new users, prioritize onboarding
+    if (isNewUser && progress < 50) {
+      prompts.push({ text: "Show me how to get started", icon: <GraduationCap className="h-3 w-3" /> });
+      
+      const suggested = getSuggestedTutorial();
+      if (suggested) {
+        prompts.push({ text: `How do I ${suggested.title.toLowerCase()}?`, icon: <HelpCircle className="h-3 w-3" /> });
+      }
+    } else {
+      prompts.push({ text: "How's business today?", icon: <TrendingUp className="h-3 w-3" /> });
+    }
 
     // Add contextual prompts based on what features might need attention
     if (businessProfile) {
-      // If inventory is enabled, add inventory-related prompt
       if (businessProfile.inventory_enabled !== false) {
         prompts.push({ text: "What should I restock?", icon: <Package className="h-3 w-3" /> });
       }
 
-      // If payroll enabled but might be underused
-      if (businessProfile.payroll_enabled) {
-        prompts.push({ text: "How do I run payroll?", icon: <HelpCircle className="h-3 w-3" /> });
-      } else {
-        // Teach about quotations if they might not know
-        prompts.push({ text: "How do I send a quotation?", icon: <HelpCircle className="h-3 w-3" /> });
+      if (!isNewUser) {
+        prompts.push({ text: "Who should I follow up with?", icon: <Users className="h-3 w-3" /> });
       }
+    }
 
-      // Add customer follow-up prompt
-      prompts.push({ text: "Who should I follow up with?", icon: <Users className="h-3 w-3" /> });
-    } else {
-      // Default prompts for new users
-      prompts.push({ text: "Show me around" });
-      prompts.push({ text: "What can you help with?" });
+    // Always offer help
+    if (prompts.length < 4) {
+      prompts.push({ text: "What can you help me with?", icon: <HelpCircle className="h-3 w-3" /> });
     }
 
     return prompts.slice(0, 4);
-  }, [businessProfile]);
+  }, [businessProfile, isNewUser, progress, getSuggestedTutorial]);
 
   const sendMessage = useCallback(async (messageText?: string) => {
     const textToSend = messageText || input.trim();
     if (!textToSend || isLoading) return;
+
+    // Hide onboarding panel when user starts chatting
+    if (showOnboarding) {
+      setShowOnboarding(false);
+      markWelcomeSeen();
+    }
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
@@ -118,6 +147,8 @@ export function OmanutAdvisor() {
         body: JSON.stringify({
           messages: [...messages, userMessage].map(m => ({ role: m.role, content: m.content })),
           tenantId,
+          isNewUser,
+          onboardingProgress: progress,
         }),
       });
 
@@ -171,7 +202,7 @@ export function OmanutAdvisor() {
     } finally {
       setIsLoading(false);
     }
-  }, [input, messages, tenantId, isLoading]);
+  }, [input, messages, tenantId, isLoading, showOnboarding, markWelcomeSeen]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -182,8 +213,13 @@ export function OmanutAdvisor() {
 
   const handleQuickPrompt = (prompt: string) => {
     setInput(prompt);
-    // Use setTimeout to ensure input is set before sending
     setTimeout(() => sendMessage(prompt), 50);
+  };
+
+  const handleStartChat = (message: string) => {
+    setShowOnboarding(false);
+    markWelcomeSeen();
+    handleQuickPrompt(message);
   };
 
   if (isHidden) {
@@ -202,7 +238,7 @@ export function OmanutAdvisor() {
 
   return (
     <>
-      {/* Floating button */}
+      {/* Floating button with progress indicator for new users */}
       <AnimatePresence>
         {!isOpen && (
           <motion.button
@@ -210,9 +246,39 @@ export function OmanutAdvisor() {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
             onClick={() => setIsOpen(true)}
-            className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-br from-[var(--brand-primary,#004B8D)] to-[var(--brand-secondary,#0077B6)] text-white shadow-lg hover:shadow-xl transition-shadow flex items-center justify-center group"
+            className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-br from-[var(--brand-primary,#004B8D)] to-[var(--brand-secondary,#0077B6)] text-white shadow-lg hover:shadow-xl transition-shadow flex items-center justify-center group relative"
           >
+            {/* Progress ring for new users */}
+            {isNewUser && progress < 100 && (
+              <svg className="absolute inset-0 w-14 h-14 -rotate-90">
+                <circle
+                  cx="28"
+                  cy="28"
+                  r="26"
+                  fill="none"
+                  stroke="rgba(255,255,255,0.2)"
+                  strokeWidth="3"
+                />
+                <circle
+                  cx="28"
+                  cy="28"
+                  r="26"
+                  fill="none"
+                  stroke="rgba(255,255,255,0.8)"
+                  strokeWidth="3"
+                  strokeDasharray={`${(progress / 100) * 163} 163`}
+                  className="transition-all duration-500"
+                />
+              </svg>
+            )}
             <Sparkles className="h-6 w-6 group-hover:scale-110 transition-transform" />
+            
+            {/* New user badge */}
+            {isNewUser && !hasSeenWelcome && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-400 rounded-full flex items-center justify-center">
+                <span className="text-[10px] font-bold text-amber-900">!</span>
+              </span>
+            )}
           </motion.button>
         )}
       </AnimatePresence>
@@ -225,7 +291,7 @@ export function OmanutAdvisor() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed bottom-6 right-6 z-50 w-[360px] h-[480px] bg-background border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+            className="fixed bottom-6 right-6 z-50 w-[360px] h-[520px] bg-background border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b bg-gradient-to-r from-[var(--brand-primary,#004B8D)]/5 to-transparent">
@@ -235,10 +301,30 @@ export function OmanutAdvisor() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-sm">Omanut Advisor</h3>
-                  <p className="text-[10px] text-muted-foreground">Your business coach</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {isNewUser && progress < 100 
+                      ? `Getting started • ${progress}% complete`
+                      : "Your business coach"
+                    }
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
+                {/* Toggle onboarding panel */}
+                {isNewUser && progress < 100 && messages.length > 0 && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    onClick={() => setShowOnboarding(!showOnboarding)}
+                    title="Show tutorials"
+                  >
+                    <GraduationCap className={cn(
+                      "h-3.5 w-3.5 transition-colors",
+                      showOnboarding && "text-primary"
+                    )} />
+                  </Button>
+                )}
                 <Button
                   size="icon"
                   variant="ghost"
@@ -259,62 +345,104 @@ export function OmanutAdvisor() {
               </div>
             </div>
 
-            {/* Messages */}
-            <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-              {messages.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-center px-4">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[var(--brand-primary,#004B8D)]/10 to-[var(--brand-secondary,#0077B6)]/10 flex items-center justify-center mb-3">
-                    <Sparkles className="h-6 w-6 text-[var(--brand-primary,#004B8D)]" />
-                  </div>
-                  <h4 className="font-medium text-sm mb-1">Hey there! 👋</h4>
-                  <p className="text-xs text-muted-foreground mb-4">
-                    I'm your business coach. Ask me anything about your business or how to use the system!
-                  </p>
-                  <div className="flex flex-wrap gap-2 justify-center">
-                    {quickPrompts.map((prompt) => (
-                      <button
-                        key={prompt.text}
-                        onClick={() => handleQuickPrompt(prompt.text)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-muted hover:bg-muted/80 rounded-full transition-colors"
+            {/* Content area */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {/* Onboarding panel (collapsible) */}
+              <AnimatePresence>
+                {showOnboarding && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="border-b overflow-hidden bg-muted/30"
+                  >
+                    <AdvisorOnboardingPanel
+                      onStartChat={handleStartChat}
+                      onClose={() => {
+                        setShowOnboarding(false);
+                        markWelcomeSeen();
+                      }}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Messages */}
+              <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+                {messages.length === 0 && !showOnboarding ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center px-4">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[var(--brand-primary,#004B8D)]/10 to-[var(--brand-secondary,#0077B6)]/10 flex items-center justify-center mb-3">
+                      <Sparkles className="h-6 w-6 text-[var(--brand-primary,#004B8D)]" />
+                    </div>
+                    <h4 className="font-medium text-sm mb-1">
+                      {isNewUser ? "Welcome! 👋" : "Hey there! 👋"}
+                    </h4>
+                    <p className="text-xs text-muted-foreground mb-4">
+                      {isNewUser 
+                        ? "I'm here to help you get started. Ask me anything!"
+                        : "I'm your business coach. Ask me anything!"
+                      }
+                    </p>
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      {quickPrompts.map((prompt) => (
+                        <button
+                          key={prompt.text}
+                          onClick={() => handleQuickPrompt(prompt.text)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-muted hover:bg-muted/80 rounded-full transition-colors"
+                        >
+                          {prompt.icon}
+                          {prompt.text}
+                        </button>
+                      ))}
+                    </div>
+                    
+                    {/* Show onboarding button for new users */}
+                    {isNewUser && progress < 100 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-4 gap-2"
+                        onClick={() => setShowOnboarding(true)}
                       >
-                        {prompt.icon}
-                        {prompt.text}
-                      </button>
-                    ))}
+                        <GraduationCap className="h-3.5 w-3.5" />
+                        View Tutorials ({progress}% done)
+                      </Button>
+                    )}
                   </div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {messages.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={cn(
-                        "flex",
-                        msg.role === "user" ? "justify-end" : "justify-start"
-                      )}
-                    >
+                ) : messages.length === 0 ? null : (
+                  <div className="space-y-3">
+                    {messages.map((msg) => (
                       <div
+                        key={msg.id}
                         className={cn(
-                          "max-w-[85%] px-3 py-2 rounded-2xl text-sm",
-                          msg.role === "user"
-                            ? "bg-[var(--brand-primary,#004B8D)] text-white rounded-br-md"
-                            : "bg-muted rounded-bl-md"
+                          "flex",
+                          msg.role === "user" ? "justify-end" : "justify-start"
                         )}
                       >
-                        <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                        <div
+                          className={cn(
+                            "max-w-[85%] px-3 py-2 rounded-2xl text-sm",
+                            msg.role === "user"
+                              ? "bg-[var(--brand-primary,#004B8D)] text-white rounded-br-md"
+                              : "bg-muted rounded-bl-md"
+                          )}
+                        >
+                          <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                  {isLoading && messages[messages.length - 1]?.role === "user" && (
-                    <div className="flex justify-start">
-                      <div className="bg-muted px-3 py-2 rounded-2xl rounded-bl-md">
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    ))}
+                    {isLoading && messages[messages.length - 1]?.role === "user" && (
+                      <div className="flex justify-start">
+                        <div className="bg-muted px-3 py-2 rounded-2xl rounded-bl-md">
+                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </ScrollArea>
+                    )}
+                  </div>
+                )}
+              </ScrollArea>
+            </div>
 
             {/* Input */}
             <div className="p-3 border-t bg-background">
