@@ -27,7 +27,7 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
-import { GarmentMeasurementsForm, type GarmentMeasurements } from "./GarmentMeasurementsForm";
+import { GarmentMeasurementsForm, type GarmentMeasurements, isGarmentCategoryComplete, getMissingMeasurements, getDefaultTab } from "./GarmentMeasurementsForm";
 import { MaterialSelector, type MaterialItem } from "./MaterialSelector";
 import { LaborEstimator, type SkillLevel } from "./LaborEstimator";
 import { PricingBreakdown, calculateQuote } from "./PricingBreakdown";
@@ -157,8 +157,17 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
         break;
       
       case 3: // Measurements
-        const hasMeasurements = Object.values(formData.measurements).some(v => v && v > 0);
-        if (!hasMeasurements) errors.push("Please enter at least one measurement");
+        // Determine the active garment category based on design type
+        const garmentCategory = getDefaultTab(formData.designType);
+        const hasSomeMeasurements = Object.entries(formData.measurements).some(
+          ([key, v]) => key !== '_unit' && typeof v === 'number' && v > 0
+        );
+        if (!hasSomeMeasurements) {
+          errors.push("Please enter measurements for your garment");
+        } else if (!isGarmentCategoryComplete(formData.measurements, garmentCategory)) {
+          const missing = getMissingMeasurements(formData.measurements, garmentCategory);
+          errors.push(`Please complete all ${garmentCategory} measurements. Missing: ${missing.slice(0, 3).join(', ')}${missing.length > 3 ? '...' : ''}`);
+        }
         break;
       
       case 4: // Sketches - optional
@@ -708,20 +717,15 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
         return (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Enter measurements in centimeters. Select the garment type tab and fill in the relevant fields.
+              Enter measurements using the unit toggle (cm or inches). Select the garment type tab and complete <strong>all</strong> fields for your design.
               <span className="text-destructive"> *</span>
             </p>
             <GarmentMeasurementsForm
               measurements={formData.measurements}
               onChange={(m) => updateFormData('measurements', m)}
               designType={formData.designType}
+              showValidation={validationErrors.some(e => e.toLowerCase().includes('measurement'))}
             />
-            {validationErrors.some(e => e.includes('measurement')) && (
-              <p className="text-sm text-destructive flex items-center gap-1">
-                <AlertCircle className="h-4 w-4" />
-                Please enter at least one measurement
-              </p>
-            )}
           </div>
         );
 
