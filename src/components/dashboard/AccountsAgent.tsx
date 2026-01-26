@@ -70,9 +70,17 @@ interface Expense {
   created_at?: string;
 }
 
+interface PaymentReceipt {
+  id: string;
+  amount_paid: number;
+  payment_date: string;
+  client_name: string;
+}
+
 export function AccountsAgent() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [salesTransactions, setSalesTransactions] = useState<SalesTransaction[]>([]);
+  const [paymentReceipts, setPaymentReceipts] = useState<PaymentReceipt[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -151,9 +159,26 @@ export function AccountsAgent() {
     }
   };
 
+  // Fetch payment receipts - THE SOURCE OF TRUTH FOR REVENUE
+  const fetchPaymentReceipts = async () => {
+    if (!tenantId) return;
+    try {
+      const { data, error } = await supabase
+        .from("payment_receipts")
+        .select("id, amount_paid, payment_date, client_name")
+        .eq("tenant_id", tenantId)
+        .order("payment_date", { ascending: false });
+
+      if (error) throw error;
+      setPaymentReceipts(data || []);
+    } catch (error) {
+      console.error("Error fetching payment receipts:", error);
+    }
+  };
+
   const fetchAllData = async () => {
     setIsLoading(true);
-    await Promise.all([fetchTransactions(), fetchExpenses(), fetchSalesTransactions()]);
+    await Promise.all([fetchTransactions(), fetchExpenses(), fetchSalesTransactions(), fetchPaymentReceipts()]);
     setIsLoading(false);
     setIsRefreshing(false);
   };
@@ -190,6 +215,16 @@ export function AccountsAgent() {
       )
       .subscribe();
 
+    // Listen for payment receipts changes - THIS IS THE SOURCE OF TRUTH FOR REVENUE
+    const receiptsChannel = supabase
+      .channel("payment-receipts-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "payment_receipts" },
+        () => fetchPaymentReceipts()
+      )
+      .subscribe();
+
     // Listen for payroll changes to update expenses (payroll creates expense entries)
     const payrollChannel = supabase
       .channel("payroll-changes")
@@ -204,6 +239,7 @@ export function AccountsAgent() {
       supabase.removeChannel(transactionsChannel);
       supabase.removeChannel(expensesChannel);
       supabase.removeChannel(salesChannel);
+      supabase.removeChannel(receiptsChannel);
       supabase.removeChannel(payrollChannel);
     };
   }, [tenantId]);
@@ -217,13 +253,9 @@ export function AccountsAgent() {
     });
   };
 
-  // Calculate revenue from sales_transactions (primary source)
-  const salesRevenue = salesTransactions.reduce((sum, s) => sum + Number(s.total_amount_zmw), 0);
-  // Also include paid transactions from transactions table as fallback
-  const paidTransactions = transactions.filter((t) => t.status === "paid" || t.status === "reviewed");
-  const transactionRevenue = paidTransactions.reduce((sum, t) => sum + Number(t.bank_amount), 0);
-  // Total revenue is from sales_transactions (don't double count if both tables have same data)
-  const totalRevenue = salesRevenue > 0 ? salesRevenue : transactionRevenue;
+  // Calculate revenue from payment_receipts - THE SOURCE OF TRUTH FOR ALL INCOME
+  // This includes both direct sales (cash payments) and invoice payments
+  const totalRevenue = paymentReceipts.reduce((sum, r) => sum + Number(r.amount_paid), 0);
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount_zmw), 0);
   const netProfit = totalRevenue - totalExpenses;
 
