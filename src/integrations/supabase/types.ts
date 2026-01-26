@@ -1054,6 +1054,67 @@ export type Database = {
         }
         Relationships: []
       }
+      custom_order_adjustments: {
+        Row: {
+          adjustment_date: string
+          attended_by: string | null
+          collection_date: string | null
+          created_at: string | null
+          custom_order_id: string
+          id: string
+          next_fitting_date: string | null
+          notes: string | null
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          adjustment_date?: string
+          attended_by?: string | null
+          collection_date?: string | null
+          created_at?: string | null
+          custom_order_id: string
+          id?: string
+          next_fitting_date?: string | null
+          notes?: string | null
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          adjustment_date?: string
+          attended_by?: string | null
+          collection_date?: string | null
+          created_at?: string | null
+          custom_order_id?: string
+          id?: string
+          next_fitting_date?: string | null
+          notes?: string | null
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custom_order_adjustments_attended_by_fkey"
+            columns: ["attended_by"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custom_order_adjustments_custom_order_id_fkey"
+            columns: ["custom_order_id"]
+            isOneToOne: false
+            referencedRelation: "custom_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custom_order_adjustments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       custom_order_items: {
         Row: {
           created_at: string
@@ -1110,10 +1171,15 @@ export type Database = {
       }
       custom_orders: {
         Row: {
+          actual_collection_date: string | null
+          appointment_date: string | null
           assigned_tailor_id: string | null
           assigned_to: string | null
           branch_id: string | null
+          client_called: boolean | null
+          client_called_at: string | null
           collection_date: string | null
+          collection_signature_url: string | null
           collection_time: string | null
           color: string | null
           created_at: string
@@ -1152,16 +1218,22 @@ export type Database = {
           residential_address: string | null
           status: string | null
           style_notes: string | null
+          tag_material: string | null
           tailor_skill_level: string | null
           tenant_id: string
           updated_at: string
           whatsapp_number: string | null
         }
         Insert: {
+          actual_collection_date?: string | null
+          appointment_date?: string | null
           assigned_tailor_id?: string | null
           assigned_to?: string | null
           branch_id?: string | null
+          client_called?: boolean | null
+          client_called_at?: string | null
           collection_date?: string | null
+          collection_signature_url?: string | null
           collection_time?: string | null
           color?: string | null
           created_at?: string
@@ -1200,16 +1272,22 @@ export type Database = {
           residential_address?: string | null
           status?: string | null
           style_notes?: string | null
+          tag_material?: string | null
           tailor_skill_level?: string | null
           tenant_id: string
           updated_at?: string
           whatsapp_number?: string | null
         }
         Update: {
+          actual_collection_date?: string | null
+          appointment_date?: string | null
           assigned_tailor_id?: string | null
           assigned_to?: string | null
           branch_id?: string | null
+          client_called?: boolean | null
+          client_called_at?: string | null
           collection_date?: string | null
+          collection_signature_url?: string | null
           collection_time?: string | null
           color?: string | null
           created_at?: string
@@ -1248,6 +1326,7 @@ export type Database = {
           residential_address?: string | null
           status?: string | null
           style_notes?: string | null
+          tag_material?: string | null
           tailor_skill_level?: string | null
           tenant_id?: string
           updated_at?: string

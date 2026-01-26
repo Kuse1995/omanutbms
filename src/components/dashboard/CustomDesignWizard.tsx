@@ -100,6 +100,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
     fittingDate: '',
     collectionDate: '',
     collectionTime: '',
+    tagMaterial: '', // For garment label
     
     // Design Details (Step 3)
     designType: '',
@@ -327,6 +328,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
         fitting_date: formData.fittingDate || null,
         collection_date: formData.collectionDate || null,
         collection_time: formData.collectionTime || null,
+        tag_material: formData.tagMaterial || null,
       };
       
       const { error } = await supabase
@@ -451,6 +453,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
         fitting_date: formData.fittingDate || null,
         collection_date: formData.collectionDate || null,
         collection_time: formData.collectionTime || null,
+        tag_material: formData.tagMaterial || null,
       };
       
       const { data: orderData, error } = await supabase
@@ -644,6 +647,23 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
                   className="mt-1.5"
                 />
               </div>
+            </div>
+
+            {/* Tag Material */}
+            <div>
+              <Label htmlFor="tagMaterial" className="flex items-center gap-2">
+                Tag Material (for garment label)
+              </Label>
+              <Input
+                id="tagMaterial"
+                placeholder="e.g., Satin, Woven, Printed"
+                value={formData.tagMaterial}
+                onChange={(e) => updateFormData('tagMaterial', e.target.value)}
+                className="mt-1.5"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Specify the material for the garment care label/tag
+              </p>
             </div>
 
             <div className="p-3 rounded-lg bg-blue-50 text-blue-700 text-sm">

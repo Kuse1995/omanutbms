@@ -32,13 +32,23 @@ interface Measurements {
   trousers_nw?: number;     // Narrow Width
   trousers_join?: number;   // Join
   
-  // Top/Shirt measurements
+  // Top/Blouse measurements
   top_fl?: number;          // Full Length
   top_in_leg?: number;      // In Leg
   top_bust?: number;        // Bust
   top_waist?: number;       // Waist
   top_hip?: number;         // Hip
   top_ch?: number;          // Chest
+  
+  // Shirt measurements (NEW - matching Dodo Wear form)
+  shirt_fl?: number;        // Full Length
+  shirt_sh?: number;        // Shoulder
+  shirt_hip?: number;       // Hip
+  shirt_chest?: number;     // Chest
+  shirt_sl?: number;        // Sleeve Length
+  shirt_nw?: number;        // Narrow Width
+  shirt_join?: number;      // Join
+  shirt_collar?: number;    // Collar
   
   // Skirt measurements
   skirt_fl?: number;        // Full Length
@@ -110,6 +120,17 @@ const TOP_FIELDS: MeasurementField[] = [
   { key: 'top_ch', abbrev: 'CH', label: 'Chest', tooltip: 'Chest measurement' },
 ];
 
+const SHIRT_FIELDS: MeasurementField[] = [
+  { key: 'shirt_fl', abbrev: 'FL', label: 'Full Length', tooltip: 'Shoulder to hem' },
+  { key: 'shirt_sh', abbrev: 'SH', label: 'Shoulder', tooltip: 'Shoulder width' },
+  { key: 'shirt_hip', abbrev: 'Hip', label: 'Hip', tooltip: 'Hip measurement' },
+  { key: 'shirt_chest', abbrev: 'Chest', label: 'Chest', tooltip: 'Chest circumference' },
+  { key: 'shirt_sl', abbrev: 'SL', label: 'Sleeve Length', tooltip: 'Shoulder to wrist' },
+  { key: 'shirt_nw', abbrev: 'NW', label: 'Narrow Width', tooltip: 'Narrow part width' },
+  { key: 'shirt_join', abbrev: 'Join', label: 'Join', tooltip: 'Armhole to waist join point' },
+  { key: 'shirt_collar', abbrev: 'Collar', label: 'Collar', tooltip: 'Neck/collar circumference' },
+];
+
 const SKIRT_FIELDS: MeasurementField[] = [
   { key: 'skirt_fl', abbrev: 'FL', label: 'Full Length', tooltip: 'Waist to hem' },
   { key: 'skirt_sh', abbrev: 'SH', label: 'Short', tooltip: 'Short length option' },
@@ -133,7 +154,8 @@ const JACKET_FIELDS: MeasurementField[] = [
 const GARMENT_CATEGORIES = [
   { id: 'dress', label: 'Dress', fields: DRESS_FIELDS },
   { id: 'trousers', label: 'Trousers', fields: TROUSERS_FIELDS },
-  { id: 'top', label: 'Top/Shirt', fields: TOP_FIELDS },
+  { id: 'top', label: 'Top', fields: TOP_FIELDS },
+  { id: 'shirt', label: 'Shirt', fields: SHIRT_FIELDS },
   { id: 'skirt', label: 'Skirt', fields: SKIRT_FIELDS },
   { id: 'jacket', label: 'Jacket', fields: JACKET_FIELDS },
 ];
@@ -147,7 +169,8 @@ function getDefaultTab(designType?: string): string {
   if (!designType) return 'dress';
   const lower = designType.toLowerCase();
   if (lower.includes('trouser') || lower.includes('pant')) return 'trousers';
-  if (lower.includes('shirt') || lower.includes('blouse') || lower.includes('top')) return 'top';
+  if (lower.includes('shirt')) return 'shirt';
+  if (lower.includes('blouse') || lower.includes('top')) return 'top';
   if (lower.includes('skirt')) return 'skirt';
   if (lower.includes('jacket') || lower.includes('blazer') || lower.includes('suit')) return 'jacket';
   if (lower.includes('dress') || lower.includes('gown')) return 'dress';
@@ -318,7 +341,7 @@ export function GarmentMeasurementsForm({ measurements, onChange, designType, sh
         )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="w-full grid grid-cols-5 mb-4">
+          <TabsList className="w-full grid grid-cols-6 mb-4">
             {GARMENT_CATEGORIES.map(category => {
               const filled = countFilledMeasurements(measurements, category.id);
               const total = getTotalFields(category.id);
