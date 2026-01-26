@@ -983,7 +983,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-        className="bg-background/95 backdrop-blur-xl rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden border border-border/50"
+        className="bg-background/95 backdrop-blur-xl rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col border border-border/50"
       >
         {/* Header with gradient */}
         <div className="relative bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 px-6 py-5">
@@ -1073,11 +1073,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
                         <StepIcon className="h-4 w-4 sm:h-5 sm:w-5" />
                       )}
                       {isActive && (
-                        <motion.div 
-                          className="absolute inset-0 rounded-xl ring-2 ring-amber-400/50"
-                          animate={{ scale: [1, 1.15, 1], opacity: [1, 0, 1] }}
-                          transition={{ duration: 2, repeat: Infinity }}
-                        />
+                        <div className="absolute inset-0 rounded-xl ring-2 ring-amber-400/50 animate-pulse" />
                       )}
                     </motion.div>
                     <span className={`text-[9px] sm:text-[10px] font-medium text-center leading-tight hidden sm:block ${
@@ -1107,7 +1103,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
         </div>
 
         {/* Content Area */}
-        <div className="p-6 overflow-y-auto max-h-[50vh] bg-gradient-to-b from-background to-muted/20">
+        <div className="p-6 flex-1 overflow-y-auto min-h-0 bg-gradient-to-b from-background to-muted/20">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentStep}
