@@ -95,7 +95,28 @@ export function QuotationViewModal({ isOpen, onClose, quotation, onConvertToInvo
 
     setIsDownloading(true);
     try {
-      const canvas = await html2canvas(element, { scale: 2 });
+      // Preload all images to ensure they render in the PDF
+      const images = element.querySelectorAll("img");
+      await Promise.all(
+        Array.from(images).map(
+          (img) =>
+            new Promise<void>((resolve) => {
+              if (img.complete) {
+                resolve();
+              } else {
+                img.onload = () => resolve();
+                img.onerror = () => resolve();
+              }
+            })
+        )
+      );
+
+      const canvas = await html2canvas(element, { 
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: "#ffffff",
+      });
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();

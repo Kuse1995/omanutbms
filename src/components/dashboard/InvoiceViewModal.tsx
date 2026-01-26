@@ -112,9 +112,26 @@ export function InvoiceViewModal({ isOpen, onClose, invoice }: InvoiceViewModalP
 
     setIsDownloading(true);
     try {
+      // Preload all images to ensure they render in the PDF
+      const images = printContent.querySelectorAll("img");
+      await Promise.all(
+        Array.from(images).map(
+          (img) =>
+            new Promise<void>((resolve) => {
+              if (img.complete) {
+                resolve();
+              } else {
+                img.onload = () => resolve();
+                img.onerror = () => resolve();
+              }
+            })
+        )
+      );
+
       const canvas = await html2canvas(printContent, {
         scale: 2,
         useCORS: true,
+        allowTaint: true,
         backgroundColor: "#ffffff",
       });
       

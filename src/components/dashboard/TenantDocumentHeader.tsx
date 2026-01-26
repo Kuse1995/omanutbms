@@ -44,7 +44,7 @@ export function TenantDocumentHeader({
       <div className="text-center border-b pb-4">
         {logoUrl && (
           <div className="flex justify-center mb-3">
-            <img src={logoUrl} alt={displayName} className="h-16 w-auto" />
+            <img src={logoUrl} alt={displayName} className="h-16 w-auto" crossOrigin="anonymous" />
           </div>
         )}
         <h2 className="text-2xl font-bold text-[#004B8D]">
@@ -75,7 +75,7 @@ export function TenantDocumentHeader({
       <div className="flex justify-between items-start">
         <div className="flex items-center gap-3">
           {logoUrl && (
-            <img src={logoUrl} alt={displayName} className="h-16 w-auto" />
+            <img src={logoUrl} alt={displayName} className="h-16 w-auto" crossOrigin="anonymous" />
           )}
           <div>
             <h1 className="text-2xl font-bold text-[#004B8D]">{displayName}</h1>
