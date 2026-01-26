@@ -997,25 +997,25 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
   };
 
   return (
-    <div className="fixed inset-0 bg-gradient-to-br from-slate-900/80 via-slate-800/70 to-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-gradient-to-br from-slate-900/80 via-slate-800/70 to-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-        className="bg-background/95 backdrop-blur-xl rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col border border-border/50"
+        className="bg-background backdrop-blur-xl rounded-2xl shadow-2xl w-full max-w-4xl h-[95vh] sm:h-[90vh] flex flex-col border border-border/50 overflow-hidden"
       >
         {/* Header with gradient */}
-        <div className="relative bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 px-6 py-5">
+        <div className="relative bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 px-4 sm:px-6 py-4 flex-shrink-0">
           <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyek0zNiAzMHYySDI0di0yaDF6Ii8+PC9nPjwvZz48L3N2Zz4=')] opacity-30" />
           <div className="relative flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center">
-                <Sparkles className="h-6 w-6 text-white" />
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center">
+                <Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-white tracking-tight">Dodo Wear Custom Order</h2>
-                <p className="text-amber-100/80 text-sm">Create bespoke orders with precision</p>
+                <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">Dodo Wear Custom Order</h2>
+                <p className="text-amber-100/80 text-xs sm:text-sm hidden sm:block">Create bespoke orders with precision</p>
               </div>
             </div>
             <Button 
@@ -1048,8 +1048,8 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
         </div>
 
         {/* Step Navigation */}
-        <div className="px-6 py-5 border-b bg-gradient-to-b from-muted/50 to-background">
-          <div className="flex items-center justify-between gap-0.5">
+        <div className="px-3 sm:px-6 py-3 sm:py-4 border-b bg-gradient-to-b from-muted/50 to-background flex-shrink-0">
+          <div className="flex items-center justify-between gap-0.5 overflow-x-auto">
             {WIZARD_STEPS.map((step, index) => {
               const StepIcon = step.icon;
               const isActive = index === currentStep;
@@ -1123,55 +1123,59 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
         </div>
 
         {/* Content Area */}
-        <div className="p-6 flex-1 overflow-y-auto min-h-0 bg-gradient-to-b from-background to-muted/20">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentStep}
-              initial={{ opacity: 0, x: 30 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -30 }}
-              transition={{ duration: 0.25, ease: "easeInOut" }}
-              className="min-h-[300px]"
+        <div className="flex-1 overflow-y-auto min-h-0 bg-gradient-to-b from-background to-muted/20">
+          <div className="p-4 sm:p-6 h-full">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentStep}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+                className="h-full flex flex-col"
             >
-              <div className="flex items-center gap-3 mb-5">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                  currentStep === WIZARD_STEPS.length - 1 
-                    ? 'bg-emerald-100 text-emerald-600' 
-                    : 'bg-amber-100 text-amber-600'
-                }`}>
-                  {React.createElement(WIZARD_STEPS[currentStep].icon, { className: "h-5 w-5" })}
+                <div className="flex items-center gap-3 mb-4 flex-shrink-0">
+                  <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center ${
+                    currentStep === WIZARD_STEPS.length - 1 
+                      ? 'bg-emerald-100 text-emerald-600' 
+                      : 'bg-amber-100 text-amber-600'
+                  }`}>
+                    {React.createElement(WIZARD_STEPS[currentStep].icon, { className: "h-4 w-4 sm:h-5 sm:w-5" })}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-base sm:text-lg text-foreground">
+                      {WIZARD_STEPS[currentStep].label}
+                    </h3>
+                    <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
+                      {currentStep === 0 && "Enter customer contact details"}
+                      {currentStep === 1 && "Set production timeline and scheduling"}
+                      {currentStep === 2 && "Specify design and fabric requirements"}
+                      {currentStep === 3 && "Record body measurements by garment type"}
+                      {currentStep === 4 && "Upload references and generate previews"}
+                      {currentStep === 5 && "Calculate materials and labor costs"}
+                      {currentStep === 6 && "Review order and get customer signature"}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-semibold text-lg text-foreground">
-                    {WIZARD_STEPS[currentStep].label}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    {currentStep === 0 && "Enter customer contact details"}
-                    {currentStep === 1 && "Set production timeline and scheduling"}
-                    {currentStep === 2 && "Specify design and fabric requirements"}
-                    {currentStep === 3 && "Record body measurements by garment type"}
-                    {currentStep === 4 && "Upload references and generate previews"}
-                    {currentStep === 5 && "Calculate materials and labor costs"}
-                    {currentStep === 6 && "Review order and get customer signature"}
-                  </p>
+                <div className="flex-1 overflow-y-auto min-h-0">
+                  {renderStepContent()}
                 </div>
-              </div>
-              {renderStepContent()}
-            </motion.div>
-          </AnimatePresence>
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t bg-muted/30 backdrop-blur flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="px-3 sm:px-6 py-3 sm:py-4 border-t bg-muted/30 backdrop-blur flex items-center justify-between gap-2 flex-shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2">
             <Button
               variant="outline"
               onClick={handleBack}
               disabled={currentStep === 0}
-              className="gap-2"
+              className="gap-1 sm:gap-2 text-xs sm:text-sm"
             >
               <ChevronLeft className="h-4 w-4" />
-              Back
+              <span className="hidden sm:inline">Back</span>
             </Button>
 
             {/* Save as Draft button - always visible */}
@@ -1179,7 +1183,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
               variant="ghost"
               onClick={handleSaveDraft}
               disabled={isSavingDraft || isSubmitting}
-              className="gap-2 text-muted-foreground hover:text-foreground"
+              className="gap-1 sm:gap-2 text-muted-foreground hover:text-foreground text-xs sm:text-sm"
             >
               {isSavingDraft ? (
                 <>
@@ -1194,7 +1198,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
               ) : (
                 <>
                   <Save className="h-4 w-4" />
-                  Save Draft
+                  <span className="hidden sm:inline">Save Draft</span>
                 </>
               )}
             </Button>
