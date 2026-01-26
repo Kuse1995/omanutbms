@@ -23,6 +23,7 @@ interface QuotationItem {
   item_type?: ItemType;
   is_sourcing?: boolean;
   lead_time?: string;
+  product_id?: string;
 }
 
 interface ConversionItem extends QuotationItem {
@@ -31,6 +32,7 @@ interface ConversionItem extends QuotationItem {
   discount_applied: number;
   is_sourcing: boolean;
   lead_time: string;
+  product_id?: string;
 }
 
 interface Quotation {
@@ -99,12 +101,13 @@ export function QuotationToInvoiceModal({ isOpen, onClose, onSuccess, quotation 
         quantity: item.quantity,
         unit_price: Number(item.unit_price),
         amount: Number(item.amount),
-        item_type: defaultItemType,
+        item_type: item.item_type || defaultItemType,
         original_amount: Number(item.amount),
         adjusted_price: Number(item.unit_price),
         discount_applied: 0,
         is_sourcing: item.is_sourcing || false,
         lead_time: item.lead_time || "",
+        product_id: item.product_id || undefined,
       })));
     }
     setIsLoading(false);
@@ -193,7 +196,7 @@ export function QuotationToInvoiceModal({ isOpen, onClose, onSuccess, quotation 
 
       if (invoiceError) throw invoiceError;
 
-      // Create invoice items with discount and sourcing tracking
+      // Create invoice items with discount, sourcing tracking, and product_id
       const invoiceItems = items.map(item => ({
         invoice_id: invoice.id,
         tenant_id: tenantId,
@@ -207,13 +210,36 @@ export function QuotationToInvoiceModal({ isOpen, onClose, onSuccess, quotation 
         is_sourcing: item.is_sourcing || false,
         lead_time: item.lead_time || null,
         sourcing_status: item.is_sourcing ? 'pending' : null,
+        product_id: item.product_id || null,
       }));
 
       const { error: itemsError } = await supabase
         .from("invoice_items")
-        .insert(invoiceItems);
+        .insert(invoiceItems as any);
 
       if (itemsError) throw itemsError;
+
+      // Deduct inventory for product items that are NOT sourcing
+      for (const item of items) {
+        if (item.product_id && !item.is_sourcing && (item.item_type === 'product' || item.item_type === 'item')) {
+          // Get current stock
+          const { data: productData } = await supabase
+            .from('inventory')
+            .select('current_stock')
+            .eq('id', item.product_id)
+            .eq('tenant_id', tenantId)
+            .single();
+          
+          if (productData && productData.current_stock > 0) {
+            const newStock = Math.max(0, productData.current_stock - item.quantity);
+            await supabase
+              .from('inventory')
+              .update({ current_stock: newStock })
+              .eq('id', item.product_id)
+              .eq('tenant_id', tenantId);
+          }
+        }
+      }
 
       // Update quotation status
       await supabase
