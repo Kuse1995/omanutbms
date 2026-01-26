@@ -4,7 +4,11 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
-import { Info } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Info, AlertCircle, CheckCircle2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+type MeasurementUnit = 'cm' | 'in';
 
 interface Measurements {
   // Dress measurements
@@ -54,13 +58,17 @@ interface Measurements {
   jacket_waist?: number;    // Waist
   jacket_slit?: number;     // Slit
   
-  [key: string]: number | undefined;
+  // Store the unit used for input
+  _unit?: MeasurementUnit;
+  
+  [key: string]: number | MeasurementUnit | undefined;
 }
 
 interface GarmentMeasurementsFormProps {
   measurements: Measurements;
   onChange: (measurements: Measurements) => void;
   designType?: string;
+  showValidation?: boolean;
 }
 
 interface MeasurementField {
@@ -130,6 +138,10 @@ const GARMENT_CATEGORIES = [
   { id: 'jacket', label: 'Jacket', fields: JACKET_FIELDS },
 ];
 
+// Conversion functions
+const cmToInches = (cm: number): number => Math.round((cm / 2.54) * 100) / 100;
+const inchesToCm = (inches: number): number => Math.round((inches * 2.54) * 100) / 100;
+
 // Helper to determine default tab based on design type
 function getDefaultTab(designType?: string): string {
   if (!designType) return 'dress';
@@ -146,88 +158,208 @@ function getDefaultTab(designType?: string): string {
 function countFilledMeasurements(measurements: Measurements, categoryId: string): number {
   const category = GARMENT_CATEGORIES.find(c => c.id === categoryId);
   if (!category) return 0;
-  return category.fields.filter(f => measurements[f.key] && measurements[f.key]! > 0).length;
+  return category.fields.filter(f => measurements[f.key] && (measurements[f.key] as number) > 0).length;
 }
 
-export function GarmentMeasurementsForm({ measurements, onChange, designType }: GarmentMeasurementsFormProps) {
+// Get total fields for a category
+function getTotalFields(categoryId: string): number {
+  const category = GARMENT_CATEGORIES.find(c => c.id === categoryId);
+  return category?.fields.length || 0;
+}
+
+// Check if all measurements in active category are complete
+export function isGarmentCategoryComplete(measurements: Measurements, categoryId: string): boolean {
+  const category = GARMENT_CATEGORIES.find(c => c.id === categoryId);
+  if (!category) return false;
+  return category.fields.every(f => measurements[f.key] && (measurements[f.key] as number) > 0);
+}
+
+// Get missing measurements for a category
+export function getMissingMeasurements(measurements: Measurements, categoryId: string): string[] {
+  const category = GARMENT_CATEGORIES.find(c => c.id === categoryId);
+  if (!category) return [];
+  return category.fields
+    .filter(f => !measurements[f.key] || (measurements[f.key] as number) <= 0)
+    .map(f => f.label);
+}
+
+export function GarmentMeasurementsForm({ measurements, onChange, designType, showValidation = false }: GarmentMeasurementsFormProps) {
   const [activeTab, setActiveTab] = useState(getDefaultTab(designType));
+  const [unit, setUnit] = useState<MeasurementUnit>((measurements._unit as MeasurementUnit) || 'cm');
 
   const handleChange = (key: string, value: string) => {
     const numValue = value === '' ? undefined : parseFloat(value);
-    onChange({ ...measurements, [key]: numValue });
+    // Store in cm internally, convert if needed
+    const storedValue = numValue !== undefined && unit === 'in' ? inchesToCm(numValue) : numValue;
+    onChange({ ...measurements, [key]: storedValue, _unit: unit });
   };
 
-  const renderMeasurementField = (field: MeasurementField) => (
-    <div key={field.key} className="space-y-1">
-      <div className="flex items-center gap-1">
-        <Label htmlFor={field.key} className="text-xs text-muted-foreground flex items-center gap-1">
-          <span className="font-semibold text-foreground">{field.abbrev}</span>
-          <span className="hidden sm:inline">- {field.label}</span>
-        </Label>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Info className="h-3 w-3 text-muted-foreground/50 cursor-help" />
-            </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-[200px]">
-              <p className="text-xs">{field.tooltip}</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+  const getDisplayValue = (key: string): string => {
+    const value = measurements[key] as number | undefined;
+    if (value === undefined || value === null) return '';
+    // Convert from stored cm to display unit
+    if (unit === 'in') {
+      return cmToInches(value).toString();
+    }
+    return value.toString();
+  };
+
+  const handleUnitToggle = (newUnit: MeasurementUnit) => {
+    setUnit(newUnit);
+    onChange({ ...measurements, _unit: newUnit });
+  };
+
+  const activeCategory = GARMENT_CATEGORIES.find(c => c.id === activeTab);
+  const filledCount = countFilledMeasurements(measurements, activeTab);
+  const totalCount = getTotalFields(activeTab);
+  const isComplete = filledCount === totalCount;
+
+  const renderMeasurementField = (field: MeasurementField) => {
+    const hasValue = measurements[field.key] && (measurements[field.key] as number) > 0;
+    const showError = showValidation && !hasValue;
+    
+    return (
+      <div key={field.key} className="space-y-1">
+        <div className="flex items-center gap-1">
+          <Label htmlFor={field.key} className="text-xs text-muted-foreground flex items-center gap-1">
+            <span className={cn("font-semibold", showError ? "text-destructive" : "text-foreground")}>
+              {field.abbrev}
+            </span>
+            <span className="hidden sm:inline">- {field.label}</span>
+            {showError && <span className="text-destructive">*</span>}
+          </Label>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-3 w-3 text-muted-foreground/50 cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-[200px]">
+                <p className="text-xs">{field.tooltip}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+        <div className="relative">
+          <Input
+            id={field.key}
+            type="number"
+            step={unit === 'in' ? '0.25' : '0.5'}
+            min="0"
+            placeholder={unit}
+            value={getDisplayValue(field.key)}
+            onChange={(e) => handleChange(field.key, e.target.value)}
+            className={cn(
+              "h-9 text-sm pr-10",
+              showError && "border-destructive focus-visible:ring-destructive"
+            )}
+          />
+          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+            {unit}
+          </span>
+        </div>
       </div>
-      <div className="relative">
-        <Input
-          id={field.key}
-          type="number"
-          step="0.5"
-          placeholder="cm"
-          value={measurements[field.key] ?? ''}
-          onChange={(e) => handleChange(field.key, e.target.value)}
-          className="h-9 text-sm pr-8"
-        />
-        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-          cm
-        </span>
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <TooltipProvider>
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="w-full grid grid-cols-5 mb-4">
-          {GARMENT_CATEGORIES.map(category => {
-            const filledCount = countFilledMeasurements(measurements, category.id);
-            return (
-              <TabsTrigger 
-                key={category.id} 
-                value={category.id}
-                className="relative text-xs sm:text-sm"
+      <div className="space-y-4">
+        {/* Unit Toggle */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">Unit:</span>
+            <div className="flex rounded-md border">
+              <Button
+                type="button"
+                variant={unit === 'cm' ? 'default' : 'ghost'}
+                size="sm"
+                className="rounded-r-none h-8 px-3"
+                onClick={() => handleUnitToggle('cm')}
               >
-                {category.label}
-                {filledCount > 0 && (
-                  <Badge 
-                    variant="secondary" 
-                    className="absolute -top-1 -right-1 h-4 w-4 p-0 text-[10px] flex items-center justify-center bg-emerald-100 text-emerald-700 border-emerald-200"
-                  >
-                    {filledCount}
-                  </Badge>
-                )}
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
-
-        {GARMENT_CATEGORIES.map(category => (
-          <TabsContent key={category.id} value={category.id} className="mt-0">
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {category.fields.map(renderMeasurementField)}
+                Centimeters (cm)
+              </Button>
+              <Button
+                type="button"
+                variant={unit === 'in' ? 'default' : 'ghost'}
+                size="sm"
+                className="rounded-l-none h-8 px-3"
+                onClick={() => handleUnitToggle('in')}
+              >
+                Inches (in)
+              </Button>
             </div>
-          </TabsContent>
-        ))}
-      </Tabs>
+          </div>
+          
+          {/* Progress indicator */}
+          <div className="flex items-center gap-2">
+            {isComplete ? (
+              <Badge variant="default" className="bg-emerald-600">
+                <CheckCircle2 className="h-3 w-3 mr-1" />
+                Complete
+              </Badge>
+            ) : (
+              <Badge variant="secondary">
+                {filledCount}/{totalCount} filled
+              </Badge>
+            )}
+          </div>
+        </div>
+
+        {showValidation && !isComplete && (
+          <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-md">
+            <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5" />
+            <div className="text-sm text-amber-800">
+              <p className="font-medium">Please complete all measurements</p>
+              <p className="text-xs mt-1">
+                Missing: {getMissingMeasurements(measurements, activeTab).join(', ')}
+              </p>
+            </div>
+          </div>
+        )}
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="w-full grid grid-cols-5 mb-4">
+            {GARMENT_CATEGORIES.map(category => {
+              const filled = countFilledMeasurements(measurements, category.id);
+              const total = getTotalFields(category.id);
+              const complete = filled === total && total > 0;
+              return (
+                <TabsTrigger 
+                  key={category.id} 
+                  value={category.id}
+                  className="relative text-xs sm:text-sm"
+                >
+                  {category.label}
+                  {filled > 0 && (
+                    <Badge 
+                      variant="secondary" 
+                      className={cn(
+                        "absolute -top-1 -right-1 h-4 w-4 p-0 text-[10px] flex items-center justify-center",
+                        complete 
+                          ? "bg-emerald-600 text-white border-emerald-700" 
+                          : "bg-emerald-100 text-emerald-700 border-emerald-200"
+                      )}
+                    >
+                      {complete ? '✓' : filled}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
+
+          {GARMENT_CATEGORIES.map(category => (
+            <TabsContent key={category.id} value={category.id} className="mt-0">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {category.fields.map(renderMeasurementField)}
+              </div>
+            </TabsContent>
+          ))}
+        </Tabs>
+      </div>
     </TooltipProvider>
   );
 }
 
 export type { Measurements as GarmentMeasurements };
+export { GARMENT_CATEGORIES, getDefaultTab };
