@@ -1003,7 +1003,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-        className="bg-background backdrop-blur-xl rounded-2xl shadow-2xl w-full max-w-4xl h-[95vh] sm:h-[90vh] flex flex-col border border-border/50 overflow-hidden"
+        className="bg-background backdrop-blur-xl rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] sm:max-h-[90vh] flex flex-col border border-border/50 overflow-hidden"
       >
         {/* Header with gradient */}
         <div className="relative bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 px-4 sm:px-6 py-4 flex-shrink-0">
@@ -1123,46 +1123,41 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto min-h-0 bg-gradient-to-b from-background to-muted/20">
-          <div className="p-4 sm:p-6 h-full">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={currentStep}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.2, ease: "easeOut" }}
-                className="h-full flex flex-col"
+        <div className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 bg-gradient-to-b from-background to-muted/20">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentStep}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
             >
-                <div className="flex items-center gap-3 mb-4 flex-shrink-0">
-                  <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center ${
-                    currentStep === WIZARD_STEPS.length - 1 
-                      ? 'bg-emerald-100 text-emerald-600' 
-                      : 'bg-amber-100 text-amber-600'
-                  }`}>
-                    {React.createElement(WIZARD_STEPS[currentStep].icon, { className: "h-4 w-4 sm:h-5 sm:w-5" })}
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-base sm:text-lg text-foreground">
-                      {WIZARD_STEPS[currentStep].label}
-                    </h3>
-                    <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
-                      {currentStep === 0 && "Enter customer contact details"}
-                      {currentStep === 1 && "Set production timeline and scheduling"}
-                      {currentStep === 2 && "Specify design and fabric requirements"}
-                      {currentStep === 3 && "Record body measurements by garment type"}
-                      {currentStep === 4 && "Upload references and generate previews"}
-                      {currentStep === 5 && "Calculate materials and labor costs"}
-                      {currentStep === 6 && "Review order and get customer signature"}
-                    </p>
-                  </div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center ${
+                  currentStep === WIZARD_STEPS.length - 1 
+                    ? 'bg-emerald-100 text-emerald-600' 
+                    : 'bg-amber-100 text-amber-600'
+                }`}>
+                  {React.createElement(WIZARD_STEPS[currentStep].icon, { className: "h-4 w-4 sm:h-5 sm:w-5" })}
                 </div>
-                <div className="flex-1 overflow-y-auto min-h-0">
-                  {renderStepContent()}
+                <div>
+                  <h3 className="font-semibold text-base sm:text-lg text-foreground">
+                    {WIZARD_STEPS[currentStep].label}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
+                    {currentStep === 0 && "Enter customer contact details"}
+                    {currentStep === 1 && "Set production timeline and scheduling"}
+                    {currentStep === 2 && "Specify design and fabric requirements"}
+                    {currentStep === 3 && "Record body measurements by garment type"}
+                    {currentStep === 4 && "Upload references and generate previews"}
+                    {currentStep === 5 && "Calculate materials and labor costs"}
+                    {currentStep === 6 && "Review order and get customer signature"}
+                  </p>
                 </div>
-              </motion.div>
-            </AnimatePresence>
-          </div>
+              </div>
+              {renderStepContent()}
+            </motion.div>
+          </AnimatePresence>
         </div>
 
         {/* Footer */}
