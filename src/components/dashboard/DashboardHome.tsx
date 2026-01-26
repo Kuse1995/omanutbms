@@ -111,32 +111,26 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
         agentsData = data || [];
       }
 
-      // Fetch sales for revenue (this month) - source: sales_transactions
+      // Revenue source of truth: payment_receipts (includes both direct sales and invoice payments)
       const startOfMonth = new Date();
       startOfMonth.setDate(1);
       startOfMonth.setHours(0, 0, 0, 0);
+      const startOfMonthStr = startOfMonth.toISOString().split("T")[0];
       
-      const { data: salesData } = await supabase
-        .from("sales_transactions")
-        .select("total_amount_zmw, created_at")
-        .eq("tenant_id", tenantId)
-        .gte("created_at", startOfMonth.toISOString());
-
-      // Fetch invoice payments for revenue (this month) - source: payment_receipts
-      const { data: invoicePaymentsData } = await supabase
+      // Fetch ALL receipts for this month (direct sales + invoice payments)
+      const { data: allReceiptsData } = await supabase
         .from("payment_receipts")
-        .select("amount_paid, payment_date, invoice_id")
+        .select("amount_paid, payment_date, client_email, client_name")
         .eq("tenant_id", tenantId)
-        .not("invoice_id", "is", null)
-        .gte("payment_date", startOfMonth.toISOString().split("T")[0]);
+        .gte("payment_date", startOfMonthStr);
 
-      // Fetch unique clients from invoices
-      const { data: clientsData } = await supabase
-        .from("invoices")
-        .select("client_email")
-        .eq("tenant_id", tenantId);
+      // Calculate total revenue from all receipts
+      const totalRevenue = allReceiptsData?.reduce((sum, r: any) => sum + Number(r.amount_paid ?? 0), 0) || 0;
 
-      const uniqueClients = new Set(clientsData?.map(c => c.client_email).filter(Boolean)).size;
+      // Get unique clients from receipts (actual paying customers)
+      const uniqueClients = new Set(
+        allReceiptsData?.map(r => r.client_email || r.client_name).filter(Boolean)
+      ).size;
 
       const totalValue = inventoryData.reduce(
         (sum, item) => sum + item.current_stock * Number(item.unit_price),
@@ -145,36 +139,21 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
       const lowStock = inventoryData.filter(
         (item) => item.current_stock < (item.reorder_level || 10)
       ).length;
-      
-      // Total revenue = direct sales + invoice payments received
-      const directSalesRevenue = salesData?.reduce((sum, sale: any) => sum + Number(sale.total_amount_zmw ?? 0), 0) || 0;
-      const invoicePaymentsRevenue = invoicePaymentsData?.reduce((sum, p: any) => sum + Number(p.amount_paid ?? 0), 0) || 0;
-      const totalRevenue = directSalesRevenue + invoicePaymentsRevenue;
 
       // Get today's date for daily metrics
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const todayDateStr = today.toISOString().split("T")[0];
 
-      // Fetch today's sales (revenue + count) from sales_transactions
-      const { data: todaySalesData } = await supabase
-        .from("sales_transactions")
-        .select("id, total_amount_zmw, created_at")
-        .eq("tenant_id", tenantId)
-        .gte("created_at", today.toISOString());
-
-      // Fetch today's invoice payments
-      const { data: todayPaymentsData } = await supabase
+      // Fetch today's receipts (all payments received today)
+      const { data: todayReceiptsData } = await supabase
         .from("payment_receipts")
-        .select("amount_paid, invoice_id")
+        .select("id, amount_paid")
         .eq("tenant_id", tenantId)
-        .not("invoice_id", "is", null)
         .eq("payment_date", todayDateStr);
 
-      const todaySalesCount = (todaySalesData?.length || 0) + (todayPaymentsData?.length || 0);
-      const todayDirectSales = todaySalesData?.reduce((sum, sale: any) => sum + Number(sale.total_amount_zmw || 0), 0) || 0;
-      const todayInvoicePayments = todayPaymentsData?.reduce((sum, p: any) => sum + Number(p.amount_paid || 0), 0) || 0;
-      const todaySalesRevenue = todayDirectSales + todayInvoicePayments;
+      const todaySalesCount = todayReceiptsData?.length || 0;
+      const todaySalesRevenue = todayReceiptsData?.reduce((sum, r: any) => sum + Number(r.amount_paid || 0), 0) || 0;
 
       // Fetch pending/in-progress invoices for jobs in progress
       const { data: pendingJobs } = await supabase
