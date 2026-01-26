@@ -202,7 +202,7 @@ export function StaffProfileModal({
       if (isAdmin && role !== staff.role) {
         const { error: roleError } = await supabase
           .from("user_roles")
-          .update({ role: role })
+          .update({ role: role as any }) // Type assertion for new enum values not yet in types
           .eq("user_id", staff.user_id);
 
         if (roleError) throw roleError;

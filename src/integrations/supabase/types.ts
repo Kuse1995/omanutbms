@@ -4280,6 +4280,7 @@ export type Database = {
     Functions: {
       can_manage_accounts: { Args: { _tenant_id: string }; Returns: boolean }
       can_manage_hr: { Args: { _tenant_id: string }; Returns: boolean }
+      can_manage_operations: { Args: { _tenant_id: string }; Returns: boolean }
       can_record_sales: { Args: { _tenant_id: string }; Returns: boolean }
       decrement_variant_stock: {
         Args: {
@@ -4328,6 +4329,7 @@ export type Database = {
         | "hr_manager"
         | "sales_rep"
         | "cashier"
+        | "operations_manager"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -4463,6 +4465,7 @@ export const Constants = {
         "hr_manager",
         "sales_rep",
         "cashier",
+        "operations_manager",
       ],
     },
   },
