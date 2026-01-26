@@ -24,6 +24,7 @@ interface InvoiceItem {
   unit_price: number;
   amount: number;
   item_type: ItemType;
+  is_sourcing?: boolean;
 }
 
 interface Invoice {
@@ -69,8 +70,9 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
   const [taxRate, setTaxRate] = useState(0);
   const [notes, setNotes] = useState("");
   const { toast } = useToast();
-  const { tenantId } = useTenant();
+  const { tenantId, businessProfile } = useTenant();
   const { terminology } = useBusinessConfig();
+  const sourcingLabel = (businessProfile as any)?.sourcing_label || "Sourcing Required";
   
   // Get the default item type from business configuration
   const defaultItemType = terminology.defaultItemType;
@@ -132,11 +134,13 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
     if (!error && data && data.length > 0) {
       setItems(data.map(item => ({
         id: item.id,
+        productId: (item as any).product_id || undefined,
         description: item.description,
         quantity: item.quantity,
         unit_price: Number(item.unit_price),
         amount: Number(item.amount),
         item_type: (item.item_type as ItemType) || defaultItemType,
+        is_sourcing: (item as any).is_sourcing || false,
       })));
     }
   };
@@ -180,6 +184,56 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
     setItems(newItems);
   };
 
+  const handleProductSelect = (index: number, productId: string) => {
+    const product = products.find(p => p.id === productId);
+    if (product) {
+      const newItems = [...items];
+      const isOutOfStock = product.current_stock === 0;
+      newItems[index] = {
+        ...newItems[index],
+        productId: product.id,
+        description: product.name,
+        unit_price: product.unit_price,
+        amount: newItems[index].quantity * product.unit_price,
+        item_type: 'product',
+        is_sourcing: isOutOfStock,
+      };
+      setItems(newItems);
+    } else {
+      // Clear product selection
+      const newItems = [...items];
+      newItems[index] = {
+        ...newItems[index],
+        productId: undefined,
+        is_sourcing: false,
+      };
+      setItems(newItems);
+    }
+  };
+
+  const handleItemTypeToggle = (index: number, newType: 'product' | 'service') => {
+    const newItems = [...items];
+    newItems[index] = {
+      ...newItems[index],
+      item_type: newType,
+      productId: newType === 'service' ? undefined : newItems[index].productId,
+      is_sourcing: newType === 'service' ? false : newItems[index].is_sourcing,
+    };
+    setItems(newItems);
+  };
+
+  const handleQuickService = (index: number, serviceDescription: string) => {
+    const newItems = [...items];
+    newItems[index] = {
+      ...newItems[index],
+      description: serviceDescription,
+      item_type: 'service',
+      productId: undefined,
+      is_sourcing: false,
+    };
+    setItems(newItems);
+  };
+
   const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
   const taxAmount = subtotal * (taxRate / 100);
   const totalAmount = subtotal + taxAmount;
@@ -220,6 +274,7 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
       };
 
       let invoiceId: string;
+      const isNewInvoice = !invoice;
 
       if (!tenantId) {
         toast({ title: "Error", description: "Organization context missing. Please log in again.", variant: "destructive" });
@@ -250,7 +305,7 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
         invoiceId = data.id;
       }
 
-      // Insert items
+      // Insert items with product_id for tracking
       const itemsData = items.map(item => ({
         invoice_id: invoiceId,
         tenant_id: tenantId,
@@ -259,19 +314,42 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
         unit_price: item.unit_price,
         amount: item.amount,
         item_type: item.item_type,
+        product_id: item.productId || null,
+        is_sourcing: item.is_sourcing || false,
+        sourcing_status: item.is_sourcing ? 'pending' : null,
       }));
 
       const { error: itemsError } = await supabase
         .from("invoice_items")
-        .insert(itemsData);
+        .insert(itemsData as any);
 
       if (itemsError) throw itemsError;
+
+      // Deduct inventory for NEW invoices only (not edits) for product items that are NOT sourcing
+      if (isNewInvoice) {
+        for (const item of items) {
+          if (item.item_type === 'product' && item.productId && !item.is_sourcing) {
+            const product = products.find(p => p.id === item.productId);
+            if (product && product.current_stock > 0) {
+              const newStock = Math.max(0, product.current_stock - item.quantity);
+              await supabase
+                .from('inventory')
+                .update({ current_stock: newStock })
+                .eq('id', item.productId)
+                .eq('tenant_id', tenantId);
+            }
+          }
+        }
+      }
 
       toast({
         title: "Success",
         description: invoice ? "Invoice updated successfully" : "Invoice created successfully",
       });
 
+      // Refresh products to get updated stock
+      fetchProducts();
+      
       onSuccess();
       onClose();
     } catch (error: any) {
@@ -288,7 +366,7 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl bg-white text-gray-900 max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-4xl bg-white text-gray-900 max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-gray-900">
             {invoice ? "Edit Invoice" : "Create New Invoice"}
@@ -376,53 +454,115 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
                 Add Item
               </Button>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-3">
               {items.map((item, index) => (
-                <div key={index} className="grid grid-cols-12 gap-2 items-end">
-                  <div className="col-span-5">
-                    <Input
-                      placeholder="Description"
-                      value={item.description}
-                      onChange={(e) => handleItemChange(index, "description", e.target.value)}
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Input
-                      type="number"
-                      placeholder="Qty"
-                      min="1"
-                      value={item.quantity}
-                      onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Input
-                      type="number"
-                      placeholder="Price"
-                      min="0"
-                      step="0.01"
-                      value={item.unit_price}
-                      onChange={(e) => handleItemChange(index, "unit_price", e.target.value)}
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Input
-                      type="text"
-                      value={`K ${item.amount.toLocaleString()}`}
-                      disabled
-                      className="bg-gray-50"
-                    />
-                  </div>
-                  <div className="col-span-1">
+                <div key={index} className="p-3 border rounded-lg bg-muted/20 space-y-2">
+                  {/* Item Type Toggle */}
+                  <div className="flex items-center gap-2 mb-2">
                     <Button
                       type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleRemoveItem(index)}
-                      disabled={items.length === 1}
+                      variant={item.item_type === 'product' ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleItemTypeToggle(index, 'product')}
+                      className="h-7 text-xs"
                     >
-                      <Trash2 className="h-4 w-4 text-red-500" />
+                      <Package className="h-3 w-3 mr-1" />
+                      {terminology.product}
                     </Button>
+                    <Button
+                      type="button"
+                      variant={item.item_type === 'service' ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleItemTypeToggle(index, 'service')}
+                      className="h-7 text-xs"
+                    >
+                      <Wrench className="h-3 w-3 mr-1" />
+                      Service
+                    </Button>
+                    
+                    {item.item_type === 'service' && (
+                      <div className="flex gap-1 ml-2">
+                        {QUICK_SERVICES.map(service => (
+                          <Button
+                            key={service.label}
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleQuickService(index, service.description)}
+                            className="h-7 text-xs px-2"
+                            title={service.label}
+                          >
+                            <service.icon className="h-3 w-3" />
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+
+                    {item.is_sourcing && (
+                      <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 text-xs ml-auto">
+                        {sourcingLabel || "Sourcing Required"}
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Item Details Row */}
+                  <div className="grid grid-cols-12 gap-2 items-end">
+                    <div className="col-span-5">
+                      {item.item_type === 'product' ? (
+                        <ProductCombobox
+                          products={products}
+                          value={item.productId || ""}
+                          onValueChange={(productId) => handleProductSelect(index, productId)}
+                          placeholder="Select product..."
+                          showStock={true}
+                          showPrice={true}
+                        />
+                      ) : (
+                        <Input
+                          placeholder="Service description"
+                          value={item.description}
+                          onChange={(e) => handleItemChange(index, "description", e.target.value)}
+                        />
+                      )}
+                    </div>
+                    <div className="col-span-2">
+                      <Input
+                        type="number"
+                        placeholder="Qty"
+                        min="1"
+                        value={item.quantity}
+                        onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <Input
+                        type="number"
+                        placeholder="Price"
+                        min="0"
+                        step="0.01"
+                        value={item.unit_price}
+                        onChange={(e) => handleItemChange(index, "unit_price", e.target.value)}
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <Input
+                        type="text"
+                        value={`K ${item.amount.toLocaleString()}`}
+                        disabled
+                        className="bg-muted/50"
+                      />
+                    </div>
+                    <div className="col-span-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveItem(index)}
+                        disabled={items.length === 1}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))}
