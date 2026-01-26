@@ -122,6 +122,14 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
         .eq("tenant_id", tenantId)
         .gte("created_at", startOfMonth.toISOString());
 
+      // Fetch invoice payments for revenue (this month) - source: payment_receipts
+      const { data: invoicePaymentsData } = await supabase
+        .from("payment_receipts")
+        .select("amount_paid, payment_date, invoice_id")
+        .eq("tenant_id", tenantId)
+        .not("invoice_id", "is", null)
+        .gte("payment_date", startOfMonth.toISOString().split("T")[0]);
+
       // Fetch unique clients from invoices
       const { data: clientsData } = await supabase
         .from("invoices")
@@ -137,11 +145,16 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
       const lowStock = inventoryData.filter(
         (item) => item.current_stock < (item.reorder_level || 10)
       ).length;
-      const totalRevenue = salesData?.reduce((sum, sale: any) => sum + Number(sale.total_amount_zmw ?? 0), 0) || 0;
+      
+      // Total revenue = direct sales + invoice payments received
+      const directSalesRevenue = salesData?.reduce((sum, sale: any) => sum + Number(sale.total_amount_zmw ?? 0), 0) || 0;
+      const invoicePaymentsRevenue = invoicePaymentsData?.reduce((sum, p: any) => sum + Number(p.amount_paid ?? 0), 0) || 0;
+      const totalRevenue = directSalesRevenue + invoicePaymentsRevenue;
 
       // Get today's date for daily metrics
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+      const todayDateStr = today.toISOString().split("T")[0];
 
       // Fetch today's sales (revenue + count) from sales_transactions
       const { data: todaySalesData } = await supabase
@@ -150,9 +163,18 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
         .eq("tenant_id", tenantId)
         .gte("created_at", today.toISOString());
 
-      const todaySalesCount = todaySalesData?.length || 0;
-      const todaySalesRevenue =
-        todaySalesData?.reduce((sum, sale: any) => sum + Number(sale.total_amount_zmw || 0), 0) || 0;
+      // Fetch today's invoice payments
+      const { data: todayPaymentsData } = await supabase
+        .from("payment_receipts")
+        .select("amount_paid, invoice_id")
+        .eq("tenant_id", tenantId)
+        .not("invoice_id", "is", null)
+        .eq("payment_date", todayDateStr);
+
+      const todaySalesCount = (todaySalesData?.length || 0) + (todayPaymentsData?.length || 0);
+      const todayDirectSales = todaySalesData?.reduce((sum, sale: any) => sum + Number(sale.total_amount_zmw || 0), 0) || 0;
+      const todayInvoicePayments = todayPaymentsData?.reduce((sum, p: any) => sum + Number(p.amount_paid || 0), 0) || 0;
+      const todaySalesRevenue = todayDirectSales + todayInvoicePayments;
 
       // Fetch pending/in-progress invoices for jobs in progress
       const { data: pendingJobs } = await supabase
@@ -267,10 +289,26 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
       )
       .subscribe();
 
+    // Subscribe to payment_receipts for invoice payment updates
+    const paymentsChannel = supabase
+      .channel('dashboard-payment-receipts')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'payment_receipts',
+          filter: `tenant_id=eq.${tenantId}`,
+        },
+        throttledFetchMetrics
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(inventoryChannel);
       supabase.removeChannel(invoicesChannel);
       supabase.removeChannel(salesChannel);
+      supabase.removeChannel(paymentsChannel);
     };
   }, [tenantId, throttledFetchMetrics]);
 
