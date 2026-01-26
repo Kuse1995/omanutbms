@@ -149,7 +149,7 @@ export function AuthorizedEmailsManager() {
         email: newEmail.trim().toLowerCase(),
         notes: newNotes.trim() || null,
         added_by: user?.id,
-        default_role: newRole,
+        default_role: newRole as any, // Type assertion for new enum values not yet in types
         tenant_id: tenantId,
         branch_id: newBranchId === "all" ? null : newBranchId,
       });
@@ -206,7 +206,7 @@ export function AuthorizedEmailsManager() {
     setUpdatingId(id);
     const { error } = await supabase
       .from("authorized_emails")
-      .update({ default_role: newRole })
+      .update({ default_role: newRole as any }) // Type assertion for new enum values not yet in types
       .eq("id", id);
 
     if (error) {

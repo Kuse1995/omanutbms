@@ -9,11 +9,12 @@ import {
   Users, 
   ShoppingCart, 
   Banknote,
+  Settings2,
   type LucideIcon 
 } from "lucide-react";
 
 // All available roles in the system
-export type AppRole = "admin" | "manager" | "accountant" | "hr_manager" | "sales_rep" | "cashier" | "viewer";
+export type AppRole = "admin" | "manager" | "operations_manager" | "accountant" | "hr_manager" | "sales_rep" | "cashier" | "viewer";
 
 // Role configuration with labels, icons, and colors
 export interface RoleConfig {
@@ -39,7 +40,14 @@ export const roleConfig: Record<AppRole, RoleConfig> = {
     bgColor: "bg-blue-50 border-blue-200",
     description: "Access to most modules, can manage staff"
   },
-  accountant: { 
+  operations_manager: { 
+    label: "Operations Manager", 
+    icon: Settings2, 
+    color: "text-indigo-600", 
+    bgColor: "bg-indigo-50 border-indigo-200",
+    description: "Inventory, warehouse, production, stock transfers"
+  },
+  accountant: {
     label: "Accountant", 
     icon: Calculator, 
     color: "text-emerald-600", 
@@ -114,6 +122,10 @@ export const roleModuleAccess: Record<AppRole, ModuleKey[]> = {
     "agents", "communities", "messages", "website", "contacts",
     "warehouse", "stock-transfers", "locations", "customers", "custom-orders", "production-floor"
   ],
+  operations_manager: [
+    "dashboard", "inventory", "warehouse", "stock-transfers", "locations",
+    "returns", "production-floor", "custom-orders", "customers", "sales", "receipts"
+  ],
   accountant: [
     "dashboard", "accounts", "receipts"
   ],
@@ -149,7 +161,7 @@ export function canManageUsers(role: AppRole | null): boolean {
 
 // Check if a role can edit records (not just view)
 export function canEditRecords(role: AppRole | null): boolean {
-  return role === "admin" || role === "manager";
+  return role === "admin" || role === "manager" || role === "operations_manager";
 }
 
 // Check if a role can add new records
