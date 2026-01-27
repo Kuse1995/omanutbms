@@ -65,26 +65,61 @@ export function MaterialSelector({
     const fetchInventory = async () => {
       if (!tenantId) return;
       
-      // Fetch raw materials with location info
-      const { data, error } = await supabase
+      // First fetch all raw materials from main inventory
+      const { data: inventoryData, error: inventoryError } = await supabase
         .from("inventory")
         .select(`
           id, name, sku, cost_price, current_stock, category,
-          inventory_class, unit_of_measure,
+          inventory_class, unit_of_measure, default_location_id,
           branches!default_location_id(name)
         `)
         .eq("tenant_id", tenantId)
         .eq("inventory_class", "raw_material")
-        .gt("current_stock", 0)
         .order("name");
 
-      if (!error && data) {
-        const enriched = data.map((item: any) => ({
-          ...item,
-          location_name: item.branches?.name || null,
-        }));
-        setInventoryOptions(enriched as unknown as InventoryOption[]);
+      if (inventoryError) {
+        console.error("Error fetching inventory:", inventoryError);
+        setLoading(false);
+        return;
       }
+
+      // Fetch branch-specific stock levels
+      const { data: branchStockData } = await supabase
+        .from("branch_inventory")
+        .select("inventory_id, branch_id, current_stock, branches:branch_id(name)")
+        .eq("tenant_id", tenantId)
+        .gt("current_stock", 0);
+
+      // Create a map of inventory_id -> total branch stock
+      const branchStockMap = new Map<string, { total: number; locations: string[] }>();
+      if (branchStockData) {
+        branchStockData.forEach((item: any) => {
+          const existing = branchStockMap.get(item.inventory_id) || { total: 0, locations: [] };
+          existing.total += item.current_stock;
+          if (item.branches?.name) {
+            existing.locations.push(`${item.branches.name}: ${item.current_stock}`);
+          }
+          branchStockMap.set(item.inventory_id, existing);
+        });
+      }
+
+      // Enrich inventory with accurate stock info
+      const enriched = (inventoryData || [])
+        .map((item: any) => {
+          const branchInfo = branchStockMap.get(item.id);
+          // Use branch_inventory total if available, otherwise fall back to main inventory stock
+          const effectiveStock = branchInfo ? branchInfo.total : (item.current_stock || 0);
+          const locationDisplay = branchInfo?.locations.join(', ') || item.branches?.name || 'Main Inventory';
+          
+          return {
+            ...item,
+            current_stock: effectiveStock,
+            location_name: locationDisplay,
+          };
+        })
+        .filter((item: any) => item.current_stock > 0);
+
+      setInventoryOptions(enriched as unknown as InventoryOption[]);
       setLoading(false);
     };
 
