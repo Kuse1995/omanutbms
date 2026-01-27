@@ -140,10 +140,49 @@ export function ProductsManager() {
     if (!productToDelete) return;
 
     try {
+      const productId = productToDelete.id;
+      
+      // Delete child records first to avoid FK constraint violations
+      // Order matters: children before parents
+      
+      // 1. Delete product variants
+      await supabase.from("product_variants").delete().eq("product_id", productId);
+      
+      // 2. Delete branch inventory records
+      await supabase.from("branch_inventory").delete().eq("inventory_id", productId);
+      
+      // 3. Delete stock transfers involving this product
+      await supabase.from("stock_transfers").delete().eq("inventory_id", productId);
+      
+      // 4. Delete restock history
+      await supabase.from("restock_history").delete().eq("inventory_id", productId);
+      
+      // 5. Delete inventory adjustments
+      await supabase.from("inventory_adjustments").delete().eq("inventory_id", productId);
+      
+      // 6. Delete job material usage
+      await supabase.from("job_material_usage").delete().eq("inventory_item_id", productId);
+      
+      // 7. Nullify references in agent_inventory (preserve agent records)
+      await supabase.from("agent_inventory").update({ product_id: null }).eq("product_id", productId);
+      
+      // 8. Nullify references in sale_items (preserve sales history)
+      await supabase.from("sale_items").update({ inventory_id: null }).eq("inventory_id", productId);
+      
+      // 9. Nullify references in sales_transactions (preserve transaction history)
+      await supabase.from("sales_transactions").update({ product_id: null }).eq("product_id", productId);
+      
+      // 10. Nullify references in invoice_items (preserve invoice history)
+      await supabase.from("invoice_items").update({ product_id: null }).eq("product_id", productId);
+      
+      // 11. Nullify references in quotation_items (preserve quotation history)
+      await supabase.from("quotation_items").update({ product_id: null }).eq("product_id", productId);
+
+      // Finally delete the inventory item itself
       const { error } = await supabase
         .from("inventory")
         .delete()
-        .eq("id", productToDelete.id);
+        .eq("id", productId);
 
       if (error) throw error;
 
