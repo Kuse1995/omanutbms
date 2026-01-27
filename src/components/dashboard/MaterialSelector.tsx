@@ -65,7 +65,9 @@ export function MaterialSelector({
     const fetchInventory = async () => {
       if (!tenantId) return;
       
-      // First fetch all raw materials from main inventory
+      // Fetch materials inventory.
+      // NOTE: Some tenants may have fabrics/etc. classified as `finished_good`.
+      // To keep Smart Pricing usable, we include both `raw_material` and `finished_good`.
       const { data: inventoryData, error: inventoryError } = await supabase
         .from("inventory")
         .select(`
@@ -74,7 +76,7 @@ export function MaterialSelector({
           branches!default_location_id(name)
         `)
         .eq("tenant_id", tenantId)
-        .eq("inventory_class", "raw_material")
+        .in("inventory_class", ["raw_material", "finished_good"])
         .order("name");
 
       if (inventoryError) {
@@ -107,8 +109,11 @@ export function MaterialSelector({
       const enriched = (inventoryData || [])
         .map((item: any) => {
           const branchInfo = branchStockMap.get(item.id);
-          // Use branch_inventory total if available, otherwise fall back to main inventory stock
-          const effectiveStock = branchInfo ? branchInfo.total : (item.current_stock || 0);
+          // Prefer per-location totals, but don't undercount if branch_inventory is incomplete.
+          // (We take the max of branch total and the main inventory stock.)
+          const effectiveStock = branchInfo
+            ? Math.max(branchInfo.total, item.current_stock || 0)
+            : (item.current_stock || 0);
           const locationDisplay = branchInfo?.locations.join(', ') || item.branches?.name || 'Main Inventory';
           
           return {
@@ -329,7 +334,8 @@ export function MaterialSelector({
               <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
                 <div className="flex-1">
                   <Select
-                    value={material.inventoryId}
+                    // Radix Select treats empty string as an invalid value; use undefined for "no selection".
+                    value={material.inventoryId || undefined}
                     onValueChange={(v) => handleSelectMaterial(index, v)}
                   >
                     <SelectTrigger className="h-9">
@@ -337,7 +343,7 @@ export function MaterialSelector({
                     </SelectTrigger>
                     <SelectContent>
                       {inventoryOptions.map((opt) => (
-                        <SelectItem key={opt.id} value={opt.id}>
+                        <SelectItem key={opt.id} value={opt.id} textValue={opt.name}>
                           <div className="flex flex-col">
                             <span className="font-medium">{opt.name}</span>
                             <span className="text-muted-foreground text-xs flex items-center gap-2">
