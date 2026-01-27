@@ -218,20 +218,16 @@ export function StockTransfersManager() {
   const handleComplete = async (transfer: Transfer) => {
     setActionLoading(true);
     try {
-      // Mark transfer as completed - inventory adjustments would be handled by a trigger or separate logic
-      const { error: updateError } = await (supabase as any)
-        .from("stock_transfers")
-        .update({
-          status: 'completed',
-          completed_at: new Date().toISOString(),
-        })
-        .eq("id", transfer.id);
+      // Call the database function to complete transfer and update branch_inventory
+      const { error: rpcError } = await supabase.rpc('complete_stock_transfer', {
+        p_transfer_id: transfer.id
+      });
 
-      if (updateError) throw updateError;
+      if (rpcError) throw rpcError;
 
       toast({
         title: "Transfer Completed",
-        description: "Stock transfer has been marked as complete.",
+        description: "Stock has been moved to the destination location.",
       });
       fetchTransfers();
     } catch (error: any) {
