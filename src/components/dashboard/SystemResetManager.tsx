@@ -343,85 +343,100 @@ export function SystemResetManager() {
     // We need to clear the foreign key references before deleting
     const selectedTableNames = selectedCategories.flatMap(cat => cat.tables);
     
+    console.log("[SystemReset] Starting reset for tables:", selectedTableNames);
+    
+    // Helper to safely nullify FK references
+    const safeNullify = async (table: string, column: string) => {
+      try {
+        const { error } = await supabase
+          .from(table as any)
+          .update({ [column]: null })
+          .neq("id", "00000000-0000-0000-0000-000000000000");
+        if (error) console.warn(`[SystemReset] ${table}.${column} nullify: ${error.message}`);
+      } catch (err: any) {
+        console.error(`[SystemReset] Error nullifying ${table}.${column}:`, err);
+      }
+    };
+    
+    // Helper to safely delete child records
+    const safeDeleteChildren = async (table: string) => {
+      try {
+        const { error } = await supabase
+          .from(table as any)
+          .delete()
+          .neq("id", "00000000-0000-0000-0000-000000000000");
+        if (error) {
+          console.warn(`[SystemReset] ${table} delete: ${error.message}`);
+          errors.push(`${table}: ${error.message}`);
+        } else {
+          console.log(`[SystemReset] ✓ Deleted from ${table}`);
+        }
+      } catch (err: any) {
+        console.error(`[SystemReset] Error deleting ${table}:`, err);
+        errors.push(`${table}: ${err.message}`);
+      }
+    };
+    
     // Clear agent_transactions.invoice_id before deleting invoices
     if (selectedTableNames.includes("invoices")) {
-      try {
-        await supabase
-          .from("agent_transactions")
-          .update({ invoice_id: null })
-          .neq("id", "00000000-0000-0000-0000-000000000000");
-      } catch (err: any) {
-        console.error("Error clearing agent transaction invoice refs:", err);
-      }
+      await safeNullify("agent_transactions", "invoice_id");
+      await safeNullify("custom_orders", "invoice_id");
+      await safeNullify("payment_receipts", "invoice_id");
+      await safeNullify("quotations", "converted_to_invoice_id");
+      // Delete invoice_items first (child of invoices)
+      await safeDeleteChildren("invoice_items");
     }
 
     // Clear agent_inventory.product_id before deleting inventory (if ever needed)
     if (selectedTableNames.includes("agent_inventory")) {
-      try {
-        await supabase
-          .from("agent_inventory")
-          .update({ product_id: null })
-          .neq("id", "00000000-0000-0000-0000-000000000000");
-      } catch (err: any) {
-        console.error("Error clearing agent inventory product refs:", err);
-      }
+      await safeNullify("agent_inventory", "product_id");
+    }
+    
+    // Handle quotations FK constraints
+    if (selectedTableNames.includes("quotations")) {
+      await safeNullify("invoices", "source_quotation_id");
+      await safeNullify("custom_orders", "quotation_id");
+      // Delete quotation_items first (child of quotations)
+      await safeDeleteChildren("quotation_items");
     }
     
     // Handle circular foreign key constraints between invoices and quotations
     if (selectedTableNames.includes("invoices") && selectedTableNames.includes("quotations")) {
-      try {
-        // Clear the source_quotation_id from invoices first
-        await supabase
-          .from("invoices")
-          .update({ source_quotation_id: null })
-          .neq("id", "00000000-0000-0000-0000-000000000000");
-        
-        // Clear the converted_to_invoice_id from quotations
-        await supabase
-          .from("quotations")
-          .update({ converted_to_invoice_id: null })
-          .neq("id", "00000000-0000-0000-0000-000000000000");
-      } catch (err: any) {
-        console.error("Error clearing cross-references:", err);
-      }
-    } else if (selectedTableNames.includes("invoices")) {
-      // If only invoices, clear quotation references to invoices
-      try {
-        await supabase
-          .from("quotations")
-          .update({ converted_to_invoice_id: null })
-          .neq("id", "00000000-0000-0000-0000-000000000000");
-      } catch (err: any) {
-        console.error("Error clearing quotation references:", err);
-      }
-    } else if (selectedTableNames.includes("quotations")) {
-      // If only quotations, clear invoice references to quotations
-      try {
-        await supabase
-          .from("invoices")
-          .update({ source_quotation_id: null })
-          .neq("id", "00000000-0000-0000-0000-000000000000");
-      } catch (err: any) {
-        console.error("Error clearing invoice references:", err);
-      }
+      await safeNullify("invoices", "source_quotation_id");
+      await safeNullify("quotations", "converted_to_invoice_id");
+    }
+    
+    // Clear sales_transactions references before deleting sales
+    if (selectedTableNames.includes("sales_transactions")) {
+      // Sales transactions reference inventory - nullify if needed
+      await safeNullify("sales_transactions", "product_id");
     }
 
+    // Now delete the selected tables in order
     for (const category of selectedCategories) {
       for (const table of category.tables) {
+        console.log(`[SystemReset] Deleting from: ${table}`);
         try {
-          const { error } = await supabase
+          const { data, error, count } = await supabase
             .from(table as any)
             .delete()
-            .neq("id", "00000000-0000-0000-0000-000000000000"); // Delete all rows
+            .neq("id", "00000000-0000-0000-0000-000000000000")
+            .select("id");
 
           if (error) {
+            console.error(`[SystemReset] Error deleting ${table}:`, error.message);
             errors.push(`${table}: ${error.message}`);
+          } else {
+            console.log(`[SystemReset] ✓ Deleted ${data?.length || 0} rows from ${table}`);
           }
         } catch (err: any) {
+          console.error(`[SystemReset] Exception deleting ${table}:`, err);
           errors.push(`${table}: ${err.message}`);
         }
       }
     }
+    
+    console.log("[SystemReset] Completed. Errors:", errors);
 
     setIsResetting(false);
     setIsConfirmOpen(false);
