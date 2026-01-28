@@ -572,6 +572,15 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
       has_expiry: "Has Expiry Date",
       expiry_date: "Expiry Date",
       batch_number: "Batch Number",
+      // Inventory classification labels
+      inventory_class: "Inventory Type",
+      unit_of_measure: "Unit of Measure",
+      default_location_id: "Storage Location",
+      // Fashion field labels
+      brand: "Brand",
+      material: "Material",
+      gender: "Gender",
+      collection_id: "Collection",
     };
 
     if (formData.sku.trim() !== product.sku) {
@@ -580,7 +589,9 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
     if (formData.name.trim() !== product.name) {
       changes.push({ field: fieldLabels.name, oldValue: product.name, newValue: formData.name.trim() });
     }
-    if (formData.current_stock !== product.current_stock) {
+    // Skip stock comparison for services (they always have virtual stock)
+    const isServiceItem = serviceCategories.includes(formData.category) || formFields.hideStock;
+    if (!isServiceItem && formData.current_stock !== product.current_stock) {
       changes.push({ field: fieldLabels.current_stock, oldValue: String(product.current_stock), newValue: String(formData.current_stock) });
     }
     if (formData.unit_price !== product.unit_price) {
@@ -642,6 +653,110 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
         oldValue: product.batch_number || "(not set)", 
         newValue: formData.batch_number.trim() || "(not set)" 
       });
+    }
+
+    // ===== Inventory Classification Fields =====
+    // Inventory Type
+    const formInventoryClass = formData.inventory_class || "finished_good";
+    const productInventoryClass = product.inventory_class || "finished_good";
+    if (formInventoryClass !== productInventoryClass) {
+      const classLabels: Record<string, string> = {
+        finished_good: "Finished Good",
+        raw_material: "Raw Material",
+        consumable: "Consumable",
+      };
+      changes.push({
+        field: fieldLabels.inventory_class,
+        oldValue: classLabels[productInventoryClass] || productInventoryClass,
+        newValue: classLabels[formInventoryClass] || formInventoryClass,
+      });
+    }
+
+    // Unit of Measure
+    const formUom = formData.unit_of_measure || "pcs";
+    const productUom = product.unit_of_measure || "pcs";
+    if (formUom !== productUom) {
+      const uomLabels: Record<string, string> = {
+        pcs: "Pieces",
+        meters: "Meters",
+        kg: "Kilograms",
+        liters: "Liters",
+        boxes: "Boxes",
+        rolls: "Rolls",
+        pairs: "Pairs",
+      };
+      changes.push({
+        field: fieldLabels.unit_of_measure,
+        oldValue: uomLabels[productUom] || productUom,
+        newValue: uomLabels[formUom] || formUom,
+      });
+    }
+
+    // Storage Location (default_location_id)
+    const formLocationId = formData.default_location_id || "";
+    const productLocationId = product.default_location_id || "";
+    if (formLocationId !== productLocationId) {
+      const getLocationName = (id: string | null | undefined): string => {
+        if (!id || id === "none") return "No default location";
+        const loc = locations.find(l => l.id === id);
+        return loc ? loc.name : id;
+      };
+      changes.push({
+        field: fieldLabels.default_location_id,
+        oldValue: getLocationName(productLocationId),
+        newValue: getLocationName(formLocationId),
+      });
+    }
+
+    // ===== Fashion Fields (only when enabled) =====
+    if (config.inventory.showFashionFields) {
+      // Brand
+      if (formData.brand.trim() !== (product.brand || "")) {
+        changes.push({
+          field: fieldLabels.brand,
+          oldValue: product.brand || "(none)",
+          newValue: formData.brand.trim() || "(none)",
+        });
+      }
+
+      // Material (sentinel "none" → null)
+      const formMaterial = formData.material && formData.material !== "none" ? formData.material : "";
+      const productMaterial = product.material || "";
+      if (formMaterial !== productMaterial) {
+        changes.push({
+          field: fieldLabels.material,
+          oldValue: productMaterial || "(none)",
+          newValue: formMaterial || "(none)",
+        });
+      }
+
+      // Gender (sentinel "any" → null)
+      const formGender = formData.gender && formData.gender !== "any" ? formData.gender : "";
+      const productGender = product.gender || "";
+      if (formGender !== productGender) {
+        const genderLabels: Record<string, string> = { male: "Male", female: "Female", unisex: "Unisex" };
+        changes.push({
+          field: fieldLabels.gender,
+          oldValue: genderLabels[productGender] || productGender || "(any)",
+          newValue: genderLabels[formGender] || formGender || "(any)",
+        });
+      }
+
+      // Collection
+      const formCollectionId = formData.collection_id && formData.collection_id !== "none" ? formData.collection_id : "";
+      const productCollectionId = product.collection_id || "";
+      if (formCollectionId !== productCollectionId) {
+        const getCollectionName = (id: string | null | undefined): string => {
+          if (!id) return "(none)";
+          const col = collections.find(c => c.id === id);
+          return col ? col.name : id;
+        };
+        changes.push({
+          field: fieldLabels.collection_id,
+          oldValue: getCollectionName(productCollectionId),
+          newValue: getCollectionName(formCollectionId),
+        });
+      }
     }
 
     if (imageFile) {
@@ -784,7 +899,8 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
         const { error } = await supabase
           .from("inventory")
           .update(productData as any)
-          .eq("id", product.id);
+          .eq("id", product.id)
+          .eq("tenant_id", tenantId);
 
         if (error) throw error;
 
