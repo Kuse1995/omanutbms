@@ -76,6 +76,7 @@ export function MaterialSelector({
           branches!default_location_id(name)
         `)
         .eq("tenant_id", tenantId)
+        .eq("is_archived", false)
         .in("inventory_class", ["raw_material", "finished_good"])
         .order("name");
 

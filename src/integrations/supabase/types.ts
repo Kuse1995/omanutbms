@@ -2083,6 +2083,7 @@ export type Database = {
           id: string
           image_url: string | null
           inventory_class: string | null
+          is_archived: boolean
           is_demo: boolean | null
           item_type: string
           liters_per_unit: number
@@ -2123,6 +2124,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           inventory_class?: string | null
+          is_archived?: boolean
           is_demo?: boolean | null
           item_type?: string
           liters_per_unit?: number
@@ -2163,6 +2165,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           inventory_class?: string | null
+          is_archived?: boolean
           is_demo?: boolean | null
           item_type?: string
           liters_per_unit?: number
