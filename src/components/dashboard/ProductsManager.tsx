@@ -137,46 +137,64 @@ export function ProductsManager() {
   };
 
   const handleDelete = async () => {
-    if (!productToDelete) return;
+    if (!productToDelete || !tenantId) return;
 
     try {
       const productId = productToDelete.id;
+      const errors: string[] = [];
+      
+      // Helper to safely delete/update and log errors
+      const safeDelete = async (table: string, column: string, value: string) => {
+        const { error } = await supabase.from(table as any).delete().eq(column, value);
+        if (error) {
+          console.warn(`[Delete] ${table}: ${error.message}`);
+          errors.push(`${table}: ${error.message}`);
+        }
+      };
+      
+      const safeNullify = async (table: string, column: string, value: string) => {
+        const { error } = await supabase.from(table as any).update({ [column]: null }).eq(column, value);
+        if (error) {
+          console.warn(`[Nullify] ${table}.${column}: ${error.message}`);
+          errors.push(`${table}: ${error.message}`);
+        }
+      };
       
       // Delete child records first to avoid FK constraint violations
       // Order matters: children before parents
       
       // 1. Delete product variants
-      await supabase.from("product_variants").delete().eq("product_id", productId);
+      await safeDelete("product_variants", "product_id", productId);
       
       // 2. Delete branch inventory records
-      await supabase.from("branch_inventory").delete().eq("inventory_id", productId);
+      await safeDelete("branch_inventory", "inventory_id", productId);
       
-      // 3. Delete stock transfers involving this product
-      await supabase.from("stock_transfers").delete().eq("inventory_id", productId);
+      // 3. Delete stock transfers involving this product (or nullify if column nullable)
+      await safeNullify("stock_transfers", "inventory_id", productId);
       
       // 4. Delete restock history
-      await supabase.from("restock_history").delete().eq("inventory_id", productId);
+      await safeDelete("restock_history", "inventory_id", productId);
       
       // 5. Delete inventory adjustments
-      await supabase.from("inventory_adjustments").delete().eq("inventory_id", productId);
+      await safeDelete("inventory_adjustments", "inventory_id", productId);
       
       // 6. Delete job material usage
-      await supabase.from("job_material_usage").delete().eq("inventory_item_id", productId);
+      await safeDelete("job_material_usage", "inventory_item_id", productId);
       
       // 7. Nullify references in agent_inventory (preserve agent records)
-      await supabase.from("agent_inventory").update({ product_id: null }).eq("product_id", productId);
+      await safeNullify("agent_inventory", "product_id", productId);
       
       // 8. Nullify references in sale_items (preserve sales history)
-      await supabase.from("sale_items").update({ inventory_id: null }).eq("inventory_id", productId);
+      await safeNullify("sale_items", "inventory_id", productId);
       
       // 9. Nullify references in sales_transactions (preserve transaction history)
-      await supabase.from("sales_transactions").update({ product_id: null }).eq("product_id", productId);
+      await safeNullify("sales_transactions", "product_id", productId);
       
       // 10. Nullify references in invoice_items (preserve invoice history)
-      await supabase.from("invoice_items").update({ product_id: null }).eq("product_id", productId);
+      await safeNullify("invoice_items", "product_id", productId);
       
       // 11. Nullify references in quotation_items (preserve quotation history)
-      await supabase.from("quotation_items").update({ product_id: null }).eq("product_id", productId);
+      await safeNullify("quotation_items", "product_id", productId);
 
       // Finally delete the inventory item itself
       const { error } = await supabase
@@ -184,18 +202,28 @@ export function ProductsManager() {
         .delete()
         .eq("id", productId);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Failed to delete inventory item:", error);
+        throw new Error(error.message);
+      }
 
-      toast({
-        title: `${terminology.product} Deleted`,
-        description: `${productToDelete.name} has been removed`,
-      });
+      if (errors.length > 0) {
+        toast({
+          title: `${terminology.product} Deleted (with warnings)`,
+          description: `${productToDelete.name} removed. Some related records may remain.`,
+        });
+      } else {
+        toast({
+          title: `${terminology.product} Deleted`,
+          description: `${productToDelete.name} has been removed`,
+        });
+      }
       fetchProducts();
     } catch (error: any) {
       console.error("Error deleting product:", error);
       toast({
-        title: "Error",
-        description: error.message || `Failed to delete ${terminology.product.toLowerCase()}`,
+        title: "Cannot Delete Item",
+        description: error.message || `Failed to delete ${terminology.product.toLowerCase()}. It may be linked to other records.`,
         variant: "destructive",
       });
     } finally {
