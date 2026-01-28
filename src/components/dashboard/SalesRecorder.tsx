@@ -242,6 +242,7 @@ export function SalesRecorder() {
       .from('inventory')
       .select('id, name, sku, unit_price, current_stock, image_url, collection_id')
       .eq('tenant_id', tenantId)
+      .eq('is_archived', false)
       .gt('current_stock', 0)
       .order('name');
 

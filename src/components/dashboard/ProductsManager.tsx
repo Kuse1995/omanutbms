@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Plus, Search, Edit, Trash2, Loader2, Palette, Ruler, ImageIcon } from "lucide-react";
+import { Plus, Search, Edit, Loader2, Palette, Ruler, ImageIcon, Archive, ArchiveRestore, Eye, EyeOff } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 interface TechnicalSpec {
   label: string;
@@ -51,6 +53,7 @@ interface Product {
   manual_url?: string | null;
   technical_specs?: TechnicalSpec[] | null;
   item_type?: string | null;
+  is_archived?: boolean;
 }
 
 // Categories that are considered services (no stock tracking)
@@ -73,7 +76,9 @@ export function ProductsManager() {
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isVariantsModalOpen, setIsVariantsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [productToArchive, setProductToArchive] = useState<Product | null>(null);
+  const [productToRestore, setProductToRestore] = useState<Product | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const { toast } = useToast();
   const { tenantId } = useTenant();
   const { terminology } = useBusinessConfig();
@@ -136,118 +141,73 @@ export function ProductsManager() {
     }
   };
 
-  const handleDelete = async () => {
-    if (!productToDelete || !tenantId) return;
+  const handleArchive = async () => {
+    if (!productToArchive || !tenantId) return;
 
     try {
-      const productId = productToDelete.id;
-      const criticalErrors: string[] = [];
-      
-      console.log(`[ProductDelete] Starting deletion of product ${productId}`);
-      
-      // Helper to safely delete records
-      const safeDelete = async (table: string, column: string, value: string, addTenant = true) => {
-        try {
-          let query = supabase.from(table as any).delete().eq(column, value);
-          if (addTenant) {
-            query = query.eq("tenant_id", tenantId);
-          }
-          const { error, count } = await query;
-          if (error) {
-            console.warn(`[Delete] ${table}: ${error.message}`);
-          } else {
-            console.log(`[Delete] ${table}: success`);
-          }
-        } catch (e: any) {
-          console.warn(`[Delete] ${table}: ${e.message}`);
-        }
-      };
-      
-      // Helper to nullify FK references - CRITICAL for deletion
-      const safeNullify = async (table: string, column: string, value: string, addTenant = true): Promise<boolean> => {
-        try {
-          let query = supabase.from(table as any).update({ [column]: null } as any).eq(column, value);
-          if (addTenant) {
-            query = query.eq("tenant_id", tenantId);
-          }
-          const { error, count } = await query;
-          if (error) {
-            console.warn(`[Nullify] ${table}.${column}: ${error.message}`);
-            return false;
-          }
-          console.log(`[Nullify] ${table}.${column}: success`);
-          return true;
-        } catch (e: any) {
-          console.warn(`[Nullify] ${table}.${column}: ${e.message}`);
-          return false;
-        }
-      };
-      
-      // === STEP 1: Delete direct child records (no FK pointing TO them) ===
-      console.log("[ProductDelete] Step 1: Deleting child records...");
-      await safeDelete("product_variants", "product_id", productId);
-      await safeDelete("branch_inventory", "inventory_id", productId);
-      await safeDelete("restock_history", "inventory_id", productId);
-      await safeDelete("inventory_adjustments", "inventory_id", productId);
-      await safeDelete("job_material_usage", "inventory_item_id", productId);
-      
-      // === STEP 2: Nullify ALL FK references to this inventory item ===
-      console.log("[ProductDelete] Step 2: Nullifying FK references...");
-      
-      // Critical FKs that must be nullified for deletion to succeed
-      const nullifyResults = await Promise.all([
-        safeNullify("sale_items", "inventory_id", productId),
-        safeNullify("stock_transfers", "inventory_id", productId),
-        safeNullify("agent_inventory", "product_id", productId),
-        safeNullify("sales_transactions", "product_id", productId),
-        safeNullify("invoice_items", "product_id", productId),
-        safeNullify("quotation_items", "product_id", productId),
-        safeNullify("purchase_order_items", "inventory_id", productId),
-        safeNullify("inventory_movements", "inventory_id", productId),
-      ]);
-      
-      // Check if any critical nullify failed
-      const allNullified = nullifyResults.every(r => r !== false);
-      if (!allNullified) {
-        console.warn("[ProductDelete] Some FK references could not be nullified, attempting deletion anyway...");
-      }
-
-      // === STEP 3: Delete the inventory item ===
-      console.log("[ProductDelete] Step 3: Deleting inventory item...");
       const { error } = await supabase
         .from("inventory")
-        .delete()
-        .eq("id", productId)
+        .update({ is_archived: true })
+        .eq("id", productToArchive.id)
         .eq("tenant_id", tenantId);
 
-      if (error) {
-        console.error("[ProductDelete] Failed to delete inventory item:", error);
-        throw new Error(error.message);
-      }
+      if (error) throw error;
 
-      console.log("[ProductDelete] Deletion successful!");
       toast({
-        title: `${terminology.product} Deleted`,
-        description: `${productToDelete.name} has been removed`,
+        title: `${terminology.product} Archived`,
+        description: `${productToArchive.name} has been archived and hidden from sales`,
       });
       fetchProducts();
     } catch (error: any) {
-      console.error("[ProductDelete] Error:", error);
+      console.error("Archive error:", error);
       toast({
-        title: "Cannot Delete Item",
-        description: `Failed to delete. Error: ${error.message || "Unknown error"}`,
+        title: "Archive Failed",
+        description: error.message || "Failed to archive item",
         variant: "destructive",
       });
     } finally {
-      setProductToDelete(null);
+      setProductToArchive(null);
+    }
+  };
+
+  const handleRestore = async () => {
+    if (!productToRestore || !tenantId) return;
+
+    try {
+      const { error } = await supabase
+        .from("inventory")
+        .update({ is_archived: false })
+        .eq("id", productToRestore.id)
+        .eq("tenant_id", tenantId);
+
+      if (error) throw error;
+
+      toast({
+        title: `${terminology.product} Restored`,
+        description: `${productToRestore.name} is now active again`,
+      });
+      fetchProducts();
+    } catch (error: any) {
+      console.error("Restore error:", error);
+      toast({
+        title: "Restore Failed",
+        description: error.message || "Failed to restore item",
+        variant: "destructive",
+      });
+    } finally {
+      setProductToRestore(null);
     }
   };
 
   const filteredProducts = products.filter(
     (p) =>
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.sku.toLowerCase().includes(searchQuery.toLowerCase())
+      (showArchived ? p.is_archived === true : p.is_archived !== true) &&
+      (p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.sku.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+
+  const archivedCount = products.filter(p => p.is_archived === true).length;
+  const activeCount = products.filter(p => p.is_archived !== true).length;
 
   if (isLoading) {
     return (
@@ -265,8 +225,29 @@ export function ProductsManager() {
     >
       <Card className="bg-white border-[#004B8D]/10 shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-[#003366]">All {terminology.products}</CardTitle>
+          <div>
+            <CardTitle className="text-[#003366]">
+              {showArchived ? `Archived ${terminology.products}` : `All ${terminology.products}`}
+            </CardTitle>
+            <p className="text-sm text-[#004B8D]/60 mt-1">
+              {showArchived 
+                ? `${archivedCount} archived item${archivedCount !== 1 ? 's' : ''}`
+                : `${activeCount} active item${activeCount !== 1 ? 's' : ''}${archivedCount > 0 ? ` • ${archivedCount} archived` : ''}`
+              }
+            </p>
+          </div>
           <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Switch
+                id="show-archived"
+                checked={showArchived}
+                onCheckedChange={setShowArchived}
+              />
+              <Label htmlFor="show-archived" className="text-sm text-[#004B8D]/70 cursor-pointer flex items-center gap-1">
+                {showArchived ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                Show Archived
+              </Label>
+            </div>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#004B8D]/50" />
               <Input
@@ -311,8 +292,8 @@ export function ProductsManager() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredProducts.map((product) => (
-                  <TableRow key={product.id} className="border-[#004B8D]/10">
+              filteredProducts.map((product) => (
+                  <TableRow key={product.id} className={`border-[#004B8D]/10 ${product.is_archived ? 'opacity-60' : ''}`}>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-lg border border-[#004B8D]/10 overflow-hidden bg-[#f0f7fa] flex items-center justify-center">
@@ -395,7 +376,15 @@ export function ProductsManager() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {isServiceItem(product) ? (
+                      {product.is_archived ? (
+                        <Badge
+                          variant="outline"
+                          className="border-gray-300 text-gray-600 bg-gray-50"
+                        >
+                          <Archive className="w-3 h-3 mr-1" />
+                          Archived
+                        </Badge>
+                      ) : isServiceItem(product) ? (
                         <Badge
                           variant="outline"
                           className="border-purple-300 text-purple-600 bg-purple-50"
@@ -441,14 +430,27 @@ export function ProductsManager() {
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setProductToDelete(product)}
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        {product.is_archived ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setProductToRestore(product)}
+                            className="text-green-600 hover:text-green-800 hover:bg-green-50"
+                            title="Restore"
+                          >
+                            <ArchiveRestore className="w-4 h-4" />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setProductToArchive(product)}
+                            className="text-amber-600 hover:text-amber-800 hover:bg-amber-50"
+                            title="Archive"
+                          >
+                            <Archive className="w-4 h-4" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -473,22 +475,51 @@ export function ProductsManager() {
         onSuccess={fetchProducts}
       />
 
-      <AlertDialog open={!!productToDelete} onOpenChange={() => setProductToDelete(null)}>
+      {/* Archive Confirmation Dialog */}
+      <AlertDialog open={!!productToArchive} onOpenChange={() => setProductToArchive(null)}>
         <AlertDialogContent className="bg-white">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-[#003366]">Delete {terminology.product}?</AlertDialogTitle>
+            <AlertDialogTitle className="text-[#003366] flex items-center gap-2">
+              <Archive className="w-5 h-5 text-amber-600" />
+              Archive {terminology.product}?
+            </AlertDialogTitle>
             <AlertDialogDescription className="text-[#004B8D]/70">
-              This will permanently delete "{productToDelete?.name}" and all its variants.
-              This action cannot be undone.
+              "{productToArchive?.name}" will be hidden from sales and inventory views but all historical records will be preserved. You can restore it later.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="border-[#004B8D]/20">Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-red-500 hover:bg-red-600 text-white"
+              onClick={handleArchive}
+              className="bg-amber-600 hover:bg-amber-700 text-white"
             >
-              Delete
+              <Archive className="w-4 h-4 mr-2" />
+              Archive
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Restore Confirmation Dialog */}
+      <AlertDialog open={!!productToRestore} onOpenChange={() => setProductToRestore(null)}>
+        <AlertDialogContent className="bg-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-[#003366] flex items-center gap-2">
+              <ArchiveRestore className="w-5 h-5 text-green-600" />
+              Restore {terminology.product}?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-[#004B8D]/70">
+              "{productToRestore?.name}" will be restored and appear in your active inventory again.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-[#004B8D]/20">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRestore}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              <ArchiveRestore className="w-4 h-4 mr-2" />
+              Restore
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

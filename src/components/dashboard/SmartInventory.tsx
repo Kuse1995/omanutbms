@@ -57,6 +57,7 @@ export function SmartInventory() {
         .from("inventory")
         .select("id, sku, name, current_stock, reserved, ai_prediction, status, item_type, category")
         .eq("tenant_id", tenantId)
+        .eq("is_archived", false)
         .order("name");
 
       if (error) throw error;
