@@ -1,84 +1,129 @@
 
-## What’s happening (root cause)
-When you edit a product and change **Storage Location**, the modal shows **“No changes detected to save”** because `ProductModal.tsx` uses a helper called `getFieldChanges()` to decide whether anything changed.
 
-Right now, `getFieldChanges()` **does not check** these fields:
-- `default_location_id` (Storage Location)
-- `inventory_class` (Type)
-- `unit_of_measure` (Unit of Measure)
-- Fashion fields like `brand`, `material`, `gender`, `collection_id` (if enabled)
+# Plan: Upgrade Omanut Advisor to Kimi K2.5 API
 
-So if you only change the location (or any of the fields above), the system incorrectly thinks nothing changed and blocks saving.
+## Overview
+We'll replace the current Lovable AI Gateway (Google Gemini) with Moonshot AI's **Kimi K2.5** model - a state-of-the-art multimodal model with 256K context window, advanced reasoning, and native thinking capabilities.
 
 ---
 
-## Goal
-Allow saving when changing Storage Location (and the other missing fields) by making the “change detection” aware of them.
+## Why Kimi K2.5?
+- **256K context window** - Can handle much longer conversation histories and business context
+- **Advanced reasoning** - Built-in "thinking mode" for complex business analysis
+- **Multimodal** - Supports image/video analysis (future enhancement potential)
+- **OpenAI-compatible API** - Easy migration, same format as current implementation
 
 ---
 
-## Files involved
-- `src/components/dashboard/ProductModal.tsx` (main fix)
+## What You'll Need
+Since you have a Moonshot API key ready, I'll securely store it as a secret in your backend.
 
 ---
 
-## Implementation steps (what I will change)
+## Technical Implementation
 
-### 1) Update change detection to include “Inventory Classification” fields
-In `ProductModal.tsx`, inside `getFieldChanges()`:
-- Add labels:
-  - “Inventory Type”
-  - “Storage Location”
-  - “Unit of Measure”
-- Add comparisons:
-  - Compare `formData.inventory_class` vs `product.inventory_class` (normalize defaults like `"finished_good"`)
-  - Compare `formData.unit_of_measure` vs `product.unit_of_measure` (normalize defaults like `"pcs"`)
-  - Compare `formData.default_location_id` vs `product.default_location_id` (normalize null/empty string)
+### Step 1: Add Moonshot API Key as Secret
+- Use the secure secrets tool to store your `MOONSHOT_API_KEY`
+- This will be accessible in the edge function via `Deno.env.get("MOONSHOT_API_KEY")`
 
-For Storage Location display in the confirm dialog:
-- Convert IDs to human-readable names using the already-loaded `locations` state:
-  - `""` / `null` → “No default location”
-  - Otherwise show the branch name (and optionally include the type icon like the dropdown does)
+### Step 2: Update Edge Function (`supabase/functions/omanut-advisor/index.ts`)
 
-### 2) Update change detection to include Fashion fields (only when enabled)
-Still inside `getFieldChanges()`:
-- If `config.inventory.showFashionFields` is enabled, compare and track:
-  - `brand`
-  - `material` (handle sentinel values like `"none"`)
-  - `gender` (handle `"any"`)
-  - `collection_id` (handle `"none"` / empty)
-- Display names for collections using the already-loaded `collections` state when possible.
+**Current setup:**
+```typescript
+// Uses Lovable AI Gateway
+const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  headers: { Authorization: `Bearer ${LOVABLE_API_KEY}` },
+  body: JSON.stringify({ model: "google/gemini-3-flash-preview", ... })
+});
+```
 
-### 3) Ensure the update query is tenant-scoped (safety + consistency)
-In `performSave()`, when updating an existing product:
-- Change the update query from:
-  - `.eq("id", product.id)`
-- To:
-  - `.eq("id", product.id).eq("tenant_id", tenantId)`
-This matches the app’s “tenant-scoped query enforcement” pattern and avoids any edge cases where RLS blocks updates unexpectedly.
+**New setup:**
+```typescript
+// Uses Moonshot AI directly
+const MOONSHOT_API_KEY = Deno.env.get("MOONSHOT_API_KEY");
+if (!MOONSHOT_API_KEY) {
+  throw new Error("MOONSHOT_API_KEY is not configured");
+}
+
+const response = await fetch("https://api.moonshot.ai/v1/chat/completions", {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${MOONSHOT_API_KEY}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    model: "kimi-k2.5",  // or "kimi-k2-turbo-preview" for faster responses
+    messages: [
+      { role: "system", content: systemPrompt },
+      ...messages,
+    ],
+    stream: true,
+    thinking: { type: "enabled" },  // Enable deep reasoning mode
+    temperature: 0.6,
+  }),
+});
+```
+
+### Step 3: Enhanced System Prompt for Kimi
+Update the advisor personality to leverage Kimi's reasoning capabilities:
+- Add guidance to use step-by-step thinking for complex business questions
+- Leverage the larger context window for more historical data
+
+### Step 4: Error Handling
+Update error handling for Moonshot-specific status codes:
+- Rate limits (429)
+- Authentication errors (401)
+- Balance/quota errors
 
 ---
 
-## How we’ll verify (end-to-end)
-1. Go to **/bms → Inventory** (or Shop Manager → Products & Inventory).
-2. Click **Edit** on a product.
-3. Change only **Storage Location** and click **Save**.
-4. Expected result:
-   - You should see the **Confirm Changes** dialog listing “Storage Location”.
-   - After confirming, you should see “Product Updated”.
-   - Re-open the product: the selected Storage Location should persist.
-5. Repeat by changing only:
-   - Inventory Type
-   - Unit of Measure
-   - (If enabled) Brand/Material/Gender/Collection  
-   Each should now save properly.
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `supabase/functions/omanut-advisor/index.ts` | Replace API endpoint, update auth, add Kimi-specific params |
+| Backend secrets | Add `MOONSHOT_API_KEY` |
 
 ---
 
-## Notes (important behavior clarification)
-Changing **Storage Location** here sets the product’s **default location metadata**. It does **not** physically move stock between locations. Physical movement should still happen via **Stock Transfers**.
+## Model Options
+
+| Model | Speed | Best For |
+|-------|-------|----------|
+| `kimi-k2.5` | Slower | Complex reasoning, full thinking mode |
+| `kimi-k2-turbo-preview` | Faster | Quick responses, everyday queries |
+| `kimi-k2-thinking` | Medium | Deep analysis with visible reasoning chain |
+
+**Recommendation:** Use `kimi-k2.5` with thinking enabled for the business advisor - it provides better analysis of your sales data, inventory, and actionable recommendations.
 
 ---
 
-## Optional follow-up (if you want)
-If you want, we can also add an “Archive/Restore” control inside the **Product Edit modal** so it’s visible even if the table action buttons are off-screen on smaller displays. (Not required for the location-save fix, but it can reduce confusion.)
+## Streaming Format
+Kimi K2.5 uses the same SSE (Server-Sent Events) streaming format as OpenAI, so the frontend (`OmanutAdvisor.tsx`) doesn't need changes - it already handles SSE correctly.
+
+---
+
+## Testing Plan
+After implementation:
+1. Open the Advisor chat
+2. Ask "How's business today?" - should get real-time analysis
+3. Ask "What should I restock?" - should analyze inventory with reasoning
+4. Test error handling by temporarily using an invalid key
+
+---
+
+## Cost Consideration
+Kimi K2.5 pricing (from Moonshot AI):
+- Input: $0.60 per million tokens
+- Output: $3.00 per million tokens
+
+This is competitive with other frontier models while providing the 256K context advantage.
+
+---
+
+## Optional Future Enhancements
+Once Kimi is integrated, we can add:
+- **Image analysis**: Let users upload receipts/invoices for AI processing
+- **Visible thinking**: Show the advisor's reasoning process in the UI
+- **Web search**: Kimi supports built-in web search for market research
+
