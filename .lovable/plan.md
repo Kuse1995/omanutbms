@@ -1,129 +1,252 @@
 
 
-# Plan: Upgrade Omanut Advisor to Kimi K2.5 API
+# Asset Management Module Implementation Plan
 
 ## Overview
-We'll replace the current Lovable AI Gateway (Google Gemini) with Moonshot AI's **Kimi K2.5** model - a state-of-the-art multimodal model with 256K context window, advanced reasoning, and native thinking capabilities.
+This plan details the implementation of a full **Asset Management** module for the Omanut BMS. The module will track company fixed assets (IT equipment, vehicles, machinery, furniture), calculate depreciation using industry-standard methods, and integrate with the existing Accounts module for financial reporting.
 
 ---
 
-## Why Kimi K2.5?
-- **256K context window** - Can handle much longer conversation histories and business context
-- **Advanced reasoning** - Built-in "thinking mode" for complex business analysis
-- **Multimodal** - Supports image/video analysis (future enhancement potential)
-- **OpenAI-compatible API** - Easy migration, same format as current implementation
+## 1. Database Schema
+
+### Table: `assets`
+Stores the master record for each fixed asset.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `tenant_id` | UUID | Links to tenants table (RLS enforced) |
+| `name` | TEXT | Asset name (e.g., "Dell Laptop - Finance") |
+| `description` | TEXT | Optional notes |
+| `category` | TEXT | One of: 'IT', 'Vehicles', 'Machinery', 'Furniture', 'Buildings', 'Other' |
+| `purchase_date` | DATE | When the asset was acquired |
+| `purchase_cost` | NUMERIC | Original cost in ZMW |
+| `depreciation_method` | TEXT | 'straight_line' or 'reducing_balance' |
+| `useful_life_years` | INTEGER | Expected lifespan (e.g., 5 years) |
+| `salvage_value` | NUMERIC | Residual value at end of life |
+| `status` | TEXT | 'active', 'disposed', 'fully_depreciated' |
+| `disposal_date` | DATE | When disposed (if applicable) |
+| `disposal_value` | NUMERIC | Sale/scrap value on disposal |
+| `serial_number` | TEXT | Optional serial/tag number |
+| `location` | TEXT | Physical location |
+| `assigned_to` | TEXT | Employee or department |
+| `image_url` | TEXT | Photo of the asset |
+| `created_at` | TIMESTAMPTZ | Record creation time |
+| `updated_at` | TIMESTAMPTZ | Last modification time |
+
+### Table: `asset_logs`
+Audit trail for asset changes (revaluations, transfers, maintenance).
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `asset_id` | UUID | References assets(id) |
+| `tenant_id` | UUID | For RLS |
+| `action` | TEXT | 'created', 'updated', 'depreciation_run', 'disposed', 'transferred' |
+| `old_value` | JSONB | Previous state (for updates) |
+| `new_value` | JSONB | New state |
+| `notes` | TEXT | Optional description |
+| `performed_by` | UUID | User who made the change |
+| `created_at` | TIMESTAMPTZ | When the action occurred |
+
+### RLS Policies
+Both tables will have RLS enabled with policies:
+- **SELECT**: `user_belongs_to_tenant(tenant_id)`
+- **INSERT**: `user_belongs_to_tenant(tenant_id)`
+- **UPDATE**: `is_tenant_admin_or_manager(tenant_id)`
+- **DELETE**: `is_tenant_admin(tenant_id)`
+
+### Indexes
+- `idx_assets_tenant_id` on `assets(tenant_id)`
+- `idx_assets_status` on `assets(tenant_id, status)`
+- `idx_asset_logs_asset_id` on `asset_logs(asset_id)`
 
 ---
 
-## What You'll Need
-Since you have a Moonshot API key ready, I'll securely store it as a secret in your backend.
+## 2. Depreciation Calculation Logic
 
----
+### TypeScript Utility: `calculateDepreciation(asset)`
 
-## Technical Implementation
-
-### Step 1: Add Moonshot API Key as Secret
-- Use the secure secrets tool to store your `MOONSHOT_API_KEY`
-- This will be accessible in the edge function via `Deno.env.get("MOONSHOT_API_KEY")`
-
-### Step 2: Update Edge Function (`supabase/functions/omanut-advisor/index.ts`)
-
-**Current setup:**
-```typescript
-// Uses Lovable AI Gateway
-const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-  headers: { Authorization: `Bearer ${LOVABLE_API_KEY}` },
-  body: JSON.stringify({ model: "google/gemini-3-flash-preview", ... })
-});
+```text
++------------------------------------------+
+|         calculateDepreciation()           |
++------------------------------------------+
+| Input: asset object                       |
+|                                          |
+| Returns:                                  |
+|   - accumulatedDepreciation: number      |
+|   - netBookValue: number                 |
+|   - monthlyDepreciation: number          |
+|   - percentDepreciated: number           |
+|   - yearsRemaining: number               |
++------------------------------------------+
 ```
 
-**New setup:**
-```typescript
-// Uses Moonshot AI directly
-const MOONSHOT_API_KEY = Deno.env.get("MOONSHOT_API_KEY");
-if (!MOONSHOT_API_KEY) {
-  throw new Error("MOONSHOT_API_KEY is not configured");
-}
+### Formulas
 
-const response = await fetch("https://api.moonshot.ai/v1/chat/completions", {
-  method: "POST",
-  headers: {
-    Authorization: `Bearer ${MOONSHOT_API_KEY}`,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    model: "kimi-k2.5",  // or "kimi-k2-turbo-preview" for faster responses
-    messages: [
-      { role: "system", content: systemPrompt },
-      ...messages,
-    ],
-    stream: true,
-    thinking: { type: "enabled" },  // Enable deep reasoning mode
-    temperature: 0.6,
-  }),
-});
+**Straight-Line Method:**
+```
+Annual Depreciation = (Purchase Cost - Salvage Value) / Useful Life Years
+Monthly Depreciation = Annual Depreciation / 12
+Accumulated = Annual Depreciation × Years Elapsed
+NBV = Purchase Cost - Accumulated Depreciation
 ```
 
-### Step 3: Enhanced System Prompt for Kimi
-Update the advisor personality to leverage Kimi's reasoning capabilities:
-- Add guidance to use step-by-step thinking for complex business questions
-- Leverage the larger context window for more historical data
+**Reducing Balance Method (20% rate):**
+```
+Year 1 NBV = Purchase Cost × (1 - 0.20)
+Year N NBV = Previous Year NBV × (1 - 0.20)
+Monthly = (Previous NBV - Current NBV) / 12
+```
 
-### Step 4: Error Handling
-Update error handling for Moonshot-specific status codes:
-- Rate limits (429)
-- Authentication errors (401)
-- Balance/quota errors
+The utility will be placed in `src/lib/asset-depreciation.ts`.
 
 ---
 
-## Files to Modify
+## 3. UI Components
+
+### 3.1 Assets Manager (`AssetsManager.tsx`)
+Main container component with tabs:
+
+| Tab | Content |
+|-----|---------|
+| **Dashboard** | Summary cards + alerts |
+| **Registry** | Searchable table of all assets |
+| **Disposal** | Disposed assets history |
+
+### 3.2 Asset Dashboard Cards
+Three summary cards:
+
+| Card | Color | Data |
+|------|-------|------|
+| **Total Assets** | Blue | Count of active assets |
+| **Net Book Value** | Green | Sum of all current NBVs |
+| **Upcoming Depreciation** | Amber | Assets depreciating this month |
+
+### 3.3 Asset Registry Table
+Columns: Name, Category, Purchase Date, Purchase Cost, NBV, Status, Actions
+- **Search**: By name, category, serial number
+- **Filter**: By category, status
+- **Actions**: View, Edit, Calculate Depreciation, Dispose
+
+### 3.4 Add/Edit Asset Modal (`AssetModal.tsx`)
+Multi-step dialog with validation:
+
+**Step 1 - Basic Info:**
+- Name (required)
+- Category (select: IT, Vehicles, Machinery, Furniture, Buildings, Other)
+- Serial Number
+- Description
+
+**Step 2 - Financial Details:**
+- Purchase Date (required, must be past/today)
+- Purchase Cost (required, > 0)
+- Salvage Value (default: 0)
+- Useful Life Years (required, 1-50)
+- Depreciation Method (select)
+
+**Step 3 - Assignment:**
+- Location
+- Assigned To
+- Photo Upload
+
+### 3.5 Depreciation Calculator Modal
+Shows detailed breakdown for a single asset:
+- Annual/monthly depreciation amounts
+- Depreciation schedule table by year
+- Visual progress bar of depreciation
+
+### 3.6 CSV Export
+Button to download the full asset register as CSV with columns:
+`Name, Category, Serial Number, Purchase Date, Purchase Cost, Depreciation Method, Useful Life, Salvage Value, Current NBV, Status`
+
+---
+
+## 4. Integration Points
+
+### 4.1 Navigation
+Add "Assets" to the **Sales & Finance** category in sidebar:
+- Icon: `Landmark` from lucide-react
+- Position: After "Accounts"
+- Feature flag: Core module (always available, or tied to `advanced_accounting`)
+
+### 4.2 Role Access
+Add "assets" to `ModuleKey` and grant access to:
+- admin, manager, accountant, operations_manager
+
+### 4.3 Dashboard Type
+Add `"assets"` to the `DashboardTab` union type.
+
+### 4.4 Accounts Integration
+Add an "Assets" tab inside the Accounts Agent that shows:
+- Quick summary of total asset value
+- Link to full Asset Manager
+
+### 4.5 Currency Formatting
+All monetary values will use `currencySymbol` from `useFeatures()` or `useBusinessConfig()`:
+```tsx
+{currencySymbol} {value.toLocaleString()}
+// Example: K 1,250.00
+```
+
+---
+
+## 5. Files to Create
+
+| File | Purpose |
+|------|---------|
+| `src/lib/asset-depreciation.ts` | Depreciation calculation utility |
+| `src/components/dashboard/AssetsManager.tsx` | Main assets module |
+| `src/components/dashboard/AssetModal.tsx` | Add/Edit asset dialog |
+| `src/components/dashboard/AssetDepreciationModal.tsx` | Depreciation detail view |
+| Migration SQL | Create tables with RLS |
+
+---
+
+## 6. Files to Modify
 
 | File | Changes |
 |------|---------|
-| `supabase/functions/omanut-advisor/index.ts` | Replace API endpoint, update auth, add Kimi-specific params |
-| Backend secrets | Add `MOONSHOT_API_KEY` |
+| `src/pages/Dashboard.tsx` | Add "assets" case, import AssetsManager |
+| `src/components/dashboard/DashboardSidebar.tsx` | Add assets menu item |
+| `src/lib/role-config.ts` | Add "assets" to ModuleKey and role access |
+| `src/components/dashboard/AccountsAgent.tsx` | Add Assets summary tab |
 
 ---
 
-## Model Options
+## 7. Testing Checklist
 
-| Model | Speed | Best For |
-|-------|-------|----------|
-| `kimi-k2.5` | Slower | Complex reasoning, full thinking mode |
-| `kimi-k2-turbo-preview` | Faster | Quick responses, everyday queries |
-| `kimi-k2-thinking` | Medium | Deep analysis with visible reasoning chain |
-
-**Recommendation:** Use `kimi-k2.5` with thinking enabled for the business advisor - it provides better analysis of your sales data, inventory, and actionable recommendations.
-
----
-
-## Streaming Format
-Kimi K2.5 uses the same SSE (Server-Sent Events) streaming format as OpenAI, so the frontend (`OmanutAdvisor.tsx`) doesn't need changes - it already handles SSE correctly.
-
----
-
-## Testing Plan
 After implementation:
-1. Open the Advisor chat
-2. Ask "How's business today?" - should get real-time analysis
-3. Ask "What should I restock?" - should analyze inventory with reasoning
-4. Test error handling by temporarily using an invalid key
+1. Create a new asset with Straight-Line depreciation
+2. Verify NBV calculation matches expected formula
+3. Create an asset with Reducing Balance method
+4. Verify depreciation schedule displays correctly
+5. Test CSV export downloads with all assets
+6. Verify only Admin/Manager can edit/delete assets
+7. Test disposal workflow updates status correctly
+8. Confirm all values show "K" currency formatting
 
 ---
 
-## Cost Consideration
-Kimi K2.5 pricing (from Moonshot AI):
-- Input: $0.60 per million tokens
-- Output: $3.00 per million tokens
+## 8. Sample Depreciation Output
 
-This is competitive with other frontier models while providing the 256K context advantage.
+For a K 10,000 asset with 5-year life and K 1,000 salvage:
 
----
+**Straight-Line:**
+```
+Annual Depreciation: K 1,800
+Monthly Depreciation: K 150
+After 2 Years:
+  - Accumulated: K 3,600
+  - NBV: K 6,400
+```
 
-## Optional Future Enhancements
-Once Kimi is integrated, we can add:
-- **Image analysis**: Let users upload receipts/invoices for AI processing
-- **Visible thinking**: Show the advisor's reasoning process in the UI
-- **Web search**: Kimi supports built-in web search for market research
+**Reducing Balance (20%):**
+```
+Year 1: K 10,000 → K 8,000 (K 2,000 depreciation)
+Year 2: K 8,000 → K 6,400 (K 1,600 depreciation)
+After 2 Years:
+  - Accumulated: K 3,600
+  - NBV: K 6,400
+```
 
