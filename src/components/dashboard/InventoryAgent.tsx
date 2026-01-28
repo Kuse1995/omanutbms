@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,7 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Package, AlertTriangle, RefreshCw, Mail, Loader2, Plus, Pencil, Trash2, FileUp, Download, Palette, Ruler, ImageIcon, Building2, PackagePlus } from "lucide-react";
+import { Package, AlertTriangle, RefreshCw, Mail, Loader2, Plus, Pencil, FileUp, Download, Palette, Ruler, ImageIcon, Building2, PackagePlus, Archive, ArchiveRestore, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ProductModal } from "./ProductModal";
 import { InventoryImportModal } from "./InventoryImportModal";
@@ -33,6 +33,8 @@ import { useTenant } from "@/hooks/useTenant";
 import { useBranch } from "@/hooks/useBranch";
 import { useFeatures } from "@/hooks/useFeatures";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 interface TechnicalSpec {
   label: string;
@@ -66,6 +68,7 @@ interface InventoryItem {
   unit_of_measure?: string | null;
   default_location_id?: string | null;
   location_name?: string | null;
+  is_archived?: boolean;
 }
 
 export function InventoryAgent() {
@@ -78,8 +81,10 @@ export function InventoryAgent() {
   const [isVariantsModalOpen, setIsVariantsModalOpen] = useState(false);
   const [isRestockModalOpen, setIsRestockModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<InventoryItem | null>(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [itemToArchive, setItemToArchive] = useState<InventoryItem | null>(null);
+  const [itemToRestore, setItemToRestore] = useState<InventoryItem | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const [classFilter, setClassFilter] = useState<string | null>(null);
   const { toast } = useToast();
   const { tenantId } = useTenant();
@@ -136,7 +141,7 @@ export function InventoryAgent() {
             // Exclude services from low stock alerts
             const serviceCategories = ['consultation', 'project', 'retainer', 'training', 'support', 'package', 'treatment', 'haircut', 'styling', 'coloring', 'spa', 'bridal', 'barbering', 'consultation_fee', 'lab_test', 'procedure', 'vaccination', 'repair', 'maintenance', 'diagnostics', 'service', 'services', 'maintenance_service'];
             const isService = (item as any).item_type === 'service' || serviceCategories.includes(item.category || '');
-            return !isService && item.current_stock < (item.reorder_level || 10);
+            return !item.is_archived && !isService && item.current_stock < (item.reorder_level || 10);
           }
         )
       );
@@ -184,39 +189,63 @@ export function InventoryAgent() {
     setIsRestockModalOpen(true);
   };
 
-  const handleDeleteClick = (id: string) => {
-    setItemToDelete(id);
-    setDeleteDialogOpen(true);
+  const openArchiveDialog = (item: InventoryItem) => {
+    setItemToRestore(null);
+    setItemToArchive(item);
+    setArchiveDialogOpen(true);
   };
 
-  const handleDeleteConfirm = async () => {
-    if (!itemToDelete) return;
+  const openRestoreDialog = (item: InventoryItem) => {
+    setItemToArchive(null);
+    setItemToRestore(item);
+    setArchiveDialogOpen(true);
+  };
 
+  const handleArchiveOrRestoreConfirm = async () => {
+    if (!tenantId) return;
+    const target = itemToArchive ?? itemToRestore;
+    if (!target) return;
+
+    const nextArchived = Boolean(itemToArchive);
     try {
       const { error } = await supabase
         .from("inventory")
-        .delete()
-        .eq("id", itemToDelete);
+        .update({ is_archived: nextArchived })
+        .eq("id", target.id)
+        .eq("tenant_id", tenantId);
 
       if (error) throw error;
 
       toast({
-        title: "Product Deleted",
-        description: "The product has been removed from inventory",
+        title: nextArchived ? `${terminology.productLabel} Archived` : `${terminology.productLabel} Restored`,
+        description: nextArchived
+          ? `${target.name} has been archived and hidden from sales.`
+          : `${target.name} is active again.`,
       });
       fetchInventory();
-    } catch (error) {
-      console.error("Error deleting product:", error);
+    } catch (error: any) {
+      console.error("Archive/restore error:", error);
       toast({
-        title: "Error",
-        description: "Failed to delete product",
+        title: nextArchived ? "Archive Failed" : "Restore Failed",
+        description: error?.message || "Please try again.",
         variant: "destructive",
       });
     } finally {
-      setDeleteDialogOpen(false);
-      setItemToDelete(null);
+      setArchiveDialogOpen(false);
+      setItemToArchive(null);
+      setItemToRestore(null);
     }
   };
+
+  const inventoryForView = useMemo(
+    () => inventory.filter((item) => (showArchived ? item.is_archived === true : item.is_archived !== true)),
+    [inventory, showArchived]
+  );
+
+  const visibleInventory = useMemo(
+    () => inventoryForView.filter((item) => classFilter === null || (item.inventory_class || 'finished_good') === classFilter),
+    [inventoryForView, classFilter]
+  );
 
   const handleExport = () => {
     // Create CSV content
@@ -281,6 +310,20 @@ export function InventoryAgent() {
             </p>
           </div>
           <div className="flex gap-2">
+            <div className="flex items-center gap-2 mr-2">
+              <Switch
+                id="show-archived"
+                checked={showArchived}
+                onCheckedChange={setShowArchived}
+              />
+              <Label
+                htmlFor="show-archived"
+                className="text-sm text-[#004B8D]/70 cursor-pointer flex items-center gap-1"
+              >
+                {showArchived ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                Show Archived
+              </Label>
+            </div>
             <Button
               variant="outline"
               onClick={() => setIsImportModalOpen(true)}
@@ -344,28 +387,28 @@ export function InventoryAgent() {
             className={`cursor-pointer ${classFilter === null ? "bg-[#004B8D] text-white" : "hover:bg-[#004B8D]/10"}`}
             onClick={() => setClassFilter(null)}
           >
-            All ({inventory.length})
+            {showArchived ? `Archived` : `All`} ({inventoryForView.length})
           </Badge>
           <Badge
             variant={classFilter === "finished_good" ? "default" : "outline"}
             className={`cursor-pointer ${classFilter === "finished_good" ? "bg-[#004B8D] text-white" : "hover:bg-[#004B8D]/10"}`}
             onClick={() => setClassFilter("finished_good")}
           >
-            📦 Products ({inventory.filter(i => (i.inventory_class || 'finished_good') === 'finished_good').length})
+            📦 Products ({inventoryForView.filter(i => (i.inventory_class || 'finished_good') === 'finished_good').length})
           </Badge>
           <Badge
             variant={classFilter === "raw_material" ? "default" : "outline"}
             className={`cursor-pointer ${classFilter === "raw_material" ? "bg-purple-600 text-white" : "hover:bg-purple-50"}`}
             onClick={() => setClassFilter("raw_material")}
           >
-            🧵 Materials ({inventory.filter(i => i.inventory_class === 'raw_material').length})
+            🧵 Materials ({inventoryForView.filter(i => i.inventory_class === 'raw_material').length})
           </Badge>
           <Badge
             variant={classFilter === "consumable" ? "default" : "outline"}
             className={`cursor-pointer ${classFilter === "consumable" ? "bg-gray-600 text-white" : "hover:bg-gray-50"}`}
             onClick={() => setClassFilter("consumable")}
           >
-            📋 Consumables ({inventory.filter(i => i.inventory_class === 'consumable').length})
+            📋 Consumables ({inventoryForView.filter(i => i.inventory_class === 'consumable').length})
           </Badge>
         </div>
 
@@ -411,9 +454,7 @@ export function InventoryAgent() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {inventory
-                    .filter(item => classFilter === null || (item.inventory_class || 'finished_good') === classFilter)
-                    .map((item) => (
+                  {visibleInventory.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell className="font-mono text-sm">{item.sku}</TableCell>
                       <TableCell>
@@ -505,14 +546,27 @@ export function InventoryAgent() {
                           >
                             <Pencil className="w-4 h-4" />
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDeleteClick(item.id)}
-                            className="text-red-500 hover:bg-red-50"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          {item.is_archived ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => openRestoreDialog(item)}
+                              className="text-[#004B8D] hover:bg-[#004B8D]/10"
+                              title="Restore"
+                            >
+                              <ArchiveRestore className="w-4 h-4" />
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => openArchiveDialog(item)}
+                              className="text-[#004B8D] hover:bg-[#004B8D]/10"
+                              title="Archive"
+                            >
+                              <Archive className="w-4 h-4" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -561,21 +615,25 @@ export function InventoryAgent() {
           currencySymbol={currencySymbol}
         />
 
-        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialog open={archiveDialogOpen} onOpenChange={setArchiveDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete {terminology.productLabel}?</AlertDialogTitle>
+              <AlertDialogTitle>
+                {itemToArchive ? `Archive ${terminology.productLabel}?` : `Restore ${terminology.productLabel}?`}
+              </AlertDialogTitle>
               <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete the {terminology.productLabel.toLowerCase()} and all associated variants.
+                {itemToArchive
+                  ? `This will hide the ${terminology.productLabel.toLowerCase()} from sales and inventory pickers, but keep your history. You can restore it later.`
+                  : `This will make the ${terminology.productLabel.toLowerCase()} active again and available for sales.`}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
-                onClick={handleDeleteConfirm}
-                className="bg-red-500 hover:bg-red-600"
+                onClick={handleArchiveOrRestoreConfirm}
+                className="bg-[#004B8D] hover:bg-[#003366]"
               >
-                Delete
+                {itemToArchive ? "Archive" : "Restore"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
