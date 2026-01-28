@@ -1,252 +1,239 @@
 
 
-# Asset Management Module Implementation Plan
+# Collaborative Custom Order Workflow
+## Admin & Operations Officer Handoff System
+
+---
 
 ## Overview
-This plan details the implementation of a full **Asset Management** module for the Omanut BMS. The module will track company fixed assets (IT equipment, vehicles, machinery, furniture), calculate depreciation using industry-standard methods, and integrate with the existing Accounts module for financial reporting.
+
+This feature enables **role-based collaboration** on the 7-step Custom Order wizard. An **Admin** can start an order and specify at which step an **Operations Officer** should take over, creating a clear division of labor:
+
+- **Admin**: Handles client intake, pricing, and sign-off (business-facing steps)
+- **Operations Officer**: Handles technical work (measurements, production, QC)
 
 ---
 
-## 1. Database Schema
-
-### Table: `assets`
-Stores the master record for each fixed asset.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Primary key |
-| `tenant_id` | UUID | Links to tenants table (RLS enforced) |
-| `name` | TEXT | Asset name (e.g., "Dell Laptop - Finance") |
-| `description` | TEXT | Optional notes |
-| `category` | TEXT | One of: 'IT', 'Vehicles', 'Machinery', 'Furniture', 'Buildings', 'Other' |
-| `purchase_date` | DATE | When the asset was acquired |
-| `purchase_cost` | NUMERIC | Original cost in ZMW |
-| `depreciation_method` | TEXT | 'straight_line' or 'reducing_balance' |
-| `useful_life_years` | INTEGER | Expected lifespan (e.g., 5 years) |
-| `salvage_value` | NUMERIC | Residual value at end of life |
-| `status` | TEXT | 'active', 'disposed', 'fully_depreciated' |
-| `disposal_date` | DATE | When disposed (if applicable) |
-| `disposal_value` | NUMERIC | Sale/scrap value on disposal |
-| `serial_number` | TEXT | Optional serial/tag number |
-| `location` | TEXT | Physical location |
-| `assigned_to` | TEXT | Employee or department |
-| `image_url` | TEXT | Photo of the asset |
-| `created_at` | TIMESTAMPTZ | Record creation time |
-| `updated_at` | TIMESTAMPTZ | Last modification time |
-
-### Table: `asset_logs`
-Audit trail for asset changes (revaluations, transfers, maintenance).
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Primary key |
-| `asset_id` | UUID | References assets(id) |
-| `tenant_id` | UUID | For RLS |
-| `action` | TEXT | 'created', 'updated', 'depreciation_run', 'disposed', 'transferred' |
-| `old_value` | JSONB | Previous state (for updates) |
-| `new_value` | JSONB | New state |
-| `notes` | TEXT | Optional description |
-| `performed_by` | UUID | User who made the change |
-| `created_at` | TIMESTAMPTZ | When the action occurred |
-
-### RLS Policies
-Both tables will have RLS enabled with policies:
-- **SELECT**: `user_belongs_to_tenant(tenant_id)`
-- **INSERT**: `user_belongs_to_tenant(tenant_id)`
-- **UPDATE**: `is_tenant_admin_or_manager(tenant_id)`
-- **DELETE**: `is_tenant_admin(tenant_id)`
-
-### Indexes
-- `idx_assets_tenant_id` on `assets(tenant_id)`
-- `idx_assets_status` on `assets(tenant_id, status)`
-- `idx_asset_logs_asset_id` on `asset_logs(asset_id)`
-
----
-
-## 2. Depreciation Calculation Logic
-
-### TypeScript Utility: `calculateDepreciation(asset)`
+## How It Works
 
 ```text
-+------------------------------------------+
-|         calculateDepreciation()           |
-+------------------------------------------+
-| Input: asset object                       |
-|                                          |
-| Returns:                                  |
-|   - accumulatedDepreciation: number      |
-|   - netBookValue: number                 |
-|   - monthlyDepreciation: number          |
-|   - percentDepreciated: number           |
-|   - yearsRemaining: number               |
-+------------------------------------------+
-```
-
-### Formulas
-
-**Straight-Line Method:**
-```
-Annual Depreciation = (Purchase Cost - Salvage Value) / Useful Life Years
-Monthly Depreciation = Annual Depreciation / 12
-Accumulated = Annual Depreciation × Years Elapsed
-NBV = Purchase Cost - Accumulated Depreciation
-```
-
-**Reducing Balance Method (20% rate):**
-```
-Year 1 NBV = Purchase Cost × (1 - 0.20)
-Year N NBV = Previous Year NBV × (1 - 0.20)
-Monthly = (Previous NBV - Current NBV) / 12
-```
-
-The utility will be placed in `src/lib/asset-depreciation.ts`.
-
----
-
-## 3. UI Components
-
-### 3.1 Assets Manager (`AssetsManager.tsx`)
-Main container component with tabs:
-
-| Tab | Content |
-|-----|---------|
-| **Dashboard** | Summary cards + alerts |
-| **Registry** | Searchable table of all assets |
-| **Disposal** | Disposed assets history |
-
-### 3.2 Asset Dashboard Cards
-Three summary cards:
-
-| Card | Color | Data |
-|------|-------|------|
-| **Total Assets** | Blue | Count of active assets |
-| **Net Book Value** | Green | Sum of all current NBVs |
-| **Upcoming Depreciation** | Amber | Assets depreciating this month |
-
-### 3.3 Asset Registry Table
-Columns: Name, Category, Purchase Date, Purchase Cost, NBV, Status, Actions
-- **Search**: By name, category, serial number
-- **Filter**: By category, status
-- **Actions**: View, Edit, Calculate Depreciation, Dispose
-
-### 3.4 Add/Edit Asset Modal (`AssetModal.tsx`)
-Multi-step dialog with validation:
-
-**Step 1 - Basic Info:**
-- Name (required)
-- Category (select: IT, Vehicles, Machinery, Furniture, Buildings, Other)
-- Serial Number
-- Description
-
-**Step 2 - Financial Details:**
-- Purchase Date (required, must be past/today)
-- Purchase Cost (required, > 0)
-- Salvage Value (default: 0)
-- Useful Life Years (required, 1-50)
-- Depreciation Method (select)
-
-**Step 3 - Assignment:**
-- Location
-- Assigned To
-- Photo Upload
-
-### 3.5 Depreciation Calculator Modal
-Shows detailed breakdown for a single asset:
-- Annual/monthly depreciation amounts
-- Depreciation schedule table by year
-- Visual progress bar of depreciation
-
-### 3.6 CSV Export
-Button to download the full asset register as CSV with columns:
-`Name, Category, Serial Number, Purchase Date, Purchase Cost, Depreciation Method, Useful Life, Salvage Value, Current NBV, Status`
-
----
-
-## 4. Integration Points
-
-### 4.1 Navigation
-Add "Assets" to the **Sales & Finance** category in sidebar:
-- Icon: `Landmark` from lucide-react
-- Position: After "Accounts"
-- Feature flag: Core module (always available, or tied to `advanced_accounting`)
-
-### 4.2 Role Access
-Add "assets" to `ModuleKey` and grant access to:
-- admin, manager, accountant, operations_manager
-
-### 4.3 Dashboard Type
-Add `"assets"` to the `DashboardTab` union type.
-
-### 4.4 Accounts Integration
-Add an "Assets" tab inside the Accounts Agent that shows:
-- Quick summary of total asset value
-- Link to full Asset Manager
-
-### 4.5 Currency Formatting
-All monetary values will use `currencySymbol` from `useFeatures()` or `useBusinessConfig()`:
-```tsx
-{currencySymbol} {value.toLocaleString()}
-// Example: K 1,250.00
+┌─────────────────────────────────────────────────────────────────┐
+│                    CUSTOM ORDER WORKFLOW                         │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Step 1: Client Info      → Admin fills client details          │
+│  Step 2: Work Details     → Admin sets dates & scheduling       │
+│  Step 3: Design Details   → Admin captures design requirements  │
+│                           ▼                                      │
+│              ┌────────────────────────┐                         │
+│              │   HANDOFF POINT        │  ← Admin chooses here   │
+│              │   (after step 3)       │                         │
+│              └────────────────────────┘                         │
+│                           ▼                                      │
+│  Step 4: Measurements     → Operations Officer takes over       │
+│  Step 5: Sketches & Refs  → Operations Officer continues        │
+│  Step 6: Smart Pricing    → Could go back to Admin              │
+│  Step 7: Review & Sign    → Admin signs off                     │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 5. Files to Create
+## Database Changes
+
+Add new columns to `custom_orders` table:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `handoff_step` | INTEGER | Step number (0-6) where Operations takes over |
+| `handoff_status` | TEXT | 'pending_handoff', 'in_progress', 'handed_back', 'completed' |
+| `assigned_operations_user_id` | UUID | The Operations Officer assigned |
+| `handed_off_at` | TIMESTAMPTZ | When the handoff occurred |
+| `handed_back_at` | TIMESTAMPTZ | When Ops returned to Admin |
+| `handoff_notes` | TEXT | Notes from Admin to Ops |
+
+---
+
+## User Experience
+
+### For Admin (Starting a New Order)
+
+1. Admin creates a new custom order via the wizard
+2. **New handoff configuration panel** appears (collapsible):
+   - Toggle: "Enable Operations Handoff"
+   - Select: "Handoff after step: [Dropdown]"
+   - Select: "Assign to: [Operations Officers list]"
+   - Textarea: "Notes for Operations"
+3. Admin completes steps up to the handoff point
+4. Saves order with status `pending_handoff`
+5. Operations Officer is notified (visual badge in their dashboard)
+
+### For Operations Officer (Continuing the Order)
+
+1. Sees orders assigned to them in a **"My Assigned Orders"** section
+2. Badge shows which step to start from
+3. Opens the wizard in "continuation mode":
+   - Previous steps are **read-only** (can view but not edit)
+   - Current step onwards are editable
+4. Completes their assigned steps (e.g., Measurements, Sketches)
+5. Option: "Hand back to Admin" or "Continue to next step"
+
+### Handoff Statuses
+
+| Status | Badge Color | Description |
+|--------|-------------|-------------|
+| `pending_handoff` | Amber | Admin saved, waiting for Ops |
+| `in_progress` | Blue | Ops is working on it |
+| `handed_back` | Purple | Ops returned to Admin |
+| `completed` | Green | Order confirmed |
+
+---
+
+## UI Components
+
+### 1. HandoffConfigPanel (New Component)
+Located within the wizard, allows Admin to configure handoff:
+- Enable/disable handoff
+- Select handoff step (Client Info, Work Details, Design, Measurements, Sketches, Pricing)
+- Assign Operations Officer (filtered to `operations_manager` role)
+- Add notes
+
+### 2. Wizard Modifications
+- **Step indicator**: Shows handoff point with a visual marker
+- **Read-only mode**: Lock completed steps when viewing as Ops
+- **Continuation banner**: "Continuing from Step X - Assigned by [Admin Name]"
+
+### 3. CustomOrdersManager Enhancements
+- New filter: "My Assignments" (for Ops role)
+- Badge overlay showing handoff status
+- Quick action: "Continue Order" button
+
+### 4. Notification Card
+- Visual notification for Operations Officers
+- Shows pending assignments count
+- Links directly to assigned order
+
+---
+
+## Files to Create
 
 | File | Purpose |
 |------|---------|
-| `src/lib/asset-depreciation.ts` | Depreciation calculation utility |
-| `src/components/dashboard/AssetsManager.tsx` | Main assets module |
-| `src/components/dashboard/AssetModal.tsx` | Add/Edit asset dialog |
-| `src/components/dashboard/AssetDepreciationModal.tsx` | Depreciation detail view |
-| Migration SQL | Create tables with RLS |
+| `src/components/dashboard/HandoffConfigPanel.tsx` | Handoff configuration UI |
+| `src/components/dashboard/AssignedOrdersSection.tsx` | Ops view of assigned orders |
 
 ---
 
-## 6. Files to Modify
+## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/pages/Dashboard.tsx` | Add "assets" case, import AssetsManager |
-| `src/components/dashboard/DashboardSidebar.tsx` | Add assets menu item |
-| `src/lib/role-config.ts` | Add "assets" to ModuleKey and role access |
-| `src/components/dashboard/AccountsAgent.tsx` | Add Assets summary tab |
+| `src/components/dashboard/CustomDesignWizard.tsx` | Add handoff config, read-only mode, continuation banner |
+| `src/components/dashboard/CustomOrdersManager.tsx` | Add filter for assignments, handoff badges |
+| `src/integrations/supabase/types.ts` | (Auto-generated after migration) |
+| Migration SQL | Add handoff columns |
 
 ---
 
-## 7. Testing Checklist
+## Role-Based Access Logic
 
-After implementation:
-1. Create a new asset with Straight-Line depreciation
-2. Verify NBV calculation matches expected formula
-3. Create an asset with Reducing Balance method
-4. Verify depreciation schedule displays correctly
-5. Test CSV export downloads with all assets
-6. Verify only Admin/Manager can edit/delete assets
-7. Test disposal workflow updates status correctly
-8. Confirm all values show "K" currency formatting
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│                     PERMISSION MATRIX                            │
+├─────────────────┬───────────────────────────────────────────────┤
+│     Action      │  Admin  │ Manager │ Ops Manager │ Other       │
+├─────────────────┼─────────┼─────────┼─────────────┼─────────────┤
+│ Create Order    │   ✓     │    ✓    │      ✓      │    -        │
+│ Configure Handoff│   ✓     │    ✓    │      -      │    -        │
+│ Assign Ops User │   ✓     │    ✓    │      -      │    -        │
+│ Complete Ops Steps│   ✓   │    ✓    │      ✓      │    -        │
+│ Hand Back to Admin│   -   │    -    │      ✓      │    -        │
+│ Final Sign-off  │   ✓     │    ✓    │      -      │    -        │
+└─────────────────┴─────────┴─────────┴─────────────┴─────────────┘
+```
 
 ---
 
-## 8. Sample Depreciation Output
+## Handoff Step Options
 
-For a K 10,000 asset with 5-year life and K 1,000 salvage:
+Admin can choose to hand off after any of these steps:
 
-**Straight-Line:**
-```
-Annual Depreciation: K 1,800
-Monthly Depreciation: K 150
-After 2 Years:
-  - Accumulated: K 3,600
-  - NBV: K 6,400
+| Handoff After | Ops Starts At | Use Case |
+|---------------|---------------|----------|
+| Client Info (1) | Work Details (2) | Ops handles everything technical |
+| Work Details (2) | Design Details (3) | Ops captures design requirements |
+| Design Details (3) | Measurements (4) | **Most common** - Ops takes measurements |
+| Measurements (4) | Sketches (5) | Ops only does sketches |
+| Sketches (5) | Pricing (6) | Ops finalizes pricing (rare) |
+
+---
+
+## Workflow States
+
+```text
+Order Created (Draft)
+       │
+       ▼
+   [Admin fills steps 1-N]
+       │
+       ▼
+   pending_handoff ────────► [Ops notified]
+       │
+       ▼
+   in_progress ◄────────────── [Ops picks up]
+       │
+       ├──► [Ops completes all steps] ──► confirmed (normal flow)
+       │
+       └──► [Ops hands back] ──► handed_back
+                                    │
+                                    ▼
+                              [Admin reviews]
+                                    │
+                                    ▼
+                                confirmed
 ```
 
-**Reducing Balance (20%):**
+---
+
+## Technical Details
+
+### Fetching Operations Officers
+Query `tenant_users` where `role = 'operations_manager'`:
+```typescript
+const { data: opsUsers } = await supabase
+  .from('tenant_users')
+  .select('user_id, profiles(full_name)')
+  .eq('tenant_id', tenantId)
+  .eq('role', 'operations_manager');
 ```
-Year 1: K 10,000 → K 8,000 (K 2,000 depreciation)
-Year 2: K 8,000 → K 6,400 (K 1,600 depreciation)
-After 2 Years:
-  - Accumulated: K 3,600
-  - NBV: K 6,400
+
+### Read-Only Step Detection
+```typescript
+const isStepReadOnly = (stepIndex: number) => {
+  if (!order.handoff_step) return false;
+  if (role === 'operations_manager') {
+    // Ops can't edit steps before handoff
+    return stepIndex < order.handoff_step;
+  }
+  if (order.handoff_status === 'in_progress' && isAdmin) {
+    // Admin can't edit while Ops is working
+    return stepIndex >= order.handoff_step;
+  }
+  return false;
+};
 ```
+
+---
+
+## Testing Checklist
+
+1. Admin creates order, enables handoff after Step 3
+2. Assign to an Operations Officer
+3. Verify Ops sees the order in "My Assignments"
+4. Ops opens order, Steps 1-3 are read-only
+5. Ops completes Steps 4-5, hands back
+6. Admin sees order in "Handed Back" state
+7. Admin completes Step 6-7, signs off
+8. Order status changes to `confirmed`
 
