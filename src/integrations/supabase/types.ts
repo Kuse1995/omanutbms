@@ -1298,6 +1298,7 @@ export type Database = {
         Row: {
           actual_collection_date: string | null
           appointment_date: string | null
+          assigned_operations_user_id: string | null
           assigned_tailor_id: string | null
           assigned_to: string | null
           branch_id: string | null
@@ -1322,6 +1323,11 @@ export type Database = {
           final_cost: number | null
           fitting_date: string | null
           generated_images: Json | null
+          handed_back_at: string | null
+          handed_off_at: string | null
+          handoff_notes: string | null
+          handoff_status: string | null
+          handoff_step: number | null
           id: string
           invoice_id: string | null
           is_demo: boolean | null
@@ -1352,6 +1358,7 @@ export type Database = {
         Insert: {
           actual_collection_date?: string | null
           appointment_date?: string | null
+          assigned_operations_user_id?: string | null
           assigned_tailor_id?: string | null
           assigned_to?: string | null
           branch_id?: string | null
@@ -1376,6 +1383,11 @@ export type Database = {
           final_cost?: number | null
           fitting_date?: string | null
           generated_images?: Json | null
+          handed_back_at?: string | null
+          handed_off_at?: string | null
+          handoff_notes?: string | null
+          handoff_status?: string | null
+          handoff_step?: number | null
           id?: string
           invoice_id?: string | null
           is_demo?: boolean | null
@@ -1406,6 +1418,7 @@ export type Database = {
         Update: {
           actual_collection_date?: string | null
           appointment_date?: string | null
+          assigned_operations_user_id?: string | null
           assigned_tailor_id?: string | null
           assigned_to?: string | null
           branch_id?: string | null
@@ -1430,6 +1443,11 @@ export type Database = {
           final_cost?: number | null
           fitting_date?: string | null
           generated_images?: Json | null
+          handed_back_at?: string | null
+          handed_off_at?: string | null
+          handoff_notes?: string | null
+          handoff_status?: string | null
+          handoff_step?: number | null
           id?: string
           invoice_id?: string | null
           is_demo?: boolean | null

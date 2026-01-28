@@ -16,7 +16,9 @@ import {
   Briefcase,
   Clock,
   Calendar,
-  Save
+  Save,
+  ArrowRightLeft,
+  RotateCcw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,12 +29,14 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
+import { useAuth } from "@/hooks/useAuth";
 import { GarmentMeasurementsForm, type GarmentMeasurements, isGarmentCategoryComplete, getMissingMeasurements, getDefaultTab } from "./GarmentMeasurementsForm";
 import { MaterialSelector, type MaterialItem } from "./MaterialSelector";
 import { LaborEstimator, type SkillLevel } from "./LaborEstimator";
 import { PricingBreakdown, calculateQuote } from "./PricingBreakdown";
 import { SketchUploader } from "./SketchUploader";
 import { CustomerSignaturePad } from "./CustomerSignaturePad";
+import { HandoffConfigPanel, type HandoffConfig } from "./HandoffConfigPanel";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 
@@ -40,6 +44,8 @@ interface CustomDesignWizardProps {
   open: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  editOrderId?: string | null; // For continuing an order
+  isOperationsContinuation?: boolean; // If Ops is picking up a handoff
 }
 
 const WIZARD_STEPS = [
@@ -78,14 +84,27 @@ const FABRIC_TYPES = [
   'Customer Provided',
 ];
 
-export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWizardProps) {
+export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOperationsContinuation }: CustomDesignWizardProps) {
   const { toast } = useToast();
-  const { tenantId } = useTenant();
+  const { tenantId, tenantUser } = useTenant();
+  const { user, isAdmin } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [existingOrderData, setExistingOrderData] = useState<any>(null);
 
+  // Handoff configuration
+  const [handoffConfig, setHandoffConfig] = useState<HandoffConfig>({
+    enabled: false,
+    handoffStep: 2, // Default: after Design Details
+    assignedUserId: null,
+    notes: '',
+  });
+
+  // Check if current user can configure handoff (admin/manager only)
+  const canConfigureHandoff = tenantUser?.role === 'admin' || tenantUser?.role === 'manager';
+  const isOperationsRole = tenantUser?.role === 'operations_manager';
   // Form state - Updated with Dodo Wear form fields
   const [formData, setFormData] = useState({
     // Client Info (Step 1)
@@ -202,6 +221,25 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
     const completedSteps = stepCompletionStatus.filter(Boolean).length;
     return Math.round((completedSteps / WIZARD_STEPS.length) * 100);
   }, [stepCompletionStatus]);
+
+  // Determine if a step should be read-only (for handoff continuation)
+  const isStepReadOnly = (stepIndex: number): boolean => {
+    if (!existingOrderData?.handoff_step) return false;
+    
+    // If user is Operations and viewing an order with handoff
+    if (isOperationsContinuation && isOperationsRole) {
+      // Ops can't edit steps before their handoff point
+      return stepIndex <= existingOrderData.handoff_step;
+    }
+    
+    // If Admin viewing an order that's with Ops
+    if (existingOrderData.handoff_status === 'in_progress' && canConfigureHandoff) {
+      // Admin can't edit steps at/after handoff while Ops is working
+      return stepIndex > existingOrderData.handoff_step;
+    }
+    
+    return false;
+  };
 
   const handleNext = () => {
     const { valid, errors } = validateStep(currentStep);
@@ -329,6 +367,15 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
         collection_date: formData.collectionDate || null,
         collection_time: formData.collectionTime || null,
         tag_material: formData.tagMaterial || null,
+        // Handoff fields
+        ...(handoffConfig.enabled && handoffConfig.assignedUserId ? {
+          handoff_step: handoffConfig.handoffStep,
+          handoff_status: 'pending_handoff',
+          assigned_operations_user_id: handoffConfig.assignedUserId,
+          handed_off_at: new Date().toISOString(),
+          handoff_notes: handoffConfig.notes || null,
+        } : {}),
+        created_by: user?.id,
       };
       
       const { error } = await supabase
@@ -454,6 +501,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
         collection_date: formData.collectionDate || null,
         collection_time: formData.collectionTime || null,
         tag_material: formData.tagMaterial || null,
+        created_by: user?.id,
       };
       
       const { data: orderData, error } = await supabase
@@ -674,6 +722,15 @@ export function CustomDesignWizard({ open, onClose, onSuccess }: CustomDesignWiz
                 <li>Express orders may have limited scheduling flexibility</li>
               </ul>
             </div>
+
+            {/* Handoff Configuration - Only for Admin/Manager */}
+            {canConfigureHandoff && !isOperationsContinuation && (
+              <HandoffConfigPanel
+                config={handoffConfig}
+                onChange={setHandoffConfig}
+                disabled={false}
+              />
+            )}
           </div>
         );
 
