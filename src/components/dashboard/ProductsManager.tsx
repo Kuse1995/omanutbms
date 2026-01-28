@@ -141,89 +141,101 @@ export function ProductsManager() {
 
     try {
       const productId = productToDelete.id;
-      const errors: string[] = [];
+      const criticalErrors: string[] = [];
       
-      // Helper to safely delete/update and log errors
-      const safeDelete = async (table: string, column: string, value: string) => {
-        const { error } = await supabase.from(table as any).delete().eq(column, value);
-        if (error) {
-          console.warn(`[Delete] ${table}: ${error.message}`);
-          errors.push(`${table}: ${error.message}`);
+      console.log(`[ProductDelete] Starting deletion of product ${productId}`);
+      
+      // Helper to safely delete records
+      const safeDelete = async (table: string, column: string, value: string, addTenant = true) => {
+        try {
+          let query = supabase.from(table as any).delete().eq(column, value);
+          if (addTenant) {
+            query = query.eq("tenant_id", tenantId);
+          }
+          const { error, count } = await query;
+          if (error) {
+            console.warn(`[Delete] ${table}: ${error.message}`);
+          } else {
+            console.log(`[Delete] ${table}: success`);
+          }
+        } catch (e: any) {
+          console.warn(`[Delete] ${table}: ${e.message}`);
         }
       };
       
-      const safeNullify = async (table: string, column: string, value: string) => {
-        const { error } = await supabase.from(table as any).update({ [column]: null }).eq(column, value);
-        if (error) {
-          console.warn(`[Nullify] ${table}.${column}: ${error.message}`);
-          errors.push(`${table}: ${error.message}`);
+      // Helper to nullify FK references - CRITICAL for deletion
+      const safeNullify = async (table: string, column: string, value: string, addTenant = true): Promise<boolean> => {
+        try {
+          let query = supabase.from(table as any).update({ [column]: null } as any).eq(column, value);
+          if (addTenant) {
+            query = query.eq("tenant_id", tenantId);
+          }
+          const { error, count } = await query;
+          if (error) {
+            console.warn(`[Nullify] ${table}.${column}: ${error.message}`);
+            return false;
+          }
+          console.log(`[Nullify] ${table}.${column}: success`);
+          return true;
+        } catch (e: any) {
+          console.warn(`[Nullify] ${table}.${column}: ${e.message}`);
+          return false;
         }
       };
       
-      // Delete child records first to avoid FK constraint violations
-      // Order matters: children before parents
-      
-      // 1. Delete product variants
+      // === STEP 1: Delete direct child records (no FK pointing TO them) ===
+      console.log("[ProductDelete] Step 1: Deleting child records...");
       await safeDelete("product_variants", "product_id", productId);
-      
-      // 2. Delete branch inventory records
       await safeDelete("branch_inventory", "inventory_id", productId);
-      
-      // 3. Delete stock transfers involving this product (or nullify if column nullable)
-      await safeNullify("stock_transfers", "inventory_id", productId);
-      
-      // 4. Delete restock history
       await safeDelete("restock_history", "inventory_id", productId);
-      
-      // 5. Delete inventory adjustments
       await safeDelete("inventory_adjustments", "inventory_id", productId);
-      
-      // 6. Delete job material usage
       await safeDelete("job_material_usage", "inventory_item_id", productId);
       
-      // 7. Nullify references in agent_inventory (preserve agent records)
-      await safeNullify("agent_inventory", "product_id", productId);
+      // === STEP 2: Nullify ALL FK references to this inventory item ===
+      console.log("[ProductDelete] Step 2: Nullifying FK references...");
       
-      // 8. Nullify references in sale_items (preserve sales history)
-      await safeNullify("sale_items", "inventory_id", productId);
+      // Critical FKs that must be nullified for deletion to succeed
+      const nullifyResults = await Promise.all([
+        safeNullify("sale_items", "inventory_id", productId),
+        safeNullify("stock_transfers", "inventory_id", productId),
+        safeNullify("agent_inventory", "product_id", productId),
+        safeNullify("sales_transactions", "product_id", productId),
+        safeNullify("invoice_items", "product_id", productId),
+        safeNullify("quotation_items", "product_id", productId),
+        safeNullify("purchase_order_items", "inventory_id", productId),
+        safeNullify("inventory_movements", "inventory_id", productId),
+      ]);
       
-      // 9. Nullify references in sales_transactions (preserve transaction history)
-      await safeNullify("sales_transactions", "product_id", productId);
-      
-      // 10. Nullify references in invoice_items (preserve invoice history)
-      await safeNullify("invoice_items", "product_id", productId);
-      
-      // 11. Nullify references in quotation_items (preserve quotation history)
-      await safeNullify("quotation_items", "product_id", productId);
+      // Check if any critical nullify failed
+      const allNullified = nullifyResults.every(r => r !== false);
+      if (!allNullified) {
+        console.warn("[ProductDelete] Some FK references could not be nullified, attempting deletion anyway...");
+      }
 
-      // Finally delete the inventory item itself
+      // === STEP 3: Delete the inventory item ===
+      console.log("[ProductDelete] Step 3: Deleting inventory item...");
       const { error } = await supabase
         .from("inventory")
         .delete()
-        .eq("id", productId);
+        .eq("id", productId)
+        .eq("tenant_id", tenantId);
 
       if (error) {
-        console.error("Failed to delete inventory item:", error);
+        console.error("[ProductDelete] Failed to delete inventory item:", error);
         throw new Error(error.message);
       }
 
-      if (errors.length > 0) {
-        toast({
-          title: `${terminology.product} Deleted (with warnings)`,
-          description: `${productToDelete.name} removed. Some related records may remain.`,
-        });
-      } else {
-        toast({
-          title: `${terminology.product} Deleted`,
-          description: `${productToDelete.name} has been removed`,
-        });
-      }
+      console.log("[ProductDelete] Deletion successful!");
+      toast({
+        title: `${terminology.product} Deleted`,
+        description: `${productToDelete.name} has been removed`,
+      });
       fetchProducts();
     } catch (error: any) {
-      console.error("Error deleting product:", error);
+      console.error("[ProductDelete] Error:", error);
       toast({
         title: "Cannot Delete Item",
-        description: error.message || `Failed to delete ${terminology.product.toLowerCase()}. It may be linked to other records.`,
+        description: `Failed to delete. Error: ${error.message || "Unknown error"}`,
         variant: "destructive",
       });
     } finally {
