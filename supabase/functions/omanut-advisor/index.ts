@@ -448,7 +448,6 @@ When analyzing complex business questions, use step-by-step reasoning to provide
           ...messages,
         ],
         stream: true,
-        temperature: 0.6,
       }),
     });
 
