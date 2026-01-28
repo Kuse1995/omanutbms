@@ -4,7 +4,7 @@ import {
   MessageSquare, Globe, ShoppingCart, Store, Heart, Receipt, Mail, Building2, 
   Layers, Crown, LogOut, Truck, GraduationCap, Briefcase, GitBranch, RotateCcw, 
   Scissors, UserCircle, Shirt, Warehouse, ArrowLeftRight, MapPin, Factory, 
-  ChevronDown, type LucideIcon 
+  ChevronDown, Landmark, type LucideIcon 
 } from "lucide-react";
 import {
   Sidebar,
@@ -87,6 +87,7 @@ const iconMap: Record<string, LucideIcon> = {
   ArrowLeftRight,
   MapPin,
   Factory,
+  Landmark,
 };
 
 // Category definitions for organized navigation
@@ -95,7 +96,7 @@ const menuCategories: MenuCategory[] = [
     id: 'sales-finance',
     label: 'Sales & Finance',
     icon: DollarSign,
-    items: ['sales', 'receipts', 'accounts'],
+    items: ['sales', 'receipts', 'accounts', 'assets'],
   },
   {
     id: 'inventory-stock',
@@ -136,6 +137,7 @@ const baseMenuItems: MenuItem[] = [
   { id: "sales", title: "Sales", icon: ShoppingCart, feature: null, dynamicTitle: 'sales' },
   { id: "receipts", title: "Receipts", icon: Receipt, feature: null },
   { id: "accounts", title: "Accounts", icon: DollarSign, feature: null },
+  { id: "assets", title: "Assets", icon: Landmark, feature: null },
   { id: "hr", title: "HR & Payroll", icon: Users, feature: 'payroll' },
   { id: "agents", title: "Agents", icon: Users, feature: 'agents' },
   { id: "inventory", title: "Inventory", icon: Package, feature: 'inventory', dynamicTitle: 'inventory' },

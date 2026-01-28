@@ -376,6 +376,131 @@ export type Database = {
           },
         ]
       }
+      asset_logs: {
+        Row: {
+          action: string
+          asset_id: string
+          created_at: string
+          id: string
+          new_value: Json | null
+          notes: string | null
+          old_value: Json | null
+          performed_by: string | null
+          tenant_id: string
+        }
+        Insert: {
+          action: string
+          asset_id: string
+          created_at?: string
+          id?: string
+          new_value?: Json | null
+          notes?: string | null
+          old_value?: Json | null
+          performed_by?: string | null
+          tenant_id: string
+        }
+        Update: {
+          action?: string
+          asset_id?: string
+          created_at?: string
+          id?: string
+          new_value?: Json | null
+          notes?: string | null
+          old_value?: Json | null
+          performed_by?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_logs_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asset_logs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assets: {
+        Row: {
+          assigned_to: string | null
+          category: string
+          created_at: string
+          depreciation_method: string
+          description: string | null
+          disposal_date: string | null
+          disposal_value: number | null
+          id: string
+          image_url: string | null
+          location: string | null
+          name: string
+          purchase_cost: number
+          purchase_date: string
+          salvage_value: number
+          serial_number: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+          useful_life_years: number
+        }
+        Insert: {
+          assigned_to?: string | null
+          category: string
+          created_at?: string
+          depreciation_method?: string
+          description?: string | null
+          disposal_date?: string | null
+          disposal_value?: number | null
+          id?: string
+          image_url?: string | null
+          location?: string | null
+          name: string
+          purchase_cost?: number
+          purchase_date: string
+          salvage_value?: number
+          serial_number?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          useful_life_years?: number
+        }
+        Update: {
+          assigned_to?: string | null
+          category?: string
+          created_at?: string
+          depreciation_method?: string
+          description?: string | null
+          disposal_date?: string | null
+          disposal_value?: number | null
+          id?: string
+          image_url?: string | null
+          location?: string | null
+          name?: string
+          purchase_cost?: number
+          purchase_date?: string
+          salvage_value?: number
+          serial_number?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          useful_life_years?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assets_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_log: {
         Row: {
           action: string

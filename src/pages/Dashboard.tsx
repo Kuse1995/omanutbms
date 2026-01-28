@@ -28,6 +28,7 @@ import { LocationsManager } from "@/components/dashboard/LocationsManager";
 import { StockTransfersManager } from "@/components/dashboard/StockTransfersManager";
 import { WarehouseView } from "@/components/dashboard/WarehouseView";
 import { ProductionFloor } from "@/components/dashboard/ProductionFloor";
+import { AssetsManager } from "@/components/dashboard/AssetsManager";
 import { useOnboardingTour } from "@/hooks/useOnboardingTour";
 import { useFeatures } from "@/hooks/useFeatures";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
@@ -38,7 +39,7 @@ import { BranchProvider } from "@/hooks/useBranch";
 import { useBranding } from "@/hooks/useBranding";
 import { useApplyTenantBranding } from "@/contexts/BrandingContext";
 
-export type DashboardTab = "dashboard" | "sales" | "receipts" | "accounts" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings" | "tenant-settings" | "modules" | "platform-admin" | "branches" | "returns" | "customers" | "custom-orders" | "warehouse" | "stock-transfers" | "locations" | "production-floor";
+export type DashboardTab = "dashboard" | "sales" | "receipts" | "accounts" | "assets" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings" | "tenant-settings" | "modules" | "platform-admin" | "branches" | "returns" | "customers" | "custom-orders" | "warehouse" | "stock-transfers" | "locations" | "production-floor";
 
 const Dashboard = () => {
   const { layout, loading: configLoading } = useBusinessConfig();
@@ -165,6 +166,8 @@ const Dashboard = () => {
         return <ReceiptsManager />;
       case "accounts":
         return <AccountsAgent />;
+      case "assets":
+        return <AssetsManager />;
       case "hr":
         return <HRAgent />;
       case "inventory":
