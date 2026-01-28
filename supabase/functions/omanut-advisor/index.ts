@@ -14,9 +14,9 @@ serve(async (req) => {
   try {
     const { messages, tenantId, isNewUser, onboardingProgress } = await req.json();
     
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    const MOONSHOT_API_KEY = Deno.env.get("MOONSHOT_API_KEY");
+    if (!MOONSHOT_API_KEY) {
+      throw new Error("MOONSHOT_API_KEY is not configured");
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -431,21 +431,24 @@ How-to response:
 4. Set due date and click 'Save'
 💡 Pro tip: You can convert quotations directly to invoices to save time!"
 
-Never make up data. If you don't have info, just say so naturally. Always be specific when data is available.`;
+Never make up data. If you don't have info, just say so naturally. Always be specific when data is available.
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+When analyzing complex business questions, use step-by-step reasoning to provide thorough insights. Consider multiple angles: financial health, inventory status, customer relationships, and growth opportunities.`;
+
+    const response = await fetch("https://api.moonshot.ai/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${MOONSHOT_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "kimi-k2.5",
         messages: [
           { role: "system", content: systemPrompt },
           ...messages,
         ],
         stream: true,
+        temperature: 0.6,
       }),
     });
 
@@ -456,14 +459,21 @@ Never make up data. If you don't have info, just say so naturally. Always be spe
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      if (response.status === 401) {
+        console.error("Moonshot API authentication failed");
+        return new Response(JSON.stringify({ error: "API authentication error. Please check configuration." }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits needed. Please add funds to continue." }), {
+        return new Response(JSON.stringify({ error: "AI credits needed. Please add funds to your Moonshot account." }), {
           status: 402,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       const text = await response.text();
-      console.error("AI gateway error:", response.status, text);
+      console.error("Kimi API error:", response.status, text);
       return new Response(JSON.stringify({ error: "Couldn't connect to advisor" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
