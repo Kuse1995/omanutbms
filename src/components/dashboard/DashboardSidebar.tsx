@@ -333,6 +333,7 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
                     open={isOpen}
                     onOpenChange={() => toggleCategory(category.id)}
                     className="group/collapsible"
+                    data-tour={`category-${category.id}`}
                   >
                     <SidebarMenuItem>
                       <CollapsibleTrigger asChild>
@@ -383,7 +384,7 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
 
         {/* Admin Section */}
         {isAdmin && (
-          <SidebarGroup className="mt-4">
+          <SidebarGroup className="mt-4" data-tour="admin-section">
             <SidebarGroupLabel className="text-white/50 uppercase text-xs tracking-wider mb-2">
               Admin
             </SidebarGroupLabel>
@@ -392,7 +393,7 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
                 {adminItems
                   .filter(item => !item.requiresMultiBranch || isMultiBranchEnabled)
                   .map((item) => (
-                  <SidebarMenuItem key={item.id}>
+                  <SidebarMenuItem key={item.id} data-tour={item.id === 'modules' ? 'modules-nav' : undefined}>
                     <SidebarMenuButton
                       onClick={() => setActiveTab(item.id)}
                       className={`w-full justify-start gap-3 px-3 py-2.5 rounded-lg transition-all ${

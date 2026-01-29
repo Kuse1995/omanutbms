@@ -27,33 +27,38 @@ export const useTourSteps = (): Step[] => {
       placement: "top",
     },
     {
-      target: '[data-tour="sales-nav"]',
-      content: "Record and track all your sales transactions here. Generate receipts and track customer purchases.",
+      target: '[data-tour="category-sales-finance"]',
+      content: "Sales & Finance: Record transactions, manage receipts, track accounts, and handle your financial operations.",
       placement: "right",
     },
     {
-      target: '[data-tour="inventory-nav"]',
-      content: "Manage your product inventory, track stock levels, and get low-stock alerts.",
+      target: '[data-tour="category-inventory-stock"]',
+      content: "Inventory & Stock: Manage your products, track stock levels, handle returns, and get low-stock alerts.",
       placement: "right",
     },
     {
-      target: '[data-tour="accounts-nav"]',
-      content: "Access your financial reports, invoices, quotations, and accounting features.",
+      target: '[data-tour="category-team-hr"]',
+      content: "Team: Manage HR, payroll with NAPSA/PAYE/NHIMA calculations, and your agent distribution network.",
       placement: "right",
     },
     {
-      target: '[data-tour="settings-nav"]',
-      content: "Customize your business profile, branding, and system preferences here.",
+      target: '[data-tour="admin-section"]',
+      content: "Admin Settings: Configure access control, tenant settings, and manage your organization.",
+      placement: "right",
+    },
+    {
+      target: '[data-tour="modules-nav"]',
+      content: "Modules & Add-ons: Explore additional features, upgrade your plan, and customize your BMS with powerful add-ons.",
       placement: "right",
     },
     {
       target: '[data-tour="header-notifications"]',
-      content: "Stay updated with notifications about important events and alerts.",
+      content: "Stay updated with notifications about important events, alerts, and system updates.",
       placement: "bottom",
     },
     {
       target: "body",
-      content: "You're all set! Explore the platform and reach out if you need help. Happy managing!",
+      content: "You're all set! Explore the platform and reach out if you need help. Happy managing! 🎉",
       placement: "center",
     },
   ];
