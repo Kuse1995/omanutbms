@@ -45,7 +45,7 @@ export function PlanSelector({ selectedPlan, onSelectPlan }: PlanSelectorProps) 
     <div className="space-y-4">
       <div className="text-center mb-4">
         <p className="text-sm text-slate-400">
-          Select a plan to start your <span className="text-emerald-400 font-medium">14-day free trial</span>
+          Select a plan to get started
         </p>
       </div>
 
