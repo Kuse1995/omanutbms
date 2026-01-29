@@ -294,6 +294,134 @@ export function OmanutAdvisor() {
     return prompts.slice(0, 4);
   }, [businessProfile, isNewUser, progress, getSuggestedTutorial]);
 
+  // Parse import data from assistant message
+  const parseImportData = useCallback((content: string): ImportPreviewData | null => {
+    const importMatch = content.match(/```import_data\s*([\s\S]*?)```/);
+    if (!importMatch) return null;
+    
+    try {
+      const parsed = JSON.parse(importMatch[1].trim());
+      if (!parsed.schema || !parsed.columns || !parsed.rows) return null;
+      
+      return {
+        schema: parsed.schema as ImportSchema,
+        fileName: "Document Import",
+        columns: parsed.columns,
+        rows: parsed.rows,
+        validCount: parsed.rows.length,
+        invalidCount: 0,
+      };
+    } catch {
+      return null;
+    }
+  }, []);
+
+  // Strip import block from display content
+  const stripImportBlock = useCallback((content: string): string => {
+    return content.replace(/```import_data\s*[\s\S]*?```/g, "").trim();
+  }, []);
+
+  // Handle import action
+  const handleImport = useCallback(async (schema: ImportSchema, rows: ImportRow[]) => {
+    if (!tenantId) {
+      toast.error("Not connected to a business");
+      return;
+    }
+
+    // Check permission
+    const permission = await canPerformAction("document_import");
+    if (!permission.allowed) {
+      toast.error(permission.reason || "Import not allowed on your plan");
+      return;
+    }
+
+    try {
+      let tableName: string;
+      let transformedRows: any[];
+
+      switch (schema) {
+        case "inventory":
+          tableName = "inventory";
+          transformedRows = rows.map(row => ({
+            tenant_id: tenantId,
+            name: row.name || "Unnamed Product",
+            sku: row.sku || null,
+            unit_price: Number(row.unit_price) || 0,
+            cost_price: Number(row.cost_price) || 0,
+            current_stock: Number(row.current_stock) || 0,
+            reorder_level: Number(row.reorder_level) || 10,
+            category: String(row.category || "other").toLowerCase(),
+            description: row.description || null,
+            status: "healthy",
+          }));
+          break;
+
+        case "customers":
+          tableName = "customers";
+          transformedRows = rows.map(row => ({
+            tenant_id: tenantId,
+            name: row.name || "Unknown Customer",
+            phone: row.phone || null,
+            email: row.email || null,
+            address: row.address || null,
+            notes: row.notes || null,
+          }));
+          break;
+
+        case "expenses":
+          tableName = "expenses";
+          transformedRows = rows.map(row => ({
+            tenant_id: tenantId,
+            category: row.category || "Other",
+            amount_zmw: Number(row.amount_zmw) || 0,
+            vendor_name: row.vendor_name || "Unknown Vendor",
+            date_incurred: row.date_incurred || new Date().toISOString().split("T")[0],
+            notes: row.notes || null,
+          }));
+          break;
+
+        case "employees":
+          tableName = "employees";
+          transformedRows = rows.map(row => ({
+            tenant_id: tenantId,
+            full_name: row.full_name || "Unknown Employee",
+            email: row.email || null,
+            phone: row.phone || null,
+            job_title: row.job_title || null,
+            department: row.department || null,
+            basic_salary: Number(row.basic_salary) || 0,
+            employment_status: "active",
+          }));
+          break;
+
+        default:
+          throw new Error(`Unknown schema: ${schema}`);
+      }
+
+      const { error } = await supabase
+        .from(tableName as any)
+        .insert(transformedRows);
+
+      if (error) throw error;
+
+      // Log the action
+      await logAction("document_import", { schema, count: rows.length }, { success: true }, true);
+
+      toast.success(`Successfully imported ${rows.length} ${schema} items!`);
+      
+      // Add success message to chat
+      setMessages(prev => [...prev, {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: `✅ Done! I've added ${rows.length} ${schema} items to your system. You can view them in the ${schema === "inventory" ? "Inventory → Shop" : schema === "customers" ? "Sales → Customers" : schema === "expenses" ? "Accounts → Expenses" : "HR → Employees"} section.`,
+      }]);
+    } catch (error) {
+      console.error("Import error:", error);
+      await logAction("document_import", { schema, count: rows.length }, { error: String(error) }, false, String(error));
+      toast.error(error instanceof Error ? error.message : "Failed to import items");
+    }
+  }, [tenantId, canPerformAction, logAction]);
+
   const sendMessage = useCallback(async (messageText?: string) => {
     const textToSend = messageText || input.trim();
     const hasFile = !!selectedFile;
@@ -336,11 +464,14 @@ export function OmanutAdvisor() {
       setMessages(prev => {
         const last = prev[prev.length - 1];
         if (last?.role === "assistant" && last.id === assistantId) {
+          // Check for import data in the accumulated content
+          const importData = parseImportData(assistantContent);
           return prev.map((m, i) => 
-            i === prev.length - 1 ? { ...m, content: assistantContent } : m
+            i === prev.length - 1 ? { ...m, content: assistantContent, importData: importData || undefined } : m
           );
         }
-        return [...prev, { id: assistantId, role: "assistant", content: assistantContent }];
+        const importData = parseImportData(assistantContent);
+        return [...prev, { id: assistantId, role: "assistant", content: assistantContent, importData: importData || undefined }];
       });
     };
 
@@ -430,7 +561,7 @@ export function OmanutAdvisor() {
     } finally {
       setIsLoading(false);
     }
-  }, [input, messages, tenantId, isLoading, showOnboarding, markWelcomeSeen, selectedFile]);
+  }, [input, messages, tenantId, isLoading, showOnboarding, markWelcomeSeen, selectedFile, parseImportData]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -741,8 +872,8 @@ export function OmanutAdvisor() {
                           <div
                             key={msg.id}
                             className={cn(
-                              "flex",
-                              msg.role === "user" ? "justify-end" : "justify-start"
+                              "flex flex-col",
+                              msg.role === "user" ? "items-end" : "items-start"
                             )}
                           >
                             <div
@@ -753,8 +884,43 @@ export function OmanutAdvisor() {
                                   : "bg-muted rounded-bl-md"
                               )}
                             >
-                              <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                              <p className="whitespace-pre-wrap leading-relaxed">
+                                {msg.role === "assistant" && msg.importData 
+                                  ? stripImportBlock(msg.content) 
+                                  : msg.content}
+                              </p>
                             </div>
+                            {/* Show import card for messages with import data */}
+                            {msg.role === "assistant" && msg.importData && (
+                              <div className="mt-2 w-full max-w-[320px]">
+                                <AdvisorImportCard
+                                  data={msg.importData}
+                                  onImport={async (validRows) => {
+                                    await handleImport(msg.importData!.schema, validRows);
+                                    // Remove import data from message after successful import
+                                    setMessages(prev => prev.map(m => 
+                                      m.id === msg.id ? { ...m, importData: undefined } : m
+                                    ));
+                                  }}
+                                  onEdit={() => {
+                                    // Open import converter modal for editing
+                                    setImportModalData({
+                                      data: msg.importData!.rows,
+                                      columns: msg.importData!.columns,
+                                      schema: msg.importData!.schema,
+                                    });
+                                    setShowImportModal(true);
+                                  }}
+                                  onCancel={() => {
+                                    // Remove import data from message
+                                    setMessages(prev => prev.map(m => 
+                                      m.id === msg.id ? { ...m, importData: undefined } : m
+                                    ));
+                                  }}
+                                  disabled={isLoading}
+                                />
+                              </div>
+                            )}
                           </div>
                         ))}
                         {isLoading && messages[messages.length - 1]?.role === "user" && (
