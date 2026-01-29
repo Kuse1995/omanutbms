@@ -1,125 +1,114 @@
 
-# Fix Sidebar Features & Add Welcome Video
+# Fix Signup Database Error
 
-## Issues Identified
+## Problem Identified
 
-### Issue 1: Sidebar Features Not Showing
-**Root Cause**: The feature resolution has two layers of checks:
-1. **Billing Plan Check** (`useBilling.isFeatureAllowed`) - Starter plan has `payroll: false`, `agents: false`, `impact: false`, `website: false`
-2. **Database Check** (`getFeatureConfig`) - User's database shows `payroll_enabled: true`, etc.
+The signup is failing with **"there is no unique or exclusion constraint matching the ON CONFLICT specification"** because the `handle_new_user()` trigger uses incorrect conflict columns.
 
-Both must be `true` for a feature to show. Even though the database has features enabled, the Starter plan's billing config blocks them.
+### Root Cause
 
-**The Fix**: During trial period, users should get full feature access to experience the platform. The billing plan restrictions should only apply after the trial ends or when actively subscribed.
+| Table | Trigger Uses | Actual Unique Constraint |
+|-------|--------------|-------------------------|
+| `user_roles` | `ON CONFLICT (user_id)` | `(user_id, role)` |
+| `tenant_users` | `ON CONFLICT (user_id)` | `(tenant_id, user_id)` |
 
-### Issue 2: Welcome Video for New Users
-**Request**: Embed YouTube video `https://youtu.be/AAQ6RWDECrs` when a new user logs in.
-
----
-
-## Implementation Plan
-
-### Part 1: Enable Full Features During Trial
-
-**File: `src/hooks/useBilling.ts`**
-
-Update the `isFeatureAllowed` function to grant full feature access during trial period:
-
-```
-Current logic:
-- Check if billing status is active/trial
-- Check if plan includes the feature
-
-New logic:
-- If billing status is "trial", grant ALL features (full platform experience)
-- If billing status is "active", check plan-specific features
-- If billing status is inactive/suspended, deny all features
-```
-
-This ensures trial users can explore the full platform before deciding which plan to purchase.
-
-### Part 2: Welcome Video Modal for New Users
-
-**New Component: `src/components/dashboard/WelcomeVideoModal.tsx`**
-
-Create a modal that:
-- Shows YouTube video embedded in an iframe
-- Displays on first login (check localStorage or profile flag)
-- Has a "Get Started" button to dismiss
-- Stores dismissal state to prevent showing again
-- Uses responsive sizing for mobile/desktop
-
-**File: `src/pages/Dashboard.tsx`**
-
-- Import and render the WelcomeVideoModal
-- Control visibility based on first-time user detection
-- Integrate with existing onboarding tour (show video first, then tour)
-
-**File: `src/hooks/useOnboardingTour.ts`**
-
-- Add state for welcome video completion
-- Sequence: Welcome Video → Onboarding Tour → Dashboard
+PostgreSQL requires the `ON CONFLICT` columns to exactly match an existing unique constraint.
 
 ---
 
-## Technical Details
+## Solution
 
-### Trial Feature Access Logic
+### Option 1: Fix the Trigger (Recommended)
 
-```text
-useBilling.ts changes:
+Update `handle_new_user()` to match the actual constraints:
 
-function isFeatureAllowed(featureKey):
-  if (status === "inactive" || status === "suspended"):
-    return false
-  
-  if (status === "trial"):
-    return true  // Full access during trial
-  
-  if (status === "active"):
-    return planConfig.features[featureKey]  // Plan-specific
+**For `user_roles`:**
+```sql
+-- OLD (broken)
+INSERT INTO public.user_roles (user_id, role)
+VALUES (NEW.id, assigned_role)
+ON CONFLICT (user_id) DO UPDATE SET role = assigned_role;
+
+-- NEW (fixed)
+INSERT INTO public.user_roles (user_id, role)
+VALUES (NEW.id, assigned_role)
+ON CONFLICT (user_id, role) DO NOTHING;
 ```
 
-### Welcome Video Modal Structure
+**For `tenant_users` (existing member case):**
+```sql
+-- OLD (broken)
+ON CONFLICT (user_id) DO NOTHING;
 
-```text
-WelcomeVideoModal.tsx:
-- Dialog component with YouTube embed
-- Title: "Welcome to Omanut BMS!"
-- Description: "Watch this quick introduction to get started"
-- YouTube iframe: https://www.youtube.com/embed/AAQ6RWDECrs
-- Button: "Start Exploring" to dismiss
-- Checkbox: "Don't show this again" (optional)
+-- NEW (fixed)
+ON CONFLICT (tenant_id, user_id) DO NOTHING;
 ```
 
-### New User Detection
+### Option 2: Add Missing Unique Constraints
 
-```text
-Detection logic (localStorage + profile):
-1. Check localStorage for `welcome_video_seen_{userId}`
-2. If not found, check profile created_at timestamp
-3. If new user (< 5 minutes old), show modal
-4. On dismiss, set localStorage flag
+Alternative: Add a unique constraint on `user_roles(user_id)` alone. However, Option 1 is cleaner because:
+- It matches the intended data model (one user can have multiple roles)
+- No schema changes needed
+
+---
+
+## Implementation
+
+### Database Migration
+
+Create a new migration to replace the `handle_new_user()` function with corrected `ON CONFLICT` clauses:
+
+```sql
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  -- [same declarations]
+BEGIN
+  -- [same user_email and metadata extraction]
+  
+  -- Insert profile (this one is CORRECT - profiles has unique on user_id)
+  INSERT INTO public.profiles (user_id, full_name)
+  VALUES (NEW.id, user_full_name)
+  ON CONFLICT (user_id) DO NOTHING;
+  
+  -- Insert role into user_roles (FIXED: use both columns)
+  INSERT INTO public.user_roles (user_id, role)
+  VALUES (NEW.id, assigned_role)
+  ON CONFLICT (user_id, role) DO NOTHING;
+  
+  -- Handle tenant assignment
+  IF existing_tenant_id IS NOT NULL THEN
+    -- Invited member (FIXED: use tenant_id + user_id)
+    INSERT INTO public.tenant_users (...)
+    VALUES (...)
+    ON CONFLICT (tenant_id, user_id) DO NOTHING;
+  ELSE
+    -- [NEW SIGNUP logic - no conflict needed, always creates new tenant]
+  END IF;
+  
+  RETURN NEW;
+END;
+$$;
 ```
 
 ---
 
 ## Files to Modify
 
-| File | Change |
-|------|--------|
-| `src/hooks/useBilling.ts` | Grant full features during trial |
-| `src/components/dashboard/WelcomeVideoModal.tsx` | **New** - YouTube welcome modal |
-| `src/pages/Dashboard.tsx` | Render welcome modal for new users |
-| `src/hooks/useOnboardingTour.ts` | Add welcome video state tracking |
+| Type | File/Action |
+|------|-------------|
+| Database | Create migration to fix `handle_new_user()` trigger function |
 
 ---
 
-## Expected Results
+## Expected Result
 
-After implementation:
-1. **Trial users** will see ALL sidebar features (Inventory, HR, Agents, etc.)
-2. **New users** will see a welcome video modal on first login
-3. After watching/dismissing the video, the onboarding tour begins
-4. Video won't show again for returning users
-5. When trial expires, features will be restricted based on their chosen plan
+After this fix:
+- New user signups will complete successfully
+- Tenant and business profile will be auto-provisioned
+- User will be redirected to dashboard with all trial features
+- Welcome video modal will appear on first login
