@@ -22,7 +22,7 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, tenantId, isNewUser, onboardingProgress, fileAttachment } = await req.json();
+    const { messages, tenantId, isNewUser, onboardingProgress, fileAttachment, liveEventsSummary } = await req.json();
     
     const MOONSHOT_API_KEY = Deno.env.get("MOONSHOT_API_KEY");
     if (!MOONSHOT_API_KEY) {
@@ -366,6 +366,11 @@ serve(async (req) => {
         ? `\nUPSELL OPPORTUNITIES (mention naturally when solving a real problem):\n${upsellTriggers.map(t => `  • ${t}`).join('\n')}`
         : "";
 
+      // Build real-time events context
+      const liveEventsContext = liveEventsSummary 
+        ? `\n\n🔔 REAL-TIME ACTIVITY (just happened):\n${liveEventsSummary}\n\nYou are aware of these live events. Proactively mention relevant ones when greeting the user or when they ask about business status.`
+        : "";
+
       // Build comprehensive business context with actionable details
       businessContext = `
 BUSINESS PROFILE:
@@ -377,6 +382,7 @@ ${profile?.company_address ? `- Address: ${profile.company_address}` : ''}
 ${profile?.tpin_number ? `- TPIN: ${profile.tpin_number}` : ''}
 ${employeeCount ? `- Active Employees: ${employeeCount}` : ''}
 ${uniqueCustomers ? `- Total Customers: ${uniqueCustomers}` : ''}
+${liveEventsContext}
 
 SALES PERFORMANCE:
 - Today: ${todayCount} sales totaling ${currency}${todayRevenue.toLocaleString()}${todayUniqueCustomers > 0 ? ` (${todayUniqueCustomers} customers)` : ''}
