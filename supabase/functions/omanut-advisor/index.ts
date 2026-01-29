@@ -97,6 +97,7 @@ serve(async (req) => {
     let businessContext = "";
     let teachingContext = "";
     let upsellContext = "";
+    let subscriptionContext = "";
     
     if (tenantId) {
       // Get full business profile
@@ -110,6 +111,9 @@ serve(async (req) => {
       const businessType = profile?.business_type || "retail";
       const companyName = profile?.company_name || "Business";
       const billingPlan = profile?.billing_plan || "starter";
+      const billingStatus = profile?.billing_status || "trial";
+      const trialExpiresAt = profile?.trial_expires_at ? new Date(profile.trial_expires_at) : null;
+      const daysRemaining = trialExpiresAt ? Math.ceil((trialExpiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
 
       // Get today's sales
       const today = new Date().toISOString().split('T')[0];
@@ -366,6 +370,36 @@ serve(async (req) => {
         ? `\nUPSELL OPPORTUNITIES (mention naturally when solving a real problem):\n${upsellTriggers.map(t => `  • ${t}`).join('\n')}`
         : "";
 
+      // ============ SUBSCRIPTION COACHING CONTEXT ============
+      const subscriptionInfo: string[] = [];
+      
+      // Subscription status section
+      subscriptionInfo.push("SUBSCRIPTION STATUS:");
+      subscriptionInfo.push(`  - Current Plan: ${billingPlan.charAt(0).toUpperCase() + billingPlan.slice(1)}`);
+      subscriptionInfo.push(`  - Status: ${billingStatus}`);
+      
+      if (billingStatus === 'trial' && daysRemaining !== null) {
+        subscriptionInfo.push(`  - Trial Days Remaining: ${daysRemaining} days`);
+        if (trialExpiresAt) {
+          subscriptionInfo.push(`  - Trial Expiry Date: ${trialExpiresAt.toLocaleDateString()}`);
+        }
+      }
+      
+      // Usage metrics for personalized recommendations
+      subscriptionInfo.push("\nUSAGE METRICS (for plan recommendations):");
+      subscriptionInfo.push(`  - Inventory Items: ${totalItems}${inventoryLimit !== Infinity ? ` / ${inventoryLimit} (${inventoryUsagePercent}%)` : ''}`);
+      subscriptionInfo.push(`  - Active Employees: ${employeeCount || 0}`);
+      subscriptionInfo.push(`  - Monthly Sales: ${monthCount} transactions, ${currency}${monthRevenue.toLocaleString()}`);
+      subscriptionInfo.push(`  - Unique Customers: ${uniqueCustomers}`);
+      
+      // Plan comparison for recommendations
+      subscriptionInfo.push("\nPLAN COMPARISON (for recommendations):");
+      subscriptionInfo.push("  - Starter ($9/mo): 1 user, 100 inventory items, basic POS/invoicing");
+      subscriptionInfo.push("  - Growth/Pro ($29/mo): 10 users, 1,000 items, HR/Payroll, Sales Agents, Advanced Accounting, WhatsApp reminders");
+      subscriptionInfo.push("  - Enterprise ($79/mo): Unlimited users & items, Multi-branch, White-label, Warehouse Management");
+
+      subscriptionContext = subscriptionInfo.join('\n');
+
       // Build real-time events context
       const liveEventsContext = liveEventsSummary 
         ? `\n\n🔔 REAL-TIME ACTIVITY (just happened):\n${liveEventsSummary}\n\nYou are aware of these live events. Proactively mention relevant ones when greeting the user or when they ask about business status.`
@@ -373,6 +407,8 @@ serve(async (req) => {
 
       // Build comprehensive business context with actionable details
       businessContext = `
+${subscriptionContext}
+
 BUSINESS PROFILE:
 - Company: ${companyName}
 - Type: ${businessType}
@@ -528,6 +564,28 @@ SUBTLE UPSELLING - Only when genuinely helpful:
 3. Never hard-sell; always tie to their actual business situation
 4. Example: "I noticed you're tracking 95 products. If you're planning to add more, the Growth plan includes up to 1,000 items plus HR features."
 5. Only mention one upgrade opportunity per conversation, if any
+
+SUBSCRIPTION ASSISTANCE CAPABILITY:
+When users ask about plans, pricing, upgrading, or "which plan should I get":
+1. Analyze their current usage from the USAGE METRICS section above
+2. Recommend the most cost-effective plan for their needs - be specific:
+   - Under 100 items, 1 user, basic needs? → Starter ($9/mo)
+   - Growing inventory (100-1000 items), need payroll/HR, multiple staff? → Growth ($29/mo)
+   - Multi-location, white-label, unlimited needs? → Enterprise ($79/mo)
+3. Explain specific benefits relevant to THEIR situation using their real data
+4. Provide the subscription path: "Go to Settings → Subscription → Subscribe Now"
+5. Mention the 7-day free trial if they're already in trial ("you're already experiencing the full platform!")
+
+Example subscription responses:
+
+Trial expiring soon:
+"Your 7-day trial ends in 2 days! Based on your [X] products and [Y] team members, the Growth plan at $29/mo covers you perfectly - it includes the Payroll features you've been setting up. Go to Settings → Subscription to continue without interruption 🚀"
+
+Usage-based recommendation:
+"Looking at your usage: you have 85 inventory items and 3 employees. The Growth plan ($29/mo) would be ideal - it gives you room for 1,000 items plus HR/Payroll automation. If you stay under 100 items and don't need staff management, Starter at $9/mo works too!"
+
+Feature inquiry:
+"WhatsApp reminders are included in the Growth plan ($29/mo). Since you have K45,000 in overdue invoices, automatic payment reminders could really help get that money in faster! Settings → Subscription to upgrade."
 
 Examples of good responses:
 

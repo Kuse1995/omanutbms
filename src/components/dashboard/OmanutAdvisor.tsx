@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence, useReducedMotion, useMotionValue, useDragControls } from "framer-motion";
-import { X, Send, Minimize2, Loader2, HelpCircle, TrendingUp, Package, Users, GraduationCap, Bell } from "lucide-react";
+import { X, Send, Minimize2, Loader2, HelpCircle, TrendingUp, Package, Users, GraduationCap, Bell, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useTenant } from "@/hooks/useTenant";
+import { useAuth } from "@/hooks/useAuth";
 import { useAdvisorOnboarding } from "@/hooks/useAdvisorOnboarding";
 import { useAdvisorLiveContext, LiveEvent } from "@/hooks/useAdvisorLiveContext";
 import { useAdvisorActions } from "@/hooks/useAdvisorActions";
@@ -70,10 +71,15 @@ interface Message {
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/omanut-advisor`;
 
 export function OmanutAdvisor() {
+  const { user, loading: authLoading } = useAuth();
   const { tenantId, businessProfile } = useTenant();
   const prefersReducedMotion = useReducedMotion();
   const dragControls = useDragControls();
   const constraintsRef = useRef<HTMLDivElement>(null);
+
+  // Hide advisor for unauthenticated users - no flash on public pages
+  if (authLoading) return null;
+  if (!user) return null;
   
   // Track whether user has dragged the widget
   const [hasBeenDragged, setHasBeenDragged] = useState(() => {
@@ -262,6 +268,16 @@ export function OmanutAdvisor() {
   // Generate contextual quick prompts based on business state and onboarding
   const quickPrompts = useMemo(() => {
     const prompts: { text: string; icon?: React.ReactNode }[] = [];
+
+    // Check trial status for subscription-related prompts
+    const isTrialing = businessProfile?.billing_status === 'trial';
+    const trialExpiresAt = businessProfile?.trial_expires_at ? new Date(businessProfile.trial_expires_at) : null;
+    const daysRemaining = trialExpiresAt ? Math.ceil((trialExpiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+    
+    // Prioritize subscription help when trial is ending soon
+    if (isTrialing && daysRemaining !== null && daysRemaining <= 3) {
+      prompts.push({ text: "Which plan is right for me?", icon: <Sparkles className="h-3 w-3" /> });
+    }
 
     // For new users, prioritize onboarding
     if (isNewUser && progress < 50) {
