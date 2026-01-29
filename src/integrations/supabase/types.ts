@@ -177,6 +177,50 @@ export type Database = {
           },
         ]
       }
+      advisor_action_logs: {
+        Row: {
+          action_params: Json | null
+          action_result: Json | null
+          action_type: string
+          created_at: string | null
+          error_message: string | null
+          id: string
+          success: boolean | null
+          tenant_id: string
+          user_id: string | null
+        }
+        Insert: {
+          action_params?: Json | null
+          action_result?: Json | null
+          action_type: string
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          success?: boolean | null
+          tenant_id: string
+          user_id?: string | null
+        }
+        Update: {
+          action_params?: Json | null
+          action_result?: Json | null
+          action_type?: string
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          success?: boolean | null
+          tenant_id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "advisor_action_logs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_applications: {
         Row: {
           address: string | null

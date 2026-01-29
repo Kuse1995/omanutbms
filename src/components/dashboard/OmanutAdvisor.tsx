@@ -1,14 +1,22 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence, useReducedMotion, useMotionValue, useDragControls } from "framer-motion";
-import { X, Send, Minimize2, Loader2, HelpCircle, TrendingUp, Package, Users, GraduationCap } from "lucide-react";
+import { X, Send, Minimize2, Loader2, HelpCircle, TrendingUp, Package, Users, GraduationCap, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useTenant } from "@/hooks/useTenant";
 import { useAdvisorOnboarding } from "@/hooks/useAdvisorOnboarding";
+import { useAdvisorLiveContext, LiveEvent } from "@/hooks/useAdvisorLiveContext";
+import { useAdvisorActions } from "@/hooks/useAdvisorActions";
 import { AdvisorOnboardingPanel } from "./AdvisorOnboardingPanel";
+import { AdvisorFileUpload, UploadedFile } from "./AdvisorFileUpload";
+import { AdvisorImportCard, ImportPreviewData, ImportRow, ImportSchema } from "./AdvisorImportCard";
+import { ImportConverterModal } from "./ImportConverterModal";
+import { parseDocument } from "@/lib/document-parser";
+import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import advisorLogo from "@/assets/advisor-logo-client.png";
 
 const ADVISOR_POSITION_KEY = "omanut-advisor-position-v1";
@@ -56,6 +64,7 @@ interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
+  importData?: ImportPreviewData;
 }
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/omanut-advisor`;
@@ -85,6 +94,12 @@ export function OmanutAdvisor() {
     getSuggestedTutorial,
     activeTutorial,
   } = useAdvisorOnboarding();
+
+  // Real-time business awareness
+  const { events: liveEvents, unreadCount: liveUnreadCount, markAllRead: markLiveEventsRead } = useAdvisorLiveContext();
+  
+  // Advisor actions (for logging and permissions)
+  const { canPerformAction, logAction, isProOrHigher } = useAdvisorActions();
   
   const [isOpen, setIsOpen] = useState(false);
   const [isHidden, setIsHidden] = useState(() => {
@@ -99,6 +114,16 @@ export function OmanutAdvisor() {
   const [showWiggle, setShowWiggle] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // File upload state
+  const [selectedFile, setSelectedFile] = useState<UploadedFile | null>(null);
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importModalData, setImportModalData] = useState<{ 
+    data: any[]; 
+    columns: string[]; 
+    schema: ImportSchema;
+  } | null>(null);
 
   // Render into a portal so the widget isn't affected by parent transforms/stacking contexts.
   const portalTarget = typeof document !== "undefined" ? document.body : null;
@@ -711,20 +736,41 @@ export function OmanutAdvisor() {
 
                 {/* Input */}
                 <div className="p-3 border-t bg-background">
-                  <div className="flex gap-2">
+                  {/* File preview */}
+                  {selectedFile && (
+                    <div className="mb-2">
+                      <AdvisorFileUpload
+                        onFileSelect={setSelectedFile}
+                        onClear={() => setSelectedFile(null)}
+                        selectedFile={selectedFile}
+                        isProcessing={isProcessingFile}
+                        disabled={isLoading}
+                      />
+                    </div>
+                  )}
+                  <div className="flex gap-2 items-center">
+                    {/* File upload button (Pro+ only) */}
+                    {isProOrHigher && !selectedFile && (
+                      <AdvisorFileUpload
+                        onFileSelect={setSelectedFile}
+                        onClear={() => setSelectedFile(null)}
+                        selectedFile={null}
+                        disabled={isLoading || isProcessingFile}
+                      />
+                    )}
                     <Input
                       ref={inputRef}
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      placeholder="Ask about your business..."
+                      placeholder={selectedFile ? "Add a message about your file..." : "Ask about your business..."}
                       className="flex-1 h-9 text-sm rounded-full px-4"
                       disabled={isLoading}
                     />
                     <Button
                       size="icon"
                       onClick={() => sendMessage()}
-                      disabled={!input.trim() || isLoading}
+                      disabled={(!input.trim() && !selectedFile) || isLoading}
                       className="h-9 w-9 rounded-full bg-primary hover:bg-primary/90"
                     >
                       <Send className="h-4 w-4" />
