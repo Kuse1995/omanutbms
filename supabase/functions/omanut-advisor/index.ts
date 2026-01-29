@@ -681,16 +681,50 @@ When analyzing complex business questions, use step-by-step reasoning to provide
       break;
     }
 
+    // If Moonshot is rate-limited after all retries, fall back to Lovable AI
     if (!response || !response.ok) {
       const status = response?.status;
 
+      if (status === 429 && LOVABLE_API_KEY) {
+        console.log("[omanut-advisor] Moonshot rate-limited, falling back to Lovable AI");
+        
+        // Build messages for fallback (text-only, no vision)
+        const fallbackMessages = augmentedMessages.map(m => ({
+          role: m.role,
+          content: typeof m.content === "string" ? m.content : 
+            (Array.isArray(m.content) ? m.content.find((c: any) => c.type === "text")?.text || "" : "")
+        }));
+        
+        const fallbackResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash",
+            messages: [{ role: "system", content: systemPrompt }, ...fallbackMessages],
+            stream: true,
+          }),
+        });
+
+        if (fallbackResponse.ok && fallbackResponse.body) {
+          console.log("[omanut-advisor] Fallback to Gemini successful");
+          return new Response(fallbackResponse.body, {
+            headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+          });
+        }
+        
+        // If fallback also fails, return friendly error
+        console.error("[omanut-advisor] Fallback also failed:", fallbackResponse.status);
+      }
+      
       if (status === 429) {
         return new Response(JSON.stringify({ error: "I'm a bit busy right now. Try again in a moment!" }), {
           status: 429,
           headers: {
             ...corsHeaders,
             "Content-Type": "application/json",
-            // Suggest a small retry delay to the client.
             "Retry-After": "2",
           },
         });
