@@ -20,6 +20,7 @@ import { WebsiteContactsManagement } from "@/components/dashboard/WebsiteContact
 import { PoweredByFooter } from "@/components/dashboard/PoweredByFooter";
 import { SuperAdminPanel } from "@/components/dashboard/SuperAdminPanel";
 import { OnboardingTour } from "@/components/dashboard/OnboardingTour";
+import { WelcomeVideoModal } from "@/components/dashboard/WelcomeVideoModal";
 import { BranchesManager } from "@/components/dashboard/BranchesManager";
 import { ReturnsAndDamagesManager } from "@/components/dashboard/ReturnsAndDamagesManager";
 import { CustomersManager } from "@/components/dashboard/CustomersManager";
@@ -49,7 +50,7 @@ const Dashboard = () => {
   const { toast } = useToast();
   const { isSuperAdmin } = useAuth();
   const { isCustomDesignerEnabled, isProductionTrackingEnabled } = useEnterpriseFeatures();
-  const { runTour, completeTour, isLoading: tourLoading } = useOnboardingTour();
+  const { runTour, completeTour, isLoading: tourLoading, welcomeVideoCompleted, onWelcomeVideoComplete } = useOnboardingTour();
   const branding = useBranding();
   const applyBranding = useApplyTenantBranding();
 
@@ -234,8 +235,13 @@ const Dashboard = () => {
             </div>
           </div>
           
-          {/* Onboarding Tour */}
-          {!tourLoading && (
+          {/* Welcome Video Modal - shows first for new users */}
+          {!tourLoading && !welcomeVideoCompleted && (
+            <WelcomeVideoModal onComplete={onWelcomeVideoComplete} />
+          )}
+          
+          {/* Onboarding Tour - starts after video is completed */}
+          {!tourLoading && welcomeVideoCompleted && (
             <OnboardingTour run={runTour} onComplete={completeTour} />
           )}
         </SidebarProvider>

@@ -128,12 +128,16 @@ export function useBilling(): UseBillingReturn {
 
   /**
    * Check if a specific feature is allowed based on plan AND billing status
+   * Trial users get FULL access to all features to experience the platform
    */
   function isFeatureAllowed(featureKey: keyof PlanFeatures): boolean {
     // If billing status is not active/trial, no features are allowed
     if (!isActive) return false;
     
-    // Check if the plan includes this feature (uses merged config)
+    // Trial users get full access to all features
+    if (status === "trial") return true;
+    
+    // Active subscribers get plan-specific features
     return Boolean(planConfig.features[featureKey]);
   }
 

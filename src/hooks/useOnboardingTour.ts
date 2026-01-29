@@ -63,6 +63,7 @@ export const useOnboardingTour = () => {
   const [runTour, setRunTour] = useState(false);
   const [tourCompleted, setTourCompleted] = useState(true); // Default to true to prevent flash
   const [isLoading, setIsLoading] = useState(true);
+  const [welcomeVideoCompleted, setWelcomeVideoCompleted] = useState(true);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -76,6 +77,10 @@ export const useOnboardingTour = () => {
         // Check localStorage first for quick response
         const localKey = `tour_completed_${user.id}`;
         const localCompleted = localStorage.getItem(localKey);
+        const videoKey = `welcome_video_seen_${user.id}`;
+        const videoCompleted = localStorage.getItem(videoKey);
+        
+        setWelcomeVideoCompleted(videoCompleted === "true");
         
         if (localCompleted === "true") {
           setTourCompleted(true);
@@ -101,9 +106,12 @@ export const useOnboardingTour = () => {
             localStorage.setItem(localKey, "true");
             setTourCompleted(true);
           } else if (localCompleted !== "true") {
-            // New user - show tour
+            // New user - wait for video to complete before starting tour
             setTourCompleted(false);
-            setRunTour(true);
+            // Only start tour if video is already completed
+            if (videoCompleted === "true") {
+              setRunTour(true);
+            }
           }
         }
       } catch (error) {
@@ -137,6 +145,14 @@ export const useOnboardingTour = () => {
     setRunTour(true);
   };
 
+  const onWelcomeVideoComplete = () => {
+    setWelcomeVideoCompleted(true);
+    // Start tour after video completes if tour hasn't been completed
+    if (!tourCompleted) {
+      setRunTour(true);
+    }
+  };
+
   return {
     runTour,
     setRunTour,
@@ -145,5 +161,7 @@ export const useOnboardingTour = () => {
     completeTour,
     startTour,
     resetTour,
+    welcomeVideoCompleted,
+    onWelcomeVideoComplete,
   };
 };
