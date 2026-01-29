@@ -564,12 +564,17 @@ export function OmanutAdvisor() {
       }
     } catch (error) {
       console.error("Advisor error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Sorry, I couldn't respond. Try again!";
+      // Make rate limit errors friendlier
+      const displayMessage = errorMessage.includes("busy") 
+        ? "I'm a little overwhelmed right now! 🧘 Give me a moment and try again."
+        : errorMessage;
       setMessages(prev => [
         ...prev,
         {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: error instanceof Error ? error.message : "Sorry, I couldn't respond. Try again!",
+          content: displayMessage,
         },
       ]);
     } finally {
