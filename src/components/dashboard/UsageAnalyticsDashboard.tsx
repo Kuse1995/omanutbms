@@ -16,10 +16,13 @@ import {
 } from "recharts";
 import { 
   Activity, TrendingUp, Users, Package, CreditCard, MessageSquare,
-  ShoppingCart, FileText, Building2, RefreshCw, Calendar, AlertCircle, CheckCircle2, XCircle
+  ShoppingCart, FileText, Building2, RefreshCw, Calendar, AlertCircle, CheckCircle2, XCircle,
+  UserCheck, Zap
 } from "lucide-react";
 import { format, subDays } from "date-fns";
 import { BILLING_PLANS, BillingPlan } from "@/lib/billing-plans";
+import { UserActivityTab } from "./UserActivityTab";
+import { FeatureInsightsTab } from "./FeatureInsightsTab";
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
@@ -535,12 +538,30 @@ export function UsageAnalyticsDashboard() {
 
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList>
+        <TabsList className="flex-wrap">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="user-activity" className="flex items-center gap-1">
+            <UserCheck className="h-3 w-3" />
+            User Activity
+          </TabsTrigger>
+          <TabsTrigger value="feature-insights" className="flex items-center gap-1">
+            <Zap className="h-3 w-3" />
+            Feature Insights
+          </TabsTrigger>
           <TabsTrigger value="features">Feature Adoption</TabsTrigger>
           <TabsTrigger value="tenants">Tenant Details</TabsTrigger>
           <TabsTrigger value="limits">Usage Limits</TabsTrigger>
         </TabsList>
+
+        {/* User Activity Tab - NEW */}
+        <TabsContent value="user-activity">
+          <UserActivityTab dateRange={dateRange} />
+        </TabsContent>
+
+        {/* Feature Insights Tab - NEW */}
+        <TabsContent value="feature-insights">
+          <FeatureInsightsTab dateRange={dateRange} />
+        </TabsContent>
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4">

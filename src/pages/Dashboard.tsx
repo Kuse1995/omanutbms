@@ -38,6 +38,7 @@ import { useEnterpriseFeatures } from "@/hooks/useEnterpriseFeatures";
 import { BranchProvider } from "@/hooks/useBranch";
 import { useBranding } from "@/hooks/useBranding";
 import { useApplyTenantBranding } from "@/contexts/BrandingContext";
+import { useTrackedNavigation } from "@/hooks/useTrackedNavigation";
 
 export type DashboardTab = "dashboard" | "sales" | "receipts" | "accounts" | "assets" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings" | "tenant-settings" | "modules" | "platform-admin" | "branches" | "returns" | "customers" | "custom-orders" | "warehouse" | "stock-transfers" | "locations" | "production-floor";
 
@@ -51,6 +52,9 @@ const Dashboard = () => {
   const { runTour, completeTour, isLoading: tourLoading } = useOnboardingTour();
   const branding = useBranding();
   const applyBranding = useApplyTenantBranding();
+
+  // Track navigation and page views for analytics
+  const { trackAction } = useTrackedNavigation({ activeTab });
 
   // Apply tenant branding globally when in dashboard
   useEffect(() => {
