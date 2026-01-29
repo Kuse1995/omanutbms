@@ -1,274 +1,125 @@
 
+# Fix Sidebar Features & Add Welcome Video
 
-# World-Class African SaaS - Phase 1 Implementation
+## Issues Identified
 
-## Overview
-Transform Omanut BMS into an open, self-service SaaS platform for African businesses with:
-- **Open signup** (removing the authorized_emails restriction)
-- **7-day free trial** at registration
-- **USD as base currency** with automatic local currency display
-- **Multi-currency support** with geo-detection
-- **Prepared Lenco payment placeholders** (to activate before launch)
+### Issue 1: Sidebar Features Not Showing
+**Root Cause**: The feature resolution has two layers of checks:
+1. **Billing Plan Check** (`useBilling.isFeatureAllowed`) - Starter plan has `payroll: false`, `agents: false`, `impact: false`, `website: false`
+2. **Database Check** (`getFeatureConfig`) - User's database shows `payroll_enabled: true`, etc.
 
----
+Both must be `true` for a feature to show. Even though the database has features enabled, the Starter plan's billing config blocks them.
 
-## What's Changing
+**The Fix**: During trial period, users should get full feature access to experience the platform. The billing plan restrictions should only apply after the trial ends or when actively subscribed.
 
-| Current State | New State |
-|--------------|-----------|
-| Requires pre-authorized email | Open signup for anyone |
-| 14-day trial | 7-day trial |
-| ZMW as base currency | USD as base currency |
-| Single currency display | Auto-detected local currency |
-| "Contact Sales" for payments | Payment UI ready (Lenco integration later) |
+### Issue 2: Welcome Video for New Users
+**Request**: Embed YouTube video `https://youtu.be/AAQ6RWDECrs` when a new user logs in.
 
 ---
 
 ## Implementation Plan
 
-### Phase 1: Database Schema Updates
+### Part 1: Enable Full Features During Trial
 
-**1.1 New Tables**
+**File: `src/hooks/useBilling.ts`**
 
-**subscription_payments** - Transaction history (ready for Lenco)
-- `tenant_id` - Link to business
-- `payment_reference` - External payment reference
-- `amount` - Payment amount
-- `currency` - Payment currency
-- `status` - pending, completed, failed
-- `payment_method` - card, mobile_money, bank_transfer
-- `billing_period` - monthly, annual
-- `provider` - lenco (for future)
-- `metadata` - JSONB for provider data
+Update the `isFeatureAllowed` function to grant full feature access during trial period:
 
-**currency_configs** - African currency rates vs USD
-- `country_code` - ISO country code
-- `country_name` - Human-readable name
-- `currency_code` - USD, ZMW, NGN, KES, etc.
-- `currency_symbol` - $, K, ₦, KSh, etc.
-- `exchange_rate` - Rate vs USD (USD = 1.0)
-- `is_active` - Whether supported
-
-**1.2 Modify business_profiles**
-- Add `detected_country` (text)
-- Add `preferred_currency` (text, default 'USD')
-- Add `payment_provider_customer_id` (text) - for Lenco later
-
-**1.3 Update handle_new_user() Trigger**
-- Remove check for authorized_emails on signup
-- Set `billing_status = 'trial'` automatically
-- Set `trial_expires_at = NOW() + 7 days`
-- Set `billing_plan = 'starter'` as default
-
-### Phase 2: Multi-Currency System
-
-**2.1 Currency Configuration**
-
-| Country | Code | Symbol | Rate (vs USD) |
-|---------|------|--------|---------------|
-| USA (Base) | USD | $ | 1.00 |
-| Zambia | ZMW | K | 27.50 |
-| Nigeria | NGN | ₦ | 1,550.00 |
-| Kenya | KES | KSh | 128.00 |
-| South Africa | ZAR | R | 18.50 |
-| Ghana | GHS | GH₵ | 15.80 |
-| Tanzania | TZS | TSh | 2,685.00 |
-| Uganda | UGX | USh | 3,680.00 |
-| Rwanda | RWF | FRw | 1,320.00 |
-| Botswana | BWP | P | 13.60 |
-| UK | GBP | £ | 0.79 |
-| EU | EUR | € | 0.92 |
-
-**2.2 USD Base Pricing**
-
-| Plan | Monthly USD | Annual USD |
-|------|-------------|------------|
-| Starter | $9 | $96 (~$8/mo) |
-| Pro | $29 | $290 (~$24/mo) |
-| Enterprise | $79 | $850 (~$71/mo) |
-
-**2.3 Price Calculation**
 ```
-Local Price = USD Price × Exchange Rate
-Example: Starter in Zambia = $9 × 27.50 = K247.50
+Current logic:
+- Check if billing status is active/trial
+- Check if plan includes the feature
+
+New logic:
+- If billing status is "trial", grant ALL features (full platform experience)
+- If billing status is "active", check plan-specific features
+- If billing status is inactive/suspended, deny all features
 ```
 
-### Phase 3: Open Signup Flow
+This ensures trial users can explore the full platform before deciding which plan to purchase.
 
-**3.1 Remove Authorization Check**
-- Update `Auth.tsx` to skip `checkAuthorizedEmail()` for signups
-- Keep authorization check ONLY for existing tenant member invites
-- New signups create their own tenant automatically
+### Part 2: Welcome Video Modal for New Users
 
-**3.2 Enhanced Signup Form**
-- Company name field (required)
-- Auto-detect country via IP geolocation
-- Business type selector
-- Plan selection (pre-selected from URL)
-- Terms of service checkbox
+**New Component: `src/components/dashboard/WelcomeVideoModal.tsx`**
 
-**3.3 Geo-Detection Hook**
-Create `useGeoLocation.ts`:
-- Call free IP geolocation API on mount
-- Return country code and currency
-- Cache result in localStorage
-- Fallback to USD if detection fails
+Create a modal that:
+- Shows YouTube video embedded in an iframe
+- Displays on first login (check localStorage or profile flag)
+- Has a "Get Started" button to dismiss
+- Stores dismissal state to prevent showing again
+- Uses responsive sizing for mobile/desktop
 
-### Phase 4: Trial System Updates
+**File: `src/pages/Dashboard.tsx`**
 
-**4.1 Billing Plans Config**
-- Change `trialDays` from 14 to 7 for all plans
-- Change `currency` from "ZMW" to "USD"
-- Update price values to USD equivalents
+- Import and render the WelcomeVideoModal
+- Control visibility based on first-time user detection
+- Integrate with existing onboarding tour (show video first, then tour)
 
-**4.2 Trial Banner Updates**
-- Keep existing `TrialBanner.tsx` logic
-- Already handles countdown correctly
-- "Upgrade Now" button ready for payment modal
+**File: `src/hooks/useOnboardingTour.ts`**
 
-**4.3 Trial Expiration**
-- Existing `trial_expires_at` column will be set automatically
-- Grace period: 3 days read-only access after expiry
-- Full data retained for 30 days
-
-### Phase 5: Payment UI Preparation
-
-**5.1 Update UpgradePlanModal**
-- Replace "Contact Sales" with "Subscribe Now" button
-- Add placeholder for Lenco payment widget
-- Show "Coming Soon" or "Contact Us" until Lenco keys added
-
-**5.2 Create SubscriptionManager Component**
-- Current plan display
-- Trial status and countdown
-- Payment history (empty initially)
-- "Manage Subscription" placeholder
-
-**5.3 Payment Modal Placeholder**
-- UI structure for Lenco inline widget
-- Currency selector
-- Payment method tabs (Card, Mobile Money)
-- Disabled state until Lenco integration
-
-### Phase 6: Pricing Display Updates
-
-**6.1 Format Price Function**
-```javascript
-formatPrice(amount: number, currency: string = "USD"): string {
-  const config = CURRENCY_CONFIGS[currency];
-  return `${config.symbol}${(amount * config.rate).toLocaleString()}`;
-}
-```
-
-**6.2 PricingSection Updates**
-- Add currency selector dropdown
-- Auto-select based on detected country
-- Show prices in local currency
-- Display USD equivalent in tooltip
-
-**6.3 Plan Comparison Table**
-- Update to show selected currency
-- Add "Prices shown in [Currency]" label
+- Add state for welcome video completion
+- Sequence: Welcome Video → Onboarding Tour → Dashboard
 
 ---
 
-## Technical Implementation
+## Technical Details
 
-### Files to Create
+### Trial Feature Access Logic
 
-1. **`src/lib/currency-config.ts`**
-   - Currency definitions and exchange rates
-   - Price formatting utilities
-   - Geo-to-currency mapping
+```text
+useBilling.ts changes:
 
-2. **`src/hooks/useGeoLocation.ts`**
-   - IP-based country detection
-   - Currency preference management
-   - LocalStorage caching
+function isFeatureAllowed(featureKey):
+  if (status === "inactive" || status === "suspended"):
+    return false
+  
+  if (status === "trial"):
+    return true  // Full access during trial
+  
+  if (status === "active"):
+    return planConfig.features[featureKey]  // Plan-specific
+```
 
-3. **`src/hooks/useSubscription.ts`**
-   - Subscription status and management
-   - Payment history queries
-   - Upgrade/downgrade logic
+### Welcome Video Modal Structure
 
-4. **`src/components/dashboard/SubscriptionManager.tsx`**
-   - Subscription dashboard widget
-   - Plan and billing info display
+```text
+WelcomeVideoModal.tsx:
+- Dialog component with YouTube embed
+- Title: "Welcome to Omanut BMS!"
+- Description: "Watch this quick introduction to get started"
+- YouTube iframe: https://www.youtube.com/embed/AAQ6RWDECrs
+- Button: "Start Exploring" to dismiss
+- Checkbox: "Don't show this again" (optional)
+```
 
-5. **`src/components/dashboard/PaymentModal.tsx`**
-   - Payment UI placeholder
-   - Ready for Lenco widget integration
+### New User Detection
 
-6. **`supabase/functions/lenco-payment-init/index.ts`**
-   - Placeholder edge function
-   - Returns "Coming Soon" until keys added
-
-### Files to Modify
-
-1. **`src/lib/billing-plans.ts`**
-   - Change `currency` to "USD"
-   - Update prices to USD values
-   - Change `trialDays` to 7
-
-2. **`src/pages/Auth.tsx`**
-   - Remove `checkAuthorizedEmail()` for signup
-   - Add country detection
-   - Add business type selection
-
-3. **`src/hooks/useAuth.tsx`**
-   - Remove authorization check export for signup
-   - Keep for existing member validation
-
-4. **`src/components/landing/PricingSection.tsx`**
-   - Add currency selector
-   - Use geo-detected currency
-   - Format prices with exchange rate
-
-5. **`src/components/dashboard/UpgradePlanModal.tsx`**
-   - Replace email links with payment placeholders
-   - Add currency display
-
-6. **`src/components/dashboard/TrialBanner.tsx`**
-   - No major changes needed
-   - Already works with 7-day trial
-
-### Database Migration
-- Create `currency_configs` table with seed data
-- Create `subscription_payments` table
-- Add new columns to `business_profiles`
-- Update `handle_new_user()` trigger for open signup
+```text
+Detection logic (localStorage + profile):
+1. Check localStorage for `welcome_video_seen_{userId}`
+2. If not found, check profile created_at timestamp
+3. If new user (< 5 minutes old), show modal
+4. On dismiss, set localStorage flag
+```
 
 ---
 
-## Lenco Integration (Deferred to Launch)
+## Files to Modify
 
-When ready to integrate Lenco, you'll need to:
-
-1. **Add Secrets**
-   - `LENCO_PUBLIC_KEY` - For frontend widget
-   - `LENCO_SECRET_KEY` - For backend verification
-
-2. **Complete Edge Functions**
-   - `lenco-payment-init` - Initialize payment session
-   - `lenco-payment-verify` - Verify completed payment
-   - `lenco-webhook` - Handle payment notifications
-
-3. **Enable PaymentModal**
-   - Remove "Coming Soon" state
-   - Integrate Lenco inline widget
-   - Connect success/failure handlers
+| File | Change |
+|------|--------|
+| `src/hooks/useBilling.ts` | Grant full features during trial |
+| `src/components/dashboard/WelcomeVideoModal.tsx` | **New** - YouTube welcome modal |
+| `src/pages/Dashboard.tsx` | Render welcome modal for new users |
+| `src/hooks/useOnboardingTour.ts` | Add welcome video state tracking |
 
 ---
 
-## Summary
+## Expected Results
 
-| Component | Action |
-|-----------|--------|
-| Signup | Open to anyone (remove auth check) |
-| Trial | 7 days automatic |
-| Base Currency | USD |
-| Local Currency | Auto-detected from IP |
-| Pricing | Converted using exchange rates |
-| Payments | UI ready, Lenco integration deferred |
-| Trigger | Updated for auto trial activation |
-
+After implementation:
+1. **Trial users** will see ALL sidebar features (Inventory, HR, Agents, etc.)
+2. **New users** will see a welcome video modal on first login
+3. After watching/dismissing the video, the onboarding tour begins
+4. Video won't show again for returning users
+5. When trial expires, features will be restricted based on their chosen plan
