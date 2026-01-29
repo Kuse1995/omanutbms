@@ -39,9 +39,14 @@ export function PlanSelector({ selectedPlan, onSelectPlan }: PlanSelectorProps) 
           <div className="flex-1">
             <div className="flex items-center justify-between mb-1">
               <h4 className="font-semibold text-white">{proPlan.label}</h4>
-              <span className="font-bold text-primary">
-                {formatPrice(proPlan.monthlyPrice)}/mo
-              </span>
+              <div className="text-right">
+                <span className="text-sm text-slate-500 line-through mr-2">
+                  {formatPrice(proPlan.monthlyPrice)}/mo
+                </span>
+                <span className="font-bold text-green-400">
+                  $0 for 7 days
+                </span>
+              </div>
             </div>
             <p className="text-sm text-slate-400">{proPlan.tagline}</p>
             
