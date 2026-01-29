@@ -323,7 +323,7 @@ export function OmanutAdvisor() {
     setMessages(prev => [...prev, userMessage]);
     setInput("");
     
-    // Clear file after sending
+    // Clear file after sending and capture for processing
     const fileToProcess = selectedFile;
     setSelectedFile(null);
     setIsLoading(true);
@@ -345,6 +345,26 @@ export function OmanutAdvisor() {
     };
 
     try {
+      // Process file if attached
+      let fileContent: { type: string; content: string; mimeType?: string } | undefined;
+      
+      if (fileToProcess) {
+        const { parseDocument } = await import("@/lib/document-parser");
+        const parsed = await parseDocument(fileToProcess.file);
+        
+        if (parsed.type === "word") {
+          // Word docs return extracted text
+          fileContent = { type: "text", content: parsed.text };
+        } else if (parsed.type === "pdf" || parsed.type === "image") {
+          // PDFs and images need vision processing - send base64
+          fileContent = { 
+            type: parsed.type, 
+            content: parsed.base64 || "", 
+            mimeType: fileToProcess.file.type 
+          };
+        }
+      }
+
       const resp = await fetch(CHAT_URL, {
         method: "POST",
         headers: {
@@ -356,6 +376,7 @@ export function OmanutAdvisor() {
           tenantId,
           isNewUser,
           onboardingProgress: progress,
+          fileAttachment: fileContent,
         }),
       });
 
