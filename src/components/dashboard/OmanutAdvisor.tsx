@@ -296,7 +296,10 @@ export function OmanutAdvisor() {
 
   const sendMessage = useCallback(async (messageText?: string) => {
     const textToSend = messageText || input.trim();
-    if (!textToSend || isLoading) return;
+    const hasFile = !!selectedFile;
+    
+    // Allow sending if there's text OR a file attached
+    if ((!textToSend && !hasFile) || isLoading) return;
 
     // Hide onboarding panel when user starts chatting
     if (showOnboarding) {
@@ -304,14 +307,25 @@ export function OmanutAdvisor() {
       markWelcomeSeen();
     }
 
+    // Build user message content - include file name if attached
+    const displayContent = hasFile && textToSend
+      ? `[📎 ${selectedFile.file.name}]\n${textToSend}`
+      : hasFile
+        ? `[📎 ${selectedFile.file.name}]`
+        : textToSend;
+
     const userMessage: Message = {
       id: crypto.randomUUID(),
       role: "user",
-      content: textToSend,
+      content: displayContent,
     };
 
     setMessages(prev => [...prev, userMessage]);
     setInput("");
+    
+    // Clear file after sending
+    const fileToProcess = selectedFile;
+    setSelectedFile(null);
     setIsLoading(true);
 
     let assistantContent = "";
@@ -395,7 +409,7 @@ export function OmanutAdvisor() {
     } finally {
       setIsLoading(false);
     }
-  }, [input, messages, tenantId, isLoading, showOnboarding, markWelcomeSeen]);
+  }, [input, messages, tenantId, isLoading, showOnboarding, markWelcomeSeen, selectedFile]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
