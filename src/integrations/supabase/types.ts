@@ -920,6 +920,7 @@ export type Database = {
           created_at: string
           currency: string | null
           currency_symbol: string | null
+          detected_country: string | null
           enabled_features: Json | null
           id: string
           impact_enabled: boolean | null
@@ -927,7 +928,9 @@ export type Database = {
           inventory_enabled: boolean | null
           logo_url: string | null
           multi_branch_enabled: boolean | null
+          payment_provider_customer_id: string | null
           payroll_enabled: boolean | null
+          preferred_currency: string | null
           primary_color: string | null
           secondary_color: string | null
           slogan: string | null
@@ -972,6 +975,7 @@ export type Database = {
           created_at?: string
           currency?: string | null
           currency_symbol?: string | null
+          detected_country?: string | null
           enabled_features?: Json | null
           id?: string
           impact_enabled?: boolean | null
@@ -979,7 +983,9 @@ export type Database = {
           inventory_enabled?: boolean | null
           logo_url?: string | null
           multi_branch_enabled?: boolean | null
+          payment_provider_customer_id?: string | null
           payroll_enabled?: boolean | null
+          preferred_currency?: string | null
           primary_color?: string | null
           secondary_color?: string | null
           slogan?: string | null
@@ -1024,6 +1030,7 @@ export type Database = {
           created_at?: string
           currency?: string | null
           currency_symbol?: string | null
+          detected_country?: string | null
           enabled_features?: Json | null
           id?: string
           impact_enabled?: boolean | null
@@ -1031,7 +1038,9 @@ export type Database = {
           inventory_enabled?: boolean | null
           logo_url?: string | null
           multi_branch_enabled?: boolean | null
+          payment_provider_customer_id?: string | null
           payroll_enabled?: boolean | null
+          preferred_currency?: string | null
           primary_color?: string | null
           secondary_color?: string | null
           slogan?: string | null
@@ -1219,6 +1228,42 @@ export type Database = {
           total_liters_donated?: number
           total_revenue_zmw?: number
           total_sales_count?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      currency_configs: {
+        Row: {
+          country_code: string
+          country_name: string
+          created_at: string
+          currency_code: string
+          currency_symbol: string
+          exchange_rate: number
+          id: string
+          is_active: boolean
+          updated_at: string
+        }
+        Insert: {
+          country_code: string
+          country_name: string
+          created_at?: string
+          currency_code: string
+          currency_symbol: string
+          exchange_rate?: number
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+        }
+        Update: {
+          country_code?: string
+          country_name?: string
+          created_at?: string
+          currency_code?: string
+          currency_symbol?: string
+          exchange_rate?: number
+          id?: string
+          is_active?: boolean
           updated_at?: string
         }
         Relationships: []
@@ -3714,6 +3759,62 @@ export type Database = {
             columns: ["to_branch_id"]
             isOneToOne: false
             referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscription_payments: {
+        Row: {
+          amount: number
+          billing_period: string
+          created_at: string
+          currency: string
+          id: string
+          metadata: Json | null
+          payment_method: string | null
+          payment_reference: string | null
+          plan_key: string
+          provider: string | null
+          status: string
+          tenant_id: string
+          verified_at: string | null
+        }
+        Insert: {
+          amount: number
+          billing_period?: string
+          created_at?: string
+          currency?: string
+          id?: string
+          metadata?: Json | null
+          payment_method?: string | null
+          payment_reference?: string | null
+          plan_key: string
+          provider?: string | null
+          status?: string
+          tenant_id: string
+          verified_at?: string | null
+        }
+        Update: {
+          amount?: number
+          billing_period?: string
+          created_at?: string
+          currency?: string
+          id?: string
+          metadata?: Json | null
+          payment_method?: string | null
+          payment_reference?: string | null
+          plan_key?: string
+          provider?: string | null
+          status?: string
+          tenant_id?: string
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_payments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
