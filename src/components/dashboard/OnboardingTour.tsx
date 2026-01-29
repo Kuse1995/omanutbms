@@ -26,7 +26,9 @@ export function OnboardingTour({ run, onComplete }: OnboardingTourProps) {
       showProgress
       showSkipButton
       scrollToFirstStep
+      spotlightClicks
       disableOverlayClose={false}
+      disableScrolling={false}
       callback={handleJoyrideCallback}
       styles={{
         options: {
