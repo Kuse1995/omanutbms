@@ -12,7 +12,7 @@ import { useAdvisorActions } from "@/hooks/useAdvisorActions";
 import { AdvisorOnboardingPanel } from "./AdvisorOnboardingPanel";
 import { AdvisorFileUpload, UploadedFile } from "./AdvisorFileUpload";
 import { AdvisorImportCard, ImportPreviewData, ImportRow, ImportSchema } from "./AdvisorImportCard";
-import { ImportConverterModal } from "./ImportConverterModal";
+import { AdvisorImportEditorModal } from "./AdvisorImportEditorModal";
 import { parseDocument } from "@/lib/document-parser";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -982,6 +982,28 @@ export function OmanutAdvisor() {
             )}
           </AnimatePresence>
         </>
+      )}
+
+      {/* Import Editor Modal */}
+      {showImportModal && importModalData && (
+        <AdvisorImportEditorModal
+          open={showImportModal}
+          onOpenChange={setShowImportModal}
+          schema={importModalData.schema}
+          initialData={importModalData.data}
+          initialColumns={importModalData.columns}
+          onImport={async (rows) => {
+            await handleImport(importModalData.schema, rows);
+            setShowImportModal(false);
+            setImportModalData(null);
+            // Clear import data from any related messages
+            setMessages(prev => prev.map(m => 
+              m.importData?.schema === importModalData.schema 
+                ? { ...m, importData: undefined } 
+                : m
+            ));
+          }}
+        />
       )}
     </>,
     portalTarget
