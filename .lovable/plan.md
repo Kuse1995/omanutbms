@@ -1,222 +1,274 @@
 
 
-# Auto Parts Shop - Premium Retail Experience
+# World-Class African SaaS - Phase 1 Implementation
 
 ## Overview
-Transform the "autoshop" business type from a repair/garage-focused system to a **vehicle parts retail shop** with repair services as a secondary offering. This repositions the business for parts stores, motor spares dealers, and accessories shops where selling parts is the primary revenue driver.
+Transform Omanut BMS into an open, self-service SaaS platform for African businesses with:
+- **Open signup** (removing the authorized_emails restriction)
+- **7-day free trial** at registration
+- **USD as base currency** with automatic local currency display
+- **Multi-currency support** with geo-detection
+- **Prepared Lenco payment placeholders** (to activate before launch)
 
-## Key Transformation
+---
 
-| Current Focus | New Focus |
+## What's Changing
+
+| Current State | New State |
 |--------------|-----------|
-| Repair garage (services first) | Parts retail store (products first) |
-| "Job Card" terminology | "Sale" terminology |
-| Parts as secondary to repairs | Parts as primary inventory |
-| Mechanic-focused workflow | Counter sales workflow |
+| Requires pre-authorized email | Open signup for anyone |
+| 14-day trial | 7-day trial |
+| ZMW as base currency | USD as base currency |
+| Single currency display | Auto-detected local currency |
+| "Contact Sales" for payments | Payment UI ready (Lenco integration later) |
 
 ---
 
 ## Implementation Plan
 
-### Phase 1: Terminology & Branding Updates
+### Phase 1: Database Schema Updates
 
-**New Premium Terminology:**
+**1.1 New Tables**
 
-| Current | New |
-|---------|-----|
-| Auto Shop / Garage | Auto Parts Store |
-| Job Card | Sale |
-| Job Cards | Sales |
-| Part | Auto Part |
-| Parts | Auto Parts |
-| Parts & Services | Parts & Spares |
-| Customer | Customer |
-| Jobs Revenue | Sales Revenue |
-| Jobs In Progress | (removed - not applicable) |
+**subscription_payments** - Transaction history (ready for Lenco)
+- `tenant_id` - Link to business
+- `payment_reference` - External payment reference
+- `amount` - Payment amount
+- `currency` - Payment currency
+- `status` - pending, completed, failed
+- `payment_method` - card, mobile_money, bank_transfer
+- `billing_period` - monthly, annual
+- `provider` - lenco (for future)
+- `metadata` - JSONB for provider data
 
-**Files to modify:**
-- `src/lib/business-type-config.ts` - Full autoshop config overhaul
-- `src/lib/terminology-config.ts` - Updated terminology map
+**currency_configs** - African currency rates vs USD
+- `country_code` - ISO country code
+- `country_name` - Human-readable name
+- `currency_code` - USD, ZMW, NGN, KES, etc.
+- `currency_symbol` - $, K, ₦, KSh, etc.
+- `exchange_rate` - Rate vs USD (USD = 1.0)
+- `is_active` - Whether supported
 
-### Phase 2: Expanded Inventory Categories
+**1.2 Modify business_profiles**
+- Add `detected_country` (text)
+- Add `preferred_currency` (text, default 'USD')
+- Add `payment_provider_customer_id` (text) - for Lenco later
 
-Premium parts categories for a professional auto spares shop:
+**1.3 Update handle_new_user() Trigger**
+- Remove check for authorized_emails on signup
+- Set `billing_status = 'trial'` automatically
+- Set `trial_expires_at = NOW() + 7 days`
+- Set `billing_plan = 'starter'` as default
 
-```text
-Categories:
-- engine_parts: Engine Parts
-- filters: Filters & Fluids  
-- brakes: Brakes & Suspension
-- electrical: Electrical & Batteries
-- tyres: Tyres & Wheels
-- body_parts: Body Parts
-- lighting: Lighting & Bulbs
-- accessories: Accessories
-- lubricants: Oils & Lubricants
-- cooling: Cooling System
-- transmission: Transmission Parts
-- service_labor: Service & Labor (secondary)
+### Phase 2: Multi-Currency System
+
+**2.1 Currency Configuration**
+
+| Country | Code | Symbol | Rate (vs USD) |
+|---------|------|--------|---------------|
+| USA (Base) | USD | $ | 1.00 |
+| Zambia | ZMW | K | 27.50 |
+| Nigeria | NGN | ₦ | 1,550.00 |
+| Kenya | KES | KSh | 128.00 |
+| South Africa | ZAR | R | 18.50 |
+| Ghana | GHS | GH₵ | 15.80 |
+| Tanzania | TZS | TSh | 2,685.00 |
+| Uganda | UGX | USh | 3,680.00 |
+| Rwanda | RWF | FRw | 1,320.00 |
+| Botswana | BWP | P | 13.60 |
+| UK | GBP | £ | 0.79 |
+| EU | EUR | € | 0.92 |
+
+**2.2 USD Base Pricing**
+
+| Plan | Monthly USD | Annual USD |
+|------|-------------|------------|
+| Starter | $9 | $96 (~$8/mo) |
+| Pro | $29 | $290 (~$24/mo) |
+| Enterprise | $79 | $850 (~$71/mo) |
+
+**2.3 Price Calculation**
+```
+Local Price = USD Price × Exchange Rate
+Example: Starter in Zambia = $9 × 27.50 = K247.50
 ```
 
-### Phase 3: Enhanced Form Fields
+### Phase 3: Open Signup Flow
 
-**Product Form Enhancements:**
+**3.1 Remove Authorization Check**
+- Update `Auth.tsx` to skip `checkAuthorizedEmail()` for signups
+- Keep authorization check ONLY for existing tenant member invites
+- New signups create their own tenant automatically
 
-```text
-SKU Placeholder: "e.g., BRK-TOY-2015"
-Name Placeholder: "e.g., Front Brake Pads - Toyota Corolla 2015-2020"
-Highlight Placeholder: "e.g., OEM Quality / Genuine Part"
-Description Placeholder: "Part specifications, vehicle compatibility, warranty..."
+**3.2 Enhanced Signup Form**
+- Company name field (required)
+- Auto-detect country via IP geolocation
+- Business type selector
+- Plan selection (pre-selected from URL)
+- Terms of service checkbox
 
-Default Specs:
-- Vehicle Compatibility (e.g., "Toyota Corolla 2015-2020")
-- Part Number / OEM Reference
-- Brand / Manufacturer
-- Warranty Period
+**3.3 Geo-Detection Hook**
+Create `useGeoLocation.ts`:
+- Call free IP geolocation API on mount
+- Return country code and currency
+- Cache result in localStorage
+- Fallback to USD if detection fails
 
-Certifications (Quality Marks):
-- OEM Equivalent
-- Genuine Part
-- Aftermarket Quality
-- 6 Month Warranty
-- 12 Month Warranty
-- Universal Fit
+### Phase 4: Trial System Updates
+
+**4.1 Billing Plans Config**
+- Change `trialDays` from 14 to 7 for all plans
+- Change `currency` from "ZMW" to "USD"
+- Update price values to USD equivalents
+
+**4.2 Trial Banner Updates**
+- Keep existing `TrialBanner.tsx` logic
+- Already handles countdown correctly
+- "Upgrade Now" button ready for payment modal
+
+**4.3 Trial Expiration**
+- Existing `trial_expires_at` column will be set automatically
+- Grace period: 3 days read-only access after expiry
+- Full data retained for 30 days
+
+### Phase 5: Payment UI Preparation
+
+**5.1 Update UpgradePlanModal**
+- Replace "Contact Sales" with "Subscribe Now" button
+- Add placeholder for Lenco payment widget
+- Show "Coming Soon" or "Contact Us" until Lenco keys added
+
+**5.2 Create SubscriptionManager Component**
+- Current plan display
+- Trial status and countdown
+- Payment history (empty initially)
+- "Manage Subscription" placeholder
+
+**5.3 Payment Modal Placeholder**
+- UI structure for Lenco inline widget
+- Currency selector
+- Payment method tabs (Card, Mobile Money)
+- Disabled state until Lenco integration
+
+### Phase 6: Pricing Display Updates
+
+**6.1 Format Price Function**
+```javascript
+formatPrice(amount: number, currency: string = "USD"): string {
+  const config = CURRENCY_CONFIGS[currency];
+  return `${config.symbol}${(amount * config.rate).toLocaleString()}`;
+}
 ```
 
-### Phase 4: Dashboard Layout Redesign
+**6.2 PricingSection Updates**
+- Add currency selector dropdown
+- Auto-select based on detected country
+- Show prices in local currency
+- Display USD equivalent in tooltip
 
-**New Quick Actions (Parts-First):**
-1. **New Sale** (Primary) - Quick counter sale
-2. **Parts Lookup** - Search inventory by vehicle/part
-3. **Restock Alert** - View low stock items
-4. **Record Payment** - Collect pending payments
-
-**New KPI Cards:**
-1. **Today's Sales** - Daily sales revenue
-2. **Parts in Stock** - Total inventory value
-3. **Low Stock Alerts** - Parts below reorder level
-4. **Pending Payments** - Outstanding invoices
-
-**Updated Welcome Message:**
-"Manage your auto parts inventory, sales, and customer orders"
-
-**Dashboard Icon:** `Car` (represents automotive focus)
-
-### Phase 5: Demo Data Enhancement
-
-Expanded realistic inventory for Zambian auto parts market:
-
-```text
-ENGINE & FILTERS:
-- Engine Oil 5W-30 (5L) - K320
-- Engine Oil 10W-40 (5L) - K280
-- Oil Filter - Universal - K85
-- Air Filter - Toyota - K180
-- Fuel Filter - Universal - K120
-- Spark Plugs (set of 4) - K350
-
-BRAKES & SUSPENSION:
-- Brake Pads Front - Universal - K450
-- Brake Pads Rear - K380
-- Brake Discs Front (pair) - K850
-- Shock Absorbers Front - K650
-- Ball Joint - K280
-
-ELECTRICAL:
-- Car Battery 12V 60Ah - K1,400
-- Alternator - Universal - K1,800
-- Starter Motor - K2,200
-- Headlight Bulb H4 - K85
-- Fuse Box Kit - K150
-
-TYRES & WHEELS:
-- Tyre 195/65R15 - K850
-- Tyre 205/55R16 - K950
-- Wheel Bearing Kit - K320
-- Tyre Valve (set of 4) - K45
-
-COOLING SYSTEM:
-- Radiator Coolant (5L) - K180
-- Water Pump - K650
-- Thermostat - K280
-- Radiator Hose Set - K220
-
-ACCESSORIES:
-- Wiper Blades (pair) - K150
-- Car Mat Set - K250
-- Phone Holder - K80
-- Air Freshener (3-pack) - K45
-
-SERVICE LABOR (Secondary):
-- Oil Change Service - K350
-- Brake Inspection - K200
-- Battery Installation - K100
-- Tyre Fitting (per tyre) - K50
-```
+**6.3 Plan Comparison Table**
+- Update to show selected currency
+- Add "Prices shown in [Currency]" label
 
 ---
 
 ## Technical Implementation
 
 ### Files to Create
-None - all changes to existing files
+
+1. **`src/lib/currency-config.ts`**
+   - Currency definitions and exchange rates
+   - Price formatting utilities
+   - Geo-to-currency mapping
+
+2. **`src/hooks/useGeoLocation.ts`**
+   - IP-based country detection
+   - Currency preference management
+   - LocalStorage caching
+
+3. **`src/hooks/useSubscription.ts`**
+   - Subscription status and management
+   - Payment history queries
+   - Upgrade/downgrade logic
+
+4. **`src/components/dashboard/SubscriptionManager.tsx`**
+   - Subscription dashboard widget
+   - Plan and billing info display
+
+5. **`src/components/dashboard/PaymentModal.tsx`**
+   - Payment UI placeholder
+   - Ready for Lenco widget integration
+
+6. **`supabase/functions/lenco-payment-init/index.ts`**
+   - Placeholder edge function
+   - Returns "Coming Soon" until keys added
 
 ### Files to Modify
 
-1. **`src/lib/business-type-config.ts`**
-   - Complete overhaul of autoshop section (lines 944-1027)
-   - New label: "Auto Parts Store"
-   - New description: "Sell vehicle parts and offer repair services"
-   - Terminology: Sale-focused instead of Job Card
-   - Categories: 12 automotive-specific categories
-   - KPIs: Sales-focused metrics
-   - Quick actions: Counter sales workflow
+1. **`src/lib/billing-plans.ts`**
+   - Change `currency` to "USD"
+   - Update prices to USD values
+   - Change `trialDays` to 7
 
-2. **`src/lib/terminology-config.ts`**
-   - Update autoshop terminology map (lines 256-278)
-   - Change "Job Card" to "Sale"
-   - Change "Parts" to "Auto Parts"
+2. **`src/pages/Auth.tsx`**
+   - Remove `checkAuthorizedEmail()` for signup
+   - Add country detection
+   - Add business type selection
 
-3. **`src/lib/demo-data-seeder.ts`**
-   - Expand autoshop inventory template (lines 97-106)
-   - Add 25+ realistic auto parts products
-   - Include both parts (physical stock) and services (labor)
+3. **`src/hooks/useAuth.tsx`**
+   - Remove authorization check export for signup
+   - Keep for existing member validation
 
----
+4. **`src/components/landing/PricingSection.tsx`**
+   - Add currency selector
+   - Use geo-detected currency
+   - Format prices with exchange rate
 
-## Expected User Experience
+5. **`src/components/dashboard/UpgradePlanModal.tsx`**
+   - Replace email links with payment placeholders
+   - Add currency display
 
-### For Counter Staff
-- Quick "New Sale" button for walk-in customers
-- Fast product lookup by name, SKU, or category
-- Clear stock levels visible during sales
-- Easy receipt generation
+6. **`src/components/dashboard/TrialBanner.tsx`**
+   - No major changes needed
+   - Already works with 7-day trial
 
-### For Stock Managers
-- Low stock alerts prominently displayed
-- Reorder level tracking per part
-- Cost price and margin visibility
-- Supplier compatibility notes in descriptions
-
-### For Business Owners
-- Sales-focused dashboard KPIs
-- Inventory value tracking
-- Pending payment visibility
-- Professional auto parts branding
+### Database Migration
+- Create `currency_configs` table with seed data
+- Create `subscription_payments` table
+- Add new columns to `business_profiles`
+- Update `handle_new_user()` trigger for open signup
 
 ---
 
-## Summary of Changes
+## Lenco Integration (Deferred to Launch)
 
-| Area | Change |
-|------|--------|
-| Business Label | "Auto Shop / Garage" → "Auto Parts Store" |
-| Primary Action | "New Job Card" → "New Sale" |
-| Transaction Name | "Job Card" → "Sale" |
-| Product Term | "Part" → "Auto Part" |
-| Inventory Label | "Parts & Services" → "Parts & Spares" |
-| Categories | 6 → 12 automotive categories |
-| Demo Products | 8 → 25+ realistic parts |
-| Dashboard Icon | Wrench → Car |
-| KPI Focus | Jobs → Sales |
+When ready to integrate Lenco, you'll need to:
+
+1. **Add Secrets**
+   - `LENCO_PUBLIC_KEY` - For frontend widget
+   - `LENCO_SECRET_KEY` - For backend verification
+
+2. **Complete Edge Functions**
+   - `lenco-payment-init` - Initialize payment session
+   - `lenco-payment-verify` - Verify completed payment
+   - `lenco-webhook` - Handle payment notifications
+
+3. **Enable PaymentModal**
+   - Remove "Coming Soon" state
+   - Integrate Lenco inline widget
+   - Connect success/failure handlers
+
+---
+
+## Summary
+
+| Component | Action |
+|-----------|--------|
+| Signup | Open to anyone (remove auth check) |
+| Trial | 7 days automatic |
+| Base Currency | USD |
+| Local Currency | Auto-detected from IP |
+| Pricing | Converted using exchange rates |
+| Payments | UI ready, Lenco integration deferred |
+| Trigger | Updated for auto trial activation |
 
