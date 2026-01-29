@@ -88,13 +88,13 @@ serve(async (req) => {
       // Get inventory stats with more detail
       const { data: inventory } = await supabase
         .from("inventory")
-        .select("quantity, reorder_level, name, selling_price, cost_price, expiry_date")
+        .select("current_stock, reorder_level, name, unit_price, cost_price, expiry_date")
         .eq("tenant_id", tenantId);
 
       const totalItems = inventory?.length || 0;
-      const lowStockItems = inventory?.filter(i => i.quantity <= (i.reorder_level || 5)) || [];
-      const outOfStockItems = inventory?.filter(i => i.quantity <= 0) || [];
-      const totalInventoryValue = inventory?.reduce((sum, i) => sum + ((i.quantity || 0) * (i.cost_price || 0)), 0) || 0;
+      const lowStockItems = inventory?.filter(i => (i.current_stock || 0) <= (i.reorder_level || 5)) || [];
+      const outOfStockItems = inventory?.filter(i => (i.current_stock || 0) <= 0) || [];
+      const totalInventoryValue = inventory?.reduce((sum, i) => sum + ((i.current_stock || 0) * (i.cost_price || 0)), 0) || 0;
       
       // Check for expiring items (within 30 days)
       const thirtyDaysFromNow = new Date();
@@ -185,8 +185,8 @@ serve(async (req) => {
 
       // Get low stock items with reorder quantities
       const lowStockDetails = lowStockItems.slice(0, 5).map(item => {
-        const deficit = (item.reorder_level || 10) - (item.quantity || 0);
-        return `${item.name}: ${item.quantity} left (reorder ${deficit}+ units)`;
+        const deficit = (item.reorder_level || 10) - (item.current_stock || 0);
+        return `${item.name}: ${item.current_stock || 0} left (reorder ${deficit}+ units)`;
       });
 
       // Get expiring items with dates
