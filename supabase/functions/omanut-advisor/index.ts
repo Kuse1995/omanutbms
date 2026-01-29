@@ -1,6 +1,16 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function jitter(ms: number) {
+  // +/- 20% jitter to avoid synchronized retries
+  const delta = ms * 0.2;
+  return Math.max(0, Math.round(ms + (Math.random() * 2 - 1) * delta));
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -435,44 +445,75 @@ Never make up data. If you don't have info, just say so naturally. Always be spe
 
 When analyzing complex business questions, use step-by-step reasoning to provide thorough insights. Consider multiple angles: financial health, inventory status, customer relationships, and growth opportunities.`;
 
-    const response = await fetch("https://api.moonshot.ai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${MOONSHOT_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "kimi-k2.5",
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...messages,
-        ],
-        stream: true,
-      }),
-    });
+    // Moonshot can intermittently return 429 when capacity is constrained.
+    // Retry a couple times with backoff to avoid surfacing transient outages to users.
+    const moonshotPayload = {
+      model: "kimi-k2.5",
+      messages: [{ role: "system", content: systemPrompt }, ...messages],
+      stream: true,
+    };
 
-    if (!response.ok) {
-      if (response.status === 429) {
+    const maxAttempts = 3;
+    let response: Response | null = null;
+    let lastErrorText: string | null = null;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      response = await fetch("https://api.moonshot.ai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${MOONSHOT_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(moonshotPayload),
+      });
+
+      if (response.ok) break;
+
+      // Consume body so the underlying connection can be reused.
+      lastErrorText = await response.text().catch(() => null);
+
+      // Retry on transient overload / gateway errors.
+      const isTransient = response.status === 429 || response.status === 503 || response.status === 504;
+      if (isTransient && attempt < maxAttempts) {
+        const backoffMs = jitter(500 * Math.pow(2, attempt - 1)); // 500ms, 1000ms
+        console.warn(
+          `[omanut-advisor] Moonshot transient error (${response.status}) on attempt ${attempt}/${maxAttempts}. Retrying in ${backoffMs}ms.`
+        );
+        await sleep(backoffMs);
+        continue;
+      }
+
+      break;
+    }
+
+    if (!response || !response.ok) {
+      const status = response?.status;
+
+      if (status === 429) {
         return new Response(JSON.stringify({ error: "I'm a bit busy right now. Try again in a moment!" }), {
           status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+            // Suggest a small retry delay to the client.
+            "Retry-After": "2",
+          },
         });
       }
-      if (response.status === 401) {
+      if (status === 401) {
         console.error("Moonshot API authentication failed");
         return new Response(JSON.stringify({ error: "API authentication error. Please check configuration." }), {
           status: 401,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (response.status === 402) {
+      if (status === 402) {
         return new Response(JSON.stringify({ error: "AI credits needed. Please add funds to your Moonshot account." }), {
           status: 402,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const text = await response.text();
-      console.error("Kimi API error:", response.status, text);
+      console.error("Kimi API error:", status, lastErrorText);
       return new Response(JSON.stringify({ error: "Couldn't connect to advisor" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
