@@ -419,14 +419,14 @@ const Auth = () => {
             <TabsList className="grid w-full grid-cols-2 mb-6 bg-slate-700/50">
               <TabsTrigger 
                 value="signin" 
-                className="data-[state=active]:text-white"
+                className="data-[state=active]:bg-primary data-[state=active]:text-white text-slate-400"
                 style={activeTab === 'signin' && branding.isWhiteLabel ? tabActiveStyle : undefined}
               >
                 Sign In
               </TabsTrigger>
               <TabsTrigger 
                 value="signup" 
-                className="data-[state=active]:text-white"
+                className="data-[state=active]:bg-primary data-[state=active]:text-white text-slate-400"
                 style={activeTab === 'signup' && branding.isWhiteLabel ? tabActiveStyle : undefined}
               >
                 Create Account
