@@ -1,169 +1,222 @@
 
-# Enhanced Usage Analytics for Super Admin
+
+# Auto Parts Shop - Premium Retail Experience
 
 ## Overview
-This plan implements comprehensive feature usage tracking and advanced analytics to give super admins deep insights into how users interact with the platform, which features are most valuable, and who the most active users are.
+Transform the "autoshop" business type from a repair/garage-focused system to a **vehicle parts retail shop** with repair services as a secondary offering. This repositions the business for parts stores, motor spares dealers, and accessories shops where selling parts is the primary revenue driver.
 
-## Current State Analysis
-- **Existing infrastructure**: `feature_usage_logs` table exists but is not being used (0 records)
-- **`useFeatureTracking` hook** exists but isn't integrated into any components
-- **`audit_log` table** has rich activity data (5,349+ sales_transactions, 504 receipts, 356 invoices, etc.) with `changed_by` user tracking
-- **Current dashboard** shows tenant-level metrics but lacks:
-  - Per-user activity tracking
-  - Feature usage heatmaps
-  - Time-based activity patterns
-  - User engagement scoring
+## Key Transformation
+
+| Current Focus | New Focus |
+|--------------|-----------|
+| Repair garage (services first) | Parts retail store (products first) |
+| "Job Card" terminology | "Sale" terminology |
+| Parts as secondary to repairs | Parts as primary inventory |
+| Mechanic-focused workflow | Counter sales workflow |
+
+---
 
 ## Implementation Plan
 
-### Phase 1: Database Schema Enhancements
+### Phase 1: Terminology & Branding Updates
 
-Create new tables and views for analytics:
+**New Premium Terminology:**
 
-```text
-+---------------------------+
-| user_activity_summary     |  (materialized view)
-+---------------------------+
-| user_id                   |
-| tenant_id                 |
-| total_actions             |
-| last_active_at            |
-| most_used_feature         |
-| engagement_score          |
-+---------------------------+
+| Current | New |
+|---------|-----|
+| Auto Shop / Garage | Auto Parts Store |
+| Job Card | Sale |
+| Job Cards | Sales |
+| Part | Auto Part |
+| Parts | Auto Parts |
+| Parts & Services | Parts & Spares |
+| Customer | Customer |
+| Jobs Revenue | Sales Revenue |
+| Jobs In Progress | (removed - not applicable) |
 
-+---------------------------+
-| feature_usage_logs        |  (existing - add indexes)
-+---------------------------+
-| + page_path (new column)  |
-| + session_id (new column) |
-+---------------------------+
-```
+**Files to modify:**
+- `src/lib/business-type-config.ts` - Full autoshop config overhaul
+- `src/lib/terminology-config.ts` - Updated terminology map
 
-**Database changes:**
-1. Add `page_path` and `session_id` columns to `feature_usage_logs`
-2. Create optimized indexes for analytics queries
-3. Create database function to calculate engagement scores
+### Phase 2: Expanded Inventory Categories
 
-### Phase 2: Feature Tracking Integration
-
-Instrument key components to track usage:
-
-| Module | Events to Track |
-|--------|-----------------|
-| Dashboard Home | `view`, time spent |
-| Sales Recorder | `create`, `view`, `export` |
-| Inventory Manager | `create`, `update`, `import` |
-| Invoices Manager | `create`, `export`, `send` |
-| HR/Payroll | `view`, `run_payroll` |
-| Receipts | `create`, `print` |
-| AI Advisor | `query`, `import`, `action` |
-| Reports | `generate`, `export` |
-
-**Implementation approach:**
-- Create a wrapper hook `useTrackedNavigation` that auto-tracks page views
-- Add tracking calls to key action handlers (e.g., `recordSale`, `createInvoice`)
-- Track export/generate actions separately for engagement scoring
-
-### Phase 3: Enhanced Analytics Dashboard
-
-Add new tabs and visualizations to `UsageAnalyticsDashboard.tsx`:
-
-#### 3.1 New "User Activity" Tab
-- **Top Active Users Table**: Ranked list showing:
-  - User name, email, tenant
-  - Total actions (last 30 days)
-  - Primary feature used
-  - Last active timestamp
-  - Engagement score (calculated metric)
-
-- **User Activity Timeline**: Chart showing daily active users over time
-
-#### 3.2 New "Feature Insights" Tab
-- **Feature Usage Heatmap**: Grid showing which features are used when (hour of day vs. day of week)
-- **Feature Popularity Ranking**: Bar chart with usage counts per feature
-- **Feature Adoption Funnel**: Visualization showing progression from sign-up to feature activation
-
-#### 3.3 Enhanced "Overview" Tab
-- **Daily/Weekly/Monthly Active Users (DAU/WAU/MAU)** KPI cards
-- **User Retention Rate** metric
-- **Feature Stickiness** score (returning users per feature)
-
-### Phase 4: Engagement Scoring System
-
-Create a weighted scoring algorithm:
+Premium parts categories for a professional auto spares shop:
 
 ```text
-Engagement Score = 
-  (Sales Created × 5) + 
-  (Invoices Created × 4) + 
-  (Inventory Actions × 3) + 
-  (Reports Generated × 4) + 
-  (Receipts Issued × 2) + 
-  (AI Advisor Queries × 3) + 
-  (Days Active × 10)
+Categories:
+- engine_parts: Engine Parts
+- filters: Filters & Fluids  
+- brakes: Brakes & Suspension
+- electrical: Electrical & Batteries
+- tyres: Tyres & Wheels
+- body_parts: Body Parts
+- lighting: Lighting & Bulbs
+- accessories: Accessories
+- lubricants: Oils & Lubricants
+- cooling: Cooling System
+- transmission: Transmission Parts
+- service_labor: Service & Labor (secondary)
 ```
 
-**Score Categories:**
-- **Power User**: 500+ points
-- **Active User**: 200-499 points  
-- **Regular User**: 50-199 points
-- **Low Engagement**: <50 points
+### Phase 3: Enhanced Form Fields
 
-## Technical Details
+**Product Form Enhancements:**
+
+```text
+SKU Placeholder: "e.g., BRK-TOY-2015"
+Name Placeholder: "e.g., Front Brake Pads - Toyota Corolla 2015-2020"
+Highlight Placeholder: "e.g., OEM Quality / Genuine Part"
+Description Placeholder: "Part specifications, vehicle compatibility, warranty..."
+
+Default Specs:
+- Vehicle Compatibility (e.g., "Toyota Corolla 2015-2020")
+- Part Number / OEM Reference
+- Brand / Manufacturer
+- Warranty Period
+
+Certifications (Quality Marks):
+- OEM Equivalent
+- Genuine Part
+- Aftermarket Quality
+- 6 Month Warranty
+- 12 Month Warranty
+- Universal Fit
+```
+
+### Phase 4: Dashboard Layout Redesign
+
+**New Quick Actions (Parts-First):**
+1. **New Sale** (Primary) - Quick counter sale
+2. **Parts Lookup** - Search inventory by vehicle/part
+3. **Restock Alert** - View low stock items
+4. **Record Payment** - Collect pending payments
+
+**New KPI Cards:**
+1. **Today's Sales** - Daily sales revenue
+2. **Parts in Stock** - Total inventory value
+3. **Low Stock Alerts** - Parts below reorder level
+4. **Pending Payments** - Outstanding invoices
+
+**Updated Welcome Message:**
+"Manage your auto parts inventory, sales, and customer orders"
+
+**Dashboard Icon:** `Car` (represents automotive focus)
+
+### Phase 5: Demo Data Enhancement
+
+Expanded realistic inventory for Zambian auto parts market:
+
+```text
+ENGINE & FILTERS:
+- Engine Oil 5W-30 (5L) - K320
+- Engine Oil 10W-40 (5L) - K280
+- Oil Filter - Universal - K85
+- Air Filter - Toyota - K180
+- Fuel Filter - Universal - K120
+- Spark Plugs (set of 4) - K350
+
+BRAKES & SUSPENSION:
+- Brake Pads Front - Universal - K450
+- Brake Pads Rear - K380
+- Brake Discs Front (pair) - K850
+- Shock Absorbers Front - K650
+- Ball Joint - K280
+
+ELECTRICAL:
+- Car Battery 12V 60Ah - K1,400
+- Alternator - Universal - K1,800
+- Starter Motor - K2,200
+- Headlight Bulb H4 - K85
+- Fuse Box Kit - K150
+
+TYRES & WHEELS:
+- Tyre 195/65R15 - K850
+- Tyre 205/55R16 - K950
+- Wheel Bearing Kit - K320
+- Tyre Valve (set of 4) - K45
+
+COOLING SYSTEM:
+- Radiator Coolant (5L) - K180
+- Water Pump - K650
+- Thermostat - K280
+- Radiator Hose Set - K220
+
+ACCESSORIES:
+- Wiper Blades (pair) - K150
+- Car Mat Set - K250
+- Phone Holder - K80
+- Air Freshener (3-pack) - K45
+
+SERVICE LABOR (Secondary):
+- Oil Change Service - K350
+- Brake Inspection - K200
+- Battery Installation - K100
+- Tyre Fitting (per tyre) - K50
+```
+
+---
+
+## Technical Implementation
 
 ### Files to Create
-1. `src/components/dashboard/UserActivityTab.tsx` - New user activity analytics component
-2. `src/components/dashboard/FeatureInsightsTab.tsx` - Feature usage insights
-3. `src/hooks/useTrackedNavigation.ts` - Auto-tracking wrapper hook
+None - all changes to existing files
 
 ### Files to Modify
-1. `src/components/dashboard/UsageAnalyticsDashboard.tsx` - Add new tabs and integrate new components
-2. `src/hooks/useFeatureTracking.ts` - Enhance with page path and session tracking
-3. `src/components/dashboard/DashboardSidebar.tsx` - Integrate navigation tracking
-4. `src/components/dashboard/SalesRecorder.tsx` - Add action tracking
-5. `src/components/dashboard/InvoicesManager.tsx` - Add action tracking
-6. `src/components/dashboard/SmartInventory.tsx` - Add action tracking
-7. `src/components/dashboard/OmanutAdvisor.tsx` - Add query tracking
 
-### Database Migrations
-1. Add new columns to `feature_usage_logs`
-2. Create index for analytics performance
-3. Create engagement score calculation function
+1. **`src/lib/business-type-config.ts`**
+   - Complete overhaul of autoshop section (lines 944-1027)
+   - New label: "Auto Parts Store"
+   - New description: "Sell vehicle parts and offer repair services"
+   - Terminology: Sale-focused instead of Job Card
+   - Categories: 12 automotive-specific categories
+   - KPIs: Sales-focused metrics
+   - Quick actions: Counter sales workflow
 
-### Data Flow Diagram
+2. **`src/lib/terminology-config.ts`**
+   - Update autoshop terminology map (lines 256-278)
+   - Change "Job Card" to "Sale"
+   - Change "Parts" to "Auto Parts"
 
-```text
-User Action (click, create, export)
-       │
-       ▼
-useFeatureTracking.trackFeatureUsage()
-       │
-       ▼
-feature_usage_logs (insert)
-       │
-       ▼
-Super Admin Dashboard (query with aggregations)
-       │
-       ▼
-Visualizations (charts, tables, scores)
-```
+3. **`src/lib/demo-data-seeder.ts`**
+   - Expand autoshop inventory template (lines 97-106)
+   - Add 25+ realistic auto parts products
+   - Include both parts (physical stock) and services (labor)
 
-## Expected Outcomes
+---
 
-After implementation, super admins will be able to:
-1. **Identify power users** - See who uses the system most actively
-2. **Understand feature value** - Know which features drive engagement
-3. **Spot inactive tenants** - Proactively reach out to re-engage
-4. **Optimize the product** - Focus development on high-value features
-5. **Track adoption trends** - Monitor feature rollout success over time
+## Expected User Experience
 
-## Implementation Order
+### For Counter Staff
+- Quick "New Sale" button for walk-in customers
+- Fast product lookup by name, SKU, or category
+- Clear stock levels visible during sales
+- Easy receipt generation
 
-1. Database schema changes (migration)
-2. Enhanced tracking hook
-3. Instrument key components with tracking
-4. Build User Activity tab
-5. Build Feature Insights tab  
-6. Add engagement scoring
-7. Update Overview tab with new KPIs
+### For Stock Managers
+- Low stock alerts prominently displayed
+- Reorder level tracking per part
+- Cost price and margin visibility
+- Supplier compatibility notes in descriptions
+
+### For Business Owners
+- Sales-focused dashboard KPIs
+- Inventory value tracking
+- Pending payment visibility
+- Professional auto parts branding
+
+---
+
+## Summary of Changes
+
+| Area | Change |
+|------|--------|
+| Business Label | "Auto Shop / Garage" → "Auto Parts Store" |
+| Primary Action | "New Job Card" → "New Sale" |
+| Transaction Name | "Job Card" → "Sale" |
+| Product Term | "Part" → "Auto Part" |
+| Inventory Label | "Parts & Services" → "Parts & Spares" |
+| Categories | 6 → 12 automotive categories |
+| Demo Products | 8 → 25+ realistic parts |
+| Dashboard Icon | Wrench → Car |
+| KPI Focus | Jobs → Sales |
+
