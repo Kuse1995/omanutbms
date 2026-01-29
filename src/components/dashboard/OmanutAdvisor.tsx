@@ -96,6 +96,7 @@ export function OmanutAdvisor() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [hasAnimated, setHasAnimated] = useState(false);
+  const [showWiggle, setShowWiggle] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -210,6 +211,19 @@ export function OmanutAdvisor() {
       return () => clearTimeout(timer);
     }
   }, [isOpen, isHidden, hasAnimated]);
+
+  // Periodic wiggle animation to draw attention
+  useEffect(() => {
+    if (isOpen || isHidden || prefersReducedMotion) return;
+    
+    // Trigger wiggle every 8 seconds when idle
+    const interval = setInterval(() => {
+      setShowWiggle(true);
+      setTimeout(() => setShowWiggle(false), 500);
+    }, 8000);
+    
+    return () => clearInterval(interval);
+  }, [isOpen, isHidden, prefersReducedMotion]);
 
   const toggleHidden = () => {
     const newHidden = !isHidden;
@@ -454,21 +468,19 @@ export function OmanutAdvisor() {
                 onDrag={handleDrag}
                 onDragEnd={handleDragEnd}
               >
-                {/* Glow halo */}
+                {/* Ping ring - continuous expanding ring for attention */}
+                {!prefersReducedMotion && (
+                  <span
+                    aria-hidden
+                    className="absolute inset-0 rounded-full bg-primary/30 animate-ping-ring"
+                  />
+                )}
+
+                {/* Enhanced glow halo */}
                 <motion.span
                   aria-hidden
-                  className="absolute -inset-3 rounded-full bg-primary/25 blur-2xl"
-                  initial={prefersReducedMotion ? { opacity: 0.35 } : { opacity: 0.35, scale: 0.95 }}
-                  animate={
-                    prefersReducedMotion
-                      ? { opacity: 0.35 }
-                      : { opacity: [0.25, 0.55, 0.25], scale: [0.95, 1.08, 0.95] }
-                  }
-                  transition={
-                    prefersReducedMotion
-                      ? undefined
-                      : { duration: 2.6, repeat: Infinity, ease: "easeInOut" }
-                  }
+                  className="absolute -inset-4 rounded-full bg-gradient-radial from-primary/40 to-accent/20 blur-3xl animate-pulse-glow"
+                  style={{ opacity: prefersReducedMotion ? 0.35 : undefined }}
                 />
 
                 {/* Progress ring for new users */}
@@ -494,16 +506,29 @@ export function OmanutAdvisor() {
                     />
                   </svg>
                 )}
-                <img 
-                  src={advisorLogo} 
-                  alt="Advisor" 
-                  className="h-9 w-9 group-hover:scale-110 transition-transform object-contain relative" 
-                />
+
+                {/* Wiggle wrapper for periodic attention */}
+                <motion.div
+                  animate={showWiggle && !prefersReducedMotion ? { rotate: [0, -3, 3, -2, 2, 0] } : {}}
+                  transition={{ duration: 0.5, ease: "easeInOut" }}
+                >
+                  <img 
+                    src={advisorLogo} 
+                    alt="Advisor" 
+                    className="h-9 w-9 group-hover:scale-110 transition-transform object-contain relative" 
+                  />
+                </motion.div>
                 
-                {/* New user badge */}
+                {/* New user badge with ping effect */}
                 {isNewUser && !hasSeenWelcome && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-accent text-accent-foreground rounded-full flex items-center justify-center shadow-soft">
-                    <span className="text-[10px] font-bold">!</span>
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center">
+                    {/* Ping ripple */}
+                    {!prefersReducedMotion && (
+                      <span className="absolute inset-0 bg-accent rounded-full animate-badge-ping" />
+                    )}
+                    <span className="relative w-4 h-4 bg-accent text-accent-foreground rounded-full flex items-center justify-center shadow-soft">
+                      <span className="text-[10px] font-bold">!</span>
+                    </span>
                   </span>
                 )}
               </motion.button>
