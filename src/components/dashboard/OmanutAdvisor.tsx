@@ -71,15 +71,12 @@ interface Message {
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/omanut-advisor`;
 
 export function OmanutAdvisor() {
+  // All hooks MUST be called at the top level, before any conditional returns
   const { user, loading: authLoading } = useAuth();
   const { tenantId, businessProfile } = useTenant();
   const prefersReducedMotion = useReducedMotion();
   const dragControls = useDragControls();
   const constraintsRef = useRef<HTMLDivElement>(null);
-
-  // Hide advisor for unauthenticated users - no flash on public pages
-  if (authLoading) return null;
-  if (!user) return null;
   
   // Track whether user has dragged the widget
   const [hasBeenDragged, setHasBeenDragged] = useState(() => {
@@ -125,7 +122,7 @@ export function OmanutAdvisor() {
   const [selectedFile, setSelectedFile] = useState<UploadedFile | null>(null);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
-  const [importModalData, setImportModalData] = useState<{ 
+  const [importModalData, setImportModalData] = useState<{
     data: any[]; 
     columns: string[]; 
     schema: ImportSchema;
@@ -597,6 +594,9 @@ export function OmanutAdvisor() {
     markWelcomeSeen();
     handleQuickPrompt(message);
   };
+
+  // Hide advisor for unauthenticated users - placed after all hooks
+  if (authLoading || !user) return null;
 
   if (!portalTarget) return null;
 
