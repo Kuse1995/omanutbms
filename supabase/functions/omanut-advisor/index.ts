@@ -29,60 +29,21 @@ serve(async (req) => {
       throw new Error("MOONSHOT_API_KEY is not configured");
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Process file attachment if present (extract text from PDFs/images using vision)
-    let extractedFileText = "";
+    // Store file attachment for direct vision processing with Kimi
+    let fileAttachmentData: { type: string; content: string; mimeType?: string } | null = null;
+    let extractedTextContent = "";
+    
     if (fileAttachment) {
       if (fileAttachment.type === "text") {
-        // Word doc - text already extracted
-        extractedFileText = fileAttachment.content;
-      } else if ((fileAttachment.type === "pdf" || fileAttachment.type === "image") && LOVABLE_API_KEY) {
-        // Use Gemini vision to extract text from PDF/image
-        try {
-          const visionResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${LOVABLE_API_KEY}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model: "google/gemini-2.5-flash",
-              messages: [
-                {
-                  role: "user",
-                  content: [
-                    {
-                      type: "text",
-                      text: "Extract and transcribe ALL text content from this document. Include tables, lists, and any structured data. Return the raw text content only, no commentary."
-                    },
-                    {
-                      type: "image_url",
-                      image_url: {
-                        url: `data:${fileAttachment.mimeType || "application/pdf"};base64,${fileAttachment.content}`
-                      }
-                    }
-                  ]
-                }
-              ],
-              temperature: 0.1,
-            }),
-          });
-
-          if (visionResponse.ok) {
-            const visionResult = await visionResponse.json();
-            extractedFileText = visionResult.choices?.[0]?.message?.content || "";
-            console.log(`[omanut-advisor] Extracted ${extractedFileText.length} chars from ${fileAttachment.type}`);
-          } else {
-            console.error("[omanut-advisor] Vision extraction failed:", visionResponse.status);
-          }
-        } catch (visionError) {
-          console.error("[omanut-advisor] Vision extraction error:", visionError);
-        }
+        // Word doc - text already extracted client-side
+        extractedTextContent = fileAttachment.content;
+      } else if (fileAttachment.type === "pdf" || fileAttachment.type === "image") {
+        // Store for Kimi vision processing
+        fileAttachmentData = fileAttachment;
       }
     }
 
@@ -501,16 +462,32 @@ When analyzing complex business questions, use step-by-step reasoning to provide
     // Moonshot can intermittently return 429 when capacity is constrained.
     // Retry a couple times with backoff to avoid surfacing transient outages to users.
     
-    // Augment last user message with extracted file content if present
+    // Build messages for Kimi - handle both text and vision content
     let augmentedMessages = [...messages];
-    if (extractedFileText && augmentedMessages.length > 0) {
+    
+    if (augmentedMessages.length > 0) {
       const lastIndex = augmentedMessages.length - 1;
       const lastMessage = augmentedMessages[lastIndex];
+      
       if (lastMessage.role === "user") {
-        augmentedMessages[lastIndex] = {
-          ...lastMessage,
-          content: `${lastMessage.content}\n\n--- ATTACHED DOCUMENT CONTENT ---\n${extractedFileText}\n--- END DOCUMENT ---`
-        };
+        if (fileAttachmentData) {
+          // Use Kimi's native vision - send image directly in message content
+          const imageDataUrl = `data:${fileAttachmentData.mimeType || "application/octet-stream"};base64,${fileAttachmentData.content}`;
+          augmentedMessages[lastIndex] = {
+            ...lastMessage,
+            content: [
+              { type: "text", text: lastMessage.content || "Please analyze this document:" },
+              { type: "image_url", image_url: { url: imageDataUrl } }
+            ]
+          };
+          console.log(`[omanut-advisor] Sending ${fileAttachmentData.type} to Kimi vision`);
+        } else if (extractedTextContent) {
+          // Word doc - append extracted text
+          augmentedMessages[lastIndex] = {
+            ...lastMessage,
+            content: `${lastMessage.content}\n\n--- ATTACHED DOCUMENT CONTENT ---\n${extractedTextContent}\n--- END DOCUMENT ---`
+          };
+        }
       }
     }
 
