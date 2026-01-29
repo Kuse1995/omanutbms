@@ -2,13 +2,14 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { z } from "zod";
-import { LayoutDashboard, Mail, Loader2, AlertCircle, Shield, Lock, Eye, EyeOff, ArrowLeft } from "lucide-react";
+import { LayoutDashboard, Mail, Loader2, AlertCircle, Shield, Lock, Eye, EyeOff, ArrowLeft, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth, checkAuthorizedEmail } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useGeoLocation } from "@/hooks/useGeoLocation";
 import { PlanSelector } from "@/components/auth/PlanSelector";
 import { BillingPlan, BILLING_PLANS } from "@/lib/billing-plans";
 import { supabase } from "@/integrations/supabase/client";
@@ -148,6 +149,12 @@ const ForgotPasswordForm = ({
   );
 };
 
+const signupSchema = z.object({
+  email: z.string().email("Please enter a valid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  companyName: z.string().min(2, "Company name must be at least 2 characters"),
+});
+
 const authSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
@@ -157,6 +164,7 @@ const Auth = () => {
   const [searchParams] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -173,6 +181,9 @@ const Auth = () => {
   const [selectedPlan, setSelectedPlan] = useState<BillingPlan>(
     urlPlan && BILLING_PLANS[urlPlan] ? urlPlan : "starter"
   );
+  
+  // Geo-detection for currency
+  const { countryCode, currency } = useGeoLocation();
 
   const { signIn, signUp, resetPassword, user, loading } = useAuth();
   const navigate = useNavigate();
@@ -271,33 +282,28 @@ const Auth = () => {
     setIsLoading(true);
 
     try {
-      const validation = authSchema.safeParse({ email, password });
-      if (!validation.success) {
-        const fieldErrors: Record<string, string> = {};
-        validation.error.errors.forEach((err) => {
-          if (err.path[0]) {
-            fieldErrors[err.path[0] as string] = err.message;
-          }
-        });
-        setErrors(fieldErrors);
-        setIsLoading(false);
-        return;
-      }
-
-      // Check if email is authorized before attempting login/signup
-      const isAuthorized = await checkAuthorizedEmail(email);
-      if (!isAuthorized) {
-        toast({
-          title: "Access Denied",
-          description: "This email is not authorized to access the system. Only approved administrators can log in.",
-          variant: "destructive",
-        });
-        setIsLoading(false);
-        return;
-      }
-
       if (isSignUp) {
-        const { error } = await signUp(email, password);
+        // OPEN SIGNUP - No authorization check needed for new signups
+        const validation = signupSchema.safeParse({ email, password, companyName });
+        if (!validation.success) {
+          const fieldErrors: Record<string, string> = {};
+          validation.error.errors.forEach((err) => {
+            if (err.path[0]) {
+              fieldErrors[err.path[0] as string] = err.message;
+            }
+          });
+          setErrors(fieldErrors);
+          setIsLoading(false);
+          return;
+        }
+
+        // Sign up with user metadata for company name and currency
+        const { error } = await signUp(email, password, {
+          company_name: companyName,
+          detected_country: countryCode,
+          preferred_currency: currency.currencyCode,
+        });
+        
         if (error) {
           if (error.message.includes("already registered")) {
             toast({
@@ -315,11 +321,25 @@ const Auth = () => {
           }
         } else {
           toast({
-            title: "Account Created!",
-            description: "You are now signed in.",
+            title: "Welcome! 🎉",
+            description: `Your ${BILLING_PLANS[selectedPlan].trialDays}-day free trial has started.`,
           });
         }
       } else {
+        // SIGN IN - Keep authorization check for login (existing tenant members)
+        const validation = authSchema.safeParse({ email, password });
+        if (!validation.success) {
+          const fieldErrors: Record<string, string> = {};
+          validation.error.errors.forEach((err) => {
+            if (err.path[0]) {
+              fieldErrors[err.path[0] as string] = err.message;
+            }
+          });
+          setErrors(fieldErrors);
+          setIsLoading(false);
+          return;
+        }
+
         const { error } = await signIn(email, password);
         if (error) {
           if (error.message.includes("Invalid login credentials")) {
@@ -546,6 +566,30 @@ const Auth = () => {
               </div>
               
               <form onSubmit={(e) => handleSubmit(e, true)} className="space-y-5">
+                {/* Company Name Field */}
+                <div className="space-y-2">
+                  <Label htmlFor="signup-company" className="text-slate-300">
+                    Company Name
+                  </Label>
+                  <div className="relative">
+                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <Input
+                      id="signup-company"
+                      type="text"
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      placeholder="Your Company Name"
+                      className="pl-11 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500"
+                    />
+                  </div>
+                  {errors.companyName && (
+                    <p className="text-sm text-red-400 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {errors.companyName}
+                    </p>
+                  )}
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="signup-email" className="text-slate-300">
                     Email Address
@@ -611,7 +655,7 @@ const Auth = () => {
                       Creating Account...
                     </>
                   ) : (
-                    `Start ${BILLING_PLANS[selectedPlan].label} Trial`
+                    `Start ${BILLING_PLANS[selectedPlan].trialDays}-Day Free Trial`
                   )}
                 </Button>
                 
@@ -626,7 +670,7 @@ const Auth = () => {
         {/* Footer note */}
         <div className="text-center mt-6 space-y-2">
           <p className="text-slate-500 text-sm">
-            Access restricted to authorized personnel only.
+            By signing up, you agree to our Terms of Service and Privacy Policy.
           </p>
           <div className="flex items-center justify-center gap-2 text-slate-600 text-xs">
             <Shield className="w-3.5 h-3.5" />

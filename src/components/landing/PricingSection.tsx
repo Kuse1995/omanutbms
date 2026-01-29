@@ -1,19 +1,30 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Check, Crown, Sparkles, Zap, ArrowRight } from "lucide-react";
+import { Check, Crown, Sparkles, Zap, ArrowRight, Globe } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useBillingPlans } from "@/hooks/useBillingPlans";
-import { BillingPlan, formatPrice } from "@/lib/billing-plans";
+import { useGeoLocation } from "@/hooks/useGeoLocation";
+import { BillingPlan } from "@/lib/billing-plans";
+import { getAvailableCurrencies, formatLocalPrice, formatUSDPrice } from "@/lib/currency-config";
 import { PlanComparisonTable } from "./PlanComparisonTable";
 
 export function PricingSection() {
   const [isAnnual, setIsAnnual] = useState(true);
   const { plans, planKeys, loading } = useBillingPlans();
+  const { countryCode, setPreferredCurrency, currency } = useGeoLocation();
+  const currencies = getAvailableCurrencies();
 
   // Calculate annual savings
   const getAnnualSavings = (planKey: BillingPlan) => {
@@ -58,10 +69,34 @@ export function PricingSection() {
             Simple, transparent pricing
           </h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Start with a 14-day free trial. No credit card required. 
+            Start with a 7-day free trial. No credit card required. 
             Choose the plan that fits your business.
           </p>
         </motion.div>
+
+        {/* Currency Selector */}
+        <div className="flex items-center justify-center gap-4 mb-8">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Globe className="w-4 h-4" />
+            <span className="text-sm">Prices in:</span>
+          </div>
+          <Select value={countryCode} onValueChange={setPreferredCurrency}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {currencies.map((c) => (
+                <SelectItem key={c.countryCode} value={c.countryCode}>
+                  <span className="flex items-center gap-2">
+                    <span>{c.flag}</span>
+                    <span>{c.currencyCode}</span>
+                    <span className="text-muted-foreground">({c.currencySymbol})</span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         {/* Billing Toggle */}
         <div className="flex items-center justify-center gap-4 mb-12">
@@ -139,13 +174,21 @@ export function PricingSection() {
                     <div>
                       <div className="flex items-baseline gap-1">
                         <span className="text-4xl font-bold">
-                          {formatPrice(isAnnual ? Math.round(planData.annualPrice / 12) : planData.monthlyPrice)}
+                          {formatLocalPrice(
+                            isAnnual ? Math.round(planData.annualPrice / 12) : planData.monthlyPrice,
+                            countryCode
+                          )}
                         </span>
                         <span className="text-muted-foreground">/month</span>
                       </div>
+                      {countryCode !== "US" && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          ≈ {formatUSDPrice(isAnnual ? Math.round(planData.annualPrice / 12) : planData.monthlyPrice)} USD
+                        </p>
+                      )}
                       {isAnnual && (
                         <p className="text-sm text-muted-foreground mt-2">
-                          Billed annually ({formatPrice(planData.annualPrice)}/year)
+                          Billed annually ({formatLocalPrice(planData.annualPrice, countryCode)}/year)
                         </p>
                       )}
                     </div>
