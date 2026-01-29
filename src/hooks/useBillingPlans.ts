@@ -52,6 +52,7 @@ function mergePlanConfig(planKey: BillingPlan, override: PlanConfigRow | null): 
       inventoryItems: override.max_inventory_items === 0 ? Infinity : (override.max_inventory_items ?? defaults.limits.inventoryItems),
       whatsappMessages: defaults.limits.whatsappMessages,
       aiQueriesDaily: defaults.limits.aiQueriesDaily,
+      aiActionsDaily: defaults.limits.aiActionsDaily,
     },
     features: {
       inventory: override.feature_inventory ?? defaults.features.inventory,

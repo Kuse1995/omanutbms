@@ -10,6 +10,7 @@ export interface PlanLimits {
   inventoryItems: number;
   whatsappMessages: number;
   aiQueriesDaily: number;
+  aiActionsDaily: number;
 }
 
 export interface PlanFeatures {
@@ -57,6 +58,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       inventoryItems: 100,
       whatsappMessages: 30,
       aiQueriesDaily: 10,
+      aiActionsDaily: 0,
     },
     features: {
       inventory: true,
@@ -99,6 +101,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       inventoryItems: 1000,
       whatsappMessages: 500,
       aiQueriesDaily: 50,
+      aiActionsDaily: 10,
     },
     features: {
       inventory: true,
@@ -145,6 +148,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       inventoryItems: Infinity,
       whatsappMessages: Infinity,
       aiQueriesDaily: Infinity,
+      aiActionsDaily: Infinity,
     },
     features: {
       inventory: true,
