@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
@@ -43,9 +44,22 @@ import { useTrackedNavigation } from "@/hooks/useTrackedNavigation";
 
 export type DashboardTab = "dashboard" | "sales" | "receipts" | "accounts" | "assets" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings" | "tenant-settings" | "modules" | "platform-admin" | "branches" | "returns" | "customers" | "custom-orders" | "warehouse" | "stock-transfers" | "locations" | "production-floor";
 
+const validTabs: DashboardTab[] = ["dashboard", "sales", "receipts", "accounts", "assets", "hr", "inventory", "shop", "agents", "communities", "messages", "contacts", "website", "settings", "tenant-settings", "modules", "platform-admin", "branches", "returns", "customers", "custom-orders", "warehouse", "stock-transfers", "locations", "production-floor"];
+
 const Dashboard = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { layout, loading: configLoading } = useBusinessConfig();
-  const [activeTab, setActiveTab] = useState<DashboardTab>(layout.defaultTab);
+  
+  // Initialize from URL param or default
+  const getInitialTab = (): DashboardTab => {
+    const urlTab = searchParams.get("tab") as DashboardTab;
+    if (urlTab && validTabs.includes(urlTab)) {
+      return urlTab;
+    }
+    return layout.defaultTab;
+  };
+  
+  const [activeTab, setActiveTab] = useState<DashboardTab>(getInitialTab());
   const { canAccessTab, loading } = useFeatures();
   const { toast } = useToast();
   const { isSuperAdmin } = useAuth();
@@ -87,6 +101,24 @@ const Dashboard = () => {
     '--brand-secondary': branding.secondaryColor,
     '--brand-accent': branding.accentColor,
   } as React.CSSProperties), [branding.primaryColor, branding.secondaryColor, branding.accentColor]);
+
+  // Sync URL params with active tab
+  useEffect(() => {
+    const urlTab = searchParams.get("tab") as DashboardTab;
+    if (urlTab && validTabs.includes(urlTab) && urlTab !== activeTab) {
+      setActiveTab(urlTab);
+    }
+  }, [searchParams]);
+
+  // Update URL when tab changes (optional - for shareable links)
+  useEffect(() => {
+    const currentUrlTab = searchParams.get("tab");
+    if (activeTab !== "dashboard" && currentUrlTab !== activeTab) {
+      setSearchParams({ tab: activeTab }, { replace: true });
+    } else if (activeTab === "dashboard" && currentUrlTab) {
+      setSearchParams({}, { replace: true });
+    }
+  }, [activeTab, setSearchParams]);
 
   // Route protection: redirect to dashboard if user tries to access disabled feature
   useEffect(() => {

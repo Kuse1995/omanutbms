@@ -281,12 +281,12 @@ export function NotificationsCenter() {
             notifications.map((notification) => (
               <DropdownMenuItem
                 key={`${notification.source_table}-${notification.id}`}
-                className="flex items-start gap-3 p-3 cursor-pointer hover:bg-[#004B8D]/5 focus:bg-[#004B8D]/5"
+                className="flex items-start gap-3 p-3 cursor-pointer hover:bg-primary/10 focus:bg-primary/10 transition-colors group"
                 onClick={() => handleNotificationClick(notification)}
               >
                 <div className="mt-0.5">{getIcon(notification.type)}</div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-[#003366] truncate">
+                  <p className="text-sm font-medium text-foreground group-hover:text-primary truncate">
                     {notification.title}
                   </p>
                   <p className="text-xs text-muted-foreground line-clamp-2">
@@ -296,9 +296,14 @@ export function NotificationsCenter() {
                     {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
                   </p>
                 </div>
-                {!notification.is_read && (
-                  <div className="w-2 h-2 rounded-full bg-blue-500 mt-1.5" />
-                )}
+                <div className="flex flex-col items-center gap-1">
+                  {!notification.is_read && (
+                    <div className="w-2 h-2 rounded-full bg-blue-500" />
+                  )}
+                  <span className="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                    View →
+                  </span>
+                </div>
               </DropdownMenuItem>
             ))
           )}
