@@ -176,10 +176,10 @@ const Auth = () => {
   const [branding, setBranding] = useState<BrandingConfig>(DEFAULT_BRANDING);
   const [brandingLoading, setBrandingLoading] = useState(!!tenantSlug);
   
-  // Plan selection for signup
+  // Plan selection for signup - default to Pro (growth) plan
   const urlPlan = searchParams.get("plan") as BillingPlan | null;
   const [selectedPlan, setSelectedPlan] = useState<BillingPlan>(
-    urlPlan && BILLING_PLANS[urlPlan] ? urlPlan : "starter"
+    urlPlan && BILLING_PLANS[urlPlan] ? urlPlan : "growth"
   );
   
   // Geo-detection for currency
