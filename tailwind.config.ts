@@ -133,6 +133,26 @@ export default {
           "50%": { transform: "translateY(0)" },
           "75%": { transform: "translateY(-4px)" },
         },
+        "ping-ring": {
+          "0%": { transform: "scale(1)", opacity: "0.6" },
+          "100%": { transform: "scale(1.8)", opacity: "0" },
+        },
+        wiggle: {
+          "0%, 100%": { transform: "rotate(0deg)" },
+          "20%": { transform: "rotate(-3deg)" },
+          "40%": { transform: "rotate(3deg)" },
+          "60%": { transform: "rotate(-2deg)" },
+          "80%": { transform: "rotate(2deg)" },
+        },
+        "pulse-glow": {
+          "0%, 100%": { opacity: "0.25", transform: "scale(0.95)" },
+          "50%": { opacity: "0.6", transform: "scale(1.1)" },
+        },
+        "badge-ping": {
+          "0%": { transform: "scale(1)", opacity: "0.8" },
+          "50%": { transform: "scale(1.5)", opacity: "0" },
+          "100%": { transform: "scale(1)", opacity: "0" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -141,6 +161,10 @@ export default {
         ripple: "ripple 2s ease-out infinite",
         "droplet-fall": "droplet-fall 10s linear infinite",
         "bounce-subtle": "bounce-subtle 0.8s ease-out",
+        "ping-ring": "ping-ring 2.5s cubic-bezier(0, 0, 0.2, 1) infinite",
+        wiggle: "wiggle 0.5s ease-in-out",
+        "pulse-glow": "pulse-glow 3s ease-in-out infinite",
+        "badge-ping": "badge-ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite",
       },
     },
   },
