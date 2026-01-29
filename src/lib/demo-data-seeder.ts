@@ -95,14 +95,58 @@ const inventoryTemplates: Record<string, Array<{
     { name: "IT Support (monthly)", sku: "SVC-IT-MON", category: "retainer", unit_price: 1200, cost_price: 300, quantity: 999, reorder_level: 0 },
   ],
   autoshop: [
-    { name: "Oil Change Service", sku: "SVC-OIL-001", category: "maintenance_service", unit_price: 350, cost_price: 150, quantity: 999, reorder_level: 0 },
-    { name: "Tyre Rotation", sku: "SVC-TYRE-ROT", category: "maintenance_service", unit_price: 200, cost_price: 50, quantity: 999, reorder_level: 0 },
-    { name: "Brake Pad Replacement", sku: "SVC-BRAKE-001", category: "repair", unit_price: 800, cost_price: 400, quantity: 999, reorder_level: 0 },
-    { name: "Engine Diagnostics", sku: "SVC-DIAG-001", category: "diagnostics", unit_price: 300, cost_price: 50, quantity: 999, reorder_level: 0 },
-    { name: "Engine Oil (5L)", sku: "PRT-OIL-5L", category: "parts", unit_price: 280, cost_price: 180, quantity: 40, reorder_level: 15 },
-    { name: "Brake Pads (set)", sku: "PRT-BRAKE-SET", category: "parts", unit_price: 450, cost_price: 280, quantity: 20, reorder_level: 8 },
-    { name: "Air Filter", sku: "PRT-AIRF-001", category: "parts", unit_price: 150, cost_price: 80, quantity: 30, reorder_level: 10 },
-    { name: "Battery (12V)", sku: "PRT-BATT-12V", category: "parts", unit_price: 1200, cost_price: 850, quantity: 15, reorder_level: 5 },
+    // Oils & Lubricants
+    { name: "Engine Oil 5W-30 (5L)", sku: "OIL-5W30-5L", category: "lubricants", unit_price: 320, cost_price: 200, quantity: 50, reorder_level: 15 },
+    { name: "Engine Oil 10W-40 (5L)", sku: "OIL-10W40-5L", category: "lubricants", unit_price: 280, cost_price: 180, quantity: 40, reorder_level: 12 },
+    { name: "Transmission Fluid (1L)", sku: "OIL-TRANS-1L", category: "lubricants", unit_price: 180, cost_price: 110, quantity: 25, reorder_level: 10 },
+    { name: "Brake Fluid DOT4 (500ml)", sku: "OIL-BRAKE-500", category: "lubricants", unit_price: 85, cost_price: 50, quantity: 35, reorder_level: 12 },
+    // Filters
+    { name: "Oil Filter - Universal", sku: "FIL-OIL-UNI", category: "filters", unit_price: 85, cost_price: 45, quantity: 60, reorder_level: 20 },
+    { name: "Air Filter - Toyota", sku: "FIL-AIR-TOY", category: "filters", unit_price: 180, cost_price: 100, quantity: 30, reorder_level: 12 },
+    { name: "Air Filter - Nissan", sku: "FIL-AIR-NIS", category: "filters", unit_price: 175, cost_price: 95, quantity: 25, reorder_level: 10 },
+    { name: "Fuel Filter - Universal", sku: "FIL-FUEL-UNI", category: "filters", unit_price: 120, cost_price: 65, quantity: 35, reorder_level: 12 },
+    { name: "Cabin Filter", sku: "FIL-CAB-001", category: "filters", unit_price: 150, cost_price: 80, quantity: 20, reorder_level: 8 },
+    // Brakes & Suspension
+    { name: "Brake Pads Front - Universal", sku: "BRK-PAD-FR", category: "brakes", unit_price: 450, cost_price: 250, quantity: 25, reorder_level: 10 },
+    { name: "Brake Pads Rear", sku: "BRK-PAD-RR", category: "brakes", unit_price: 380, cost_price: 220, quantity: 20, reorder_level: 8 },
+    { name: "Brake Discs Front (pair)", sku: "BRK-DISC-FR", category: "brakes", unit_price: 850, cost_price: 500, quantity: 12, reorder_level: 5 },
+    { name: "Shock Absorbers Front", sku: "SUS-SHOCK-FR", category: "brakes", unit_price: 650, cost_price: 400, quantity: 15, reorder_level: 6 },
+    { name: "Ball Joint", sku: "SUS-BALL-001", category: "brakes", unit_price: 280, cost_price: 160, quantity: 18, reorder_level: 8 },
+    // Electrical & Batteries
+    { name: "Car Battery 12V 60Ah", sku: "BAT-12V-60", category: "electrical", unit_price: 1400, cost_price: 950, quantity: 10, reorder_level: 4 },
+    { name: "Car Battery 12V 75Ah", sku: "BAT-12V-75", category: "electrical", unit_price: 1650, cost_price: 1100, quantity: 8, reorder_level: 3 },
+    { name: "Alternator - Universal", sku: "ELC-ALT-UNI", category: "electrical", unit_price: 1800, cost_price: 1200, quantity: 6, reorder_level: 3 },
+    { name: "Starter Motor", sku: "ELC-START-001", category: "electrical", unit_price: 2200, cost_price: 1500, quantity: 5, reorder_level: 2 },
+    { name: "Spark Plugs (set of 4)", sku: "ELC-SPARK-4", category: "electrical", unit_price: 350, cost_price: 200, quantity: 40, reorder_level: 15 },
+    // Lighting
+    { name: "Headlight Bulb H4", sku: "LGT-H4-001", category: "lighting", unit_price: 85, cost_price: 45, quantity: 50, reorder_level: 20 },
+    { name: "Headlight Bulb H7", sku: "LGT-H7-001", category: "lighting", unit_price: 95, cost_price: 50, quantity: 45, reorder_level: 18 },
+    { name: "Tail Light Bulb", sku: "LGT-TAIL-001", category: "lighting", unit_price: 35, cost_price: 18, quantity: 60, reorder_level: 25 },
+    { name: "Fuse Box Kit", sku: "ELC-FUSE-KIT", category: "electrical", unit_price: 150, cost_price: 80, quantity: 20, reorder_level: 8 },
+    // Tyres & Wheels
+    { name: "Tyre 195/65R15", sku: "TYR-195-65-15", category: "tyres", unit_price: 850, cost_price: 600, quantity: 16, reorder_level: 6 },
+    { name: "Tyre 205/55R16", sku: "TYR-205-55-16", category: "tyres", unit_price: 950, cost_price: 680, quantity: 12, reorder_level: 4 },
+    { name: "Wheel Bearing Kit", sku: "WHL-BEAR-KIT", category: "tyres", unit_price: 320, cost_price: 190, quantity: 15, reorder_level: 6 },
+    { name: "Tyre Valve (set of 4)", sku: "TYR-VALVE-4", category: "tyres", unit_price: 45, cost_price: 20, quantity: 100, reorder_level: 30 },
+    // Cooling System
+    { name: "Radiator Coolant (5L)", sku: "COL-COOL-5L", category: "cooling", unit_price: 180, cost_price: 100, quantity: 25, reorder_level: 10 },
+    { name: "Water Pump", sku: "COL-WPUMP-001", category: "cooling", unit_price: 650, cost_price: 400, quantity: 8, reorder_level: 4 },
+    { name: "Thermostat", sku: "COL-THERM-001", category: "cooling", unit_price: 280, cost_price: 150, quantity: 15, reorder_level: 6 },
+    { name: "Radiator Hose Set", sku: "COL-HOSE-SET", category: "cooling", unit_price: 220, cost_price: 120, quantity: 12, reorder_level: 5 },
+    // Engine Parts
+    { name: "Timing Belt Kit", sku: "ENG-TMBLT-KIT", category: "engine_parts", unit_price: 1800, cost_price: 1100, quantity: 6, reorder_level: 3 },
+    { name: "Fan Belt", sku: "ENG-FANB-001", category: "engine_parts", unit_price: 180, cost_price: 95, quantity: 20, reorder_level: 8 },
+    { name: "Engine Mount", sku: "ENG-MNT-001", category: "engine_parts", unit_price: 450, cost_price: 280, quantity: 10, reorder_level: 4 },
+    // Accessories
+    { name: "Wiper Blades (pair)", sku: "ACC-WIPER-PR", category: "accessories", unit_price: 150, cost_price: 80, quantity: 40, reorder_level: 15 },
+    { name: "Car Mat Set", sku: "ACC-MAT-SET", category: "accessories", unit_price: 250, cost_price: 140, quantity: 15, reorder_level: 6 },
+    { name: "Phone Holder", sku: "ACC-PHONE-001", category: "accessories", unit_price: 80, cost_price: 35, quantity: 30, reorder_level: 12 },
+    { name: "Air Freshener (3-pack)", sku: "ACC-FRESH-3", category: "accessories", unit_price: 45, cost_price: 20, quantity: 50, reorder_level: 20 },
+    // Service & Labor (Secondary)
+    { name: "Oil Change Service", sku: "SVC-OIL-CHG", category: "service_labor", unit_price: 350, cost_price: 80, quantity: 999, reorder_level: 0 },
+    { name: "Brake Inspection", sku: "SVC-BRK-INSP", category: "service_labor", unit_price: 200, cost_price: 50, quantity: 999, reorder_level: 0 },
+    { name: "Battery Installation", sku: "SVC-BAT-INST", category: "service_labor", unit_price: 100, cost_price: 30, quantity: 999, reorder_level: 0 },
+    { name: "Tyre Fitting (per tyre)", sku: "SVC-TYR-FIT", category: "service_labor", unit_price: 50, cost_price: 15, quantity: 999, reorder_level: 0 },
   ],
   hospitality: [
     { name: "Standard Room (per night)", sku: "ROM-STD-001", category: "accommodation", unit_price: 450, cost_price: 150, quantity: 10, reorder_level: 0 },
