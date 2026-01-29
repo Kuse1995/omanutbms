@@ -1,0 +1,129 @@
+-- First drop the trigger if it exists (to avoid conflict)
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+
+-- Create the trigger that calls handle_new_user on new auth signups
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW
+  EXECUTE FUNCTION public.handle_new_user();
+
+-- Also enable inventory_enabled by default for new signups to ensure sidebar shows
+-- Update the handle_new_user function to include inventory_enabled
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  user_email TEXT;
+  assigned_role app_role;
+  assigned_branch_id uuid;
+  new_tenant_id uuid;
+  existing_tenant_id uuid;
+  existing_role app_role;
+  user_full_name TEXT;
+  company_name_input TEXT;
+  detected_country_input TEXT;
+  preferred_currency_input TEXT;
+BEGIN
+  -- Get the user's email and metadata
+  user_email := NEW.email;
+  user_full_name := COALESCE(NEW.raw_user_meta_data ->> 'full_name', SPLIT_PART(user_email, '@', 1));
+  company_name_input := NEW.raw_user_meta_data ->> 'company_name';
+  detected_country_input := NEW.raw_user_meta_data ->> 'detected_country';
+  preferred_currency_input := NEW.raw_user_meta_data ->> 'preferred_currency';
+  
+  -- Check if this email has a predefined tenant, role, and branch in authorized_emails
+  -- This is for EXISTING tenant member invites only
+  SELECT ae.tenant_id, ae.default_role, ae.branch_id 
+  INTO existing_tenant_id, existing_role, assigned_branch_id
+  FROM public.authorized_emails ae
+  WHERE LOWER(ae.email) = LOWER(user_email)
+  LIMIT 1;
+  
+  -- Default to admin if no role found (new signups become admin of their own tenant)
+  IF existing_role IS NULL THEN
+    assigned_role := 'admin';
+  ELSE
+    assigned_role := existing_role;
+  END IF;
+
+  -- Insert profile
+  INSERT INTO public.profiles (user_id, full_name)
+  VALUES (NEW.id, user_full_name)
+  ON CONFLICT (user_id) DO NOTHING;
+  
+  -- Insert role into user_roles (for backward compatibility)
+  INSERT INTO public.user_roles (user_id, role)
+  VALUES (NEW.id, assigned_role)
+  ON CONFLICT (user_id) DO UPDATE SET role = assigned_role;
+  
+  -- Handle tenant assignment
+  IF existing_tenant_id IS NOT NULL THEN
+    -- User was pre-authorized to join an existing tenant (invited member)
+    INSERT INTO public.tenant_users (tenant_id, user_id, role, branch_id, can_access_all_branches)
+    VALUES (
+      existing_tenant_id, 
+      NEW.id, 
+      assigned_role,
+      assigned_branch_id,
+      (assigned_role = 'admin' OR assigned_branch_id IS NULL)
+    )
+    ON CONFLICT (user_id) DO NOTHING;
+  ELSE
+    -- NEW SIGNUP: Create a new tenant for this user (they become the owner/admin)
+    INSERT INTO public.tenants (name, slug)
+    VALUES (
+      COALESCE(company_name_input, user_full_name || '''s Organization'),
+      LOWER(REPLACE(COALESCE(company_name_input, user_full_name), ' ', '-')) || '-' || SUBSTRING(gen_random_uuid()::text, 1, 8)
+    )
+    RETURNING id INTO new_tenant_id;
+    
+    -- Add user as tenant owner/admin with full branch access
+    INSERT INTO public.tenant_users (tenant_id, user_id, role, is_owner, can_access_all_branches)
+    VALUES (new_tenant_id, NEW.id, 'admin', true, true);
+    
+    -- Create business profile with 7-DAY TRIAL, basic features enabled by default
+    INSERT INTO public.business_profiles (
+      tenant_id, 
+      company_name, 
+      billing_status, 
+      billing_plan,
+      trial_expires_at,
+      detected_country,
+      preferred_currency,
+      -- Enable core features for trial users
+      inventory_enabled,
+      payroll_enabled,
+      website_enabled,
+      impact_enabled,
+      agents_enabled,
+      tax_enabled
+    )
+    VALUES (
+      new_tenant_id, 
+      COALESCE(company_name_input, user_full_name || '''s Business'),
+      'trial',
+      'starter',
+      NOW() + INTERVAL '7 days',
+      detected_country_input,
+      COALESCE(preferred_currency_input, 'USD'),
+      -- Default features for trial
+      true,  -- inventory_enabled
+      true,  -- payroll_enabled
+      true,  -- website_enabled
+      true,  -- impact_enabled
+      true,  -- agents_enabled
+      true   -- tax_enabled
+    );
+    
+    -- Create tenant statistics
+    INSERT INTO public.tenant_statistics (tenant_id)
+    VALUES (new_tenant_id)
+    ON CONFLICT (tenant_id) DO NOTHING;
+  END IF;
+  
+  RETURN NEW;
+END;
+$$;
