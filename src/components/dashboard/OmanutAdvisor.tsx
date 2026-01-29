@@ -96,7 +96,7 @@ export function OmanutAdvisor() {
   } = useAdvisorOnboarding();
 
   // Real-time business awareness
-  const { events: liveEvents, unreadCount: liveUnreadCount, markAllRead: markLiveEventsRead } = useAdvisorLiveContext();
+  const { events: liveEvents, unreadCount: liveUnreadCount, markAllRead: markLiveEventsRead, getEventsSummary } = useAdvisorLiveContext();
   
   // Advisor actions (for logging and permissions)
   const { canPerformAction, logAction, isProOrHigher } = useAdvisorActions();
@@ -508,6 +508,7 @@ export function OmanutAdvisor() {
           isNewUser,
           onboardingProgress: progress,
           fileAttachment: fileContent,
+          liveEventsSummary: getEventsSummary(),
         }),
       });
 
@@ -561,7 +562,7 @@ export function OmanutAdvisor() {
     } finally {
       setIsLoading(false);
     }
-  }, [input, messages, tenantId, isLoading, showOnboarding, markWelcomeSeen, selectedFile, parseImportData]);
+  }, [input, messages, tenantId, isLoading, showOnboarding, markWelcomeSeen, selectedFile, parseImportData, getEventsSummary]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
