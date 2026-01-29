@@ -2019,6 +2019,8 @@ export type Database = {
           feature_key: string
           id: string
           metadata: Json | null
+          page_path: string | null
+          session_id: string | null
           tenant_id: string | null
           user_id: string | null
         }
@@ -2028,6 +2030,8 @@ export type Database = {
           feature_key: string
           id?: string
           metadata?: Json | null
+          page_path?: string | null
+          session_id?: string | null
           tenant_id?: string | null
           user_id?: string | null
         }
@@ -2037,6 +2041,8 @@ export type Database = {
           feature_key?: string
           id?: string
           metadata?: Json | null
+          page_path?: string | null
+          session_id?: string | null
           tenant_id?: string | null
           user_id?: string | null
         }
@@ -4547,6 +4553,10 @@ export type Database = {
       }
     }
     Functions: {
+      calculate_engagement_score: {
+        Args: { p_start_date?: string; p_user_id: string }
+        Returns: number
+      }
       can_manage_accounts: { Args: { _tenant_id: string }; Returns: boolean }
       can_manage_hr: { Args: { _tenant_id: string }; Returns: boolean }
       can_manage_operations: { Args: { _tenant_id: string }; Returns: boolean }
@@ -4566,6 +4576,35 @@ export type Database = {
         Returns: undefined
       }
       ensure_tenant_membership: { Args: never; Returns: string }
+      get_daily_active_users: {
+        Args: { p_days?: number }
+        Returns: {
+          active_users: number
+          activity_date: string
+        }[]
+      }
+      get_feature_usage_stats: {
+        Args: { p_start_date?: string }
+        Returns: {
+          feature_key: string
+          total_usage: number
+          unique_tenants: number
+          unique_users: number
+        }[]
+      }
+      get_top_active_users: {
+        Args: { p_limit?: number; p_start_date?: string }
+        Returns: {
+          email: string
+          engagement_score: number
+          full_name: string
+          last_active_at: string
+          tenant_id: string
+          tenant_name: string
+          total_actions: number
+          user_id: string
+        }[]
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
