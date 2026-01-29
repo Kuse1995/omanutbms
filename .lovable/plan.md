@@ -1,127 +1,94 @@
 
 
-# Collaborative Custom Order Workflow
-## Admin & Operations Officer Handoff System
-
----
+# Enhanced AI Advisor Animations Plan
 
 ## Overview
-
-This feature enables **role-based collaboration** on the 7-step Custom Order wizard. An **Admin** can start an order and specify at which step an **Operations Officer** should take over, creating a clear division of labor:
-
-- **Admin**: Handles client intake, pricing, and sign-off (business-facing steps)
-- **Operations Officer**: Handles technical work (measurements, production, QC)
+This plan adds eye-catching, professional animations to the Omanut Advisor button to draw user attention without being intrusive. The enhancements include a pulsing ring effect, a "ping" notification indicator, periodic wiggle animations, and an enhanced glow effect.
 
 ---
 
-## How It Works
+## Current State
+
+The advisor currently has:
+- A subtle bounce animation (`bounce-subtle`) that plays once on mount
+- A pulsing glow halo (`bg-primary/25 blur-2xl`) with scale animation
+- Progress ring for new users
+- Hover scale effect (1.03x)
+
+**Issue**: The single bounce plays once and stops, so returning users may not notice the advisor.
+
+---
+
+## Proposed Animations
+
+### 1. Attention Pulse Ring (Continuous)
+A ring that expands outward from the button like a radar ping, drawing peripheral vision attention.
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│                    CUSTOM ORDER WORKFLOW                         │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  Step 1: Client Info      → Admin fills client details          │
-│  Step 2: Work Details     → Admin sets dates & scheduling       │
-│  Step 3: Design Details   → Admin captures design requirements  │
-│                           ▼                                      │
-│              ┌────────────────────────┐                         │
-│              │   HANDOFF POINT        │  ← Admin chooses here   │
-│              │   (after step 3)       │                         │
-│              └────────────────────────┘                         │
-│                           ▼                                      │
-│  Step 4: Measurements     → Operations Officer takes over       │
-│  Step 5: Sketches & Refs  → Operations Officer continues        │
-│  Step 6: Smart Pricing    → Could go back to Admin              │
-│  Step 7: Review & Sign    → Admin signs off                     │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+     ╭─────────╮
+    ╱   ╭───╮   ╲    ← Expanding ring (fades as it grows)
+   │   │ ● │   │     ← Advisor button
+    ╲   ╰───╯   ╱
+     ╰─────────╯
 ```
 
----
+- Expands from button size to 1.8x
+- Fades from 60% to 0% opacity
+- Repeats every 3 seconds
+- Subtle primary color
 
-## Database Changes
+### 2. Periodic Wiggle/Shake
+A small wiggle animation that triggers periodically (every 8-10 seconds) to simulate "I have something to tell you":
 
-Add new columns to `custom_orders` table:
+```text
+   ← ● →   (rotates ±3° back and forth)
+```
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `handoff_step` | INTEGER | Step number (0-6) where Operations takes over |
-| `handoff_status` | TEXT | 'pending_handoff', 'in_progress', 'handed_back', 'completed' |
-| `assigned_operations_user_id` | UUID | The Operations Officer assigned |
-| `handed_off_at` | TIMESTAMPTZ | When the handoff occurred |
-| `handed_back_at` | TIMESTAMPTZ | When Ops returned to Admin |
-| `handoff_notes` | TEXT | Notes from Admin to Ops |
+- Plays for ~0.5 seconds
+- Repeats every 8 seconds while idle
+- Stops when user interacts
 
----
+### 3. Enhanced Glow Pulse
+Improve the existing glow to be more noticeable:
+- Larger blur radius (from `blur-2xl` to `blur-3xl`)
+- More pronounced opacity change (0.2 → 0.6 → 0.2)
+- Slight color shift (primary → accent blend)
 
-## User Experience
-
-### For Admin (Starting a New Order)
-
-1. Admin creates a new custom order via the wizard
-2. **New handoff configuration panel** appears (collapsible):
-   - Toggle: "Enable Operations Handoff"
-   - Select: "Handoff after step: [Dropdown]"
-   - Select: "Assign to: [Operations Officers list]"
-   - Textarea: "Notes for Operations"
-3. Admin completes steps up to the handoff point
-4. Saves order with status `pending_handoff`
-5. Operations Officer is notified (visual badge in their dashboard)
-
-### For Operations Officer (Continuing the Order)
-
-1. Sees orders assigned to them in a **"My Assigned Orders"** section
-2. Badge shows which step to start from
-3. Opens the wizard in "continuation mode":
-   - Previous steps are **read-only** (can view but not edit)
-   - Current step onwards are editable
-4. Completes their assigned steps (e.g., Measurements, Sketches)
-5. Option: "Hand back to Admin" or "Continue to next step"
-
-### Handoff Statuses
-
-| Status | Badge Color | Description |
-|--------|-------------|-------------|
-| `pending_handoff` | Amber | Admin saved, waiting for Ops |
-| `in_progress` | Blue | Ops is working on it |
-| `handed_back` | Purple | Ops returned to Admin |
-| `completed` | Green | Order confirmed |
+### 4. Notification Badge Animation
+For new users, make the "!" badge more attention-grabbing:
+- Add a subtle ping/ripple effect
+- Bouncing number badge
 
 ---
 
-## UI Components
+## Implementation Details
 
-### 1. HandoffConfigPanel (New Component)
-Located within the wizard, allows Admin to configure handoff:
-- Enable/disable handoff
-- Select handoff step (Client Info, Work Details, Design, Measurements, Sketches, Pricing)
-- Assign Operations Officer (filtered to `operations_manager` role)
-- Add notes
+### New Tailwind Keyframes
 
-### 2. Wizard Modifications
-- **Step indicator**: Shows handoff point with a visual marker
-- **Read-only mode**: Lock completed steps when viewing as Ops
-- **Continuation banner**: "Continuing from Step X - Assigned by [Admin Name]"
+| Animation | Description |
+|-----------|-------------|
+| `ping-ring` | Expanding ring that fades outward |
+| `wiggle` | Small rotation wiggle (±3°) |
+| `pulse-glow` | Enhanced opacity + scale pulse for the halo |
+| `badge-ping` | Ripple effect for notification badge |
 
-### 3. CustomOrdersManager Enhancements
-- New filter: "My Assignments" (for Ops role)
-- Badge overlay showing handoff status
-- Quick action: "Continue Order" button
+### Component Changes
 
-### 4. Notification Card
-- Visual notification for Operations Officers
-- Shows pending assignments count
-- Links directly to assigned order
+**OmanutAdvisor.tsx** updates:
+1. Add `isIdle` state that tracks if user hasn't interacted for 5+ seconds
+2. Add interval for triggering wiggle animation periodically
+3. Replace current glow span with enhanced multi-layer glow
+4. Add expanding ring element
+5. Enhance badge with ping effect
 
----
+### Animation Timing
 
-## Files to Create
-
-| File | Purpose |
-|------|---------|
-| `src/components/dashboard/HandoffConfigPanel.tsx` | Handoff configuration UI |
-| `src/components/dashboard/AssignedOrdersSection.tsx` | Ops view of assigned orders |
+| Animation | Duration | Repeat | Trigger |
+|-----------|----------|--------|---------|
+| Pulse ring | 2.5s | Infinite | Always (when closed) |
+| Wiggle | 0.5s | Every 8s | Idle state |
+| Glow pulse | 3s | Infinite | Always |
+| Badge ping | 1.5s | Infinite | New user |
 
 ---
 
@@ -129,111 +96,128 @@ Located within the wizard, allows Admin to configure handoff:
 
 | File | Changes |
 |------|---------|
-| `src/components/dashboard/CustomDesignWizard.tsx` | Add handoff config, read-only mode, continuation banner |
-| `src/components/dashboard/CustomOrdersManager.tsx` | Add filter for assignments, handoff badges |
-| `src/integrations/supabase/types.ts` | (Auto-generated after migration) |
-| Migration SQL | Add handoff columns |
+| `tailwind.config.ts` | Add new keyframes: `ping-ring`, `wiggle`, `pulse-glow`, `badge-ping` |
+| `src/components/dashboard/OmanutAdvisor.tsx` | Add animation elements, periodic wiggle logic, enhanced glow |
 
 ---
 
-## Role-Based Access Logic
+## New Keyframe Definitions
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│                     PERMISSION MATRIX                            │
-├─────────────────┬───────────────────────────────────────────────┤
-│     Action      │  Admin  │ Manager │ Ops Manager │ Other       │
-├─────────────────┼─────────┼─────────┼─────────────┼─────────────┤
-│ Create Order    │   ✓     │    ✓    │      ✓      │    -        │
-│ Configure Handoff│   ✓     │    ✓    │      -      │    -        │
-│ Assign Ops User │   ✓     │    ✓    │      -      │    -        │
-│ Complete Ops Steps│   ✓   │    ✓    │      ✓      │    -        │
-│ Hand Back to Admin│   -   │    -    │      ✓      │    -        │
-│ Final Sign-off  │   ✓     │    ✓    │      -      │    -        │
-└─────────────────┴─────────┴─────────┴─────────────┴─────────────┘
+ping-ring:
+  0%: scale(1), opacity(0.6)
+  100%: scale(1.8), opacity(0)
+
+wiggle:
+  0%, 100%: rotate(0)
+  20%: rotate(-3deg)
+  40%: rotate(3deg)
+  60%: rotate(-2deg)
+  80%: rotate(2deg)
+
+pulse-glow:
+  0%, 100%: opacity(0.25), scale(0.95)
+  50%: opacity(0.6), scale(1.1)
+
+badge-ping:
+  0%: scale(1), opacity(0.8)
+  50%: scale(1.3), opacity(0)
+  100%: scale(1), opacity(0)
 ```
 
 ---
 
-## Handoff Step Options
-
-Admin can choose to hand off after any of these steps:
-
-| Handoff After | Ops Starts At | Use Case |
-|---------------|---------------|----------|
-| Client Info (1) | Work Details (2) | Ops handles everything technical |
-| Work Details (2) | Design Details (3) | Ops captures design requirements |
-| Design Details (3) | Measurements (4) | **Most common** - Ops takes measurements |
-| Measurements (4) | Sketches (5) | Ops only does sketches |
-| Sketches (5) | Pricing (6) | Ops finalizes pricing (rare) |
-
----
-
-## Workflow States
+## Visual Preview
 
 ```text
-Order Created (Draft)
-       │
-       ▼
-   [Admin fills steps 1-N]
-       │
-       ▼
-   pending_handoff ────────► [Ops notified]
-       │
-       ▼
-   in_progress ◄────────────── [Ops picks up]
-       │
-       ├──► [Ops completes all steps] ──► confirmed (normal flow)
-       │
-       └──► [Ops hands back] ──► handed_back
-                                    │
-                                    ▼
-                              [Admin reviews]
-                                    │
-                                    ▼
-                                confirmed
+Idle State (attention-seeking):
+┌─────────────────────────────────┐
+│                                 │
+│      ╭───────────╮              │
+│     ╱  ╭─────╮    ╲  ← Ping ring│
+│    │  │ ● ! │    │   ← Glowing  │
+│     ╲  ╰─────╯   ╱     button   │
+│      ╰───────────╯              │
+│         ↺ wiggle                │
+└─────────────────────────────────┘
+
+After user hovers/clicks:
+┌─────────────────────────────────┐
+│                                 │
+│                                 │
+│         ╭─────╮                 │
+│         │  ●  │  ← Calm, no     │
+│         ╰─────╯    wiggle       │
+│                                 │
+└─────────────────────────────────┘
 ```
 
 ---
 
-## Technical Details
+## Accessibility Considerations
 
-### Fetching Operations Officers
-Query `tenant_users` where `role = 'operations_manager'`:
+- All animations respect `prefers-reduced-motion`
+- Wiggle stops after user interacts (not endlessly distracting)
+- Animations are subtle enough to not cause discomfort
+- Users can hide the advisor completely
+
+---
+
+## Technical Implementation
+
+### Periodic Wiggle Logic
+
 ```typescript
-const { data: opsUsers } = await supabase
-  .from('tenant_users')
-  .select('user_id, profiles(full_name)')
-  .eq('tenant_id', tenantId)
-  .eq('role', 'operations_manager');
+// State to track if we should show periodic attention animation
+const [showWiggle, setShowWiggle] = useState(false);
+
+useEffect(() => {
+  if (isOpen || isHidden || prefersReducedMotion) return;
+  
+  // Trigger wiggle every 8 seconds when idle
+  const interval = setInterval(() => {
+    setShowWiggle(true);
+    setTimeout(() => setShowWiggle(false), 500);
+  }, 8000);
+  
+  return () => clearInterval(interval);
+}, [isOpen, isHidden, prefersReducedMotion]);
 ```
 
-### Read-Only Step Detection
-```typescript
-const isStepReadOnly = (stepIndex: number) => {
-  if (!order.handoff_step) return false;
-  if (role === 'operations_manager') {
-    // Ops can't edit steps before handoff
-    return stepIndex < order.handoff_step;
-  }
-  if (order.handoff_status === 'in_progress' && isAdmin) {
-    // Admin can't edit while Ops is working
-    return stepIndex >= order.handoff_step;
-  }
-  return false;
-};
+### Enhanced Button Structure
+
+```tsx
+<motion.button>
+  {/* Ping ring - continuous */}
+  <span className="absolute inset-0 rounded-full bg-primary/30 animate-ping-ring" />
+  
+  {/* Enhanced glow halo */}
+  <motion.span className="absolute -inset-4 rounded-full bg-gradient-radial from-primary/40 to-accent/20 blur-3xl animate-pulse-glow" />
+  
+  {/* Button content with wiggle */}
+  <motion.div animate={showWiggle ? { rotate: [0, -3, 3, -2, 2, 0] } : {}}>
+    <img src={advisorLogo} ... />
+  </motion.div>
+  
+  {/* Badge with ping */}
+  {isNewUser && (
+    <span className="relative">
+      <span className="absolute inset-0 animate-badge-ping bg-accent rounded-full" />
+      <span className="relative">!</span>
+    </span>
+  )}
+</motion.button>
 ```
 
 ---
 
 ## Testing Checklist
 
-1. Admin creates order, enables handoff after Step 3
-2. Assign to an Operations Officer
-3. Verify Ops sees the order in "My Assignments"
-4. Ops opens order, Steps 1-3 are read-only
-5. Ops completes Steps 4-5, hands back
-6. Admin sees order in "Handed Back" state
-7. Admin completes Step 6-7, signs off
-8. Order status changes to `confirmed`
+After implementation:
+1. Verify ping ring expands and fades continuously
+2. Confirm wiggle triggers every ~8 seconds when idle
+3. Check animations stop when advisor is opened
+4. Verify `prefers-reduced-motion` disables all new animations
+5. Test on mobile (animations should be less intense)
+6. Confirm hide/show toggle works with new animations
 
