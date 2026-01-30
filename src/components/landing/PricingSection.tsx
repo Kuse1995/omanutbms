@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Check, Crown, Sparkles, Zap, ArrowRight, Globe } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -24,6 +25,7 @@ export function PricingSection() {
   const [isAnnual, setIsAnnual] = useState(true);
   const { plans, planKeys, loading } = useBillingPlans();
   const { countryCode, setPreferredCurrency, currency } = useGeoLocation();
+  const { user } = useAuth();
   const currencies = getAvailableCurrencies();
 
   // Calculate annual savings
@@ -213,7 +215,7 @@ export function PricingSection() {
                     }`}
                     asChild
                   >
-                    <Link to={`/auth?plan=${planKey}`}>
+                    <Link to={user ? `/pay?plan=${planKey}` : `/auth?plan=${planKey}`}>
                       Start Free Trial
                       <ArrowRight className="w-4 h-4" />
                     </Link>

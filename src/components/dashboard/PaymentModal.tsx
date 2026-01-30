@@ -167,7 +167,7 @@ export function PaymentModal({ open, onOpenChange }: PaymentModalProps) {
           billing_period: billingPeriod,
           amount: price,
           currency: currency || "USD",
-          card_redirect_url: `${window.location.origin}/dashboard?payment=complete`,
+          card_redirect_url: `${window.location.origin}/bms?payment=complete`,
         },
       });
 
