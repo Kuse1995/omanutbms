@@ -164,11 +164,11 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
     if (open) fetchCollections();
   }, [open, tenantId, config.inventory.showCollections]);
 
-  // Fetch locations (branches) for storage assignment
+  // Fetch locations (branches) for storage assignment with real-time updates
   useEffect(() => {
+    if (!tenantId) return;
+
     const fetchLocations = async () => {
-      if (!tenantId) return;
-      
       const { data } = await supabase
         .from("branches")
         .select("id, name, type")
@@ -179,7 +179,27 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
       if (data) setLocations(data);
     };
     
+    // Initial fetch when modal opens
     if (open) fetchLocations();
+
+    // Subscribe to branch changes for real-time updates
+    const channel = supabase
+      .channel('product-modal-branches')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'branches',
+          filter: `tenant_id=eq.${tenantId}`,
+        },
+        () => fetchLocations()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [open, tenantId]);
 
   useEffect(() => {
