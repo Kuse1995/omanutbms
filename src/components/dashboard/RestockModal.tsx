@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,13 +6,16 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/hooks/useTenant";
 import { useBranch } from "@/hooks/useBranch";
 import { useAuth } from "@/hooks/useAuth";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
-import { Loader2, PackagePlus, TrendingUp, TrendingDown } from "lucide-react";
+import { Loader2, PackagePlus, TrendingUp, TrendingDown, ChevronsUpDown, Check, Plus, Upload, X, FileText, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface ProductVariant {
   id: string;
@@ -21,6 +24,13 @@ interface ProductVariant {
   variant_display: string | null;
   hex_code: string | null;
   stock: number;
+}
+
+interface Vendor {
+  id: string;
+  name: string;
+  code: string | null;
+  contact_person: string | null;
 }
 
 interface RestockModalProps {
@@ -52,6 +62,28 @@ export function RestockModal({
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [selectedVariantId, setSelectedVariantId] = useState<string>("base");
   const [isLoadingVariants, setIsLoadingVariants] = useState(false);
+  
+  // Vendor state
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [selectedVendorId, setSelectedVendorId] = useState<string>("");
+  const [vendorPopoverOpen, setVendorPopoverOpen] = useState(false);
+  const [isLoadingVendors, setIsLoadingVendors] = useState(false);
+  const [showNewVendorForm, setShowNewVendorForm] = useState(false);
+  const [newVendorName, setNewVendorName] = useState("");
+  const [newVendorContact, setNewVendorContact] = useState("");
+  const [newVendorPhone, setNewVendorPhone] = useState("");
+  const [isCreatingVendor, setIsCreatingVendor] = useState(false);
+  
+  // File upload state
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
+  const [quotationFile, setQuotationFile] = useState<File | null>(null);
+  const [invoiceUrl, setInvoiceUrl] = useState<string | null>(null);
+  const [quotationUrl, setQuotationUrl] = useState<string | null>(null);
+  const [isUploadingInvoice, setIsUploadingInvoice] = useState(false);
+  const [isUploadingQuotation, setIsUploadingQuotation] = useState(false);
+  const invoiceInputRef = useRef<HTMLInputElement>(null);
+  const quotationInputRef = useRef<HTMLInputElement>(null);
+  
   const { toast } = useToast();
   const { tenantId } = useTenant();
   const { currentBranch } = useBranch();
@@ -60,6 +92,33 @@ export function RestockModal({
 
   const isFashionMode = businessType === "fashion";
   const selectedVariant = variants.find(v => v.id === selectedVariantId);
+  const selectedVendor = vendors.find(v => v.id === selectedVendorId);
+
+  // Fetch vendors when modal opens
+  useEffect(() => {
+    const fetchVendors = async () => {
+      if (!open || !tenantId) return;
+      
+      setIsLoadingVendors(true);
+      try {
+        const { data, error } = await supabase
+          .from("vendors")
+          .select("id, name, code, contact_person")
+          .eq("tenant_id", tenantId)
+          .eq("is_active", true)
+          .order("name");
+
+        if (error) throw error;
+        setVendors(data || []);
+      } catch (error) {
+        console.error("Error fetching vendors:", error);
+      } finally {
+        setIsLoadingVendors(false);
+      }
+    };
+
+    fetchVendors();
+  }, [open, tenantId]);
 
   // Fetch variants when modal opens for fashion mode
   useEffect(() => {
@@ -100,6 +159,15 @@ export function RestockModal({
       setNotes("");
       setCostRecordingOption("opening");
       setSelectedVariantId("base");
+      setSelectedVendorId("");
+      setShowNewVendorForm(false);
+      setNewVendorName("");
+      setNewVendorContact("");
+      setNewVendorPhone("");
+      setInvoiceFile(null);
+      setQuotationFile(null);
+      setInvoiceUrl(null);
+      setQuotationUrl(null);
     } else if (product) {
       setCostPerUnit(product.cost_price || 0);
     }
@@ -112,6 +180,108 @@ export function RestockModal({
 
   const totalCost = quantity * costPerUnit;
   const newStock = currentStock + quantity;
+
+  const handleCreateVendor = async () => {
+    if (!newVendorName.trim() || !tenantId) return;
+
+    setIsCreatingVendor(true);
+    try {
+      const { data, error } = await supabase
+        .from("vendors")
+        .insert({
+          tenant_id: tenantId,
+          name: newVendorName.trim(),
+          contact_person: newVendorContact.trim() || null,
+          phone: newVendorPhone.trim() || null,
+        })
+        .select("id, name, code, contact_person")
+        .single();
+
+      if (error) throw error;
+
+      setVendors(prev => [...prev, data]);
+      setSelectedVendorId(data.id);
+      setShowNewVendorForm(false);
+      setNewVendorName("");
+      setNewVendorContact("");
+      setNewVendorPhone("");
+      toast({
+        title: "Vendor created",
+        description: `${data.name} has been added to your vendors list.`,
+      });
+    } catch (error: any) {
+      console.error("Error creating vendor:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create vendor",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreatingVendor(false);
+    }
+  };
+
+  const uploadFile = async (file: File, type: "invoice" | "quotation"): Promise<string | null> => {
+    if (!tenantId) return null;
+
+    const setUploading = type === "invoice" ? setIsUploadingInvoice : setIsUploadingQuotation;
+    setUploading(true);
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${type}-${Date.now()}.${fileExt}`;
+      const filePath = `restock/${tenantId}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("product-documents")
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("product-documents")
+        .getPublicUrl(filePath);
+
+      return publicUrl;
+    } catch (error) {
+      console.error(`Error uploading ${type}:`, error);
+      toast({
+        title: "Upload Error",
+        description: `Failed to upload ${type} file.`,
+        variant: "destructive",
+      });
+      return null;
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>, type: "invoice" | "quotation") => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (type === "invoice") {
+      setInvoiceFile(file);
+      const url = await uploadFile(file, "invoice");
+      setInvoiceUrl(url);
+    } else {
+      setQuotationFile(file);
+      const url = await uploadFile(file, "quotation");
+      setQuotationUrl(url);
+    }
+  };
+
+  const removeFile = (type: "invoice" | "quotation") => {
+    if (type === "invoice") {
+      setInvoiceFile(null);
+      setInvoiceUrl(null);
+      if (invoiceInputRef.current) invoiceInputRef.current.value = "";
+    } else {
+      setQuotationFile(null);
+      setQuotationUrl(null);
+      if (quotationInputRef.current) quotationInputRef.current.value = "";
+    }
+  };
 
   const handleSubmit = async () => {
     if (!product || !tenantId || quantity <= 0) {
@@ -154,6 +324,11 @@ export function RestockModal({
         ? `${selectedVariant.variant_type}: ${selectedVariant.variant_value}`
         : null;
       
+      const vendorNote = selectedVendor ? `Vendor: ${selectedVendor.name}` : null;
+      const combinedNotes = [vendorNote, variantLabel ? `[${variantLabel}]` : null, notes || null]
+        .filter(Boolean)
+        .join(' | ');
+      
       const { error: historyError } = await supabase
         .from("restock_history")
         .insert({
@@ -163,9 +338,12 @@ export function RestockModal({
           cost_per_unit: costPerUnit,
           total_cost: totalCost,
           recorded_as_expense: costRecordingOption === "expense",
-          notes: variantLabel ? `[${variantLabel}] ${notes || ''}`.trim() : notes || null,
+          notes: combinedNotes || null,
           restocked_by: user?.id,
           branch_id: currentBranch?.id || null,
+          vendor_id: selectedVendorId || null,
+          invoice_url: invoiceUrl,
+          quotation_url: quotationUrl,
         });
 
       if (historyError) throw historyError;
@@ -176,7 +354,7 @@ export function RestockModal({
           .from("expenses")
           .insert({
             tenant_id: tenantId,
-            vendor_name: "Inventory Restock",
+            vendor_name: selectedVendor?.name || "Inventory Restock",
             category: "Cost of Goods Sold - Vestergaard",
             amount_zmw: totalCost,
             date_incurred: new Date().toISOString().split("T")[0],
@@ -215,7 +393,7 @@ export function RestockModal({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <PackagePlus className="h-5 w-5 text-[#0077B6]" />
@@ -227,6 +405,131 @@ export function RestockModal({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          {/* Vendor Selection */}
+          <div className="space-y-2">
+            <Label>Vendor / Supplier</Label>
+            {showNewVendorForm ? (
+              <div className="space-y-3 p-3 border border-dashed border-[#0077B6]/30 rounded-lg bg-[#0077B6]/5">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-[#003366]">Add New Vendor</span>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setShowNewVendorForm(false)}
+                    className="h-6 w-6 p-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                <Input
+                  placeholder="Vendor name *"
+                  value={newVendorName}
+                  onChange={(e) => setNewVendorName(e.target.value)}
+                  className="bg-white"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    placeholder="Contact person"
+                    value={newVendorContact}
+                    onChange={(e) => setNewVendorContact(e.target.value)}
+                    className="bg-white"
+                  />
+                  <Input
+                    placeholder="Phone"
+                    value={newVendorPhone}
+                    onChange={(e) => setNewVendorPhone(e.target.value)}
+                    className="bg-white"
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  onClick={handleCreateVendor}
+                  disabled={!newVendorName.trim() || isCreatingVendor}
+                  className="w-full bg-[#0077B6] hover:bg-[#005f8d]"
+                >
+                  {isCreatingVendor ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Plus className="h-4 w-4 mr-2" />
+                  )}
+                  Create Vendor
+                </Button>
+              </div>
+            ) : (
+              <Popover open={vendorPopoverOpen} onOpenChange={setVendorPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={vendorPopoverOpen}
+                    className="w-full justify-between bg-[#f0f7fa] border-[#004B8D]/20"
+                  >
+                    {selectedVendor ? selectedVendor.name : "Select vendor (optional)"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search vendors..." />
+                    <CommandList>
+                      <CommandEmpty>
+                        <div className="p-2 text-center">
+                          <p className="text-sm text-muted-foreground mb-2">No vendors found</p>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => { 
+                              setShowNewVendorForm(true); 
+                              setVendorPopoverOpen(false); 
+                            }}
+                          >
+                            <Plus className="h-4 w-4 mr-1" />
+                            Add New Vendor
+                          </Button>
+                        </div>
+                      </CommandEmpty>
+                      <CommandGroup>
+                        {vendors.map((vendor) => (
+                          <CommandItem
+                            key={vendor.id}
+                            value={vendor.name}
+                            onSelect={() => {
+                              setSelectedVendorId(vendor.id === selectedVendorId ? "" : vendor.id);
+                              setVendorPopoverOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedVendorId === vendor.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            <div className="flex flex-col">
+                              <span>{vendor.name}</span>
+                              {vendor.contact_person && (
+                                <span className="text-xs text-muted-foreground">{vendor.contact_person}</span>
+                              )}
+                            </div>
+                          </CommandItem>
+                        ))}
+                        <CommandItem
+                          onSelect={() => {
+                            setShowNewVendorForm(true);
+                            setVendorPopoverOpen(false);
+                          }}
+                          className="border-t"
+                        >
+                          <Plus className="mr-2 h-4 w-4 text-[#0077B6]" />
+                          <span className="text-[#0077B6]">Add New Vendor</span>
+                        </CommandItem>
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            )}
+          </div>
+
           {/* Variant Selection - Fashion mode only */}
           {isFashionMode && variants.length > 0 && (
             <div className="space-y-2">
@@ -362,6 +665,107 @@ export function RestockModal({
             </div>
           )}
 
+          {/* Document Attachments */}
+          <div className="space-y-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+            <p className="text-sm text-[#003366] font-medium flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Attach Documents (optional)
+            </p>
+            
+            <div className="grid grid-cols-2 gap-3">
+              {/* Invoice Upload */}
+              <div className="space-y-2">
+                <Label className="text-xs">Invoice</Label>
+                {invoiceFile ? (
+                  <div className="flex items-center gap-2 p-2 bg-white rounded border text-sm">
+                    <FileText className="h-4 w-4 text-[#0077B6] flex-shrink-0" />
+                    <span className="truncate flex-1">{invoiceFile.name}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => removeFile("invoice")}
+                    >
+                      <Trash2 className="h-3 w-3 text-destructive" />
+                    </Button>
+                  </div>
+                ) : (
+                  <label className="block">
+                    <input
+                      ref={invoiceInputRef}
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      onChange={(e) => handleFileSelect(e, "invoice")}
+                      className="hidden"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      asChild
+                      disabled={isUploadingInvoice}
+                    >
+                      <span className="cursor-pointer">
+                        {isUploadingInvoice ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Upload className="h-4 w-4 mr-2" />
+                        )}
+                        Upload Invoice
+                      </span>
+                    </Button>
+                  </label>
+                )}
+              </div>
+
+              {/* Quotation Upload */}
+              <div className="space-y-2">
+                <Label className="text-xs">Quotation</Label>
+                {quotationFile ? (
+                  <div className="flex items-center gap-2 p-2 bg-white rounded border text-sm">
+                    <FileText className="h-4 w-4 text-[#0077B6] flex-shrink-0" />
+                    <span className="truncate flex-1">{quotationFile.name}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => removeFile("quotation")}
+                    >
+                      <Trash2 className="h-3 w-3 text-destructive" />
+                    </Button>
+                  </div>
+                ) : (
+                  <label className="block">
+                    <input
+                      ref={quotationInputRef}
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      onChange={(e) => handleFileSelect(e, "quotation")}
+                      className="hidden"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      asChild
+                      disabled={isUploadingQuotation}
+                    >
+                      <span className="cursor-pointer">
+                        {isUploadingQuotation ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Upload className="h-4 w-4 mr-2" />
+                        )}
+                        Upload Quotation
+                      </span>
+                    </Button>
+                  </label>
+                )}
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">Supported: PDF, JPG, PNG</p>
+          </div>
+
           {/* Notes */}
           <div className="space-y-2">
             <Label htmlFor="notes">Notes (optional)</Label>
@@ -369,7 +773,7 @@ export function RestockModal({
               id="notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g., Supplier name, invoice number..."
+              placeholder="e.g., Invoice number, delivery reference..."
               className="resize-none h-20"
             />
           </div>

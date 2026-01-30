@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from "xlsx";
 import {
@@ -20,7 +20,8 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import { Upload, FileSpreadsheet, Download, CheckCircle2, XCircle, Loader2, Wand2, Settings2 } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Upload, FileSpreadsheet, Download, CheckCircle2, XCircle, Loader2, Wand2, Settings2, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/hooks/useTenant";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
@@ -46,6 +47,14 @@ interface ParsedRow {
   isValid: boolean;
   errors: string[];
   rowNumber: number;
+}
+
+interface ProcessingLogItem {
+  sku: string;
+  name: string;
+  status: 'processing' | 'success' | 'error';
+  action?: 'added' | 'updated';
+  error?: string;
 }
 
 type ImportStep = "upload" | "mapping" | "preview";
@@ -87,9 +96,19 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
   const [importStep, setImportStep] = useState<ImportStep>("upload");
   const [rawFileData, setRawFileData] = useState<Record<string, any>[]>([]);
   const [sourceColumns, setSourceColumns] = useState<string[]>([]);
+  const [processingLog, setProcessingLog] = useState<ProcessingLogItem[]>([]);
+  const [currentItemIndex, setCurrentItemIndex] = useState(0);
+  const logEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const { tenantId } = useTenant();
   const { terminology } = useBusinessConfig();
+
+  // Auto-scroll processing log to bottom
+  useEffect(() => {
+    if (logEndRef.current && isImporting) {
+      logEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [processingLog, isImporting]);
 
   const resetState = () => {
     setParsedData([]);
@@ -98,6 +117,8 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
     setImportStep("upload");
     setRawFileData([]);
     setSourceColumns([]);
+    setProcessingLog([]);
+    setCurrentItemIndex(0);
   };
 
   const handleConvertedData = (data: any[]) => {
@@ -354,6 +375,8 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
 
     setIsImporting(true);
     setImportProgress(0);
+    setProcessingLog([]);
+    setCurrentItemIndex(0);
 
     let added = 0;
     let updated = 0;
@@ -365,6 +388,14 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
 
     for (let i = 0; i < validRows.length; i++) {
       const row = validRows[i];
+      setCurrentItemIndex(i + 1);
+      
+      // Add processing item to log
+      setProcessingLog(prev => [
+        ...prev.filter(item => item.sku !== row.sku),
+        { sku: row.sku, name: row.name, status: 'processing' }
+      ]);
+
       try {
         // Check if SKU exists for this tenant
         const { data: existing } = await supabase
@@ -392,6 +423,15 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
 
           if (error) throw error;
           updated++;
+          
+          // Update log with success
+          setProcessingLog(prev => 
+            prev.map(item => 
+              item.sku === row.sku 
+                ? { ...item, status: 'success' as const, action: 'updated' as const }
+                : item
+            )
+          );
         } else {
           // Insert
           const { error } = await supabase
@@ -411,6 +451,15 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
 
           if (error) throw error;
           added++;
+          
+          // Update log with success
+          setProcessingLog(prev => 
+            prev.map(item => 
+              item.sku === row.sku 
+                ? { ...item, status: 'success' as const, action: 'added' as const }
+                : item
+            )
+          );
         }
       } catch (error: any) {
         console.error("Import error for row:", row, error);
@@ -419,6 +468,15 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
           firstErrorMessage = error.message;
         }
         failed++;
+        
+        // Update log with error
+        setProcessingLog(prev => 
+          prev.map(item => 
+            item.sku === row.sku 
+              ? { ...item, status: 'error' as const, error: error?.message || 'Unknown error' }
+              : item
+          )
+        );
       }
 
       setImportProgress(Math.round(((i + 1) / validRows.length) * 100));
@@ -662,28 +720,99 @@ PROD-003,Premium Product,5,8500,6000,2,premium,High-end product with full featur
               </Table>
             </div>
 
-            {/* Import Progress */}
+            {/* Import Progress with Processing Log */}
             {isImporting && (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-[#004B8D]/60">Importing...</span>
                   <span className="text-[#003366] font-medium">{importProgress}%</span>
                 </div>
                 <Progress value={importProgress} className="h-2" />
+                
+                <div className="text-sm text-[#004B8D]/70">
+                  Processing item {currentItemIndex} of {parsedData.filter(r => r.isValid).length}...
+                </div>
+                
+                {/* Processing Log */}
+                <ScrollArea className="h-[150px] border border-[#004B8D]/10 rounded-lg bg-white">
+                  <div className="p-2 space-y-1">
+                    {processingLog.map((item, idx) => (
+                      <div 
+                        key={`${item.sku}-${idx}`}
+                        className={`flex items-center gap-2 p-2 rounded text-sm ${
+                          item.status === 'error' 
+                            ? 'bg-red-50' 
+                            : item.status === 'success' 
+                              ? 'bg-green-50' 
+                              : 'bg-blue-50'
+                        }`}
+                      >
+                        {item.status === 'processing' && (
+                          <Loader2 className="h-4 w-4 animate-spin text-blue-600 flex-shrink-0" />
+                        )}
+                        {item.status === 'success' && (
+                          <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
+                        )}
+                        {item.status === 'error' && (
+                          <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0" />
+                        )}
+                        <span className="font-mono text-xs text-muted-foreground">{item.sku}</span>
+                        <span className="truncate flex-1">{item.name}</span>
+                        {item.status === 'success' && (
+                          <Badge variant="outline" className="text-xs">
+                            {item.action === 'added' ? 'Added' : 'Updated'}
+                          </Badge>
+                        )}
+                        {item.status === 'processing' && (
+                          <span className="text-xs text-blue-600">Processing</span>
+                        )}
+                        {item.status === 'error' && (
+                          <span className="text-xs text-red-600 truncate max-w-[100px]" title={item.error}>
+                            {item.error}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                    <div ref={logEndRef} />
+                  </div>
+                </ScrollArea>
               </div>
             )}
 
             {/* Results */}
-            {importResults && (
-              <div className="p-4 bg-[#004B8D]/5 rounded-lg">
-                <p className="text-[#003366] font-medium mb-2">Import Complete</p>
-                <div className="flex gap-4 text-sm">
-                  <span className="text-green-600">{importResults.added} added</span>
-                  <span className="text-blue-600">{importResults.updated} updated</span>
-                  {importResults.failed > 0 && (
-                    <span className="text-red-600">{importResults.failed} failed</span>
-                  )}
+            {importResults && !isImporting && (
+              <div className="space-y-3">
+                <div className="p-4 bg-[#004B8D]/5 rounded-lg">
+                  <p className="text-[#003366] font-medium mb-2">Import Complete</p>
+                  <div className="flex gap-4 text-sm">
+                    <span className="text-green-600">{importResults.added} added</span>
+                    <span className="text-blue-600">{importResults.updated} updated</span>
+                    {importResults.failed > 0 && (
+                      <span className="text-red-600">{importResults.failed} failed</span>
+                    )}
+                  </div>
                 </div>
+                
+                {/* Final Processing Log (collapsed if successful, expanded if errors) */}
+                {processingLog.length > 0 && importResults.failed > 0 && (
+                  <ScrollArea className="h-[120px] border border-red-200 rounded-lg bg-red-50/50">
+                    <div className="p-2 space-y-1">
+                      {processingLog.filter(item => item.status === 'error').map((item, idx) => (
+                        <div 
+                          key={`${item.sku}-${idx}`}
+                          className="flex items-center gap-2 p-2 rounded text-sm bg-red-50"
+                        >
+                          <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0" />
+                          <span className="font-mono text-xs text-muted-foreground">{item.sku}</span>
+                          <span className="truncate flex-1">{item.name}</span>
+                          <span className="text-xs text-red-600 truncate max-w-[150px]" title={item.error}>
+                            {item.error}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                )}
               </div>
             )}
 

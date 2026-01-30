@@ -25,6 +25,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,7 +47,8 @@ import {
   CheckCircle2, 
   XCircle,
   MoreHorizontal,
-  Loader2
+  Loader2,
+  AlertCircle
 } from "lucide-react";
 import { format } from "date-fns";
 import { StockTransferModal } from "./StockTransferModal";
@@ -79,7 +86,7 @@ const statusConfig: Record<TransferStatus, { label: string; icon: React.ElementT
 };
 
 export function StockTransfersManager() {
-  const { tenant } = useTenant();
+  const { tenant, tenantUser } = useTenant();
   const { user, isAdmin } = useAuth();
   const { toast } = useToast();
   const [transfers, setTransfers] = useState<Transfer[]>([]);
@@ -91,6 +98,11 @@ export function StockTransfersManager() {
   const [selectedTransfer, setSelectedTransfer] = useState<Transfer | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+  
+  // User's branch assignment for transfer completion check
+  const userBranchId = tenantUser?.branch_id;
+  const canAccessAllBranches = tenantUser?.can_access_all_branches ?? false;
+  const userRole = tenantUser?.role;
 
   const fetchTransfers = async () => {
     if (!tenant?.id) return;
@@ -215,7 +227,35 @@ export function StockTransfersManager() {
     }
   };
 
+  // Check if user can complete a specific transfer (must be at receiving location)
+  const canCompleteTransfer = (transfer: Transfer): boolean => {
+    // Admins and managers can always complete
+    if (userRole === 'admin' || userRole === 'manager') return true;
+    
+    // Users with access to all branches can complete
+    if (canAccessAllBranches) return true;
+    
+    // User must be assigned to the receiving branch
+    if (userBranchId && userBranchId === transfer.to_branch_id) return true;
+    
+    return false;
+  };
+
+  const getCompleteDisabledReason = (transfer: Transfer): string | null => {
+    if (canCompleteTransfer(transfer)) return null;
+    return "Only users assigned to the receiving location can mark this transfer as complete";
+  };
+
   const handleComplete = async (transfer: Transfer) => {
+    if (!canCompleteTransfer(transfer)) {
+      toast({
+        title: "Not Authorized",
+        description: "Only users at the receiving location can complete this transfer.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setActionLoading(true);
     try {
       // Call the database function to complete transfer and update branch_inventory
@@ -428,14 +468,31 @@ export function StockTransfersManager() {
                           </DropdownMenu>
                         )}
                         {transfer.status === 'in_transit' && (
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => handleComplete(transfer)}
-                            disabled={actionLoading}
-                          >
-                            Mark Complete
-                          </Button>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span>
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    onClick={() => handleComplete(transfer)}
+                                    disabled={actionLoading || !canCompleteTransfer(transfer)}
+                                    className={!canCompleteTransfer(transfer) ? "opacity-50" : ""}
+                                  >
+                                    {!canCompleteTransfer(transfer) && (
+                                      <AlertCircle className="h-3 w-3 mr-1 text-amber-500" />
+                                    )}
+                                    Mark Complete
+                                  </Button>
+                                </span>
+                              </TooltipTrigger>
+                              {getCompleteDisabledReason(transfer) && (
+                                <TooltipContent side="left" className="max-w-[200px]">
+                                  <p className="text-xs">{getCompleteDisabledReason(transfer)}</p>
+                                </TooltipContent>
+                              )}
+                            </Tooltip>
+                          </TooltipProvider>
                         )}
                       </TableCell>
                     </TableRow>
