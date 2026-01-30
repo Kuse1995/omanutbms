@@ -1,133 +1,112 @@
 
-# Unified Employee & Access Control System
 
-**Status: ✅ IMPLEMENTED**
+# Fix Inventory CSV Import for All Tenant Admins
 
-This plan introduces a unified approach to managing employee identity, BMS account access, and WhatsApp integration from a single location. Instead of managing three separate systems, administrators will be able to configure all access options when creating or editing an employee.
+## Problem Identified
 
----
+The CSV/document import feature fails silently at 100% for all users (including tenant admins) because of **Row Level Security (RLS) policy restrictions** and **poor error visibility**.
 
-## Current Architecture
+### Root Cause Analysis
 
-```text
-┌──────────────────┐     ┌─────────────────────┐     ┌────────────────────────┐
-│    employees     │     │  authorized_emails   │     │ whatsapp_user_mappings │
-├──────────────────┤     ├─────────────────────┤     ├────────────────────────┤
-│ id               │     │ id                  │     │ id                     │
-│ full_name        │     │ email               │     │ whatsapp_number        │
-│ email            │     │ default_role        │     │ user_id (optional)     │
-│ phone            │     │ branch_id           │     │ employee_id (optional) │
-│ user_id ─────────┼─────│ tenant_id           │     │ role                   │
-│ branch_id        │     └─────────────────────┘     │ is_employee_self_svc   │
-│ tenant_id        │                                  └────────────────────────┘
-└──────────────────┘                                  
-         ▲                                                      │
-         └──────────────────────────────────────────────────────┘
-                    (employee_id FK already exists)
+**1. RLS Policy is Too Restrictive**
+
+The current INSERT policy on the `inventory` table:
+```sql
+is_tenant_admin_or_manager(tenant_id)
 ```
 
-**Current Problem**: These three tables are managed in separate locations:
-- Employees: HR → Staff panel
-- BMS Access: Settings → Authorized Users
-- WhatsApp Access: Settings → WhatsApp
+This function only allows roles `admin` and `manager`:
+```sql
+SELECT EXISTS (
+  SELECT 1 FROM public.tenant_users 
+  WHERE user_id = auth.uid() 
+    AND tenant_id = _tenant_id 
+    AND role IN ('admin', 'manager')
+)
+```
+
+**2. Error Handling Doesn't Surface the Real Error**
+
+In `InventoryImportModal.tsx`, errors are caught and logged to console, but the user only sees a generic "failed" count without understanding WHY:
+```typescript
+} catch (error) {
+  console.error("Import error for row:", row, error);  // Silent!
+  failed++;
+}
+```
+
+**3. Possible Tenant ID Mismatch**
+
+If `tenantId` from `useTenant()` doesn't match what's expected by the RLS policy (e.g., if the user's session JWT doesn't have the correct tenant context), all inserts will fail.
 
 ---
 
-## Solution: Unified Access Control in Employee Modal
+## Solution
 
-### Part 1: Enhanced Employee Modal
+### Part 1: Better Error Visibility (Quick Win)
 
-Add a new "Access & Integration" section to the EmployeeModal with two collapsible panels:
+Add proper error logging and user feedback so we can see exactly what's failing:
 
-**1. BMS Account Access**
-- Toggle: "Grant BMS Login Access"
-- When enabled, shows:
-  - Email field (required, pre-filled from employee email)
-  - Role selector (same roles as AuthorizedEmailsManager)
-  - Branch assignment (if multi-branch enabled)
-- On save: Creates/updates entry in `authorized_emails` table
+```typescript
+// In handleImport function
+} catch (error: any) {
+  console.error("Import error for row:", row, error);
+  
+  // Capture the first error message to show user
+  if (failed === 0 && error?.message) {
+    firstError = error.message;
+  }
+  failed++;
+}
 
-**2. WhatsApp Access**
-- Toggle: "Enable WhatsApp Access"
-- When enabled, shows:
-  - WhatsApp number field (pre-filled from employee phone if +260 format)
-  - Role selector (determines WhatsApp permissions)
-  - Self-service checkbox (if no BMS account, limits to clock_in, my_pay, my_tasks)
-- On save: Creates/updates entry in `whatsapp_user_mappings` table
+// After loop, show meaningful error
+if (failed > 0 && failed === validRows.length) {
+  toast({
+    title: "Import Failed",
+    description: firstError || "Permission denied. Check your role allows inventory management.",
+    variant: "destructive",
+  });
+}
+```
 
-### Part 2: Database Relationship Updates
+### Part 2: Update RLS Policy for Inventory Operations
 
-Add an `authorized_email_id` column to the `employees` table to formally link the BMS access record:
+Create a new function that properly covers inventory management roles:
 
 ```sql
-ALTER TABLE employees 
-ADD COLUMN authorized_email_id uuid REFERENCES authorized_emails(id) ON DELETE SET NULL;
+-- Create function for inventory operations
+CREATE OR REPLACE FUNCTION public.can_manage_inventory(_tenant_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.tenant_users 
+    WHERE user_id = auth.uid() 
+      AND tenant_id = _tenant_id 
+      AND role IN ('admin', 'manager', 'operations_manager', 'sales_rep')
+  )
+$$;
+
+-- Update INSERT policy
+DROP POLICY IF EXISTS "Admins/managers can insert inventory" ON public.inventory;
+CREATE POLICY "Inventory management roles can insert"
+  ON public.inventory FOR INSERT
+  WITH CHECK (can_manage_inventory(tenant_id));
 ```
 
-This creates a bidirectional link:
-- Employee → Authorized Email (for BMS access tracking)
-- Employee → WhatsApp Mapping (already exists via employee_id FK)
+### Part 3: Add Debug Logging During Import
 
-### Part 3: Visual Status Indicators
+Add temporary console logging to capture the exact tenant context:
 
-Update the EmployeeManager list view to show access status badges:
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│ 👤 John Mwamba           Office Staff    Active                 │
-│    📧 john@company.com   📱 +260977123456                       │
-│    ┌──────────┐ ┌───────────────┐ ┌──────────────────┐          │
-│    │ 🔐 Admin │ │ 💬 Sales Rep  │ │ 📍 Headquarters  │          │
-│    └──────────┘ └───────────────┘ └──────────────────┘          │
-│         ↑               ↑                   ↑                   │
-│    BMS Access     WhatsApp Role       Branch                    │
-└─────────────────────────────────────────────────────────────────┘
+```typescript
+console.log("Import context:", { 
+  tenantId, 
+  userId: user?.id,
+  role: tenantUser?.role 
+});
 ```
-
-Badges:
-- 🔐 BMS Role badge (Admin, Manager, etc.) - shows if authorized_email exists
-- 💬 WhatsApp badge - shows if whatsapp_mapping exists
-- 📍 Branch badge (already exists)
-
-### Part 4: Sync Logic
-
-When employee data changes, the system keeps access records aligned:
-
-```text
-Employee email changes → Update authorized_emails.email
-Employee phone changes → Prompt to update whatsapp_number
-Employee deleted → Cascade delete access records (with confirmation)
-Employee branch changes → Update authorized_emails.branch_id and whatsapp_mappings.branch_id
-```
-
----
-
-## UI Flow
-
-### Creating a New Employee with Full Access
-
-1. Admin opens "Add New Employee" modal
-2. Fills in personal info (name, email, phone, etc.)
-3. Expands "BMS Account Access" section
-   - Toggles "Grant BMS Login"
-   - Selects role: "Sales Rep"
-   - Selects branch: "Main Store"
-4. Expands "WhatsApp Access" section
-   - Toggles "Enable WhatsApp"
-   - WhatsApp number pre-filled from phone
-   - Role auto-matched to BMS role
-5. Clicks "Add Employee"
-6. System creates:
-   - Employee record
-   - Authorized email entry
-   - WhatsApp mapping entry
-
-### Editing Existing Employee Access
-
-1. Admin clicks "Edit" on employee card
-2. Opens modal with access sections showing current state
-3. Can toggle access on/off, change roles
-4. Save updates all three tables atomically
 
 ---
 
@@ -137,93 +116,118 @@ Employee branch changes → Update authorized_emails.branch_id and whatsapp_mapp
 
 | File | Changes |
 |------|---------|
-| `src/components/dashboard/EmployeeModal.tsx` | Add Access & Integration section with BMS and WhatsApp panels |
-| `src/components/dashboard/EmployeeManager.tsx` | Add access status badges, fetch related access data |
-| Database migration | Add `authorized_email_id` column to employees table |
+| Database migration | Add `can_manage_inventory()` function and update RLS policy |
+| `src/components/dashboard/InventoryImportModal.tsx` | Improve error handling and add debug logging |
 
-### New Database Column
+### Database Changes
 
 ```sql
--- Add link from employee to their authorized email entry
-ALTER TABLE employees 
-ADD COLUMN authorized_email_id uuid REFERENCES authorized_emails(id) ON DELETE SET NULL;
+-- 1. Create helper function for inventory permissions
+CREATE OR REPLACE FUNCTION public.can_manage_inventory(_tenant_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.tenant_users 
+    WHERE user_id = auth.uid() 
+      AND tenant_id = _tenant_id 
+      AND role IN ('admin', 'manager', 'operations_manager', 'sales_rep')
+  )
+$$;
 
--- Index for efficient lookups
-CREATE INDEX idx_employees_authorized_email ON employees(authorized_email_id);
+-- 2. Drop old restrictive policy
+DROP POLICY IF EXISTS "Admins/managers can insert inventory" ON public.inventory;
+
+-- 3. Create new inclusive policy
+CREATE POLICY "Inventory management roles can insert"
+  ON public.inventory FOR INSERT
+  WITH CHECK (can_manage_inventory(tenant_id));
 ```
 
-### Form State Structure
+### Code Changes
+
+Update error handling in `InventoryImportModal.tsx`:
 
 ```typescript
-interface EmployeeAccessState {
-  // BMS Access
-  bmsAccessEnabled: boolean;
-  bmsEmail: string;
-  bmsRole: AppRole;
-  bmsBranchId: string | null;
-  
-  // WhatsApp Access  
-  whatsappEnabled: boolean;
-  whatsappNumber: string;
-  whatsappRole: WhatsAppRole;
-  whatsappSelfService: boolean;
-}
-```
+const handleImport = async () => {
+  // ... existing validation ...
 
-### Save Logic (Pseudo-code)
+  setIsImporting(true);
+  setImportProgress(0);
 
-```typescript
-async function saveEmployeeWithAccess(employeeData, accessState) {
-  // 1. Save employee record
-  const employee = await saveEmployee(employeeData);
-  
-  // 2. Handle BMS Access
-  if (accessState.bmsAccessEnabled) {
-    const authEmail = await upsertAuthorizedEmail({
-      email: accessState.bmsEmail,
-      default_role: accessState.bmsRole,
-      branch_id: accessState.bmsBranchId,
-      tenant_id
-    });
-    // Link to employee
-    await updateEmployee(employee.id, { authorized_email_id: authEmail.id });
-  } else {
-    // Remove access if disabled
-    await deleteAuthorizedEmailForEmployee(employee.id);
+  let added = 0;
+  let updated = 0;
+  let failed = 0;
+  let firstErrorMessage: string | null = null;
+
+  // Debug: log context
+  console.log("Import context:", { tenantId, userRole: tenantUser?.role });
+
+  for (let i = 0; i < validRows.length; i++) {
+    const row = validRows[i];
+    try {
+      // ... existing insert/update logic ...
+    } catch (error: any) {
+      console.error("Import error for row:", row, error);
+      
+      // Capture first error for user feedback
+      if (!firstErrorMessage && error?.message) {
+        firstErrorMessage = error.message;
+      }
+      failed++;
+    }
+
+    setImportProgress(Math.round(((i + 1) / validRows.length) * 100));
   }
-  
-  // 3. Handle WhatsApp Access
-  if (accessState.whatsappEnabled) {
-    await upsertWhatsAppMapping({
-      employee_id: employee.id,
-      user_id: accessState.bmsAccessEnabled ? authUser?.id : null,
-      whatsapp_number: accessState.whatsappNumber,
-      role: accessState.whatsappRole,
-      is_employee_self_service: !accessState.bmsAccessEnabled
+
+  setIsImporting(false);
+  setImportResults({ added, updated, failed });
+
+  // Show appropriate toast
+  if (failed === validRows.length && firstErrorMessage) {
+    toast({
+      title: "Import Failed",
+      description: firstErrorMessage.includes("row-level security")
+        ? "Permission denied. Your role may not allow inventory imports."
+        : firstErrorMessage,
+      variant: "destructive",
     });
   } else {
-    await deleteWhatsAppMappingForEmployee(employee.id);
+    toast({
+      title: "Import Complete",
+      description: `${added} added, ${updated} updated, ${failed} failed`,
+    });
   }
-}
+
+  if (added > 0 || updated > 0) {
+    onSuccess();
+  }
+};
 ```
 
 ---
 
-## Access Control Matrix
+## Access Matrix After Fix
 
-| Scenario | BMS Login | WhatsApp | Capabilities |
-|----------|-----------|----------|--------------|
-| Office Manager | ✅ Admin | ✅ Admin | Full BMS + WhatsApp access |
-| Sales Staff | ✅ Sales Rep | ✅ Sales Rep | Sales recording, stock checks |
-| Warehouse Worker | ❌ None | ✅ Staff | Clock in/out, view tasks only |
-| Cleaner | ❌ None | ✅ Self-Service | Clock in/out, view payslip |
+| Role | Can Import Inventory |
+|------|---------------------|
+| Admin | Yes |
+| Manager | Yes |
+| Operations Manager | Yes |
+| Sales Rep | Yes |
+| HR Manager | No |
+| Accountant | No |
+| Cashier | No |
+| Viewer | No |
 
 ---
 
 ## Benefits
 
-1. **Single Source of Truth**: Employee record is the anchor for all access
-2. **Reduced Admin Overhead**: One form instead of three separate management panels
-3. **Consistent Permissions**: Role/branch automatically aligned across systems
-4. **Audit Trail**: Easy to see who has what access from employee list
-5. **Onboarding Efficiency**: New staff get all access configured at once
+1. **Fixes the Silent Failure**: Users will see actual error messages instead of generic "failed"
+2. **Enables More Roles**: Operations managers and sales reps can now import inventory
+3. **Maintains Security**: Tenant isolation is preserved via RLS
+4. **Better Debugging**: Console logs help identify issues during development
+
