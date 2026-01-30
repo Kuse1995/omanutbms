@@ -222,7 +222,7 @@ Deno.serve(async (req) => {
         currency: currencyCode,
         payment_method,
         status: "pending",
-        plan_selected: plan,
+        plan_key: plan,
         billing_period,
         lenco_reference: reference,
         phone_number: phone_number || null,
