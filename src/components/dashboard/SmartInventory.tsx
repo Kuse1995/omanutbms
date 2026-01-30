@@ -55,58 +55,21 @@ export function SmartInventory() {
     if (!tenantId) return;
     
     try {
-      // If a specific branch is selected, fetch branch-specific inventory
+      let query = supabase
+        .from("inventory")
+        .select("id, sku, name, current_stock, reserved, ai_prediction, status, item_type, category, default_location_id")
+        .eq("tenant_id", tenantId)
+        .eq("is_archived", false);
+      
+      // If a specific branch is selected, filter by default_location_id
       if (currentBranch && isMultiBranchEnabled) {
-        const { data, error } = await supabase
-          .from("branch_inventory")
-          .select(`
-            id,
-            current_stock,
-            reserved,
-            inventory:inventory_id (
-              id,
-              sku,
-              name,
-              ai_prediction,
-              status,
-              item_type,
-              category
-            )
-          `)
-          .eq("tenant_id", tenantId)
-          .eq("branch_id", currentBranch.id)
-          .order("current_stock", { ascending: true });
-
-        if (error) throw error;
-
-        // Transform branch_inventory data to match InventoryItem interface
-        const branchItems: InventoryItem[] = (data || [])
-          .filter(item => item.inventory)
-          .map(item => ({
-            id: item.inventory.id,
-            sku: item.inventory.sku,
-            name: item.inventory.name,
-            current_stock: item.current_stock,
-            reserved: item.reserved || 0,
-            ai_prediction: item.inventory.ai_prediction,
-            status: item.inventory.status,
-            item_type: item.inventory.item_type,
-            category: item.inventory.category,
-          }));
-
-        setInventory(branchItems);
-      } else {
-        // Fetch all inventory (tenant-wide view)
-        const { data, error } = await supabase
-          .from("inventory")
-          .select("id, sku, name, current_stock, reserved, ai_prediction, status, item_type, category")
-          .eq("tenant_id", tenantId)
-          .eq("is_archived", false)
-          .order("name");
-
-        if (error) throw error;
-        setInventory(data || []);
+        query = query.eq("default_location_id", currentBranch.id);
       }
+      
+      const { data, error } = await query.order("name");
+
+      if (error) throw error;
+      setInventory(data || []);
     } catch (error) {
       console.error("Error fetching inventory:", error);
       toast({
