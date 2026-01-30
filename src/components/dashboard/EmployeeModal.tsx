@@ -10,6 +10,8 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useTenant } from "@/hooks/useTenant";
 import { useBranch } from "@/hooks/useBranch";
+import { EmployeeAccessSection, type EmployeeAccessState } from "./EmployeeAccessSection";
+import { useEmployeeAccess } from "@/hooks/useEmployeeAccess";
 
 interface Employee {
   id: string;
@@ -44,10 +46,25 @@ interface EmployeeModalProps {
   onSuccess: () => void;
 }
 
+const initialAccessState: EmployeeAccessState = {
+  bmsAccessEnabled: false,
+  bmsEmail: "",
+  bmsRole: "viewer",
+  bmsBranchId: null,
+  existingAuthorizedEmailId: null,
+  whatsappEnabled: false,
+  whatsappNumber: "",
+  whatsappRole: "staff",
+  whatsappSelfService: true,
+  existingWhatsappMappingId: null,
+};
+
 export const EmployeeModal = ({ isOpen, onClose, employee, onSuccess }: EmployeeModalProps) => {
   const [loading, setLoading] = useState(false);
   const { tenantId } = useTenant();
   const { currentBranch, isMultiBranchEnabled } = useBranch();
+  const { saveEmployeeAccess } = useEmployeeAccess();
+  const [accessState, setAccessState] = useState<EmployeeAccessState>(initialAccessState);
   const [formData, setFormData] = useState({
     full_name: "",
     employee_type: "office_staff",
@@ -121,6 +138,8 @@ export const EmployeeModal = ({ isOpen, onClose, employee, onSuccess }: Employee
         emergency_contact_phone: "",
         notes: "",
       });
+      // Reset access state for new employee
+      setAccessState(initialAccessState);
     }
   }, [employee, isOpen]);
 
@@ -133,6 +152,16 @@ export const EmployeeModal = ({ isOpen, onClose, employee, onSuccess }: Employee
     
     if (!tenantId) {
       toast.error("Unable to determine your organization. Please log in again.");
+      return;
+    }
+
+    // Validate access fields if enabled
+    if (accessState.bmsAccessEnabled && !accessState.bmsEmail) {
+      toast.error("BMS login email is required when BMS access is enabled");
+      return;
+    }
+    if (accessState.whatsappEnabled && !accessState.whatsappNumber) {
+      toast.error("WhatsApp number is required when WhatsApp access is enabled");
       return;
     }
 
@@ -160,17 +189,37 @@ export const EmployeeModal = ({ isOpen, onClose, employee, onSuccess }: Employee
         payload.branch_id = currentBranch.id;
       }
 
+      let savedEmployeeId: string;
+
       if (employee) {
         const { error } = await supabase
           .from("employees")
           .update(payload)
           .eq("id", employee.id);
         if (error) throw error;
-        toast.success("Employee updated");
+        savedEmployeeId = employee.id;
       } else {
-        const { error } = await supabase.from("employees").insert([payload as any]);
+        const { data, error } = await supabase
+          .from("employees")
+          .insert([payload as any])
+          .select()
+          .single();
         if (error) throw error;
-        toast.success("Employee added");
+        savedEmployeeId = data.id;
+      }
+
+      // Save access settings
+      const accessSuccess = await saveEmployeeAccess({
+        employeeId: savedEmployeeId,
+        employeeName: formData.full_name,
+        tenantId,
+        accessState,
+      });
+
+      if (!accessSuccess) {
+        toast.warning("Employee saved but some access settings may not have been applied");
+      } else {
+        toast.success(employee ? "Employee updated" : "Employee added");
       }
 
       onSuccess();
@@ -453,6 +502,18 @@ export const EmployeeModal = ({ isOpen, onClose, employee, onSuccess }: Employee
               rows={2}
             />
           </div>
+
+          {/* Access & Integration Section */}
+          {tenantId && (
+            <EmployeeAccessSection
+              employeeId={employee?.id || null}
+              employeeEmail={formData.email}
+              employeePhone={formData.phone}
+              tenantId={tenantId}
+              accessState={accessState}
+              onAccessStateChange={setAccessState}
+            />
+          )}
 
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={onClose}>
