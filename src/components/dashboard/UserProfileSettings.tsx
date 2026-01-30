@@ -31,6 +31,7 @@ export function UserProfileSettings() {
   const [fullName, setFullName] = useState(profile?.full_name || "");
   const [title, setTitle] = useState(profile?.title || "");
   const [department, setDepartment] = useState(profile?.department || "");
+  const [phone, setPhone] = useState((profile as any)?.phone || "");
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || "");
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -165,10 +166,34 @@ export function UserProfileSettings() {
           full_name: fullName,
           title: title,
           department: department,
+          phone: phone || null,
           avatar_url: avatarUrl || null,
-        }, { onConflict: 'user_id' });
+        } as any, { onConflict: 'user_id' });
 
       if (error) throw error;
+
+      // If phone number is set, try to sync with whatsapp_user_mappings
+      if (phone) {
+        const formattedPhone = phone.startsWith("+") ? phone : `+${phone.replace(/\D/g, "")}`;
+        
+        // Check if user has an employee record linked
+        const { data: employeeData } = await supabase
+          .from("employees")
+          .select("id")
+          .eq("user_id", user.id)
+          .single();
+
+        if (employeeData) {
+          // Update or create whatsapp mapping
+          await supabase
+            .from("whatsapp_user_mappings")
+            .upsert({
+              whatsapp_number: formattedPhone,
+              employee_id: employeeData.id,
+              is_verified: true,
+            } as any, { onConflict: 'whatsapp_number' });
+        }
+      }
 
       await refreshProfile?.();
 
@@ -295,6 +320,19 @@ export function UserProfileSettings() {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="phone">WhatsApp / Phone Number</Label>
+            <Input
+              id="phone"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+260 97X XXX XXX"
+            />
+            <p className="text-xs text-muted-foreground">
+              This number will be used for WhatsApp bot integration and system notifications
+            </p>
           </div>
         </div>
 

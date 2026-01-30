@@ -122,7 +122,10 @@ export function DashboardHeader() {
                 {user?.email}
               </DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-border" />
-              <DropdownMenuItem className="hover:bg-muted cursor-pointer">
+              <DropdownMenuItem 
+                className="hover:bg-muted cursor-pointer"
+                onClick={() => navigate("/bms?tab=settings")}
+              >
                 <User className="w-4 h-4 mr-2" />
                 Profile Settings
               </DropdownMenuItem>
