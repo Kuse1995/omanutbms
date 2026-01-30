@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/hooks/useTenant";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
+import { useBranch } from "@/hooks/useBranch";
 
 interface InventoryItem {
   id: string;
@@ -48,20 +49,64 @@ export function SmartInventory() {
   const { toast } = useToast();
   const { tenantId } = useTenant();
   const { terminology } = useBusinessConfig();
+  const { currentBranch, isMultiBranchEnabled } = useBranch();
 
   const fetchInventory = async () => {
     if (!tenantId) return;
     
     try {
-      const { data, error } = await supabase
-        .from("inventory")
-        .select("id, sku, name, current_stock, reserved, ai_prediction, status, item_type, category")
-        .eq("tenant_id", tenantId)
-        .eq("is_archived", false)
-        .order("name");
+      // If a specific branch is selected, fetch branch-specific inventory
+      if (currentBranch && isMultiBranchEnabled) {
+        const { data, error } = await supabase
+          .from("branch_inventory")
+          .select(`
+            id,
+            current_stock,
+            reserved,
+            inventory:inventory_id (
+              id,
+              sku,
+              name,
+              ai_prediction,
+              status,
+              item_type,
+              category
+            )
+          `)
+          .eq("tenant_id", tenantId)
+          .eq("branch_id", currentBranch.id)
+          .order("current_stock", { ascending: true });
 
-      if (error) throw error;
-      setInventory(data || []);
+        if (error) throw error;
+
+        // Transform branch_inventory data to match InventoryItem interface
+        const branchItems: InventoryItem[] = (data || [])
+          .filter(item => item.inventory)
+          .map(item => ({
+            id: item.inventory.id,
+            sku: item.inventory.sku,
+            name: item.inventory.name,
+            current_stock: item.current_stock,
+            reserved: item.reserved || 0,
+            ai_prediction: item.inventory.ai_prediction,
+            status: item.inventory.status,
+            item_type: item.inventory.item_type,
+            category: item.inventory.category,
+          }));
+
+        setInventory(branchItems);
+      } else {
+        // Fetch all inventory (tenant-wide view)
+        const { data, error } = await supabase
+          .from("inventory")
+          .select("id, sku, name, current_stock, reserved, ai_prediction, status, item_type, category")
+          .eq("tenant_id", tenantId)
+          .eq("is_archived", false)
+          .order("name");
+
+        if (error) throw error;
+        setInventory(data || []);
+      }
     } catch (error) {
       console.error("Error fetching inventory:", error);
       toast({
@@ -76,9 +121,12 @@ export function SmartInventory() {
 
   useEffect(() => {
     if (tenantId) {
+      setIsLoading(true);
       fetchInventory();
     }
+  }, [tenantId, currentBranch?.id]);
 
+  useEffect(() => {
     // Subscribe to real-time changes
     const channel = supabase
       .channel('inventory-changes')
@@ -91,15 +139,8 @@ export function SmartInventory() {
         },
         (payload) => {
           console.log('Inventory change:', payload);
-          if (payload.eventType === 'INSERT') {
-            setInventory((prev) => [...prev, payload.new as InventoryItem].sort((a, b) => a.name.localeCompare(b.name)));
-          } else if (payload.eventType === 'UPDATE') {
-            setInventory((prev) =>
-              prev.map((item) => (item.id === payload.new.id ? (payload.new as InventoryItem) : item))
-            );
-          } else if (payload.eventType === 'DELETE') {
-            setInventory((prev) => prev.filter((item) => item.id !== payload.old.id));
-          }
+          // Refetch on changes to ensure branch filtering is applied
+          fetchInventory();
         }
       )
       .subscribe();
@@ -107,7 +148,7 @@ export function SmartInventory() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [tenantId, currentBranch?.id]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
