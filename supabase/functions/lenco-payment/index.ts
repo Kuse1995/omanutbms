@@ -7,17 +7,114 @@ const corsHeaders = {
 
 const LENCO_BASE_URL = "https://api.lenco.co/access/v2";
 
+type CurrencyInput =
+  | string
+  | {
+      currencyCode?: string;
+      currency_code?: string;
+      code?: string;
+    };
+
 interface PaymentRequest {
   payment_method: "mobile_money" | "card" | "bank_transfer";
   plan: string;
   billing_period: "monthly" | "annual";
   amount: number;
-  currency: string;
+  currency: CurrencyInput;
   // Mobile money specific
   phone_number?: string;
   operator?: string;
   // Card specific (for hosted checkout redirect)
   card_redirect_url?: string;
+}
+
+function normalizeCurrency(input: CurrencyInput): string {
+  if (typeof input === "string") return input;
+  return (
+    input?.currencyCode ||
+    input?.currency_code ||
+    input?.code ||
+    "USD"
+  );
+}
+
+async function provisionTenantForUser(params: {
+  // NOTE: In Edge Functions we don't have generated DB types, so keep this untyped.
+  admin: any;
+  userId: string;
+  userEmail: string;
+  defaultPlanKey: string;
+}) {
+  const { admin, userId, userEmail, defaultPlanKey } = params;
+
+  // Double-check in case another request created membership concurrently.
+  const { data: existingMembership } = await admin
+    .from("tenant_users")
+    .select("tenant_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (existingMembership?.tenant_id) return existingMembership.tenant_id as string;
+
+  const emailPrefix = (userEmail || "user").split("@")[0] || "user";
+  const slugBase = emailPrefix
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 40);
+  const slug = `${slugBase || "tenant"}-${crypto.randomUUID().slice(0, 8)}`;
+  const orgName = `${emailPrefix}'s Organization`;
+
+  const { data: tenant, error: tenantError } = await admin
+    .from("tenants")
+    .insert({ name: orgName, slug })
+    .select("id")
+    .single();
+
+  if (tenantError || !tenant?.id) {
+    console.error("Failed to create tenant:", tenantError);
+    throw new Error("Failed to create subscription account");
+  }
+
+  const tenantId = tenant.id as string;
+
+  // Give user admin role + ownership in their new tenant
+  await admin.from("tenant_users").insert({
+    tenant_id: tenantId,
+    user_id: userId,
+    role: "admin",
+    is_owner: true,
+    can_access_all_branches: true,
+  });
+
+  // Ensure role exists in role table as well (idempotent via unique constraint)
+  await admin.from("user_roles").insert({ user_id: userId, role: "admin" });
+
+  // Create business profile (defaults to trial)
+  const trialExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  await admin.from("business_profiles").insert({
+    tenant_id: tenantId,
+    company_name: orgName,
+    company_email: userEmail || null,
+    billing_status: "trial",
+    billing_plan: defaultPlanKey,
+    trial_expires_at: trialExpiresAt,
+    inventory_enabled: true,
+    payroll_enabled: true,
+    website_enabled: true,
+    impact_enabled: true,
+    agents_enabled: true,
+    tax_enabled: true,
+  });
+
+  // Optional: keep stats table in sync if present
+  try {
+    await admin.from("tenant_statistics").insert({ tenant_id: tenantId });
+  } catch (_e) {
+    // Ignore if table/policy isn't available in this environment
+  }
+
+  return tenantId;
 }
 
 Deno.serve(async (req) => {
@@ -36,6 +133,7 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const lencoSecretKey = Deno.env.get("LENCO_SECRET_KEY");
 
     if (!lencoSecretKey) {
@@ -62,32 +160,55 @@ Deno.serve(async (req) => {
     const userId = claimsData.user.id;
     const userEmail = claimsData.user.email || "";
 
-    // Try to ensure tenant membership first (in case user was just created)
-    await supabase.rpc("ensure_tenant_membership");
+    // Resolve tenant (or auto-provision one if missing)
+    let tenantId: string | null = null;
 
-    // Get user's tenant
-    const { data: tenantUser } = await supabase
-      .from("tenant_users")
-      .select("tenant_id")
-      .eq("user_id", userId)
-      .single();
-
-    if (!tenantUser) {
-      // If still no tenant, this user needs to complete registration first
-      return new Response(
-        JSON.stringify({ 
-          error: "No subscription account found. Please complete your account setup first.",
-          code: "NO_TENANT"
-        }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    try {
+      const { data: ensuredTenantId, error: ensureErr } = await supabase.rpc(
+        "ensure_tenant_membership"
       );
+      if (!ensureErr && ensuredTenantId) tenantId = ensuredTenantId as string;
+    } catch (e) {
+      console.warn("ensure_tenant_membership failed:", e);
     }
 
-    const tenantId = tenantUser.tenant_id;
+    if (!tenantId) {
+      const { data: tenantUserRow } = await supabase
+        .from("tenant_users")
+        .select("tenant_id")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (tenantUserRow?.tenant_id) tenantId = tenantUserRow.tenant_id as string;
+    }
+
+    if (!tenantId) {
+      if (!supabaseServiceRoleKey) {
+        return new Response(
+          JSON.stringify({
+            error: "Account provisioning unavailable",
+            code: "PROVISIONING_NOT_CONFIGURED",
+          }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      const admin = createClient(supabaseUrl, supabaseServiceRoleKey);
+      tenantId = await provisionTenantForUser({
+        admin: admin as any,
+        userId,
+        userEmail,
+        defaultPlanKey: "growth",
+      });
+    }
 
     // Parse request body
     const body: PaymentRequest = await req.json();
     const { payment_method, plan, billing_period, amount, currency, phone_number, operator, card_redirect_url } = body;
+    const currencyCode = normalizeCurrency(currency);
 
     // Generate unique reference
     const reference = `SUB-${tenantId.slice(0, 8)}-${Date.now()}`;
@@ -98,7 +219,7 @@ Deno.serve(async (req) => {
       .insert({
         tenant_id: tenantId,
         amount,
-        currency,
+        currency: currencyCode,
         payment_method,
         status: "pending",
         plan_selected: plan,
@@ -125,7 +246,7 @@ Deno.serve(async (req) => {
       const mobileMoneyPayload = {
         reference,
         amount: amount.toString(),
-        currency: currency === "ZMW" ? "ZMW" : "USD",
+        currency: currencyCode === "ZMW" ? "ZMW" : "USD",
         accountNumber: phone_number,
         accountName: userEmail,
         narration: `${plan} subscription - ${billing_period}`,
@@ -181,7 +302,7 @@ Deno.serve(async (req) => {
       const virtualAccountPayload = {
         reference,
         amount: amount.toString(),
-        currency: currency === "ZMW" ? "ZMW" : "USD",
+        currency: currencyCode === "ZMW" ? "ZMW" : "USD",
         accountName: userEmail,
         narration: `${plan} subscription - ${billing_period}`,
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
@@ -250,10 +371,10 @@ Deno.serve(async (req) => {
       const cardPayload = {
         reference,
         amount: amount.toString(),
-        currency: currency === "ZMW" ? "ZMW" : "USD",
+        currency: currencyCode === "ZMW" ? "ZMW" : "USD",
         email: userEmail,
         narration: `${plan} subscription - ${billing_period}`,
-        redirectUrl: card_redirect_url || `${req.headers.get("origin")}/dashboard?payment=complete`,
+        redirectUrl: card_redirect_url || `${req.headers.get("origin")}/bms?payment=complete`,
       };
 
       const response = await fetch(`${LENCO_BASE_URL}/collections/card/initialize`, {
