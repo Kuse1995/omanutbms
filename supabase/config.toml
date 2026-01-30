@@ -35,3 +35,12 @@ verify_jwt = false
 
 [functions.omanut-advisor]
 verify_jwt = false
+
+[functions.lenco-payment]
+verify_jwt = false
+
+[functions.lenco-webhook]
+verify_jwt = false
+
+[functions.lenco-check-status]
+verify_jwt = false

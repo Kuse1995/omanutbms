@@ -1,19 +1,34 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CreditCard, Smartphone, Building2, Globe, Lock, Clock } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { CreditCard, Smartphone, Building2, Globe, Lock, Loader2, CheckCircle2, AlertCircle, Copy } from "lucide-react";
 import { useBilling } from "@/hooks/useBilling";
 import { useBillingPlans } from "@/hooks/useBillingPlans";
 import { useGeoLocation } from "@/hooks/useGeoLocation";
 import { formatLocalPrice, getAvailableCurrencies } from "@/lib/currency-config";
 import { BillingPlan } from "@/lib/billing-plans";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface PaymentModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+type PaymentStatus = "idle" | "processing" | "awaiting_confirmation" | "completed" | "failed";
+
+interface BankDetails {
+  account_number: string;
+  bank_name: string;
+  account_name: string;
+  amount: number;
+  currency: string;
+  expires_at: string;
 }
 
 export function PaymentModal({ open, onOpenChange }: PaymentModalProps) {
@@ -24,14 +39,173 @@ export function PaymentModal({ open, onOpenChange }: PaymentModalProps) {
   
   const [selectedPlan, setSelectedPlan] = useState<BillingPlan>(currentPlan);
   const [billingPeriod, setBillingPeriod] = useState<"monthly" | "annual">("annual");
-  const [paymentMethod, setPaymentMethod] = useState("card");
+  const [paymentMethod, setPaymentMethod] = useState("mobile");
+  
+  // Mobile money state
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [operator, setOperator] = useState("MTN");
+  
+  // Payment status
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("idle");
+  const [paymentId, setPaymentId] = useState<string | null>(null);
+  const [paymentReference, setPaymentReference] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [bankDetails, setBankDetails] = useState<BankDetails | null>(null);
 
   const planData = plans[selectedPlan];
   const price = billingPeriod === "annual" ? planData.annualPrice : planData.monthlyPrice * 12;
   const monthlyEquivalent = billingPeriod === "annual" ? Math.round(planData.annualPrice / 12) : planData.monthlyPrice;
 
+  // Poll for payment status
+  useEffect(() => {
+    if (paymentStatus !== "awaiting_confirmation" || !paymentId) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+
+        const response = await supabase.functions.invoke("lenco-check-status", {
+          body: { payment_id: paymentId },
+        });
+
+        if (response.data?.status === "completed") {
+          setPaymentStatus("completed");
+          toast.success("Payment successful! Your subscription is now active.");
+          clearInterval(pollInterval);
+        } else if (response.data?.status === "failed") {
+          setPaymentStatus("failed");
+          setErrorMessage(response.data?.failure_reason || "Payment failed");
+          clearInterval(pollInterval);
+        }
+      } catch (error) {
+        console.error("Status check error:", error);
+      }
+    }, 5000);
+
+    return () => clearInterval(pollInterval);
+  }, [paymentStatus, paymentId]);
+
+  const handleMobileMoneyPayment = async () => {
+    if (!phoneNumber) {
+      toast.error("Please enter your phone number");
+      return;
+    }
+
+    setPaymentStatus("processing");
+    setErrorMessage(null);
+
+    try {
+      const response = await supabase.functions.invoke("lenco-payment", {
+        body: {
+          payment_method: "mobile_money",
+          plan: selectedPlan,
+          billing_period: billingPeriod,
+          amount: price,
+          currency: currency || "USD",
+          phone_number: phoneNumber.startsWith("+") ? phoneNumber : `+260${phoneNumber}`,
+          operator,
+        },
+      });
+
+      if (response.error || !response.data?.success) {
+        throw new Error(response.data?.error || response.error?.message || "Payment failed");
+      }
+
+      setPaymentId(response.data.payment_id);
+      setPaymentReference(response.data.reference);
+      setPaymentStatus("awaiting_confirmation");
+      toast.info("Check your phone to authorize the payment");
+    } catch (error: any) {
+      console.error("Payment error:", error);
+      setPaymentStatus("failed");
+      setErrorMessage(error.message || "Payment failed");
+      toast.error(error.message || "Payment failed");
+    }
+  };
+
+  const handleBankTransferPayment = async () => {
+    setPaymentStatus("processing");
+    setErrorMessage(null);
+
+    try {
+      const response = await supabase.functions.invoke("lenco-payment", {
+        body: {
+          payment_method: "bank_transfer",
+          plan: selectedPlan,
+          billing_period: billingPeriod,
+          amount: price,
+          currency: currency || "USD",
+        },
+      });
+
+      if (response.error || !response.data?.success) {
+        throw new Error(response.data?.error || response.error?.message || "Failed to generate bank details");
+      }
+
+      setPaymentId(response.data.payment_id);
+      setPaymentReference(response.data.reference);
+      setBankDetails(response.data.bank_details);
+      setPaymentStatus("awaiting_confirmation");
+    } catch (error: any) {
+      console.error("Bank transfer error:", error);
+      setPaymentStatus("failed");
+      setErrorMessage(error.message || "Failed to generate bank details");
+      toast.error(error.message || "Failed to generate bank details");
+    }
+  };
+
+  const handleCardPayment = async () => {
+    setPaymentStatus("processing");
+    setErrorMessage(null);
+
+    try {
+      const response = await supabase.functions.invoke("lenco-payment", {
+        body: {
+          payment_method: "card",
+          plan: selectedPlan,
+          billing_period: billingPeriod,
+          amount: price,
+          currency: currency || "USD",
+          card_redirect_url: `${window.location.origin}/dashboard?payment=complete`,
+        },
+      });
+
+      if (response.error || !response.data?.success) {
+        throw new Error(response.data?.error || response.error?.message || "Card payment failed");
+      }
+
+      if (response.data.redirect_url) {
+        window.location.href = response.data.redirect_url;
+      } else {
+        throw new Error("No redirect URL received");
+      }
+    } catch (error: any) {
+      console.error("Card payment error:", error);
+      setPaymentStatus("failed");
+      setErrorMessage(error.message || "Card payment failed");
+      toast.error(error.message || "Card payment failed");
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success("Copied to clipboard");
+  };
+
+  const resetPayment = () => {
+    setPaymentStatus("idle");
+    setPaymentId(null);
+    setPaymentReference(null);
+    setErrorMessage(null);
+    setBankDetails(null);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(isOpen) => {
+      if (!isOpen) resetPayment();
+      onOpenChange(isOpen);
+    }}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -55,6 +229,7 @@ export function PaymentModal({ open, onOpenChange }: PaymentModalProps) {
                   size="sm"
                   onClick={() => setSelectedPlan(key)}
                   className="relative"
+                  disabled={paymentStatus !== "idle"}
                 >
                   {plans[key].label}
                   {plans[key].popular && (
@@ -72,6 +247,7 @@ export function PaymentModal({ open, onOpenChange }: PaymentModalProps) {
               <Button
                 variant={billingPeriod === "monthly" ? "default" : "outline"}
                 onClick={() => setBillingPeriod("monthly")}
+                disabled={paymentStatus !== "idle"}
               >
                 Monthly
               </Button>
@@ -79,6 +255,7 @@ export function PaymentModal({ open, onOpenChange }: PaymentModalProps) {
                 variant={billingPeriod === "annual" ? "default" : "outline"}
                 onClick={() => setBillingPeriod("annual")}
                 className="relative"
+                disabled={paymentStatus !== "idle"}
               >
                 Annual
                 <Badge className="absolute -top-2 -right-2 bg-green-500 text-[10px] px-1">Save 20%</Badge>
@@ -92,7 +269,7 @@ export function PaymentModal({ open, onOpenChange }: PaymentModalProps) {
               <Globe className="w-4 h-4" />
               Currency
             </div>
-            <Select value={countryCode} onValueChange={setPreferredCurrency}>
+            <Select value={countryCode} onValueChange={setPreferredCurrency} disabled={paymentStatus !== "idle"}>
               <SelectTrigger className="w-[140px]">
                 <SelectValue />
               </SelectTrigger>
@@ -119,53 +296,220 @@ export function PaymentModal({ open, onOpenChange }: PaymentModalProps) {
           </div>
 
           {/* Payment Methods */}
-          <Tabs value={paymentMethod} onValueChange={setPaymentMethod}>
+          <Tabs value={paymentMethod} onValueChange={(v) => { setPaymentMethod(v); resetPayment(); }}>
             <TabsList className="grid grid-cols-3 w-full">
-              <TabsTrigger value="card" className="gap-1">
-                <CreditCard className="w-4 h-4" /> Card
-              </TabsTrigger>
-              <TabsTrigger value="mobile" className="gap-1">
+              <TabsTrigger value="mobile" className="gap-1" disabled={paymentStatus !== "idle"}>
                 <Smartphone className="w-4 h-4" /> Mobile
               </TabsTrigger>
-              <TabsTrigger value="bank" className="gap-1">
+              <TabsTrigger value="card" className="gap-1" disabled={paymentStatus !== "idle"}>
+                <CreditCard className="w-4 h-4" /> Card
+              </TabsTrigger>
+              <TabsTrigger value="bank" className="gap-1" disabled={paymentStatus !== "idle"}>
                 <Building2 className="w-4 h-4" /> Bank
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="card" className="mt-4">
-              <div className="p-8 text-center border rounded-lg border-dashed">
-                <Clock className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-                <p className="text-sm text-muted-foreground">
-                  Card payments coming soon
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Contact admin@omanut.co to subscribe
-                </p>
-              </div>
+            {/* Mobile Money Tab */}
+            <TabsContent value="mobile" className="mt-4 space-y-4">
+              {paymentStatus === "idle" && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Mobile Operator</Label>
+                    <Select value={operator} onValueChange={setOperator}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="MTN">MTN Mobile Money</SelectItem>
+                        <SelectItem value="AIRTEL">Airtel Money</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Phone Number</Label>
+                    <div className="flex gap-2">
+                      <div className="flex items-center px-3 bg-muted rounded-md text-sm">
+                        +260
+                      </div>
+                      <Input
+                        placeholder="97XXXXXXX"
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ""))}
+                        maxLength={9}
+                      />
+                    </div>
+                  </div>
+                  <Button className="w-full" onClick={handleMobileMoneyPayment}>
+                    Pay {formatLocalPrice(price, countryCode)}
+                  </Button>
+                </>
+              )}
+
+              {paymentStatus === "processing" && (
+                <div className="p-8 text-center">
+                  <Loader2 className="w-8 h-8 mx-auto animate-spin text-primary mb-2" />
+                  <p className="text-sm text-muted-foreground">Processing payment...</p>
+                </div>
+              )}
+
+              {paymentStatus === "awaiting_confirmation" && (
+                <div className="p-6 text-center border rounded-lg bg-blue-50 dark:bg-blue-950/20">
+                  <Smartphone className="w-10 h-10 mx-auto text-blue-500 mb-3" />
+                  <p className="font-medium mb-1">Check your phone</p>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Authorize the payment on your {operator} phone to complete
+                  </p>
+                  <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Waiting for confirmation...
+                  </div>
+                </div>
+              )}
+
+              {paymentStatus === "completed" && (
+                <div className="p-6 text-center border rounded-lg bg-green-50 dark:bg-green-950/20">
+                  <CheckCircle2 className="w-10 h-10 mx-auto text-green-500 mb-3" />
+                  <p className="font-medium mb-1">Payment Successful!</p>
+                  <p className="text-sm text-muted-foreground">
+                    Your subscription is now active
+                  </p>
+                </div>
+              )}
+
+              {paymentStatus === "failed" && (
+                <div className="p-6 text-center border rounded-lg bg-red-50 dark:bg-red-950/20">
+                  <AlertCircle className="w-10 h-10 mx-auto text-red-500 mb-3" />
+                  <p className="font-medium mb-1">Payment Failed</p>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {errorMessage || "Something went wrong"}
+                  </p>
+                  <Button variant="outline" onClick={resetPayment}>
+                    Try Again
+                  </Button>
+                </div>
+              )}
             </TabsContent>
 
-            <TabsContent value="mobile" className="mt-4">
-              <div className="p-8 text-center border rounded-lg border-dashed">
-                <Clock className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-                <p className="text-sm text-muted-foreground">
-                  Mobile Money (MTN, Airtel) coming soon
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Contact admin@omanut.co to subscribe
-                </p>
-              </div>
+            {/* Card Tab */}
+            <TabsContent value="card" className="mt-4 space-y-4">
+              {paymentStatus === "idle" && (
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    You'll be redirected to a secure payment page to enter your card details.
+                  </p>
+                  <Button className="w-full" onClick={handleCardPayment}>
+                    <CreditCard className="w-4 h-4 mr-2" />
+                    Pay {formatLocalPrice(price, countryCode)} with Card
+                  </Button>
+                </div>
+              )}
+
+              {paymentStatus === "processing" && (
+                <div className="p-8 text-center">
+                  <Loader2 className="w-8 h-8 mx-auto animate-spin text-primary mb-2" />
+                  <p className="text-sm text-muted-foreground">Redirecting to payment page...</p>
+                </div>
+              )}
+
+              {paymentStatus === "failed" && (
+                <div className="p-6 text-center border rounded-lg bg-red-50 dark:bg-red-950/20">
+                  <AlertCircle className="w-10 h-10 mx-auto text-red-500 mb-3" />
+                  <p className="font-medium mb-1">Payment Failed</p>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {errorMessage || "Something went wrong"}
+                  </p>
+                  <Button variant="outline" onClick={resetPayment}>
+                    Try Again
+                  </Button>
+                </div>
+              )}
             </TabsContent>
 
-            <TabsContent value="bank" className="mt-4">
-              <div className="p-8 text-center border rounded-lg border-dashed">
-                <Clock className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-                <p className="text-sm text-muted-foreground">
-                  Bank Transfer coming soon
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Contact admin@omanut.co to subscribe
-                </p>
-              </div>
+            {/* Bank Transfer Tab */}
+            <TabsContent value="bank" className="mt-4 space-y-4">
+              {paymentStatus === "idle" && (
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Generate bank account details to transfer your payment.
+                  </p>
+                  <Button className="w-full" onClick={handleBankTransferPayment}>
+                    <Building2 className="w-4 h-4 mr-2" />
+                    Get Bank Details
+                  </Button>
+                </div>
+              )}
+
+              {paymentStatus === "processing" && (
+                <div className="p-8 text-center">
+                  <Loader2 className="w-8 h-8 mx-auto animate-spin text-primary mb-2" />
+                  <p className="text-sm text-muted-foreground">Generating bank details...</p>
+                </div>
+              )}
+
+              {paymentStatus === "awaiting_confirmation" && bankDetails && (
+                <div className="space-y-4">
+                  <div className="p-4 border rounded-lg space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Bank</span>
+                      <span className="font-medium">{bankDetails.bank_name}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Account Number</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-medium">{bankDetails.account_number}</span>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-6 w-6"
+                          onClick={() => copyToClipboard(bankDetails.account_number)}
+                        >
+                          <Copy className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Account Name</span>
+                      <span className="font-medium">{bankDetails.account_name}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Amount</span>
+                      <span className="font-bold text-lg">
+                        {formatLocalPrice(bankDetails.amount, countryCode)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Waiting for transfer confirmation...
+                  </div>
+                  <p className="text-xs text-muted-foreground text-center">
+                    Transfer the exact amount shown. Your subscription will activate automatically once we confirm the payment.
+                  </p>
+                </div>
+              )}
+
+              {paymentStatus === "completed" && (
+                <div className="p-6 text-center border rounded-lg bg-green-50 dark:bg-green-950/20">
+                  <CheckCircle2 className="w-10 h-10 mx-auto text-green-500 mb-3" />
+                  <p className="font-medium mb-1">Payment Received!</p>
+                  <p className="text-sm text-muted-foreground">
+                    Your subscription is now active
+                  </p>
+                </div>
+              )}
+
+              {paymentStatus === "failed" && (
+                <div className="p-6 text-center border rounded-lg bg-red-50 dark:bg-red-950/20">
+                  <AlertCircle className="w-10 h-10 mx-auto text-red-500 mb-3" />
+                  <p className="font-medium mb-1">Failed to Generate Details</p>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {errorMessage || "Something went wrong"}
+                  </p>
+                  <Button variant="outline" onClick={resetPayment}>
+                    Try Again
+                  </Button>
+                </div>
+              )}
             </TabsContent>
           </Tabs>
 
