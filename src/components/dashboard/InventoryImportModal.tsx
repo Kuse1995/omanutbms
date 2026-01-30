@@ -20,11 +20,13 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import { Upload, FileSpreadsheet, Download, CheckCircle2, XCircle, Loader2, Wand2 } from "lucide-react";
+import { Upload, FileSpreadsheet, Download, CheckCircle2, XCircle, Loader2, Wand2, Settings2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/hooks/useTenant";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 import { ImportConverterModal } from "./ImportConverterModal";
+import { CSVColumnMapper, SchemaField } from "./CSVColumnMapper";
+
 interface InventoryImportModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -46,16 +48,33 @@ interface ParsedRow {
   rowNumber: number;
 }
 
-const inventorySchemaFields = [
-  { key: 'sku', label: 'SKU', required: true, type: 'string' as const },
-  { key: 'name', label: 'Name', required: true, type: 'string' as const },
-  { key: 'unit_price', label: 'Unit Price (Selling)', required: true, type: 'number' as const },
-  { key: 'cost_price', label: 'Cost Price (Purchase)', required: false, type: 'number' as const },
-  { key: 'current_stock', label: 'Current Stock', required: false, type: 'number' as const },
-  { key: 'reorder_level', label: 'Reorder Level', required: false, type: 'number' as const },
-  { key: 'description', label: 'Description', required: false, type: 'string' as const },
-  { key: 'category', label: 'Category', required: false, type: 'string' as const },
+type ImportStep = "upload" | "mapping" | "preview";
+
+const inventorySchemaFields: SchemaField[] = [
+  { key: 'sku', label: 'SKU', required: true, type: 'string', aliases: ['product_code', 'item_code', 'code', 'barcode'] },
+  { key: 'name', label: 'Name', required: true, type: 'string', aliases: ['product_name', 'item_name', 'product', 'item', 'title'] },
+  { key: 'unit_price', label: 'Unit Price (Selling)', required: true, type: 'number', aliases: ['price', 'selling_price', 'retail_price', 'sale_price'] },
+  { key: 'cost_price', label: 'Cost Price (Purchase)', required: false, type: 'number', aliases: ['cost', 'purchase_price', 'buying_price', 'wholesale'] },
+  { key: 'current_stock', label: 'Current Stock', required: false, type: 'number', aliases: ['stock', 'quantity', 'qty', 'on_hand', 'available'] },
+  { key: 'reorder_level', label: 'Reorder Level', required: false, type: 'number', aliases: ['reorder', 'min_stock', 'minimum', 'threshold'] },
+  { key: 'description', label: 'Description', required: false, type: 'string', aliases: ['desc', 'details', 'notes'] },
+  { key: 'category', label: 'Category', required: false, type: 'string', aliases: ['type', 'group', 'department'] },
 ];
+
+// Check if CSV columns match expected schema
+function needsColumnMapping(columns: string[]): boolean {
+  const normalizedColumns = columns.map(c => c.toLowerCase().trim().replace(/\s+/g, '_'));
+  const requiredFields = inventorySchemaFields.filter(f => f.required).map(f => f.key);
+  
+  // Check if any required fields are directly present
+  const directMatch = requiredFields.every(field => {
+    const fieldDef = inventorySchemaFields.find(f => f.key === field);
+    const allNames = [field, ...(fieldDef?.aliases || [])];
+    return normalizedColumns.some(col => allNames.includes(col));
+  });
+  
+  return !directMatch;
+}
 
 export function InventoryImportModal({ open, onOpenChange, onSuccess }: InventoryImportModalProps) {
   const [parsedData, setParsedData] = useState<ParsedRow[]>([]);
@@ -65,6 +84,9 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
   const [isDragOver, setIsDragOver] = useState(false);
   const [isConverterOpen, setIsConverterOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("spreadsheet");
+  const [importStep, setImportStep] = useState<ImportStep>("upload");
+  const [rawFileData, setRawFileData] = useState<Record<string, any>[]>([]);
+  const [sourceColumns, setSourceColumns] = useState<string[]>([]);
   const { toast } = useToast();
   const { tenantId } = useTenant();
   const { terminology } = useBusinessConfig();
@@ -73,40 +95,58 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
     setParsedData([]);
     setImportProgress(0);
     setImportResults(null);
+    setImportStep("upload");
+    setRawFileData([]);
+    setSourceColumns([]);
   };
 
   const handleConvertedData = (data: any[]) => {
     // Convert the AI-extracted data to our ParsedRow format
-    const converted: ParsedRow[] = data.map((row, idx) => ({
-      sku: String(row.sku || "").trim(),
-      name: String(row.name || "").trim(),
-      current_stock: parseInt(row.current_stock) || 0,
-      unit_price: parseFloat(row.unit_price) || 0,
-      cost_price: parseFloat(row.cost_price) || 0,
-      reorder_level: parseInt(row.reorder_level) || 10,
-      liters_per_unit: parseInt(row.liters_per_unit) || 0,
-      description: String(row.description || "").trim(),
-      category: String(row.category || "").trim(),
-      isValid: true,
-      errors: [] as string[],
-      rowNumber: idx + 1,
-    }));
-    
-    // Re-validate
-    const validated = converted.map(row => {
-      const errors: string[] = [];
-      if (!row.sku) errors.push("SKU is required");
-      if (!row.name) errors.push("Name is required");
-      if (row.unit_price < 0) errors.push("Selling price cannot be negative");
-      if (row.cost_price < 0) errors.push("Cost price cannot be negative");
-      return { ...row, isValid: errors.length === 0, errors };
-    });
-    
+    const validated = convertToParsedRows(data);
     setParsedData(validated);
+    setImportStep("preview");
     setActiveTab("spreadsheet");
     toast({
       title: "Data Ready for Import",
       description: `${validated.filter(r => r.isValid).length} items ready to import`,
+    });
+  };
+
+  const handleMappingComplete = (mappings: Record<string, string>, transformedData: Record<string, any>[]) => {
+    const validated = convertToParsedRows(transformedData);
+    setParsedData(validated);
+    setImportStep("preview");
+    toast({
+      title: "Mapping Applied",
+      description: `${validated.filter(r => r.isValid).length} items ready to import`,
+    });
+  };
+
+  const convertToParsedRows = (data: any[]): ParsedRow[] => {
+    return data.map((row, idx) => {
+      const parsed: ParsedRow = {
+        sku: String(row.sku || "").trim(),
+        name: String(row.name || "").trim(),
+        current_stock: parseInt(row.current_stock) || 0,
+        unit_price: parseFloat(row.unit_price) || 0,
+        cost_price: parseFloat(row.cost_price) || 0,
+        reorder_level: parseInt(row.reorder_level) || 10,
+        liters_per_unit: parseInt(row.liters_per_unit) || 0,
+        description: String(row.description || "").trim(),
+        category: String(row.category || "").trim(),
+        isValid: true,
+        errors: [],
+        rowNumber: idx + 1,
+      };
+      
+      // Validate
+      const errors: string[] = [];
+      if (!parsed.sku) errors.push("SKU is required");
+      if (!parsed.name) errors.push("Name is required");
+      if (parsed.unit_price < 0) errors.push("Selling price cannot be negative");
+      if (parsed.cost_price < 0) errors.push("Cost price cannot be negative");
+      
+      return { ...parsed, isValid: errors.length === 0, errors };
     });
   };
 
@@ -143,30 +183,54 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
     });
   };
 
-  const parseCSV = (content: string): ParsedRow[] => {
+  const parseCSVRaw = (content: string): { columns: string[]; rows: Record<string, any>[] } => {
     const lines = content.split(/\r?\n/).filter(line => line.trim());
-    if (lines.length < 2) return [];
+    if (lines.length < 2) return { columns: [], rows: [] };
 
-    const headers = lines[0].toLowerCase().split(",").map(h => h.trim());
-    const rawRows: any[] = [];
+    // Handle quoted CSV values properly
+    const parseCSVLine = (line: string): string[] => {
+      const result: string[] = [];
+      let current = "";
+      let inQuotes = false;
+      
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim());
+          current = "";
+        } else {
+          current += char;
+        }
+      }
+      result.push(current.trim());
+      return result;
+    };
+
+    const headers = parseCSVLine(lines[0]);
+    const rawRows: Record<string, any>[] = [];
 
     for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(",").map(v => v.trim());
-      const rawRow: any = {};
+      const values = parseCSVLine(lines[i]);
+      const rawRow: Record<string, any> = {};
       headers.forEach((header, idx) => {
         rawRow[header] = values[idx] || "";
       });
       rawRows.push(rawRow);
     }
 
-    return validateRows(rawRows);
+    return { columns: headers, rows: rawRows };
   };
 
-  const parseExcel = (data: ArrayBuffer): ParsedRow[] => {
+  const parseExcelRaw = (data: ArrayBuffer): { columns: string[]; rows: Record<string, any>[] } => {
     const workbook = XLSX.read(data, { type: "array" });
     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rawRows: any[] = XLSX.utils.sheet_to_json(firstSheet);
-    return validateRows(rawRows);
+    const rawRows: Record<string, any>[] = XLSX.utils.sheet_to_json(firstSheet);
+    
+    // Extract columns from first row
+    const columns = rawRows.length > 0 ? Object.keys(rawRows[0]) : [];
+    return { columns, rows: rawRows };
   };
 
   const handleFile = (file: File) => {
@@ -185,14 +249,51 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        let parsed: ParsedRow[];
-        if (isCSV) {
-          parsed = parseCSV(e.target?.result as string);
-        } else {
-          parsed = parseExcel(e.target?.result as ArrayBuffer);
+        const { columns, rows } = isCSV 
+          ? parseCSVRaw(e.target?.result as string)
+          : parseExcelRaw(e.target?.result as ArrayBuffer);
+        
+        if (rows.length === 0) {
+          toast({
+            title: "Empty File",
+            description: "The file appears to be empty",
+            variant: "destructive",
+          });
+          return;
         }
-        setParsedData(parsed);
+
+        // Store raw data for potential mapping
+        setRawFileData(rows);
+        setSourceColumns(columns);
         setImportResults(null);
+
+        // Check if columns need mapping
+        if (needsColumnMapping(columns)) {
+          setImportStep("mapping");
+          toast({
+            title: "Column Mapping Required",
+            description: "Please map your columns to the system fields",
+          });
+        } else {
+          // Direct conversion if columns match
+          const validated = convertToParsedRows(rows.map((row, idx) => {
+            // Normalize keys for direct match
+            const normalized: Record<string, any> = {};
+            Object.entries(row).forEach(([key, value]) => {
+              const normalizedKey = key.toLowerCase().trim().replace(/\s+/g, '_');
+              // Find matching schema field
+              const field = inventorySchemaFields.find(f => 
+                f.key === normalizedKey || f.aliases?.includes(normalizedKey)
+              );
+              if (field) {
+                normalized[field.key] = value;
+              }
+            });
+            return normalized;
+          }));
+          setParsedData(validated);
+          setImportStep("preview");
+        }
       } catch (error) {
         console.error("Parse error:", error);
         toast({
@@ -360,7 +461,8 @@ PROD-003,Premium Product,5,8500,6000,2,premium,High-end product with full featur
             </DialogDescription>
           </DialogHeader>
 
-          {parsedData.length === 0 ? (
+          {/* Step 1: Upload */}
+          {importStep === "upload" && (
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="spreadsheet" className="flex items-center gap-2">
@@ -389,7 +491,7 @@ PROD-003,Premium Product,5,8500,6000,2,premium,High-end product with full featur
                   <p className="text-[#003366] font-medium mb-2">
                     Drag & drop your file here
                   </p>
-                  <p className="text-[#004B8D]/60 text-sm mb-1">Supports CSV and Excel (.xlsx) files</p>
+                  <p className="text-[#004B8D]/60 text-sm mb-1">Supports CSV and Excel (.xlsx) files — any column format</p>
                   <p className="text-[#004B8D]/60 text-sm mb-4">or</p>
                   <label>
                     <input
@@ -404,17 +506,28 @@ PROD-003,Premium Product,5,8500,6000,2,premium,High-end product with full featur
                   </label>
                 </div>
 
-                {/* Template Download */}
-                <div className="flex items-center justify-between p-4 bg-[#004B8D]/5 rounded-lg">
+                {/* Smart Import Info */}
+                <div className="flex items-start gap-3 p-4 bg-[#004B8D]/5 rounded-lg">
+                  <Settings2 className="h-5 w-5 text-[#0077B6] mt-0.5 flex-shrink-0" />
                   <div>
-                    <p className="text-[#003366] font-medium text-sm">Need a template?</p>
+                    <p className="text-[#003366] font-medium text-sm">Smart Column Mapping</p>
                     <p className="text-[#004B8D]/60 text-xs">
-                      Download a sample CSV with the correct format
+                      Upload any CSV format — the system will help you map columns to the right fields
+                    </p>
+                  </div>
+                </div>
+
+                {/* Template Download */}
+                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                  <div>
+                    <p className="text-[#003366] font-medium text-sm">Prefer a template?</p>
+                    <p className="text-[#004B8D]/60 text-xs">
+                      Download a sample CSV with the expected format
                     </p>
                   </div>
                   <Button variant="ghost" size="sm" onClick={downloadTemplate} className="text-[#0077B6]">
                     <Download className="h-4 w-4 mr-2" />
-                    Download Template
+                    Download
                   </Button>
                 </div>
               </TabsContent>
@@ -443,7 +556,25 @@ PROD-003,Premium Product,5,8500,6000,2,premium,High-end product with full featur
                 </div>
               </TabsContent>
             </Tabs>
-          ) : (
+          )}
+
+          {/* Step 2: Column Mapping */}
+          {importStep === "mapping" && (
+            <CSVColumnMapper
+              sourceColumns={sourceColumns}
+              schemaFields={inventorySchemaFields}
+              rawData={rawFileData}
+              onMappingComplete={handleMappingComplete}
+              onCancel={() => {
+                setImportStep("upload");
+                setRawFileData([]);
+                setSourceColumns([]);
+              }}
+            />
+          )}
+
+          {/* Step 3: Preview & Import */}
+          {importStep === "preview" && (
           <div className="space-y-4">
             {/* Summary */}
             <div className="flex items-center gap-4">
@@ -559,7 +690,7 @@ PROD-003,Premium Product,5,8500,6000,2,premium,High-end product with full featur
               </Button>
             </div>
           </div>
-        )}
+          )}
         </DialogContent>
       </Dialog>
 
