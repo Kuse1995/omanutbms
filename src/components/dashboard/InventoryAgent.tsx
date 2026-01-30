@@ -22,7 +22,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Package, AlertTriangle, RefreshCw, Mail, Loader2, Plus, Pencil, FileUp, Download, Palette, Ruler, ImageIcon, Building2, PackagePlus, Archive, ArchiveRestore, Eye, EyeOff } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Package, AlertTriangle, RefreshCw, Mail, Loader2, Plus, Pencil, FileUp, Download, Palette, Ruler, ImageIcon, Building2, PackagePlus, Archive, ArchiveRestore, Eye, EyeOff, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ProductModal } from "./ProductModal";
 import { InventoryImportModal } from "./InventoryImportModal";
@@ -90,8 +91,9 @@ export function InventoryAgent() {
   const { tenantId } = useTenant();
   const { currentBranch, isMultiBranchEnabled } = useBranch();
   const { terminology, currencySymbol } = useFeatures();
-  const { config } = useBusinessConfig();
+  const { config, businessType } = useBusinessConfig();
   const formFields = config.formFields;
+  const showMaterialsAndConsumables = businessType === 'fashion';
 
   const fetchInventory = async () => {
     if (!tenantId) return;
@@ -365,58 +367,87 @@ export function InventoryAgent() {
           </div>
         </div>
 
-        {/* Low Stock Alerts */}
+        {/* Low Stock Alerts - Collapsible */}
         {lowStockItems.length > 0 && (
-          <Card className="bg-amber-50 border-amber-200">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-amber-700 flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5" />
-                Low Stock Alerts ({lowStockItems.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {lowStockItems.map((item) => (
-                  <Badge key={item.id} variant="outline" className="border-amber-500/50 text-amber-700">
-                    {item.name}: {item.current_stock} left
+          <Collapsible>
+            <CollapsibleTrigger asChild>
+              <Button 
+                variant="ghost" 
+                className="w-full justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100"
+              >
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600" />
+                  <span className="text-amber-700 text-sm font-medium">Low Stock Alerts</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="destructive" className="text-xs">
+                    {lowStockItems.length}
                   </Badge>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                  <ChevronDown className="w-4 h-4 text-amber-600" />
+                </div>
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-2">
+              <Card className="bg-amber-50/50 border-amber-200">
+                <CardContent className="pt-4">
+                  <div className="flex flex-wrap gap-2">
+                    {lowStockItems.map((item) => (
+                      <Badge key={item.id} variant="outline" className="border-amber-500/50 text-amber-700">
+                        {item.name}: {item.current_stock} left
+                      </Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </CollapsibleContent>
+          </Collapsible>
         )}
 
-        {/* Filter Chips */}
-        <div className="flex flex-wrap gap-2">
-          <Badge
-            variant={classFilter === null ? "default" : "outline"}
-            className={`cursor-pointer ${classFilter === null ? "bg-[#004B8D] text-white" : "hover:bg-[#004B8D]/10"}`}
-            onClick={() => setClassFilter(null)}
-          >
-            {showArchived ? `Archived` : `All`} ({inventoryForView.length})
-          </Badge>
-          <Badge
-            variant={classFilter === "finished_good" ? "default" : "outline"}
-            className={`cursor-pointer ${classFilter === "finished_good" ? "bg-[#004B8D] text-white" : "hover:bg-[#004B8D]/10"}`}
-            onClick={() => setClassFilter("finished_good")}
-          >
-            📦 Products ({inventoryForView.filter(i => (i.inventory_class || 'finished_good') === 'finished_good').length})
-          </Badge>
-          <Badge
-            variant={classFilter === "raw_material" ? "default" : "outline"}
-            className={`cursor-pointer ${classFilter === "raw_material" ? "bg-purple-600 text-white" : "hover:bg-purple-50"}`}
-            onClick={() => setClassFilter("raw_material")}
-          >
-            🧵 Materials ({inventoryForView.filter(i => i.inventory_class === 'raw_material').length})
-          </Badge>
-          <Badge
-            variant={classFilter === "consumable" ? "default" : "outline"}
-            className={`cursor-pointer ${classFilter === "consumable" ? "bg-gray-600 text-white" : "hover:bg-gray-50"}`}
-            onClick={() => setClassFilter("consumable")}
-          >
-            📋 Consumables ({inventoryForView.filter(i => i.inventory_class === 'consumable').length})
-          </Badge>
-        </div>
+        {/* Filter Chips - Hide empty categories and fashion-specific filters */}
+        {(() => {
+          const productsCount = inventoryForView.filter(i => (i.inventory_class || 'finished_good') === 'finished_good').length;
+          const materialsCount = inventoryForView.filter(i => i.inventory_class === 'raw_material').length;
+          const consumablesCount = inventoryForView.filter(i => i.inventory_class === 'consumable').length;
+          
+          return (
+            <div className="flex flex-wrap gap-2">
+              <Badge
+                variant={classFilter === null ? "default" : "outline"}
+                className={`cursor-pointer ${classFilter === null ? "bg-[#004B8D] text-white" : "hover:bg-[#004B8D]/10"}`}
+                onClick={() => setClassFilter(null)}
+              >
+                {showArchived ? `Archived` : `All`} ({inventoryForView.length})
+              </Badge>
+              {productsCount > 0 && (
+                <Badge
+                  variant={classFilter === "finished_good" ? "default" : "outline"}
+                  className={`cursor-pointer ${classFilter === "finished_good" ? "bg-[#004B8D] text-white" : "hover:bg-[#004B8D]/10"}`}
+                  onClick={() => setClassFilter("finished_good")}
+                >
+                  📦 {terminology.productsLabel} ({productsCount})
+                </Badge>
+              )}
+              {showMaterialsAndConsumables && materialsCount > 0 && (
+                <Badge
+                  variant={classFilter === "raw_material" ? "default" : "outline"}
+                  className={`cursor-pointer ${classFilter === "raw_material" ? "bg-purple-600 text-white" : "hover:bg-purple-50"}`}
+                  onClick={() => setClassFilter("raw_material")}
+                >
+                  🧵 Materials ({materialsCount})
+                </Badge>
+              )}
+              {showMaterialsAndConsumables && consumablesCount > 0 && (
+                <Badge
+                  variant={classFilter === "consumable" ? "default" : "outline"}
+                  className={`cursor-pointer ${classFilter === "consumable" ? "bg-gray-600 text-white" : "hover:bg-gray-50"}`}
+                  onClick={() => setClassFilter("consumable")}
+                >
+                  📋 Consumables ({consumablesCount})
+                </Badge>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Inventory Table */}
         <Card className="bg-white border-[#004B8D]/10">
@@ -436,7 +467,7 @@ export function InventoryAgent() {
                   <TableRow>
                     <TableHead>SKU</TableHead>
                     <TableHead>{terminology.productLabel}</TableHead>
-                    <TableHead>Type</TableHead>
+                    {showMaterialsAndConsumables && <TableHead>Type</TableHead>}
                     <TableHead>
                       <Building2 className="w-4 h-4 inline mr-1" />
                       Location
@@ -479,15 +510,17 @@ export function InventoryAgent() {
                           <span className="font-medium">{item.name}</span>
                         </div>
                       </TableCell>
-                      <TableCell>
-                        {item.inventory_class === 'raw_material' ? (
-                          <Badge className="bg-purple-100 text-purple-700 border-purple-200">🧵 Material</Badge>
-                        ) : item.inventory_class === 'consumable' ? (
-                          <Badge className="bg-gray-100 text-gray-700 border-gray-200">📋 Consumable</Badge>
-                        ) : (
-                          <Badge className="bg-blue-50 text-blue-700 border-blue-200">📦 Product</Badge>
-                        )}
-                      </TableCell>
+                      {showMaterialsAndConsumables && (
+                        <TableCell>
+                          {item.inventory_class === 'raw_material' ? (
+                            <Badge className="bg-purple-100 text-purple-700 border-purple-200">🧵 Material</Badge>
+                          ) : item.inventory_class === 'consumable' ? (
+                            <Badge className="bg-gray-100 text-gray-700 border-gray-200">📋 Consumable</Badge>
+                          ) : (
+                            <Badge className="bg-blue-50 text-blue-700 border-blue-200">📦 Product</Badge>
+                          )}
+                        </TableCell>
+                      )}
                       <TableCell>
                         {item.location_name ? (
                           <span className="text-sm text-[#004B8D]">📍 {item.location_name}</span>
