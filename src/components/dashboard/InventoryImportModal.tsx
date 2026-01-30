@@ -358,6 +358,10 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
     let added = 0;
     let updated = 0;
     let failed = 0;
+    let firstErrorMessage: string | null = null;
+
+    // Debug: log import context for troubleshooting
+    console.log("Import context:", { tenantId });
 
     for (let i = 0; i < validRows.length; i++) {
       const row = validRows[i];
@@ -408,8 +412,12 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
           if (error) throw error;
           added++;
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Import error for row:", row, error);
+        // Capture first error for user feedback
+        if (!firstErrorMessage && error?.message) {
+          firstErrorMessage = error.message;
+        }
         failed++;
       }
 
@@ -419,10 +427,27 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
     setIsImporting(false);
     setImportResults({ added, updated, failed });
 
-    toast({
-      title: "Import Complete",
-      description: `${added} added, ${updated} updated, ${failed} failed`,
-    });
+    // Show appropriate toast based on results
+    if (failed === validRows.length && firstErrorMessage) {
+      toast({
+        title: "Import Failed",
+        description: firstErrorMessage.includes("row-level security")
+          ? "Permission denied. Your role may not allow inventory imports."
+          : firstErrorMessage,
+        variant: "destructive",
+      });
+    } else if (failed > 0) {
+      toast({
+        title: "Import Partially Complete",
+        description: `${added} added, ${updated} updated, ${failed} failed. ${firstErrorMessage ? `Error: ${firstErrorMessage}` : ''}`,
+        variant: "default",
+      });
+    } else {
+      toast({
+        title: "Import Complete",
+        description: `${added} added, ${updated} updated`,
+      });
+    }
 
     if (added > 0 || updated > 0) {
       onSuccess();

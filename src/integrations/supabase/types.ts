@@ -4670,6 +4670,7 @@ export type Database = {
       }
       can_manage_accounts: { Args: { _tenant_id: string }; Returns: boolean }
       can_manage_hr: { Args: { _tenant_id: string }; Returns: boolean }
+      can_manage_inventory: { Args: { _tenant_id: string }; Returns: boolean }
       can_manage_operations: { Args: { _tenant_id: string }; Returns: boolean }
       can_record_sales: { Args: { _tenant_id: string }; Returns: boolean }
       complete_stock_transfer: {
