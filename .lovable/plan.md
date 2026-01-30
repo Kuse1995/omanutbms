@@ -1,139 +1,229 @@
 
-# AI Advisor Authentication & Subscription Assistance
+# Unified Employee & Access Control System
 
 ## Overview
 
-This plan adds two key improvements to the Omanut Advisor:
-1. **Hide advisor for logged-out users** - Only show the advisor when a user is authenticated
-2. **Subscription coaching capability** - Enable the advisor to help users understand plans and guide them to subscribe based on their usage patterns
+This plan introduces a unified approach to managing employee identity, BMS account access, and WhatsApp integration from a single location. Instead of managing three separate systems, administrators will be able to configure all access options when creating or editing an employee.
 
 ---
 
-## Current State Analysis
+## Current Architecture
 
-### Advisor Visibility
-- `OmanutAdvisor` is rendered in `App.tsx` at the root level, outside of route guards
-- It currently renders for ALL visitors (logged-in or not)
-- The advisor relies on `useTenant()` which returns null for unauthenticated users
+```text
+┌──────────────────┐     ┌─────────────────────┐     ┌────────────────────────┐
+│    employees     │     │  authorized_emails   │     │ whatsapp_user_mappings │
+├──────────────────┤     ├─────────────────────┤     ├────────────────────────┤
+│ id               │     │ id                  │     │ id                     │
+│ full_name        │     │ email               │     │ whatsapp_number        │
+│ email            │     │ default_role        │     │ user_id (optional)     │
+│ phone            │     │ branch_id           │     │ employee_id (optional) │
+│ user_id ─────────┼─────│ tenant_id           │     │ role                   │
+│ branch_id        │     └─────────────────────┘     │ is_employee_self_svc   │
+│ tenant_id        │                                  └────────────────────────┘
+└──────────────────┘                                  
+         ▲                                                      │
+         └──────────────────────────────────────────────────────┘
+                    (employee_id FK already exists)
+```
 
-### Subscription Context
-- The edge function already fetches billing plan, status, and feature usage
-- Trial status, days remaining, and plan limits are calculated
-- Upsell triggers exist but don't include explicit subscription guidance
+**Current Problem**: These three tables are managed in separate locations:
+- Employees: HR → Staff panel
+- BMS Access: Settings → Authorized Users
+- WhatsApp Access: Settings → WhatsApp
 
 ---
 
-## Implementation Plan
+## Solution: Unified Access Control in Employee Modal
 
-### Part 1: Hide Advisor for Unauthenticated Users
+### Part 1: Enhanced Employee Modal
 
-**File: `src/components/dashboard/OmanutAdvisor.tsx`**
+Add a new "Access & Integration" section to the EmployeeModal with two collapsible panels:
 
-Add authentication check at the top of the component:
+**1. BMS Account Access**
+- Toggle: "Grant BMS Login Access"
+- When enabled, shows:
+  - Email field (required, pre-filled from employee email)
+  - Role selector (same roles as AuthorizedEmailsManager)
+  - Branch assignment (if multi-branch enabled)
+- On save: Creates/updates entry in `authorized_emails` table
 
-```text
-┌─────────────────────────────────────────────────────┐
-│  1. Import useAuth hook                             │
-│  2. Get { user, loading } from useAuth()            │
-│  3. Return null if !user (after loading completes)  │
-└─────────────────────────────────────────────────────┘
+**2. WhatsApp Access**
+- Toggle: "Enable WhatsApp Access"
+- When enabled, shows:
+  - WhatsApp number field (pre-filled from employee phone if +260 format)
+  - Role selector (determines WhatsApp permissions)
+  - Self-service checkbox (if no BMS account, limits to clock_in, my_pay, my_tasks)
+- On save: Creates/updates entry in `whatsapp_user_mappings` table
+
+### Part 2: Database Relationship Updates
+
+Add an `authorized_email_id` column to the `employees` table to formally link the BMS access record:
+
+```sql
+ALTER TABLE employees 
+ADD COLUMN authorized_email_id uuid REFERENCES authorized_emails(id) ON DELETE SET NULL;
 ```
 
-This ensures:
-- No flash of advisor on public pages
-- Advisor only appears after user logs in
-- Clean experience for marketing pages (/, /pricing, /auth, etc.)
+This creates a bidirectional link:
+- Employee → Authorized Email (for BMS access tracking)
+- Employee → WhatsApp Mapping (already exists via employee_id FK)
 
-### Part 2: Add Subscription Assistance to Advisor
+### Part 3: Visual Status Indicators
 
-**File: `supabase/functions/omanut-advisor/index.ts`**
+Update the EmployeeManager list view to show access status badges:
 
-Enhance the system prompt with:
-
-1. **Billing Context Section** - Add trial status and plan comparison data:
 ```text
-SUBSCRIPTION STATUS:
-- Current Plan: [plan name]
-- Status: [trial/active/expired]
-- Trial Days Remaining: [X days] (if applicable)
-- Trial Expiry Date: [date]
+┌─────────────────────────────────────────────────────────────────┐
+│ 👤 John Mwamba           Office Staff    Active                 │
+│    📧 john@company.com   📱 +260977123456                       │
+│    ┌──────────┐ ┌───────────────┐ ┌──────────────────┐          │
+│    │ 🔐 Admin │ │ 💬 Sales Rep  │ │ 📍 Headquarters  │          │
+│    └──────────┘ └───────────────┘ └──────────────────┘          │
+│         ↑               ↑                   ↑                   │
+│    BMS Access     WhatsApp Role       Branch                    │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-2. **Plan Comparison Data** - Provide feature/limit breakdowns:
+Badges:
+- 🔐 BMS Role badge (Admin, Manager, etc.) - shows if authorized_email exists
+- 💬 WhatsApp badge - shows if whatsapp_mapping exists
+- 📍 Branch badge (already exists)
+
+### Part 4: Sync Logic
+
+When employee data changes, the system keeps access records aligned:
+
 ```text
-PLAN COMPARISON (for recommendations):
-- Starter ($9/mo): 1 user, 100 items, basic features
-- Pro ($29/mo): 10 users, 1000 items, HR/Payroll, Agents, Advanced Accounting
-- Enterprise ($79/mo): Unlimited everything, Multi-branch, White-label
+Employee email changes → Update authorized_emails.email
+Employee phone changes → Prompt to update whatsapp_number
+Employee deleted → Cascade delete access records (with confirmation)
+Employee branch changes → Update authorized_emails.branch_id and whatsapp_mappings.branch_id
 ```
 
-3. **Subscription Coaching Instructions** - Add explicit guidance:
-```text
-SUBSCRIPTION ASSISTANCE CAPABILITY:
-When users ask about plans, pricing, or upgrading:
-1. Analyze their current usage (users, inventory items, features used)
-2. Recommend the most cost-effective plan for their needs
-3. Explain specific benefits relevant to THEIR situation
-4. Provide the subscription path: Settings → Subscription → Subscribe Now
-5. Mention the 7-day free trial if applicable
+---
 
-Example responses:
-- Trial expiring: "Your 7-day trial ends in 2 days. Based on your 85 products and 3 team members, the Pro plan ($29/mo) covers you perfectly and includes the HR/Payroll features you've been using."
-- Usage analysis: "You're using 95/100 inventory slots and have 3 employees. Pro unlocks 1,000 items + payroll automation - worth it at $29/mo!"
-- Feature inquiry: "WhatsApp reminders are on the Pro plan. Since you have $45,000 in overdue invoices, automatic payment reminders could really help!"
+## UI Flow
+
+### Creating a New Employee with Full Access
+
+1. Admin opens "Add New Employee" modal
+2. Fills in personal info (name, email, phone, etc.)
+3. Expands "BMS Account Access" section
+   - Toggles "Grant BMS Login"
+   - Selects role: "Sales Rep"
+   - Selects branch: "Main Store"
+4. Expands "WhatsApp Access" section
+   - Toggles "Enable WhatsApp"
+   - WhatsApp number pre-filled from phone
+   - Role auto-matched to BMS role
+5. Clicks "Add Employee"
+6. System creates:
+   - Employee record
+   - Authorized email entry
+   - WhatsApp mapping entry
+
+### Editing Existing Employee Access
+
+1. Admin clicks "Edit" on employee card
+2. Opens modal with access sections showing current state
+3. Can toggle access on/off, change roles
+4. Save updates all three tables atomically
+
+---
+
+## Technical Implementation
+
+### Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/components/dashboard/EmployeeModal.tsx` | Add Access & Integration section with BMS and WhatsApp panels |
+| `src/components/dashboard/EmployeeManager.tsx` | Add access status badges, fetch related access data |
+| Database migration | Add `authorized_email_id` column to employees table |
+
+### New Database Column
+
+```sql
+-- Add link from employee to their authorized email entry
+ALTER TABLE employees 
+ADD COLUMN authorized_email_id uuid REFERENCES authorized_emails(id) ON DELETE SET NULL;
+
+-- Index for efficient lookups
+CREATE INDEX idx_employees_authorized_email ON employees(authorized_email_id);
 ```
 
-4. **Quick Prompts** - Add subscription-related prompts in frontend:
+### Form State Structure
+
 ```typescript
-// Add to quickPrompts generation in OmanutAdvisor.tsx
-if (isTrialing && daysRemaining <= 3) {
-  prompts.unshift({ 
-    text: "Which plan is right for me?", 
-    icon: <Sparkles className="h-3 w-3" /> 
-  });
+interface EmployeeAccessState {
+  // BMS Access
+  bmsAccessEnabled: boolean;
+  bmsEmail: string;
+  bmsRole: AppRole;
+  bmsBranchId: string | null;
+  
+  // WhatsApp Access  
+  whatsappEnabled: boolean;
+  whatsappNumber: string;
+  whatsappRole: WhatsAppRole;
+  whatsappSelfService: boolean;
+}
+```
+
+### Save Logic (Pseudo-code)
+
+```typescript
+async function saveEmployeeWithAccess(employeeData, accessState) {
+  // 1. Save employee record
+  const employee = await saveEmployee(employeeData);
+  
+  // 2. Handle BMS Access
+  if (accessState.bmsAccessEnabled) {
+    const authEmail = await upsertAuthorizedEmail({
+      email: accessState.bmsEmail,
+      default_role: accessState.bmsRole,
+      branch_id: accessState.bmsBranchId,
+      tenant_id
+    });
+    // Link to employee
+    await updateEmployee(employee.id, { authorized_email_id: authEmail.id });
+  } else {
+    // Remove access if disabled
+    await deleteAuthorizedEmailForEmployee(employee.id);
+  }
+  
+  // 3. Handle WhatsApp Access
+  if (accessState.whatsappEnabled) {
+    await upsertWhatsAppMapping({
+      employee_id: employee.id,
+      user_id: accessState.bmsAccessEnabled ? authUser?.id : null,
+      whatsapp_number: accessState.whatsappNumber,
+      role: accessState.whatsappRole,
+      is_employee_self_service: !accessState.bmsAccessEnabled
+    });
+  } else {
+    await deleteWhatsAppMappingForEmployee(employee.id);
+  }
 }
 ```
 
 ---
 
-## Technical Changes Summary
+## Access Control Matrix
 
-| File | Change |
-|------|--------|
-| `src/components/dashboard/OmanutAdvisor.tsx` | Add auth check, hide when logged out, add subscription prompts |
-| `supabase/functions/omanut-advisor/index.ts` | Enhance system prompt with billing context and subscription coaching |
-
----
-
-## Data Flow
-
-```text
-User asks: "Which plan should I get?"
-              ↓
-Edge Function receives request
-              ↓
-Fetches business_profiles → billing_plan, billing_status, trial_expires_at
-              ↓
-Calculates usage metrics (inventory count, employee count, sales volume)
-              ↓
-Builds enhanced context with plan comparison + usage analysis
-              ↓
-AI generates personalized recommendation:
-"Based on your 12 products, 5 employees, and $8,000 monthly revenue, 
-the Pro plan at $29/mo gives you everything you need including HR/Payroll!"
-```
+| Scenario | BMS Login | WhatsApp | Capabilities |
+|----------|-----------|----------|--------------|
+| Office Manager | ✅ Admin | ✅ Admin | Full BMS + WhatsApp access |
+| Sales Staff | ✅ Sales Rep | ✅ Sales Rep | Sales recording, stock checks |
+| Warehouse Worker | ❌ None | ✅ Staff | Clock in/out, view tasks only |
+| Cleaner | ❌ None | ✅ Self-Service | Clock in/out, view payslip |
 
 ---
 
-## Expected Behavior
+## Benefits
 
-### Before (Current)
-- Advisor visible on ALL pages including /, /pricing, /auth
-- Can't help users understand which plan fits their needs
-- No subscription guidance
-
-### After
-- Advisor only appears when user is logged in
-- Can recommend plans based on actual usage patterns
-- Provides clear subscription path when asked
-- Proactive subscription prompts when trial is expiring
+1. **Single Source of Truth**: Employee record is the anchor for all access
+2. **Reduced Admin Overhead**: One form instead of three separate management panels
+3. **Consistent Permissions**: Role/branch automatically aligned across systems
+4. **Audit Trail**: Easy to see who has what access from employee list
+5. **Onboarding Efficiency**: New staff get all access configured at once
