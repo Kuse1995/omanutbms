@@ -98,14 +98,20 @@ export function InventoryAgent() {
     
     try {
       // Fetch inventory with variant counts and location info
-      const { data: inventoryData, error } = await supabase
+      let query = supabase
         .from("inventory")
         .select(`
           *,
           branches!default_location_id(name)
         `)
-        .eq("tenant_id", tenantId)
-        .order("name");
+        .eq("tenant_id", tenantId);
+      
+      // Filter by branch when one is selected
+      if (currentBranch && isMultiBranchEnabled) {
+        query = query.eq("default_location_id", currentBranch.id);
+      }
+      
+      const { data: inventoryData, error } = await query.order("name");
 
       if (error) throw error;
 
@@ -162,7 +168,7 @@ export function InventoryAgent() {
     if (tenantId) {
       fetchInventory();
     }
-  }, [tenantId]);
+  }, [tenantId, currentBranch?.id]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
