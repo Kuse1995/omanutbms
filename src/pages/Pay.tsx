@@ -59,7 +59,8 @@ const Pay = () => {
   const [bankDetails, setBankDetails] = useState<BankDetails | null>(null);
 
   const planData = plans[selectedPlan];
-  const price = billingPeriod === "annual" ? planData?.annualPrice : (planData?.monthlyPrice || 0) * 12;
+  // Price is the amount to charge for this billing period
+  const price = billingPeriod === "annual" ? planData?.annualPrice : planData?.monthlyPrice;
   const monthlyEquivalent = billingPeriod === "annual" ? Math.round((planData?.annualPrice || 0) / 12) : planData?.monthlyPrice || 0;
 
   // Poll for payment status
