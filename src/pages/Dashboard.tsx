@@ -17,6 +17,7 @@ import { ShopManager } from "@/components/dashboard/ShopManager";
 import { WASHForumsManagement } from "@/components/dashboard/WASHForumsManagement";
 import { ReceiptsManager } from "@/components/dashboard/ReceiptsManager";
 import { AgentsManager } from "@/components/dashboard/AgentsManager";
+import { QuotationsManager } from "@/components/dashboard/QuotationsManager";
 import { WebsiteContactsManagement } from "@/components/dashboard/WebsiteContactsManagement";
 import { PoweredByFooter } from "@/components/dashboard/PoweredByFooter";
 import { SuperAdminPanel } from "@/components/dashboard/SuperAdminPanel";
@@ -42,9 +43,9 @@ import { useBranding } from "@/hooks/useBranding";
 import { useApplyTenantBranding } from "@/contexts/BrandingContext";
 import { useTrackedNavigation } from "@/hooks/useTrackedNavigation";
 
-export type DashboardTab = "dashboard" | "sales" | "receipts" | "accounts" | "assets" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings" | "tenant-settings" | "modules" | "platform-admin" | "branches" | "returns" | "customers" | "custom-orders" | "warehouse" | "stock-transfers" | "locations" | "production-floor";
+export type DashboardTab = "dashboard" | "sales" | "receipts" | "quotations" | "accounts" | "assets" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings" | "tenant-settings" | "modules" | "platform-admin" | "branches" | "returns" | "customers" | "custom-orders" | "warehouse" | "stock-transfers" | "locations" | "production-floor";
 
-const validTabs: DashboardTab[] = ["dashboard", "sales", "receipts", "accounts", "assets", "hr", "inventory", "shop", "agents", "communities", "messages", "contacts", "website", "settings", "tenant-settings", "modules", "platform-admin", "branches", "returns", "customers", "custom-orders", "warehouse", "stock-transfers", "locations", "production-floor"];
+const validTabs: DashboardTab[] = ["dashboard", "sales", "receipts", "quotations", "accounts", "assets", "hr", "inventory", "shop", "agents", "communities", "messages", "contacts", "website", "settings", "tenant-settings", "modules", "platform-admin", "branches", "returns", "customers", "custom-orders", "warehouse", "stock-transfers", "locations", "production-floor"];
 
 const Dashboard = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -201,6 +202,8 @@ const Dashboard = () => {
         return <SalesRecorder />;
       case "receipts":
         return <ReceiptsManager />;
+      case "quotations":
+        return <QuotationsManager />;
       case "accounts":
         return <AccountsAgent />;
       case "assets":

@@ -4,7 +4,7 @@ import {
   MessageSquare, Globe, ShoppingCart, Store, Heart, Receipt, Mail, Building2, 
   Layers, Crown, LogOut, Truck, GraduationCap, Briefcase, GitBranch, RotateCcw, 
   Scissors, UserCircle, Shirt, Warehouse, ArrowLeftRight, MapPin, Factory, 
-  ChevronDown, Landmark, type LucideIcon 
+  ChevronDown, Landmark, FileText, type LucideIcon 
 } from "lucide-react";
 import {
   Sidebar,
@@ -96,7 +96,7 @@ const menuCategories: MenuCategory[] = [
     id: 'sales-finance',
     label: 'Sales & Finance',
     icon: DollarSign,
-    items: ['sales', 'receipts', 'accounts', 'assets'],
+    items: ['sales', 'receipts', 'quotations', 'accounts', 'assets'],
   },
   {
     id: 'inventory-stock',
@@ -136,6 +136,7 @@ const baseMenuItems: MenuItem[] = [
   { id: "dashboard", title: "Dashboard", icon: LayoutDashboard, feature: null },
   { id: "sales", title: "Sales", icon: ShoppingCart, feature: null, dynamicTitle: 'sales' },
   { id: "receipts", title: "Receipts", icon: Receipt, feature: null },
+  { id: "quotations", title: "Quotations", icon: FileText, feature: null },
   { id: "accounts", title: "Accounts", icon: DollarSign, feature: null },
   { id: "assets", title: "Assets", icon: Landmark, feature: null },
   { id: "hr", title: "HR & Payroll", icon: Users, feature: 'payroll' },
