@@ -1,191 +1,136 @@
 
 
-# Lenco Payment Integration Plan
+# Plan: Create Standalone `/pay` Route with Dedicated Payment Page
 
 ## Overview
 
-This plan integrates Lenco payment processing to enable real payments via **Mobile Money** (MTN, Airtel), **Card**, and **Bank Transfer** for subscription billing. The integration uses Lenco's v2.0 API with edge functions for secure server-side processing.
+Create a new `/pay` route that provides a dedicated, standalone payment page. This page will:
+1. Require authentication (redirect to `/auth` if not logged in)
+2. Show plan selection and payment options using existing components
+3. Support URL parameters for pre-selected plans (e.g., `/pay?plan=growth`)
+4. Provide a clean, focused payment experience outside the dashboard
 
 ---
 
-## Prerequisites
+## Current Architecture
 
-Before implementation, you'll need to obtain your **Lenco API credentials**:
-
-1. **Create a Lenco Business Account** at [lenco.co/zm](https://lenco.co/zm) (Zambia) or the relevant country portal
-2. **Request API Access** via the Developer Portal or by contacting support@lenco.co
-3. **Get your credentials**:
-   - **Secret Key** (Bearer token for API authentication)
-   - **Public Key** (for client-side checkout, if using hosted checkout)
-   - **Webhook Secret** (for verifying webhook signatures)
+- **Authentication**: `ProtectedRoute` component handles auth gating
+- **Payment UI**: `PaymentModal` contains all payment logic (Mobile Money, Card, Bank Transfer via Lenco)
+- **Plan Data**: `useBillingPlans` hook provides plan configurations
+- **Billing State**: `useBilling` hook provides current subscription status
+- **Geo-pricing**: `useGeoLocation` handles currency detection
 
 ---
 
-## Architecture
+## Implementation Steps
+
+### Step 1: Create the Pay Page Component
+
+**File**: `src/pages/Pay.tsx`
+
+A new page component that:
+- Accepts `?plan=` URL parameter to pre-select a plan
+- Shows the payment interface directly (not as a modal)
+- Includes plan selection, billing period toggle, and payment methods
+- Uses existing hooks: `useBillingPlans`, `useGeoLocation`, `useAuth`
+- Displays current subscription status if already subscribed
+
+The UI will be similar to `PaymentModal` but as a full page with:
+- Navigation header with back button
+- Plan cards for selection
+- Payment method tabs (Mobile Money, Card, Bank Transfer)
+- Price summary with currency selector
+
+### Step 2: Add Route to App.tsx
+
+**File**: `src/App.tsx`
+
+Add protected route:
+```text
+/pay → <ProtectedRoute><Pay /></ProtectedRoute>
+```
+
+### Step 3: Update Card Payment Redirect URL
+
+**File**: `src/components/dashboard/PaymentModal.tsx`
+
+Change the card payment redirect from `/dashboard?payment=complete` to `/bms?payment=complete` (matching actual route).
+
+### Step 4: Update Pricing Page CTAs
+
+**File**: `src/components/landing/PricingSection.tsx`
+
+Update "Start Free Trial" buttons to link to `/pay?plan=...` for logged-in users, or keep `/auth?plan=...` for guests.
+
+---
+
+## Technical Details
+
+### Pay.tsx Structure
 
 ```text
-┌─────────────────┐         ┌──────────────────┐         ┌─────────────────┐
-│   PaymentModal  │ ──────► │  Edge Function   │ ──────► │   Lenco API     │
-│   (Frontend)    │         │ (lenco-payment)  │         │   (v2.0)        │
-└─────────────────┘         └──────────────────┘         └─────────────────┘
-                                     │
-                                     ▼
-                            ┌──────────────────┐
-                            │ subscription_    │
-                            │ payments table   │
-                            └──────────────────┘
-                                     │
-                                     ▲
-┌─────────────────┐         ┌──────────────────┐
-│   Webhook       │ ──────► │  Edge Function   │
-│   (Lenco)       │         │ (lenco-webhook)  │
-└─────────────────┘         └──────────────────┘
+┌─────────────────────────────────────────────┐
+│  Header: Back to Dashboard / Logo           │
+├─────────────────────────────────────────────┤
+│  Title: "Complete Your Subscription"        │
+│  Subtitle: Current plan status              │
+├─────────────────────────────────────────────┤
+│  Plan Selection Cards (3 columns)           │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐       │
+│  │ Starter │ │  Pro ★  │ │Enterpri.│       │
+│  └─────────┘ └─────────┘ └─────────┘       │
+├─────────────────────────────────────────────┤
+│  Billing Period Toggle (Monthly / Annual)   │
+├─────────────────────────────────────────────┤
+│  Currency Selector                          │
+├─────────────────────────────────────────────┤
+│  Price Summary                              │
+├─────────────────────────────────────────────┤
+│  Payment Method Tabs                        │
+│  [Mobile Money] [Card] [Bank Transfer]      │
+│  ─────────────────────────────────────────  │
+│  Payment Form / Status                      │
+├─────────────────────────────────────────────┤
+│  "Secure payments powered by Lenco"         │
+└─────────────────────────────────────────────┘
 ```
 
----
-
-## Task 1: Add Lenco Secrets
-
-Add the following secrets to your project:
-
-| Secret Name | Description |
-|-------------|-------------|
-| `LENCO_SECRET_KEY` | Your Lenco API Bearer token (starts with `xo+...`) |
-| `LENCO_PUBLIC_KEY` | Public key for client-side (optional, for hosted checkout) |
-| `LENCO_WEBHOOK_SECRET` | Secret for verifying webhook signatures |
-
----
-
-## Task 2: Create Payment Initiation Edge Function
-
-Create `supabase/functions/lenco-payment/index.ts` to handle:
-
-**Mobile Money Collections**
-- Endpoint: `POST /access/v2/collections/mobile-money`
-- Supports: MTN, Airtel (Zambia), TNM (Malawi)
-- Flow: Customer receives push notification to authorize on phone
-
-**Card Collections** (requires PCI DSS compliance)
-- Endpoint: `POST /access/v2/collections/card`
-- Requires: JWE encryption of card details
-- Flow: May redirect for 3DS authentication
-
-**Virtual Account for Bank Transfers**
-- Endpoint: `POST /access/v2/virtual-accounts`
-- Flow: Generate a virtual account number for customer to transfer to
-
-### Edge Function Logic
-
-```typescript
-// supabase/functions/lenco-payment/index.ts
-
-// 1. Authenticate user via JWT
-// 2. Validate tenant and plan selection
-// 3. Generate unique payment reference
-// 4. Create pending subscription_payment record
-// 5. Call Lenco API based on payment method
-// 6. Return payment instructions/redirect URL to frontend
-```
-
----
-
-## Task 3: Create Webhook Handler Edge Function
-
-Create `supabase/functions/lenco-webhook/index.ts` to:
-
-1. Verify webhook signature
-2. Parse payment status (successful, failed, pending)
-3. Update `subscription_payments` record
-4. If successful, update `business_profiles.billing_status` to "active"
-5. Set `billing_start_date` and calculate `billing_end_date`
-6. Send confirmation email (optional)
-
----
-
-## Task 4: Update PaymentModal UI
-
-Enhance `src/components/dashboard/PaymentModal.tsx`:
-
-### Mobile Money Tab
-- Phone number input with country code (+260 for Zambia)
-- Operator selection (MTN / Airtel dropdown)
-- "Pay Now" button triggers payment request
-- Show "Check your phone to authorize payment" message
-- Poll for status or await webhook confirmation
-
-### Card Tab
-- Card number, expiry, CVV inputs
-- Billing address fields (required for 3DS)
-- "Pay with Card" button
-- Handle 3DS redirect if needed
-
-### Bank Transfer Tab
-- Display generated virtual account details
-- Show bank name, account number, amount
-- "I've made the transfer" button to check status
-
----
-
-## Task 5: Database Updates
-
-Add Lenco-specific columns to `subscription_payments`:
-
-```sql
-ALTER TABLE subscription_payments
-ADD COLUMN lenco_reference text,
-ADD COLUMN phone_number text,
-ADD COLUMN operator text,
-ADD COLUMN failure_reason text;
-```
-
----
-
-## Task 6: Payment Status Polling (Optional)
-
-For better UX, implement status polling in the frontend:
-
-```typescript
-// Poll GET /access/v2/collections/:reference every 5 seconds
-// Until status changes from "pay-offline" to "successful" or "failed"
-```
-
----
-
-## Implementation Files Summary
-
+### Files to Create
 | File | Purpose |
 |------|---------|
-| **Secrets** | `LENCO_SECRET_KEY`, `LENCO_PUBLIC_KEY`, `LENCO_WEBHOOK_SECRET` |
-| `supabase/functions/lenco-payment/index.ts` | Initiate payments (mobile, card, bank) |
-| `supabase/functions/lenco-webhook/index.ts` | Handle payment status webhooks |
-| `src/components/dashboard/PaymentModal.tsx` | Updated UI with payment forms |
-| **Database migration** | Add Lenco tracking columns to `subscription_payments` |
+| `src/pages/Pay.tsx` | Standalone payment page |
+
+### Files to Modify
+| File | Change |
+|------|--------|
+| `src/App.tsx` | Add `/pay` route with `ProtectedRoute` wrapper |
+| `src/components/dashboard/PaymentModal.tsx` | Fix card redirect URL to `/bms` |
+| `src/components/landing/PricingSection.tsx` | Optional: link to `/pay` for authenticated users |
 
 ---
 
-## Security Considerations
+## User Flow
 
-- **PCI DSS**: Card payments require encryption using Lenco's JWE process. Consider using Lenco's hosted checkout page instead of handling raw card data
-- **Webhook Verification**: Always validate webhook signatures to prevent spoofing
-- **Server-Side Only**: API secret key must NEVER be exposed to the frontend
-- **Rate Limiting**: Implement rate limits to prevent abuse
+```text
+User on /pay (not logged in)
+    ↓
+Redirect to /auth
+    ↓
+Login/Signup
+    ↓
+Redirect back to /bms (or /pay if preserved)
+    ↓
+Complete payment
+    ↓
+Subscription activated
+```
 
 ---
 
-## Testing
+## Notes
 
-Lenco provides sandbox credentials for testing:
-- Use test phone numbers from [Lenco's test accounts](https://lenco-api.readme.io/v2.0/reference/test-cards-and-accounts)
-- Test cards with specific numbers trigger different scenarios (success, 3DS, decline)
-
----
-
-## Next Steps
-
-1. **You provide Lenco API credentials** (or I'll help you add them via the secrets tool)
-2. I'll create the edge functions with full Lenco API integration
-3. I'll update the PaymentModal with working payment forms
-4. We'll test end-to-end with sandbox credentials
-
-Would you like me to proceed with this plan? If you already have your Lenco credentials, I can set up the secrets first.
+- The page will reuse all existing payment logic from `PaymentModal`
+- No database changes required
+- No new edge functions needed (uses existing Lenco functions)
+- The `ProtectedRoute` wrapper ensures authentication before showing payment options
 
