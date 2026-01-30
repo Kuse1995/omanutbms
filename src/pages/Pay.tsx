@@ -59,9 +59,12 @@ const Pay = () => {
   const [bankDetails, setBankDetails] = useState<BankDetails | null>(null);
 
   const planData = plans[selectedPlan];
-  // Price is the amount to charge for this billing period
+  // Prices from config are already in their native currency (ZMW from database)
   const price = billingPeriod === "annual" ? planData?.annualPrice : planData?.monthlyPrice;
   const monthlyEquivalent = billingPeriod === "annual" ? Math.round((planData?.annualPrice || 0) / 12) : planData?.monthlyPrice || 0;
+  // Check if plan prices are in ZMW (from database) - if so, don't apply exchange rate conversion
+  const planCurrency = planData?.currency || "USD";
+  const pricesAreLocal = planCurrency === "ZMW";
 
   // Poll for payment status
   useEffect(() => {
@@ -364,11 +367,19 @@ const Pay = () => {
                 <div className="p-4 rounded-xl bg-card border space-y-3">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">{planData?.label} Plan ({billingPeriod})</span>
-                    <span className="font-bold text-xl">{formatLocalPrice(price || 0, countryCode)}</span>
+                    <span className="font-bold text-xl">
+                      {pricesAreLocal 
+                        ? `K${(price || 0).toLocaleString()}` 
+                        : formatLocalPrice(price || 0, countryCode)}
+                    </span>
                   </div>
                   <div className="flex justify-between text-sm text-muted-foreground">
                     <span>Monthly equivalent</span>
-                    <span>{formatLocalPrice(monthlyEquivalent, countryCode)}/month</span>
+                    <span>
+                      {pricesAreLocal 
+                        ? `K${monthlyEquivalent.toLocaleString()}` 
+                        : formatLocalPrice(monthlyEquivalent, countryCode)}/month
+                    </span>
                   </div>
                 </div>
               </motion.div>
