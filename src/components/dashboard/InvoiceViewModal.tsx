@@ -288,14 +288,15 @@ export function InvoiceViewModal({ isOpen, onClose, invoice }: InvoiceViewModalP
                     <span className="text-gray-600">Subtotal:</span>
                     <span>K {Number(invoice.subtotal).toLocaleString()}</span>
                   </div>
-                  {invoice.tax_rate && invoice.tax_rate > 0 && (
+                  {/* Always show tax for credit invoices */}
+                  {(invoice.tax_rate && invoice.tax_rate > 0) || ['draft', 'sent', 'partial', 'overdue'].includes(invoice.status) ? (
                     <div className="flex justify-between py-2">
-                      <span className="text-gray-600">Tax ({invoice.tax_rate}%):</span>
+                      <span className="text-gray-600">VAT ({invoice.tax_rate || 0}%):</span>
                       <span>K {Number(invoice.tax_amount || 0).toLocaleString()}</span>
                     </div>
-                  )}
+                  ) : null}
                   <div className="flex justify-between py-3 border-t-2 border-gray-800 font-bold text-lg">
-                    <span>Total:</span>
+                    <span>Total Due:</span>
                     <span>K {Number(invoice.total_amount).toLocaleString()}</span>
                   </div>
                 </div>

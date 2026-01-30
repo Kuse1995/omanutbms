@@ -69,6 +69,9 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
   const [status, setStatus] = useState("draft");
   const [taxRate, setTaxRate] = useState(0);
   const [notes, setNotes] = useState("");
+  // Risk adjustment for credit sales (hidden from customer)
+  const [riskAdjustment, setRiskAdjustment] = useState(0);
+  const [riskAdjustmentNotes, setRiskAdjustmentNotes] = useState("");
   const { toast } = useToast();
   const { tenantId, businessProfile } = useTenant();
   const { terminology } = useBusinessConfig();
@@ -77,6 +80,9 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
   // Get the default item type from business configuration
   const defaultItemType = terminology.defaultItemType;
   const isServiceBased = terminology.isServiceBased;
+  
+  // Check if this is a credit sale (not paid)
+  const isCreditSale = status !== "paid";
   
   const [items, setItems] = useState<InvoiceItem[]>([
     { description: "", quantity: 1, unit_price: 0, amount: 0, item_type: defaultItemType },
@@ -117,6 +123,9 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
       setStatus(invoice.status);
       setTaxRate(invoice.tax_rate || 0);
       setNotes(invoice.notes || "");
+      // Load risk adjustment if editing
+      setRiskAdjustment((invoice as any).risk_adjustment_amount || 0);
+      setRiskAdjustmentNotes((invoice as any).risk_adjustment_notes || "");
       
       // Fetch invoice items
       fetchInvoiceItems(invoice.id);
@@ -154,6 +163,8 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
     setStatus("draft");
     setTaxRate(0);
     setNotes("");
+    setRiskAdjustment(0);
+    setRiskAdjustmentNotes("");
     setItems([{ description: "", quantity: 1, unit_price: 0, amount: 0, item_type: defaultItemType }]);
   };
 
@@ -236,7 +247,9 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
 
   const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
   const taxAmount = subtotal * (taxRate / 100);
-  const totalAmount = subtotal + taxAmount;
+  // Risk adjustment is added to the total but not itemized for customer
+  const adjustedRiskAmount = isCreditSale ? riskAdjustment : 0;
+  const totalAmount = subtotal + taxAmount + adjustedRiskAmount;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -271,6 +284,9 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
         created_by: user?.id || null,
         // Sync paid_amount with status: if "paid", set to total; otherwise preserve existing or 0
         paid_amount: status === "paid" ? totalAmount : (invoice?.paid_amount || 0),
+        // Risk adjustment (hidden from customer documents)
+        risk_adjustment_amount: isCreditSale ? riskAdjustment : 0,
+        risk_adjustment_notes: isCreditSale && riskAdjustmentNotes.trim() ? riskAdjustmentNotes.trim() : null,
       };
 
       let invoiceId: string;
@@ -569,9 +585,44 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
             </div>
           </div>
 
+          {/* Risk Adjustment for Credit Sales (Internal Only) */}
+          {isCreditSale && (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-amber-800">Credit Sale Risk Adjustment</span>
+                <span className="text-xs text-amber-600">(Internal - not shown to customer)</span>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="riskAdjustment" className="text-amber-800">Adjustment Amount (K)</Label>
+                  <Input
+                    id="riskAdjustment"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={riskAdjustment}
+                    onChange={(e) => setRiskAdjustment(Number(e.target.value) || 0)}
+                    placeholder="0.00"
+                    className="border-amber-300 focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="riskNotes" className="text-amber-800">Internal Notes</Label>
+                  <Input
+                    id="riskNotes"
+                    value={riskAdjustmentNotes}
+                    onChange={(e) => setRiskAdjustmentNotes(e.target.value)}
+                    placeholder="Reason for adjustment..."
+                    className="border-amber-300 focus:border-amber-500"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Totals */}
           <div className="flex justify-end">
-            <div className="w-64 space-y-2">
+            <div className="w-72 space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Subtotal:</span>
                 <span>K {subtotal.toLocaleString()}</span>
@@ -592,8 +643,14 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
                 <span>Tax Amount:</span>
                 <span>K {taxAmount.toLocaleString()}</span>
               </div>
+              {isCreditSale && riskAdjustment > 0 && (
+                <div className="flex justify-between text-sm text-amber-700">
+                  <span>Risk Adjustment:</span>
+                  <span>+ K {riskAdjustment.toLocaleString()}</span>
+                </div>
+              )}
               <div className="flex justify-between font-bold text-lg border-t pt-2">
-                <span>Total:</span>
+                <span>Total Due:</span>
                 <span>K {totalAmount.toLocaleString()}</span>
               </div>
             </div>

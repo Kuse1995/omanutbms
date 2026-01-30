@@ -2645,6 +2645,8 @@ export type Database = {
           is_demo: boolean | null
           notes: string | null
           paid_amount: number
+          risk_adjustment_amount: number | null
+          risk_adjustment_notes: string | null
           source_quotation_id: string | null
           status: string
           subtotal: number
@@ -2671,6 +2673,8 @@ export type Database = {
           is_demo?: boolean | null
           notes?: string | null
           paid_amount?: number
+          risk_adjustment_amount?: number | null
+          risk_adjustment_notes?: string | null
           source_quotation_id?: string | null
           status?: string
           subtotal?: number
@@ -2697,6 +2701,8 @@ export type Database = {
           is_demo?: boolean | null
           notes?: string | null
           paid_amount?: number
+          risk_adjustment_amount?: number | null
+          risk_adjustment_notes?: string | null
           source_quotation_id?: string | null
           status?: string
           subtotal?: number
