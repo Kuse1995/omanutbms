@@ -3413,12 +3413,15 @@ export type Database = {
           created_at: string
           id: string
           inventory_id: string | null
+          invoice_url: string | null
           notes: string | null
           quantity: number
+          quotation_url: string | null
           recorded_as_expense: boolean | null
           restocked_by: string | null
           tenant_id: string | null
           total_cost: number | null
+          vendor_id: string | null
         }
         Insert: {
           branch_id?: string | null
@@ -3426,12 +3429,15 @@ export type Database = {
           created_at?: string
           id?: string
           inventory_id?: string | null
+          invoice_url?: string | null
           notes?: string | null
           quantity: number
+          quotation_url?: string | null
           recorded_as_expense?: boolean | null
           restocked_by?: string | null
           tenant_id?: string | null
           total_cost?: number | null
+          vendor_id?: string | null
         }
         Update: {
           branch_id?: string | null
@@ -3439,12 +3445,15 @@ export type Database = {
           created_at?: string
           id?: string
           inventory_id?: string | null
+          invoice_url?: string | null
           notes?: string | null
           quantity?: number
+          quotation_url?: string | null
           recorded_as_expense?: boolean | null
           restocked_by?: string | null
           tenant_id?: string | null
           total_cost?: number | null
+          vendor_id?: string | null
         }
         Relationships: [
           {
@@ -3466,6 +3475,13 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "restock_history_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
             referencedColumns: ["id"]
           },
         ]
@@ -4243,6 +4259,59 @@ export type Database = {
           },
         ]
       }
+      vendors: {
+        Row: {
+          address: string | null
+          code: string | null
+          contact_person: string | null
+          created_at: string | null
+          email: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          notes: string | null
+          phone: string | null
+          tenant_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          address?: string | null
+          code?: string | null
+          contact_person?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          notes?: string | null
+          phone?: string | null
+          tenant_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string | null
+          code?: string | null
+          contact_person?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          tenant_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendors_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wash_forums: {
         Row: {
           community_size: number
@@ -4756,6 +4825,10 @@ export type Database = {
         Returns: boolean
       }
       user_belongs_to_tenant: { Args: { _tenant_id: string }; Returns: boolean }
+      user_is_assigned_to_branch: {
+        Args: { _branch_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role:
