@@ -1,201 +1,114 @@
 
-# Inventory Module Refactor for Auto Shop and UI Improvements
 
-## Overview
+# Revised: Sales/POS Module Update
 
-This plan addresses 5 specific improvements to the Inventory module, focusing on Auto Shop business type customization and general UX enhancements across all business types.
+## Summary of User Corrections
 
----
+1. **Quotations Access**: Sales agents and cashiers currently can't create quotations because quotations are nested inside the "Accounts" tab (which they don't have access to). We need to add a "quotations" module key to give them sidebar access.
 
-## Task 1: Rename "Auto Parts" to "Products" for Auto Shop
-
-**Current State**: The `autoshop` business type uses terminology like "Auto Part" and "Auto Parts" throughout the UI.
-
-**Files to Modify**:
-- `src/lib/business-type-config.ts` (lines 952-967)
-
-**Changes**:
-```typescript
-// Update autoshop terminology
-terminology: {
-  product: 'Product',        // was 'Auto Part'
-  products: 'Products',      // was 'Auto Parts'
-  // ... rest unchanged
-  inventory: 'Products & Spares',  // was 'Parts & Spares'
-}
-```
-
-This change propagates automatically to all UI components using `useBusinessConfig()` or `useFeatures()` hooks since they read from this central config.
+2. **Risk Adjustment Display**: The customer SHOULD see the final increased total (standard + markup) as the amount to pay. They just shouldn't know it was increased from a standard price. The invoice shows a single total without revealing the markup breakdown.
 
 ---
 
-## Task 2: Hide Materials & Consumables Categories for Auto Shop
+## Task 1: Allow Sales Agents and Cashiers to Access Quotations
 
-**Current State**: The inventory filter chips in `InventoryAgent.tsx` show "Materials" and "Consumables" for all business types, including Auto Shop where they're irrelevant.
+### Problem
+- Quotations live inside `AccountsAgent.tsx` which renders in the "accounts" tab
+- `sales_rep` and `cashier` roles do NOT have "accounts" in their module access
+- Therefore, they cannot create quotations
 
-**File to Modify**:
-- `src/components/dashboard/InventoryAgent.tsx` (lines 388-419)
+### Solution
+Add a new "quotations" module key and create a dedicated Quotations tab accessible to sales roles.
 
-**Solution**: Gate the Materials and Consumables filter badges behind business type checks:
+**Files to Modify:**
 
-```typescript
-// Only show Materials/Consumables for fashion business type
-const showMaterialsAndConsumables = businessType === 'fashion';
-
-// In the JSX, conditionally render:
-{showMaterialsAndConsumables && (
-  <Badge ... onClick={() => setClassFilter("raw_material")}>
-    Materials (...)
-  </Badge>
-)}
-{showMaterialsAndConsumables && (
-  <Badge ... onClick={() => setClassFilter("consumable")}>
-    Consumables (...)
-  </Badge>
-)}
-```
-
-Also hide the "Type" column in the inventory table for non-fashion businesses since all items will be "Products".
-
----
-
-## Task 3: Make Low Stock Alerts Less Intrusive
-
-**Current State**: Low stock alerts display as a prominent Card with full list of items (lines 368-387 in `InventoryAgent.tsx`).
-
-**Solution**: Replace the expanded Card with a collapsible section using the Collapsible component:
+**1. `src/lib/role-config.ts`**
+- Add "quotations" to `ModuleKey` type
+- Add "quotations" to `sales_rep` and `cashier` module access arrays
 
 ```typescript
-// New compact low stock alert design
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+export type ModuleKey = 
+  | "dashboard" 
+  | "sales" 
+  | "receipts"
+  | "quotations"  // ← NEW
+  | "accounts" 
+  // ...
 
-{lowStockItems.length > 0 && (
-  <Collapsible>
-    <CollapsibleTrigger asChild>
-      <Button variant="ghost" className="w-full justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg">
-        <div className="flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 text-amber-600" />
-          <span className="text-amber-700 text-sm font-medium">Low Stock Alerts</span>
-        </div>
-        <Badge variant="destructive" className="text-xs">
-          {lowStockItems.length}
-        </Badge>
-      </Button>
-    </CollapsibleTrigger>
-    <CollapsibleContent className="mt-2">
-      <Card className="bg-amber-50/50 border-amber-200">
-        <CardContent className="pt-4">
-          <div className="flex flex-wrap gap-2">
-            {lowStockItems.map((item) => (...))}
-          </div>
-        </CardContent>
-      </Card>
-    </CollapsibleContent>
-  </Collapsible>
-)}
-```
-
-**Benefits**:
-- Shows only a small badge count by default
-- Users can expand to see details when needed
-- Reduces visual clutter on the inventory page
-
----
-
-## Task 4: Hide Empty Categories/Headings in Inventory Dashboard
-
-**Current State**: Filter chips show all categories with their counts, including `(0)` for empty categories.
-
-**Solution**: Hide filter badges that have zero items:
-
-```typescript
-// Calculate counts
-const materialsCount = inventoryForView.filter(i => i.inventory_class === 'raw_material').length;
-const consumablesCount = inventoryForView.filter(i => i.inventory_class === 'consumable').length;
-
-// Only render badges with items > 0 (except "All" which always shows)
-{showMaterialsAndConsumables && materialsCount > 0 && (
-  <Badge ...>
-    Materials ({materialsCount})
-  </Badge>
-)}
-{showMaterialsAndConsumables && consumablesCount > 0 && (
-  <Badge ...>
-    Consumables ({consumablesCount})
-  </Badge>
-)}
-```
-
-Also apply to the "Products" badge - only hide if it's the only category and we're showing "All":
-
-```typescript
-// Always show Products badge since it's the main category
-// (Users still need a way to filter even if count is low)
-```
-
----
-
-## Task 5: Auto-Populate Warehouses in Location Dropdown
-
-**Current State**: The `ProductModal.tsx` fetches locations when opened (lines 167-183), but if a warehouse was created AFTER the modal was last opened, users must close and reopen the modal.
-
-**Current Code**:
-```typescript
-const fetchLocations = async () => {
-  const { data } = await supabase
-    .from("branches")
-    .select("id, name, type")
-    .eq("tenant_id", tenantId)
-    .eq("is_active", true)
-    .order("name");
-  if (data) setLocations(data);
+export const roleModuleAccess: Record<AppRole, ModuleKey[]> = {
+  // ...
+  sales_rep: [
+    "dashboard", "sales", "receipts", "quotations", "inventory", "returns"  // ← Added quotations
+  ],
+  cashier: [
+    "dashboard", "sales", "receipts", "quotations"  // ← Added quotations
+  ],
+  // ...
 };
-
-if (open) fetchLocations();  // Only fetches when modal opens
 ```
 
-**Solution**: Add a real-time subscription to the `branches` table so new warehouses appear automatically:
+**2. `src/pages/Dashboard.tsx`**
+- Add "quotations" to `DashboardTab` type and `validTabs` array
+- Add case for rendering `QuotationsManager` component
 
-```typescript
-// In ProductModal.tsx - add real-time subscription
-useEffect(() => {
-  if (!tenantId) return;
+**3. `src/components/dashboard/DashboardSidebar.tsx`**
+- Add quotations to `baseMenuItems` with appropriate icon (FileText)
+- Add quotations to the "Sales & Finance" category
 
-  const fetchLocations = async () => {
-    const { data } = await supabase
-      .from("branches")
-      .select("id, name, type")
-      .eq("tenant_id", tenantId)
-      .eq("is_active", true)
-      .order("name");
-    if (data) setLocations(data);
-  };
+---
 
-  // Initial fetch when modal opens
-  if (open) fetchLocations();
+## Task 2: Add Risk Adjustment for Credit Sales
 
-  // Subscribe to branch changes
-  const channel = supabase
-    .channel('product-modal-branches')
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'branches',
-        filter: `tenant_id=eq.${tenantId}`,
-      },
-      () => fetchLocations()
-    )
-    .subscribe();
+### Requirements (Revised)
+- The customer sees the **final total** (standard + adjustment) as the amount to pay
+- The customer does NOT see any "risk adjustment" line item or breakdown
+- The internal system tracks the adjustment separately for accounting purposes
+- The invoice shows: Items, Subtotal, Tax, **Total Due** (which includes hidden adjustment)
 
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}, [open, tenantId]);
+### Database Changes
+Add columns to track the internal adjustment:
+
+```sql
+ALTER TABLE invoices 
+ADD COLUMN risk_adjustment_amount numeric DEFAULT 0,
+ADD COLUMN risk_adjustment_notes text;
+
+COMMENT ON COLUMN invoices.risk_adjustment_amount 
+IS 'Internal markup for credit risk - included in total_amount but not itemized on customer documents';
 ```
 
-**Alternative (simpler)**: Always refetch locations when the modal opens, which already happens. The "issue" might be that users expect instant updates. Adding a subscription ensures the dropdown stays current even if they create a warehouse in another tab.
+### UI Changes
+
+**File: `src/components/dashboard/InvoiceFormModal.tsx`**
+- Add a collapsible "Credit Risk Adjustment" section (only visible for non-paid invoices)
+- Fields:
+  - Adjustment Amount (currency input)
+  - Internal Notes (optional)
+- Calculate `total_amount = subtotal + tax_amount + risk_adjustment_amount`
+- Store the adjustment in the new column
+
+**File: `src/components/dashboard/InvoiceViewModal.tsx`**
+- Display the full `total_amount` to the customer (which includes adjustment)
+- Do NOT show any "Risk Adjustment" line
+- Show: Items → Subtotal → Tax → **Total Due**
+
+### Example Flow
+1. Seller creates invoice with items totaling K1,000
+2. Tax (16%) adds K160 → K1,160
+3. Seller adds K100 risk adjustment for credit sale
+4. Database stores: `subtotal: 1000, tax_amount: 160, risk_adjustment_amount: 100, total_amount: 1260`
+5. Customer sees invoice: Items (K1,000) + Tax (K160) = **Total Due: K1,260**
+6. Customer doesn't know the "real" total would have been K1,160
+
+---
+
+## Task 3: Show Tax on All Credit Invoices
+
+For transparency with credit customers, ensure the tax breakdown is always visible.
+
+**File: `src/components/dashboard/InvoiceViewModal.tsx`**
+- Always show the tax line for credit invoices (status: draft, sent, partial, overdue)
+- Even if tax rate is 0%, show "VAT (0%): K0" for clarity
 
 ---
 
@@ -203,15 +116,37 @@ useEffect(() => {
 
 | File | Changes |
 |------|---------|
-| `src/lib/business-type-config.ts` | Update autoshop terminology from "Auto Part" to "Product" |
-| `src/components/dashboard/InventoryAgent.tsx` | 1. Hide Materials/Consumables for non-fashion<br>2. Collapsible low stock alerts<br>3. Hide empty category badges |
-| `src/components/dashboard/ProductModal.tsx` | Add real-time subscription for locations dropdown |
+| **Database Migration** | Add `risk_adjustment_amount` and `risk_adjustment_notes` columns to `invoices` |
+| `src/lib/role-config.ts` | Add "quotations" module key; grant access to `sales_rep` and `cashier` |
+| `src/pages/Dashboard.tsx` | Add "quotations" tab routing to `QuotationsManager` |
+| `src/components/dashboard/DashboardSidebar.tsx` | Add quotations menu item in Sales & Finance category |
+| `src/components/dashboard/InvoiceFormModal.tsx` | Add hidden Risk Adjustment input for credit sales |
+| `src/components/dashboard/InvoiceViewModal.tsx` | Show full total (with adjustment), always show tax line for credit invoices |
 
 ---
 
 ## Technical Notes
 
-- All terminology changes flow through the `useBusinessConfig()` hook, so updating the config automatically updates all UI components
-- The Collapsible component is already available from shadcn/ui (`@radix-ui/react-collapsible`)
-- Real-time subscriptions use Supabase's existing channel system with proper cleanup
-- No database migrations required for these changes
+### Risk Adjustment Math
+```
+display_subtotal = sum of line items (standard prices)
+display_tax = subtotal × tax_rate
+display_total = subtotal + tax + risk_adjustment  ← Customer sees this
+                ↑ Customer doesn't know this includes an adjustment
+```
+
+### Accounting Impact
+- Revenue reports will reflect the actual `total_amount` collected
+- The `risk_adjustment_amount` column allows internal analysis of credit premiums
+- When customer pays, they pay the full `total_amount`
+
+### Role Access After Changes
+| Role | Can Access Quotations? |
+|------|----------------------|
+| Admin | ✅ Yes |
+| Manager | ✅ Yes |
+| Accountant | ✅ Yes (via Accounts) |
+| Sales Rep | ✅ Yes (NEW) |
+| Cashier | ✅ Yes (NEW) |
+| Viewer | ❌ No |
+
