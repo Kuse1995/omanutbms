@@ -3804,45 +3804,63 @@ export type Database = {
           billing_period: string
           created_at: string
           currency: string
+          failure_reason: string | null
           id: string
+          lenco_reference: string | null
           metadata: Json | null
+          operator: string | null
           payment_method: string | null
           payment_reference: string | null
+          phone_number: string | null
           plan_key: string
           provider: string | null
           status: string
           tenant_id: string
           verified_at: string | null
+          virtual_account_bank: string | null
+          virtual_account_number: string | null
         }
         Insert: {
           amount: number
           billing_period?: string
           created_at?: string
           currency?: string
+          failure_reason?: string | null
           id?: string
+          lenco_reference?: string | null
           metadata?: Json | null
+          operator?: string | null
           payment_method?: string | null
           payment_reference?: string | null
+          phone_number?: string | null
           plan_key: string
           provider?: string | null
           status?: string
           tenant_id: string
           verified_at?: string | null
+          virtual_account_bank?: string | null
+          virtual_account_number?: string | null
         }
         Update: {
           amount?: number
           billing_period?: string
           created_at?: string
           currency?: string
+          failure_reason?: string | null
           id?: string
+          lenco_reference?: string | null
           metadata?: Json | null
+          operator?: string | null
           payment_method?: string | null
           payment_reference?: string | null
+          phone_number?: string | null
           plan_key?: string
           provider?: string | null
           status?: string
           tenant_id?: string
           verified_at?: string | null
+          virtual_account_bank?: string | null
+          virtual_account_number?: string | null
         }
         Relationships: [
           {
