@@ -255,6 +255,10 @@ export function InventoryAgent() {
     [inventoryForView, classFilter]
   );
 
+  // Check if any products have variants - hide columns if none do
+  const hasAnyColors = useMemo(() => visibleInventory.some(item => (item.color_count || 0) > 0), [visibleInventory]);
+  const hasAnySizes = useMemo(() => visibleInventory.some(item => (item.size_count || 0) > 0), [visibleInventory]);
+
   const handleExport = () => {
     // Create CSV content
     const headers = ["SKU", "Name", "Stock", "Wholesale", "Price", "Reorder Level", "Status"];
@@ -472,13 +476,13 @@ export function InventoryAgent() {
                       <Building2 className="w-4 h-4 inline mr-1" />
                       Location
                     </TableHead>
-                    {!formFields.hideVariants && (
+                    {!formFields.hideVariants && hasAnyColors && (
                       <TableHead className="text-center">
                         <Palette className="w-4 h-4 inline mr-1" />
                         Colors
                       </TableHead>
                     )}
-                    {!formFields.hideVariants && (
+                    {!formFields.hideVariants && hasAnySizes && (
                       <TableHead className="text-center">
                         <Ruler className="w-4 h-4 inline mr-1" />
                         Sizes
@@ -528,18 +532,26 @@ export function InventoryAgent() {
                           <span className="text-sm text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      {!formFields.hideVariants && (
+                      {!formFields.hideVariants && hasAnyColors && (
                         <TableCell className="text-center">
-                          <Badge variant="outline" className="bg-pink-50 text-pink-700 border-pink-200">
-                            {item.color_count || 0}
-                          </Badge>
+                          {(item.color_count || 0) > 0 ? (
+                            <Badge variant="outline" className="bg-pink-50 text-pink-700 border-pink-200">
+                              {item.color_count}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                       )}
-                      {!formFields.hideVariants && (
+                      {!formFields.hideVariants && hasAnySizes && (
                         <TableCell className="text-center">
-                          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                            {item.size_count || 0}
-                          </Badge>
+                          {(item.size_count || 0) > 0 ? (
+                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                              {item.size_count}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                       )}
                       {!formFields.hideStock && (
