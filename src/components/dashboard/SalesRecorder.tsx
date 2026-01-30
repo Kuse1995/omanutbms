@@ -128,6 +128,10 @@ export function SalesRecorder() {
   const [discountValue, setDiscountValue] = useState<number>(0);
   const [amountPaid, setAmountPaid] = useState<number>(0);
   
+  // Risk adjustment for credit sales (internal - not shown to customer)
+  const [riskAdjustment, setRiskAdjustment] = useState<number>(0);
+  const [riskAdjustmentNotes, setRiskAdjustmentNotes] = useState<string>("");
+  
   // Modal state
   const [selectedSale, setSelectedSale] = useState<SaleTransaction | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -177,7 +181,11 @@ export function SalesRecorder() {
   const discountAmount = discountType === "percentage" 
     ? Math.round((cartSubtotal * discountValue) / 100 * 100) / 100
     : discountValue;
-  const cartTotal = Math.max(0, cartSubtotal - discountAmount);
+  
+  // Risk adjustment is added for credit sales (hidden from customer display but included in total)
+  const isCreditSale = paymentMethod === "credit_invoice";
+  const effectiveRiskAdjustment = isCreditSale ? riskAdjustment : 0;
+  const cartTotal = Math.max(0, cartSubtotal - discountAmount + effectiveRiskAdjustment);
   
   // Calculate change
   const changeAmount = amountPaid > 0 ? Math.max(0, amountPaid - cartTotal) : 0;
@@ -293,6 +301,8 @@ export function SalesRecorder() {
     setDiscountType("amount");
     setDiscountValue(0);
     setAmountPaid(0);
+    setRiskAdjustment(0);
+    setRiskAdjustmentNotes("");
   };
 
   useEffect(() => {
@@ -633,6 +643,9 @@ export function SalesRecorder() {
             discount_amount: discountAmount,
             discount_reason: discountAmount > 0 ? (discountType === "percentage" ? `${discountValue}% discount` : `K${discountValue} discount`) : null,
             notes: notes.trim() || `Credit sale - ${cart.length} items`,
+            // Risk adjustment for credit sales (internal tracking)
+            risk_adjustment_amount: effectiveRiskAdjustment,
+            risk_adjustment_notes: riskAdjustmentNotes.trim() || null,
           } as any])
           .select('id, invoice_number')
           .single();
@@ -1292,6 +1305,42 @@ export function SalesRecorder() {
                       Payment expected by {format(invoiceDueDate, "MMMM d, yyyy")}
                     </p>
                   </div>
+                </div>
+
+                {/* Risk Adjustment for Credit Sales (Internal Only) */}
+                <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-orange-800">Credit Sale Risk Adjustment</span>
+                    <span className="text-xs text-orange-600">(Internal - not shown on invoice)</span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-orange-800">Adjustment Amount (K)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={riskAdjustment || ""}
+                        onChange={(e) => setRiskAdjustment(Number(e.target.value) || 0)}
+                        placeholder="0.00"
+                        className="bg-white border-orange-300 focus:border-orange-500"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-orange-800">Internal Notes</Label>
+                      <Input
+                        value={riskAdjustmentNotes}
+                        onChange={(e) => setRiskAdjustmentNotes(e.target.value)}
+                        placeholder="Reason for adjustment..."
+                        className="bg-white border-orange-300 focus:border-orange-500"
+                      />
+                    </div>
+                  </div>
+                  {riskAdjustment > 0 && (
+                    <p className="text-sm text-orange-700">
+                      Total will include +K{riskAdjustment.toLocaleString()} risk markup (hidden from customer)
+                    </p>
+                  )}
                 </div>
               </div>
             )}

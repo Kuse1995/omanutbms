@@ -64,6 +64,9 @@ export function SalesReceiptModal({
     const element = document.getElementById("sales-receipt-content");
     if (!element) return;
 
+    // Check if this is a credit invoice vs a paid receipt
+    const isCredit = paymentMethod === "credit_invoice";
+
     setIsDownloading(true);
     try {
       // Clone element for capturing to avoid viewport issues on mobile
@@ -105,7 +108,7 @@ export function SalesReceiptModal({
         pdf.addImage(imgData, "PNG", xOffset, yOffset, imgWidth, imgHeight);
       }
       
-      pdf.save(`receipt-${receiptNumber}.pdf`);
+      pdf.save(`${isCredit ? "invoice" : "receipt"}-${receiptNumber}.pdf`);
     } catch (error) {
       console.error("PDF generation error:", error);
     } finally {
@@ -144,31 +147,41 @@ export function SalesReceiptModal({
     }
   };
 
+  // Check if this is a credit invoice vs a paid receipt
+  const isCreditInvoice = paymentMethod === "credit_invoice";
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="w-[95vw] max-w-lg bg-white text-gray-900 max-h-[90vh] flex flex-col p-3 sm:p-6">
         <DialogHeader className="pb-2">
-          <DialogTitle className="text-gray-900 text-base sm:text-lg">Sales Receipt</DialogTitle>
+          <DialogTitle className="text-gray-900 text-base sm:text-lg">
+            {isCreditInvoice ? "Credit Invoice" : "Sales Receipt"}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto overflow-x-hidden -mx-3 px-3 sm:-mx-6 sm:px-6">
           <div id="sales-receipt-content" className="bg-white p-3 sm:p-6 space-y-3 sm:space-y-4 min-w-0">
             <TenantDocumentHeader
-              documentType="RECEIPT"
+              documentType={isCreditInvoice ? "INVOICE" : "RECEIPT"}
               documentNumber={receiptNumber}
               variant="centered"
             />
 
-            <div className="bg-green-50 text-center py-3 sm:py-4 rounded-lg">
-              <p className="text-xs sm:text-sm text-gray-600">Amount Paid</p>
-              <p className="text-2xl sm:text-3xl font-bold text-green-600">
+            <div className={`text-center py-3 sm:py-4 rounded-lg ${isCreditInvoice ? "bg-amber-50" : "bg-green-50"}`}>
+              <p className="text-xs sm:text-sm text-gray-600">
+                {isCreditInvoice ? "Total Due" : "Amount Paid"}
+              </p>
+              <p className={`text-2xl sm:text-3xl font-bold ${isCreditInvoice ? "text-amber-600" : "text-green-600"}`}>
                 K {totalAmount.toLocaleString()}
               </p>
+              {isCreditInvoice && (
+                <p className="text-xs text-amber-600 mt-1">Credit Sale - Payment Pending</p>
+              )}
             </div>
 
             <div className="space-y-2">
               <div className="flex justify-between py-2 border-b">
-                <span className="text-gray-600">Receipt Number:</span>
+                <span className="text-gray-600">{isCreditInvoice ? "Invoice Number:" : "Receipt Number:"}</span>
                 <span className="font-medium">{receiptNumber}</span>
               </div>
               <div className="flex justify-between py-2 border-b">
