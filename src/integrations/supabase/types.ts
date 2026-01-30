@@ -3123,6 +3123,7 @@ export type Database = {
           full_name: string | null
           id: string
           last_login: string | null
+          phone: string | null
           title: string | null
           updated_at: string
           user_id: string
@@ -3134,6 +3135,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           last_login?: string | null
+          phone?: string | null
           title?: string | null
           updated_at?: string
           user_id: string
@@ -3145,6 +3147,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           last_login?: string | null
+          phone?: string | null
           title?: string | null
           updated_at?: string
           user_id?: string
@@ -4667,6 +4670,10 @@ export type Database = {
       calculate_engagement_score: {
         Args: { p_start_date?: string; p_user_id: string }
         Returns: number
+      }
+      can_edit_branch_inventory: {
+        Args: { _branch_id: string; _tenant_id: string }
+        Returns: boolean
       }
       can_manage_accounts: { Args: { _tenant_id: string }; Returns: boolean }
       can_manage_hr: { Args: { _tenant_id: string }; Returns: boolean }
