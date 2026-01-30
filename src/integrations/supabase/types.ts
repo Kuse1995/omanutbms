@@ -1867,6 +1867,7 @@ export type Database = {
       employees: {
         Row: {
           address: string | null
+          authorized_email_id: string | null
           avatar_url: string | null
           bank_account_number: string | null
           bank_name: string | null
@@ -1900,6 +1901,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          authorized_email_id?: string | null
           avatar_url?: string | null
           bank_account_number?: string | null
           bank_name?: string | null
@@ -1933,6 +1935,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          authorized_email_id?: string | null
           avatar_url?: string | null
           bank_account_number?: string | null
           bank_name?: string | null
@@ -1965,6 +1968,13 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "employees_authorized_email_id_fkey"
+            columns: ["authorized_email_id"]
+            isOneToOne: false
+            referencedRelation: "authorized_emails"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "employees_branch_id_fkey"
             columns: ["branch_id"]

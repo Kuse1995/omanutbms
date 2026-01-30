@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Search, Users, Briefcase, Car, Sparkles, Edit, Trash2, Phone, Mail, Loader2, Clock, Calendar, FileText, Building2, FileUp } from "lucide-react";
+import { Plus, Search, Users, Briefcase, Car, Sparkles, Edit, Trash2, Phone, Mail, Loader2, Clock, Calendar, FileText, Building2, FileUp, KeyRound, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { EmployeeModal } from "./EmployeeModal";
 import { EmployeeImportModal } from "./EmployeeImportModal";
@@ -40,6 +40,21 @@ interface Employee {
   emergency_contact_phone: string | null;
   notes: string | null;
   branch_id: string | null;
+  authorized_email_id: string | null;
+}
+
+interface AuthorizedEmail {
+  id: string;
+  email: string;
+  default_role: string;
+}
+
+interface WhatsAppMapping {
+  id: string;
+  employee_id: string;
+  whatsapp_number: string;
+  role: string;
+  is_active: boolean;
 }
 
 const employeeTypeIcons: Record<string, React.ReactNode> = {
@@ -73,6 +88,8 @@ export const EmployeeManager = () => {
   const { tenantId } = useTenant();
   const { currentBranch, isMultiBranchEnabled, branches } = useBranch();
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [authorizedEmails, setAuthorizedEmails] = useState<AuthorizedEmail[]>([]);
+  const [whatsappMappings, setWhatsappMappings] = useState<WhatsAppMapping[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
@@ -86,6 +103,17 @@ export const EmployeeManager = () => {
     if (!branchId) return "Unassigned";
     const branch = branches.find(b => b.id === branchId);
     return branch?.name || "Unknown";
+  };
+
+  // Helper to get BMS access info for an employee
+  const getBmsAccess = (employee: Employee): AuthorizedEmail | null => {
+    if (!employee.authorized_email_id) return null;
+    return authorizedEmails.find(ae => ae.id === employee.authorized_email_id) || null;
+  };
+
+  // Helper to get WhatsApp access info for an employee
+  const getWhatsappAccess = (employeeId: string): WhatsAppMapping | null => {
+    return whatsappMappings.find(wm => wm.employee_id === employeeId && wm.is_active) || null;
   };
 
   const fetchEmployees = async () => {
@@ -107,6 +135,29 @@ export const EmployeeManager = () => {
 
       if (error) throw error;
       setEmployees(data || []);
+
+      // Fetch related access data in parallel
+      const employeeIds = (data || []).map(e => e.id);
+      const authEmailIds = (data || []).filter(e => e.authorized_email_id).map(e => e.authorized_email_id);
+
+      const [authEmailsResult, whatsappResult] = await Promise.all([
+        authEmailIds.length > 0
+          ? supabase
+              .from("authorized_emails")
+              .select("id, email, default_role")
+              .in("id", authEmailIds)
+          : Promise.resolve({ data: [] }),
+        employeeIds.length > 0
+          ? supabase
+              .from("whatsapp_user_mappings")
+              .select("id, employee_id, whatsapp_number, role, is_active")
+              .eq("tenant_id", tenantId)
+              .in("employee_id", employeeIds)
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      setAuthorizedEmails(authEmailsResult.data || []);
+      setWhatsappMappings(whatsappResult.data || []);
     } catch (error) {
       console.error("Error fetching employees:", error);
       toast.error("Failed to load employees");
@@ -303,6 +354,8 @@ export const EmployeeManager = () => {
             onEdit={(emp) => { setSelectedEmployee(emp); setIsModalOpen(true); }}
             onDelete={handleDelete}
             isAdmin={isAdmin}
+            getBmsAccess={getBmsAccess}
+            getWhatsappAccess={getWhatsappAccess}
             emptyMessage="No full-time employees found. Add drivers, cleaners, security, or office staff."
           />
         </TabsContent>
@@ -321,6 +374,8 @@ export const EmployeeManager = () => {
             onEdit={(emp) => { setSelectedEmployee(emp); setIsModalOpen(true); }}
             onDelete={handleDelete}
             isAdmin={isAdmin}
+            getBmsAccess={getBmsAccess}
+            getWhatsappAccess={getWhatsappAccess}
             emptyMessage="No contract or part-time employees found. Add temporary, part-time, or contract workers."
           />
         </TabsContent>
@@ -350,10 +405,23 @@ interface EmployeeGridProps {
   onEdit: (emp: Employee) => void;
   onDelete: (id: string) => void;
   isAdmin: boolean;
+  getBmsAccess: (emp: Employee) => AuthorizedEmail | null;
+  getWhatsappAccess: (employeeId: string) => WhatsAppMapping | null;
   emptyMessage: string;
 }
 
-const EmployeeGrid = ({ employees, getInitials, statusColors, onEdit, onDelete, isAdmin, emptyMessage }: EmployeeGridProps) => {
+const roleLabels: Record<string, string> = {
+  admin: "Admin",
+  manager: "Manager",
+  accountant: "Accountant",
+  hr_manager: "HR",
+  sales_rep: "Sales",
+  cashier: "Cashier",
+  viewer: "Viewer",
+  staff: "Staff",
+};
+
+const EmployeeGrid = ({ employees, getInitials, statusColors, onEdit, onDelete, isAdmin, getBmsAccess, getWhatsappAccess, emptyMessage }: EmployeeGridProps) => {
   if (employees.length === 0) {
     return (
       <Card>
@@ -366,79 +434,103 @@ const EmployeeGrid = ({ employees, getInitials, statusColors, onEdit, onDelete, 
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {employees.map((employee) => (
-        <Card key={employee.id} className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-4">
-              <Avatar className="h-12 w-12">
-                <AvatarImage src={employee.avatar_url || ""} />
-                <AvatarFallback className="bg-primary/10 text-primary">
-                  {getInitials(employee.full_name)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-semibold truncate">{employee.full_name}</h3>
-                  <Badge className={statusColors[employee.employment_status] || "bg-gray-100"}>
-                    {employee.employment_status}
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
-                  {employeeTypeIcons[employee.employee_type]}
-                  <span>{employee.job_title || employeeTypeLabels[employee.employee_type]}</span>
-                </div>
-                {employee.department && (
-                  <div className="text-xs text-muted-foreground mb-2">{employee.department}</div>
-                )}
-                {employee.termination_date && (
-                  <div className="text-xs text-amber-600 mb-2">
-                    Contract ends: {new Date(employee.termination_date).toLocaleDateString()}
+      {employees.map((employee) => {
+        const bmsAccess = getBmsAccess(employee);
+        const whatsappAccess = getWhatsappAccess(employee.id);
+        
+        return (
+          <Card key={employee.id} className="hover:shadow-md transition-shadow">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-4">
+                <Avatar className="h-12 w-12">
+                  <AvatarImage src={employee.avatar_url || ""} />
+                  <AvatarFallback className="bg-primary/10 text-primary">
+                    {getInitials(employee.full_name)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="font-semibold truncate">{employee.full_name}</h3>
+                    <Badge className={statusColors[employee.employment_status] || "bg-gray-100"}>
+                      {employee.employment_status}
+                    </Badge>
                   </div>
-                )}
-                <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-                  {employee.phone && (
-                    <div className="flex items-center gap-1">
-                      <Phone className="h-3 w-3" />
-                      <span>{employee.phone}</span>
+                  <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
+                    {employeeTypeIcons[employee.employee_type]}
+                    <span>{employee.job_title || employeeTypeLabels[employee.employee_type]}</span>
+                  </div>
+                  {employee.department && (
+                    <div className="text-xs text-muted-foreground mb-2">{employee.department}</div>
+                  )}
+                  {employee.termination_date && (
+                    <div className="text-xs text-amber-600 mb-2">
+                      Contract ends: {new Date(employee.termination_date).toLocaleDateString()}
                     </div>
                   )}
-                  {employee.email && (
-                    <div className="flex items-center gap-1">
-                      <Mail className="h-3 w-3" />
-                      <span className="truncate">{employee.email}</span>
+                  
+                  {/* Access Badges */}
+                  {(bmsAccess || whatsappAccess) && (
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      {bmsAccess && (
+                        <Badge variant="outline" className="text-xs flex items-center gap-1 bg-blue-50 text-blue-700 border-blue-200">
+                          <KeyRound className="h-3 w-3" />
+                          {roleLabels[bmsAccess.default_role] || bmsAccess.default_role}
+                        </Badge>
+                      )}
+                      {whatsappAccess && (
+                        <Badge variant="outline" className="text-xs flex items-center gap-1 bg-green-50 text-green-700 border-green-200">
+                          <MessageCircle className="h-3 w-3" />
+                          {roleLabels[whatsappAccess.role] || whatsappAccess.role}
+                        </Badge>
+                      )}
                     </div>
                   )}
-                </div>
-                <div className="mt-2 pt-2 border-t flex items-center justify-between">
-                  <span className="text-sm font-medium text-primary">
-                    K{employee.base_salary_zmw.toLocaleString()}/mo
-                  </span>
-                  <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => onEdit(employee)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    {isAdmin && (
+                  
+                  <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                    {employee.phone && (
+                      <div className="flex items-center gap-1">
+                        <Phone className="h-3 w-3" />
+                        <span>{employee.phone}</span>
+                      </div>
+                    )}
+                    {employee.email && (
+                      <div className="flex items-center gap-1">
+                        <Mail className="h-3 w-3" />
+                        <span className="truncate">{employee.email}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-2 pt-2 border-t flex items-center justify-between">
+                    <span className="text-sm font-medium text-primary">
+                      K{employee.base_salary_zmw.toLocaleString()}/mo
+                    </span>
+                    <div className="flex gap-1">
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-destructive"
-                        onClick={() => onDelete(employee.id)}
+                        className="h-8 w-8"
+                        onClick={() => onEdit(employee)}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Edit className="h-4 w-4" />
                       </Button>
-                    )}
+                      {isAdmin && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive"
+                          onClick={() => onDelete(employee.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 };
