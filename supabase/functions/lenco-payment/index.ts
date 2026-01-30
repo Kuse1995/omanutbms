@@ -62,6 +62,9 @@ Deno.serve(async (req) => {
     const userId = claimsData.user.id;
     const userEmail = claimsData.user.email || "";
 
+    // Try to ensure tenant membership first (in case user was just created)
+    await supabase.rpc("ensure_tenant_membership");
+
     // Get user's tenant
     const { data: tenantUser } = await supabase
       .from("tenant_users")
@@ -70,8 +73,12 @@ Deno.serve(async (req) => {
       .single();
 
     if (!tenantUser) {
+      // If still no tenant, this user needs to complete registration first
       return new Response(
-        JSON.stringify({ error: "No tenant found for user" }),
+        JSON.stringify({ 
+          error: "No subscription account found. Please complete your account setup first.",
+          code: "NO_TENANT"
+        }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
