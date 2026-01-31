@@ -1,5 +1,5 @@
 import { useState, useEffect, createContext, useContext, ReactNode, useRef, useCallback } from "react";
-import { User, Session } from "@supabase/supabase-js";
+import { User, Session, AuthChangeEvent } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
 import { AppRole, isAdminRole, canAddRecords, canEditRecords, canDeleteRecords } from "@/lib/role-config";
@@ -8,6 +8,8 @@ import { AppRole, isAdminRole, canAddRecords, canEditRecords, canDeleteRecords }
 const AUTH_DEBOUNCE_MS = 500;
 // Delay before initial fetch to let session stabilize
 const SESSION_STABILIZE_MS = 200;
+// Events that should NOT trigger data refetch
+const IGNORED_AUTH_EVENTS: AuthChangeEvent[] = ['TOKEN_REFRESHED'];
 
 export type { AppRole };
 
@@ -64,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Refs for debouncing and preventing race conditions
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastFetchedUserIdRef = useRef<string | null>(null);
+  const currentUserIdRef = useRef<string | null>(null);
   const isMountedRef = useRef(true);
 
   // Debounced fetch function to prevent rapid-fire queries during token refresh storms
@@ -91,18 +94,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+      (event, newSession) => {
+        // Skip token refresh events entirely - they don't change user state
+        if (IGNORED_AUTH_EVENTS.includes(event)) {
+          return;
+        }
+        
+        // Only update state if the user actually changed (using ref to avoid stale closure)
+        const previousUserId = currentUserIdRef.current;
+        const newUserId = newSession?.user?.id ?? null;
+        
+        // Update the ref
+        currentUserIdRef.current = newUserId;
+        
+        if (previousUserId !== newUserId) {
+          setSession(newSession);
+          setUser(newSession?.user ?? null);
+        }
 
         // Defer profile/role fetch with debouncing to avoid storms
-        if (session?.user) {
-          // Add stabilization delay before fetching
-          setTimeout(() => {
-            if (isMountedRef.current) {
-              debouncedFetchUserData(session.user.id, session.user.email ?? undefined);
-            }
-          }, SESSION_STABILIZE_MS);
+        if (newSession?.user) {
+          // Only fetch if user changed OR this is a meaningful sign-in event
+          if (previousUserId !== newUserId || event === 'SIGNED_IN') {
+            setTimeout(() => {
+              if (isMountedRef.current) {
+                debouncedFetchUserData(newSession.user.id, newSession.user.email ?? undefined);
+              }
+            }, SESSION_STABILIZE_MS);
+          }
         } else {
           // Clear pending fetches on logout
           if (fetchTimeoutRef.current) {
@@ -118,14 +137,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
 
     // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
+    supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
+      currentUserIdRef.current = existingSession?.user?.id ?? null;
+      setSession(existingSession);
+      setUser(existingSession?.user ?? null);
+      if (existingSession?.user) {
         // Initial fetch with stabilization delay
         setTimeout(() => {
           if (isMountedRef.current) {
-            fetchUserData(session.user.id, session.user.email ?? undefined);
+            fetchUserData(existingSession.user.id, existingSession.user.email ?? undefined);
           }
         }, SESSION_STABILIZE_MS);
       } else {
