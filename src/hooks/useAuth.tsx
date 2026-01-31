@@ -1,8 +1,13 @@
-import { useState, useEffect, createContext, useContext, ReactNode } from "react";
+import { useState, useEffect, createContext, useContext, ReactNode, useRef, useCallback } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
 import { AppRole, isAdminRole, canAddRecords, canEditRecords, canDeleteRecords } from "@/lib/role-config";
+
+// Debounce delay to prevent token refresh storms
+const AUTH_DEBOUNCE_MS = 500;
+// Delay before initial fetch to let session stabilize
+const SESSION_STABILIZE_MS = 200;
 
 export type { AppRole };
 
@@ -55,20 +60,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  
+  // Refs for debouncing and preventing race conditions
+  const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastFetchedUserIdRef = useRef<string | null>(null);
+  const isMountedRef = useRef(true);
+
+  // Debounced fetch function to prevent rapid-fire queries during token refresh storms
+  const debouncedFetchUserData = useCallback((userId: string, email?: string) => {
+    // Clear any pending fetch
+    if (fetchTimeoutRef.current) {
+      clearTimeout(fetchTimeoutRef.current);
+    }
+    
+    // Skip if we just fetched for this user (prevents duplicate fetches)
+    if (lastFetchedUserIdRef.current === userId) {
+      return;
+    }
+    
+    fetchTimeoutRef.current = setTimeout(() => {
+      if (isMountedRef.current) {
+        lastFetchedUserIdRef.current = userId;
+        fetchUserData(userId, email);
+      }
+    }, AUTH_DEBOUNCE_MS);
+  }, []);
 
   useEffect(() => {
+    isMountedRef.current = true;
+    
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
 
-        // Defer profile/role fetch with setTimeout to avoid deadlocks
+        // Defer profile/role fetch with debouncing to avoid storms
         if (session?.user) {
+          // Add stabilization delay before fetching
           setTimeout(() => {
-            fetchUserData(session.user.id, session.user.email ?? undefined);
-          }, 0);
+            if (isMountedRef.current) {
+              debouncedFetchUserData(session.user.id, session.user.email ?? undefined);
+            }
+          }, SESSION_STABILIZE_MS);
         } else {
+          // Clear pending fetches on logout
+          if (fetchTimeoutRef.current) {
+            clearTimeout(fetchTimeoutRef.current);
+          }
+          lastFetchedUserIdRef.current = null;
           setProfile(null);
           setRole(null);
           setIsSuperAdmin(false);
@@ -82,17 +122,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchUserData(session.user.id, session.user.email ?? undefined);
+        // Initial fetch with stabilization delay
+        setTimeout(() => {
+          if (isMountedRef.current) {
+            fetchUserData(session.user.id, session.user.email ?? undefined);
+          }
+        }, SESSION_STABILIZE_MS);
       } else {
         setLoading(false);
       }
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      isMountedRef.current = false;
+      if (fetchTimeoutRef.current) {
+        clearTimeout(fetchTimeoutRef.current);
+      }
+      subscription.unsubscribe();
+    };
+  }, [debouncedFetchUserData]);
 
 
-  const fetchUserData = async (userId: string, email?: string) => {
+  const fetchUserData = async (userId: string, email?: string, retryCount = 0) => {
+    if (!isMountedRef.current) return;
+    
     try {
       // Fetch profile
       const { data: profileData } = await supabase
@@ -101,7 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq("user_id", userId)
         .single();
 
-      if (profileData) {
+      if (profileData && isMountedRef.current) {
         setProfile(profileData);
       }
 
@@ -109,7 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       let resolvedRole: AppRole | null = null;
 
       try {
-        const { data: tenantUserData } = await supabase
+        const { data: tenantUserData, error: tenantError } = await supabase
           .from("tenant_users")
           .select("role")
           .eq("user_id", userId)
@@ -118,6 +171,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (tenantUserData?.role) {
           resolvedRole = tenantUserData.role as AppRole;
+        } else if (tenantError) {
+          console.warn("Error fetching role from tenant_users:", tenantError.message);
         }
       } catch (error) {
         console.error("Error fetching role from tenant_users:", error);
@@ -159,7 +214,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      if (resolvedRole) {
+      // If still no role and we haven't retried yet, retry once after a delay
+      if (!resolvedRole && retryCount < 1) {
+        console.log("Role not found, retrying after delay...");
+        setTimeout(() => {
+          if (isMountedRef.current) {
+            fetchUserData(userId, email, retryCount + 1);
+          }
+        }, 1000);
+        return; // Don't set loading to false yet, we're retrying
+      }
+
+      if (resolvedRole && isMountedRef.current) {
         setRole(resolvedRole);
       }
 
@@ -171,15 +237,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .eq("user_id", userId)
           .maybeSingle();
 
-        setIsSuperAdmin(!!superAdminData);
+        if (isMountedRef.current) {
+          setIsSuperAdmin(!!superAdminData);
+        }
       } catch (error) {
         console.error("Error checking super admin status:", error);
-        setIsSuperAdmin(false);
+        if (isMountedRef.current) {
+          setIsSuperAdmin(false);
+        }
       }
     } catch (error) {
       console.error("Error fetching user data:", error);
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
