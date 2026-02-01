@@ -1,146 +1,218 @@
 
+# Plan: Job Cards Feature for Auto Shop + Business Type Selection Onboarding
 
-# Plan: Fix User Access Issues for Manually Created Accounts
+## Overview
 
-## Problem Summary
+This plan addresses two interconnected features:
 
-Users who were manually given access (like `zalfred81@gmail.com`) are experiencing:
-1. Being logged out when they log in
-2. Missing modules showing on the sidebar
-
-## Root Cause Analysis
-
-After thorough investigation, I identified **three interconnected issues**:
-
-### 1. Token Refresh Storm (Causing Logouts)
-Auth logs show 30+ token refresh requests within 10 seconds, triggering Supabase rate limiting (429 errors). When rate-limited, the session becomes invalid and users are logged out.
-
-**Evidence from logs:**
-```text
-07:03:06 - 07:03:18: Over 30 token_revoked events
-07:03:18: "429: Request rate limit reached" error
-```
-
-### 2. Missing user_roles Entries
-18 out of 24 users in `tenant_users` are missing entries in `user_roles`. While the app is designed to fall back to `tenant_users.role`, this data inconsistency may cause edge-case failures.
-
-**Affected users include:**
-- zalfred81@gmail.com (admin)
-- wellnessmushrooms95@gmail.com (admin)
-- freezambianman@gmail.com (admin)
-- houseofdodozm@gmail.com (admin)
-- And 14 others
-
-### 3. Role Resolution Timing
-The `useAuth` hook fetches the role from `tenant_users` first, but if this query fails silently during auth state changes (especially during the token refresh storm), the `role` state becomes `null`, causing `hasModuleAccess()` to return `false` for all modules.
+1. **Job Cards for Auto Shop** - Implement a "Job Cards" (work orders/repair tickets) feature as a secondary service module for the `autoshop` business type
+2. **Business Type Selection Onboarding** - Create a first-login wizard that prompts new tenants to select their business type before using the system
 
 ---
 
-## Solution Overview
+## Part 1: Job Cards Feature for Auto Shop
+
+### Current State Analysis
+
+The `autoshop` business type is currently configured as an **"Auto Parts Store"** focused on product retail. The existing infrastructure includes:
+
+- **Custom Orders Manager** - A sophisticated work order system for the `fashion` business type that tracks bespoke orders through production stages (pending → cutting → sewing → fitting → ready → delivered)
+- **Production Floor** - A Kanban-style board for tracking work in progress
+- **Enterprise Feature Flagging** - The `enabled_features` JSONB column in `business_profiles` controls access to specialized features
+
+### Proposed Solution
+
+Adapt the existing **Custom Orders** infrastructure for auto shop by:
+
+1. Creating a new **Job Cards** tab in the sidebar (visible only for `autoshop` business type)
+2. Building a **JobCardsManager** component that mirrors `CustomOrdersManager` but with automotive-specific fields
+3. Adding automotive-specific status workflow and terminology
+
+### Database Schema: `job_cards` Table
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `tenant_id` | UUID | Tenant reference |
+| `job_number` | TEXT | Auto-generated (e.g., "JC2026-0001") |
+| `customer_id` | UUID | Reference to customer |
+| `vehicle_make` | TEXT | e.g., "Toyota" |
+| `vehicle_model` | TEXT | e.g., "Corolla" |
+| `vehicle_year` | INTEGER | e.g., 2015 |
+| `vehicle_reg` | TEXT | Registration/license plate |
+| `vehicle_vin` | TEXT | Optional VIN number |
+| `odometer_reading` | INTEGER | Mileage at intake |
+| `customer_complaint` | TEXT | Issue description |
+| `diagnosis` | TEXT | Technician diagnosis |
+| `work_required` | JSONB | Array of labor items |
+| `parts_used` | JSONB | Array of parts with inventory links |
+| `estimated_labor_hours` | NUMERIC | Labor time estimate |
+| `labor_rate` | NUMERIC | Hourly rate |
+| `parts_total` | NUMERIC | Total parts cost |
+| `labor_total` | NUMERIC | Total labor cost |
+| `quoted_total` | NUMERIC | Quoted price to customer |
+| `status` | TEXT | received, diagnosing, in_progress, waiting_parts, ready, collected |
+| `assigned_technician_id` | UUID | Reference to employee |
+| `intake_date` | DATE | When vehicle was received |
+| `promised_date` | DATE | Promised completion |
+| `completed_date` | DATE | Actual completion |
+| `invoice_id` | UUID | Link to invoice when generated |
+
+### Status Workflow
 
 ```text
-┌────────────────────────────────────────────────────────────────────┐
-│                        FIX APPROACH                                │
-├────────────────────────────────────────────────────────────────────┤
-│  1. Backfill user_roles table for all affected users               │
-│  2. Add retry logic to role fetching in useAuth                    │
-│  3. Add debouncing to prevent auth state refresh storms            │
-│  4. Update ensure_tenant_membership to also sync user_roles        │
-└────────────────────────────────────────────────────────────────────┘
+┌─────────────┐   ┌──────────────┐   ┌─────────────┐   ┌───────────────┐   ┌─────────┐   ┌───────────┐
+│  Received   │ → │  Diagnosing  │ → │ In Progress │ → │ Waiting Parts │ → │  Ready  │ → │ Collected │
+└─────────────┘   └──────────────┘   └─────────────┘   └───────────────┘   └─────────┘   └───────────┘
 ```
+
+### UI Components to Create
+
+| Component | Description |
+|-----------|-------------|
+| `JobCardsManager.tsx` | Main list view with filters, search, status cards |
+| `JobCardModal.tsx` | Form for creating/editing job cards with vehicle info, work items, parts selection |
+| `JobCardViewModal.tsx` | Read-only view with full details and print option |
+| `VehicleInfoForm.tsx` | Reusable vehicle details input section |
+| `PartsSelector.tsx` | Component to link inventory items to job card |
+
+### Business Type Config Changes
+
+Update `autoshop` configuration in `business-type-config.ts`:
+
+- Add `'job-cards'` to `tabOrder`
+- Add quick action for "New Job Card"
+- Add KPI card for "Jobs in Progress"
+- Update welcome message to mention repair services
+
+### Dashboard Integration
+
+- Add `job-cards` to the `DashboardTab` type
+- Add route case in `Dashboard.tsx` → `<JobCardsManager />`
+- Add sidebar item in `DashboardSidebar.tsx` for autoshop type
 
 ---
 
-## Implementation Steps
+## Part 2: Business Type Selection Onboarding
 
-### Step 1: Backfill Missing user_roles Entries (Database Migration)
+### Current State
 
-Create a SQL migration to populate `user_roles` for all users who have `tenant_users` entries but are missing `user_roles` entries.
+- New users sign up → tenant and business profile created with default `business_type: null` or `'retail'`
+- Users must manually navigate to tenant settings to change business type
+- There is NO prompt to select business type during first login
 
+### Proposed Solution
+
+Create a **Business Type Selection Wizard** that:
+
+1. Displays as a full-screen modal immediately after first login for new tenants
+2. Shows all 12 business types with icons and descriptions
+3. Persists the selection to `business_profiles.business_type`
+4. Only shows once per tenant (uses `localStorage` + database flag)
+
+### UI Flow
+
+```text
+User Signs Up
+    ↓
+Email Verification (if enabled)
+    ↓
+First Login → Dashboard
+    ↓
+Business Type Selection Modal (blocks UI)
+    ↓
+User Selects Type → Save to DB
+    ↓
+Welcome Video Modal (existing)
+    ↓
+Onboarding Tour (existing)
+    ↓
+Normal Dashboard
+```
+
+### New Component: `BusinessTypeSetupWizard.tsx`
+
+Features:
+- Full-screen modal with backdrop (cannot be dismissed without selection)
+- Grid of business type cards with icons (using lucide-react icons already mapped in `DemoModeModal.tsx`)
+- "Continue" button enabled after selection
+- Progress indicator showing step 1 of setup
+- Saves selection to `business_profiles.business_type`
+- Sets a flag `onboarding_completed` to prevent re-showing
+
+### Database Changes
+
+Add column to `business_profiles`:
 ```sql
--- Backfill user_roles from tenant_users for users missing entries
-INSERT INTO public.user_roles (user_id, role)
-SELECT tu.user_id, tu.role
-FROM tenant_users tu
-LEFT JOIN user_roles ur ON ur.user_id = tu.user_id
-WHERE ur.user_id IS NULL
-ON CONFLICT (user_id, role) DO NOTHING;
+ALTER TABLE business_profiles 
+ADD COLUMN onboarding_completed BOOLEAN DEFAULT FALSE;
 ```
 
-This will immediately fix the data inconsistency for all 18 affected users.
+### Integration Points
 
-### Step 2: Update ensure_tenant_membership RPC
+1. **Dashboard.tsx**: Check if `businessProfile.onboarding_completed === false && businessProfile.business_type === null`
+2. Show `BusinessTypeSetupWizard` before `WelcomeVideoModal`
+3. After business type is selected, refetch tenant data so UI adapts immediately
 
-Modify the database function to also sync `user_roles` when provisioning tenant membership, ensuring this data stays consistent for future users.
+### Business Type Cards Design
 
-**Changes:**
-- After inserting into `tenant_users`, also insert into `user_roles`
-- Use ON CONFLICT to handle existing entries
-
-### Step 3: Add Retry Logic to useAuth Role Fetching
-
-Modify `src/hooks/useAuth.tsx` to:
-- Add exponential backoff retry for the tenant_users role query
-- Ensure role is never left as null if it exists in the database
-- Add a small delay before initial fetch to allow session to stabilize
-
-### Step 4: Add Debouncing to Auth State Changes
-
-The token refresh storm suggests multiple rapid auth state changes. Add debouncing to prevent rapid-fire queries:
-- Debounce `fetchUserData` calls with a 500ms delay
-- Cancel pending fetches if a new auth state change occurs
-
-### Step 5: Improve Error Handling
-
-Add better error handling and fallback behavior:
-- If all role queries fail, retry once after a short delay
-- Log errors to help diagnose future issues
+| Type | Icon | Description |
+|------|------|-------------|
+| Retail | Store | Sell products directly to customers |
+| Services | Briefcase | Offer professional services to clients |
+| Distribution | Truck | Distribute products through agent networks |
+| School | GraduationCap | Manage student fees and resources |
+| NGO | HandHeart | Manage donations and track beneficiaries |
+| Healthcare | Stethoscope | Manage patient consultations |
+| Salon | Scissors | Manage salon appointments and beauty services |
+| Hospitality | UtensilsCrossed | Hotels, restaurants, and guest services |
+| Agriculture | Tractor | Farm management and produce sales |
+| Auto Shop | Car | Sell vehicle parts and repair services |
+| Fashion | Shirt | Custom clothing and tailoring |
+| Hybrid | Layers | Products and services combined |
 
 ---
+
+## Implementation Order
+
+### Phase 1: Business Type Selection Onboarding
+1. Add `onboarding_completed` column to `business_profiles`
+2. Create `BusinessTypeSetupWizard.tsx` component
+3. Integrate into `Dashboard.tsx` (show before welcome video)
+4. Update `useTenant` to include the new field
+
+### Phase 2: Job Cards Feature
+1. Create `job_cards` database table with RLS policies
+2. Create `JobCardsManager.tsx` and `JobCardModal.tsx` components
+3. Update autoshop business type config
+4. Add job-cards tab to Dashboard routing
+5. Add sidebar item for autoshop users
+
+---
+
+## Files to Create
+
+| File | Purpose |
+|------|---------|
+| `src/components/dashboard/BusinessTypeSetupWizard.tsx` | Onboarding modal for business type selection |
+| `src/components/dashboard/JobCardsManager.tsx` | Main job cards list and management |
+| `src/components/dashboard/JobCardModal.tsx` | Create/edit job card form |
+| `src/components/dashboard/VehicleInfoForm.tsx` | Reusable vehicle info inputs |
 
 ## Files to Modify
 
-| File | Change |
-|------|--------|
-| `src/hooks/useAuth.tsx` | Add retry logic, debouncing, and improved error handling |
-| Database (Migration) | Backfill `user_roles` table entries |
-| Database (Function) | Update `ensure_tenant_membership` to sync `user_roles` |
-
----
-
-## Technical Details
-
-### useAuth.tsx Changes
-
-1. **Debounce mechanism**: Use a ref to track pending timeouts and cancel previous fetches
-2. **Retry logic**: If tenant_users query returns no data, wait 1s and retry once
-3. **Session stabilization**: Add 200ms delay after auth state change before fetching data
-
-### Database Migration
-
-The backfill query ensures:
-- All 18 affected users get their `user_roles` entries
-- No duplicates are created (ON CONFLICT DO NOTHING)
-- Roles match what's already in `tenant_users`
+| File | Changes |
+|------|---------|
+| `src/pages/Dashboard.tsx` | Add job-cards route, integrate onboarding wizard |
+| `src/components/dashboard/DashboardSidebar.tsx` | Add Job Cards menu item for autoshop |
+| `src/lib/business-type-config.ts` | Update autoshop config with job-cards tab and KPIs |
+| `src/hooks/useTenant.tsx` | Add `onboarding_completed` to BusinessProfile type |
+| Database Migration | Create `job_cards` table, add `onboarding_completed` column |
 
 ---
 
 ## Expected Outcome
 
-After implementation:
-1. All existing users will have proper `user_roles` entries matching their `tenant_users` roles
-2. Token refresh storms will be mitigated by debouncing
-3. Role queries will retry on failure, reducing null role states
-4. Sidebar modules will display correctly for all users
-5. Future users will have both tables populated correctly
-
----
-
-## Testing Recommendations
-
-1. Have `zalfred81@gmail.com` log in and verify:
-   - They are not logged out
-   - Sidebar shows all admin modules
-2. Check other affected users from the list
-3. Monitor auth logs for any remaining rate limiting issues
-
+1. **New tenants** will see a business type selection wizard on first login, ensuring the system adapts to their industry from day one
+2. **Auto shop users** will have a dedicated Job Cards module for managing vehicle repairs alongside their parts sales
+3. The Job Cards feature leverages existing patterns (Custom Orders, Production Floor) for a consistent UX
