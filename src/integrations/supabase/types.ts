@@ -928,6 +928,7 @@ export type Database = {
           inventory_enabled: boolean | null
           logo_url: string | null
           multi_branch_enabled: boolean | null
+          onboarding_completed: boolean | null
           payment_provider_customer_id: string | null
           payroll_enabled: boolean | null
           preferred_currency: string | null
@@ -983,6 +984,7 @@ export type Database = {
           inventory_enabled?: boolean | null
           logo_url?: string | null
           multi_branch_enabled?: boolean | null
+          onboarding_completed?: boolean | null
           payment_provider_customer_id?: string | null
           payroll_enabled?: boolean | null
           preferred_currency?: string | null
@@ -1038,6 +1040,7 @@ export type Database = {
           inventory_enabled?: boolean | null
           logo_url?: string | null
           multi_branch_enabled?: boolean | null
+          onboarding_completed?: boolean | null
           payment_provider_customer_id?: string | null
           payroll_enabled?: boolean | null
           preferred_currency?: string | null
@@ -2729,6 +2732,157 @@ export type Database = {
           },
           {
             foreignKeyName: "invoices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_cards: {
+        Row: {
+          assigned_technician_id: string | null
+          branch_id: string | null
+          completed_date: string | null
+          created_at: string
+          created_by: string | null
+          customer_complaint: string | null
+          customer_id: string | null
+          demo_session_id: string | null
+          diagnosis: string | null
+          estimated_labor_hours: number | null
+          id: string
+          intake_date: string | null
+          invoice_id: string | null
+          is_demo: boolean | null
+          job_number: string
+          labor_rate: number | null
+          labor_total: number | null
+          notes: string | null
+          odometer_reading: number | null
+          parts_total: number | null
+          parts_used: Json | null
+          promised_date: string | null
+          quotation_id: string | null
+          quoted_total: number | null
+          status: string
+          tenant_id: string
+          updated_at: string
+          vehicle_make: string | null
+          vehicle_model: string | null
+          vehicle_reg: string | null
+          vehicle_vin: string | null
+          vehicle_year: number | null
+          work_required: Json | null
+        }
+        Insert: {
+          assigned_technician_id?: string | null
+          branch_id?: string | null
+          completed_date?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_complaint?: string | null
+          customer_id?: string | null
+          demo_session_id?: string | null
+          diagnosis?: string | null
+          estimated_labor_hours?: number | null
+          id?: string
+          intake_date?: string | null
+          invoice_id?: string | null
+          is_demo?: boolean | null
+          job_number: string
+          labor_rate?: number | null
+          labor_total?: number | null
+          notes?: string | null
+          odometer_reading?: number | null
+          parts_total?: number | null
+          parts_used?: Json | null
+          promised_date?: string | null
+          quotation_id?: string | null
+          quoted_total?: number | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          vehicle_make?: string | null
+          vehicle_model?: string | null
+          vehicle_reg?: string | null
+          vehicle_vin?: string | null
+          vehicle_year?: number | null
+          work_required?: Json | null
+        }
+        Update: {
+          assigned_technician_id?: string | null
+          branch_id?: string | null
+          completed_date?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_complaint?: string | null
+          customer_id?: string | null
+          demo_session_id?: string | null
+          diagnosis?: string | null
+          estimated_labor_hours?: number | null
+          id?: string
+          intake_date?: string | null
+          invoice_id?: string | null
+          is_demo?: boolean | null
+          job_number?: string
+          labor_rate?: number | null
+          labor_total?: number | null
+          notes?: string | null
+          odometer_reading?: number | null
+          parts_total?: number | null
+          parts_used?: Json | null
+          promised_date?: string | null
+          quotation_id?: string | null
+          quoted_total?: number | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          vehicle_make?: string | null
+          vehicle_model?: string | null
+          vehicle_reg?: string | null
+          vehicle_vin?: string | null
+          vehicle_year?: number | null
+          work_required?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_cards_assigned_technician_id_fkey"
+            columns: ["assigned_technician_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_cards_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_cards_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_cards_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_cards_quotation_id_fkey"
+            columns: ["quotation_id"]
+            isOneToOne: false
+            referencedRelation: "quotations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_cards_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"

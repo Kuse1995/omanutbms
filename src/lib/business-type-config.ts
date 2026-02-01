@@ -1008,21 +1008,21 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
     },
     layout: {
       defaultTab: 'sales',
-      tabOrder: ['dashboard', 'sales', 'receipts', 'inventory', 'shop', 'accounts', 'hr', 'contacts', 'website'],
+      tabOrder: ['dashboard', 'sales', 'job-cards', 'receipts', 'inventory', 'shop', 'accounts', 'hr', 'contacts', 'website'],
       hiddenTabs: ['agents', 'communities', 'messages'],
       quickActions: [
         { id: 'new-sale', label: 'New Sale', icon: 'ShoppingCart', targetTab: 'sales', highlight: true },
+        { id: 'new-job-card', label: 'New Job Card', icon: 'Wrench', targetTab: 'job-cards' },
         { id: 'parts-lookup', label: 'Parts Lookup', icon: 'Search', targetTab: 'inventory' },
-        { id: 'low-stock', label: 'Restock Alerts', icon: 'AlertTriangle', targetTab: 'inventory' },
         { id: 'record-payment', label: 'Record Payment', icon: 'CreditCard', targetTab: 'receipts' },
       ],
       kpiCards: [
         { id: 'today-sales', title: "Today's Sales", metric: 'today_sales', icon: 'DollarSign', color: 'text-emerald-600', bgColor: 'bg-emerald-500/10' },
+        { id: 'jobs-in-progress', title: 'Jobs in Progress', metric: 'jobs_in_progress', icon: 'Wrench', color: 'text-amber-600', bgColor: 'bg-amber-500/10' },
         { id: 'parts-stock', title: 'Parts in Stock', metric: 'inventory_value', icon: 'Car', color: 'text-[#004B8D]', bgColor: 'bg-[#004B8D]/10' },
-        { id: 'low-stock', title: 'Low Stock Alerts', metric: 'low_stock', icon: 'AlertTriangle', color: 'text-amber-600', bgColor: 'bg-amber-500/10' },
-        { id: 'pending-invoices', title: 'Pending Payments', metric: 'pending_invoices', icon: 'Clock', color: 'text-rose-600', bgColor: 'bg-rose-500/10' },
+        { id: 'low-stock', title: 'Low Stock Alerts', metric: 'low_stock', icon: 'AlertTriangle', color: 'text-rose-600', bgColor: 'bg-rose-500/10' },
       ],
-      welcomeMessage: 'Manage your auto parts inventory, sales, and customer orders',
+      welcomeMessage: 'Manage your auto parts inventory, repair jobs, and customer orders',
       dashboardIcon: 'Car',
     },
     defaultFeatures: {

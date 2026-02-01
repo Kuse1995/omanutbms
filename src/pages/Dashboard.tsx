@@ -32,6 +32,8 @@ import { StockTransfersManager } from "@/components/dashboard/StockTransfersMana
 import { WarehouseView } from "@/components/dashboard/WarehouseView";
 import { ProductionFloor } from "@/components/dashboard/ProductionFloor";
 import { AssetsManager } from "@/components/dashboard/AssetsManager";
+import { JobCardsManager } from "@/components/dashboard/JobCardsManager";
+import { BusinessTypeSetupWizard } from "@/components/dashboard/BusinessTypeSetupWizard";
 import { useOnboardingTour } from "@/hooks/useOnboardingTour";
 import { useFeatures } from "@/hooks/useFeatures";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
@@ -39,13 +41,14 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useEnterpriseFeatures } from "@/hooks/useEnterpriseFeatures";
 import { BranchProvider } from "@/hooks/useBranch";
+import { useTenant } from "@/hooks/useTenant";
 import { useBranding } from "@/hooks/useBranding";
 import { useApplyTenantBranding } from "@/contexts/BrandingContext";
 import { useTrackedNavigation } from "@/hooks/useTrackedNavigation";
 
-export type DashboardTab = "dashboard" | "sales" | "receipts" | "quotations" | "accounts" | "assets" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings" | "tenant-settings" | "modules" | "platform-admin" | "branches" | "returns" | "customers" | "custom-orders" | "warehouse" | "stock-transfers" | "locations" | "production-floor";
+export type DashboardTab = "dashboard" | "sales" | "receipts" | "quotations" | "accounts" | "assets" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings" | "tenant-settings" | "modules" | "platform-admin" | "branches" | "returns" | "customers" | "custom-orders" | "warehouse" | "stock-transfers" | "locations" | "production-floor" | "job-cards";
 
-const validTabs: DashboardTab[] = ["dashboard", "sales", "receipts", "quotations", "accounts", "assets", "hr", "inventory", "shop", "agents", "communities", "messages", "contacts", "website", "settings", "tenant-settings", "modules", "platform-admin", "branches", "returns", "customers", "custom-orders", "warehouse", "stock-transfers", "locations", "production-floor"];
+const validTabs: DashboardTab[] = ["dashboard", "sales", "receipts", "quotations", "accounts", "assets", "hr", "inventory", "shop", "agents", "communities", "messages", "contacts", "website", "settings", "tenant-settings", "modules", "platform-admin", "branches", "returns", "customers", "custom-orders", "warehouse", "stock-transfers", "locations", "production-floor", "job-cards"];
 
 const Dashboard = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -66,6 +69,7 @@ const Dashboard = () => {
   const { isSuperAdmin } = useAuth();
   const { isCustomDesignerEnabled, isProductionTrackingEnabled } = useEnterpriseFeatures();
   const { runTour, completeTour, isLoading: tourLoading, welcomeVideoCompleted, onWelcomeVideoComplete } = useOnboardingTour();
+  const { businessProfile, refetchTenant } = useTenant();
   const branding = useBranding();
   const applyBranding = useApplyTenantBranding();
 
@@ -248,6 +252,8 @@ const Dashboard = () => {
         return <LocationsManager />;
       case "production-floor":
         return <ProductionFloor />;
+      case "job-cards":
+        return <JobCardsManager />;
       default:
         return <DashboardHome />;
     }
@@ -270,13 +276,18 @@ const Dashboard = () => {
             </div>
           </div>
           
-          {/* Welcome Video Modal - shows first for new users */}
-          {!tourLoading && !welcomeVideoCompleted && (
+          {/* Business Type Setup Wizard - shows for new tenants */}
+          {!businessProfile?.onboarding_completed && !businessProfile?.business_type && (
+            <BusinessTypeSetupWizard onComplete={refetchTenant} />
+          )}
+          
+          {/* Welcome Video Modal - shows first for new users after business type is set */}
+          {!tourLoading && !welcomeVideoCompleted && businessProfile?.onboarding_completed && (
             <WelcomeVideoModal onComplete={onWelcomeVideoComplete} />
           )}
           
           {/* Onboarding Tour - starts after video is completed */}
-          {!tourLoading && welcomeVideoCompleted && (
+          {!tourLoading && welcomeVideoCompleted && businessProfile?.onboarding_completed && (
             <OnboardingTour run={runTour} onComplete={completeTour} />
           )}
         </SidebarProvider>
