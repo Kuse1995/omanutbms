@@ -4,7 +4,7 @@ import {
   MessageSquare, Globe, ShoppingCart, Store, Heart, Receipt, Mail, Building2, 
   Layers, Crown, LogOut, Truck, GraduationCap, Briefcase, GitBranch, RotateCcw, 
   Scissors, UserCircle, Shirt, Warehouse, ArrowLeftRight, MapPin, Factory, 
-  ChevronDown, Landmark, FileText, type LucideIcon 
+  ChevronDown, Landmark, FileText, Wrench, type LucideIcon 
 } from "lucide-react";
 import {
   Sidebar,
@@ -146,6 +146,7 @@ const baseMenuItems: MenuItem[] = [
   { id: "custom-orders", title: "Custom Orders", icon: Scissors, feature: 'inventory' },
   { id: "customers", title: "Customers", icon: UserCircle, feature: 'inventory' },
   { id: "shop", title: "Shop Manager", icon: Store, feature: 'inventory' },
+  { id: "job-cards", title: "Job Cards", icon: Wrench, feature: 'inventory' },
   { id: "warehouse", title: "Warehouse", icon: Warehouse, feature: 'warehouse' },
   { id: "stock-transfers", title: "Stock Transfers", icon: ArrowLeftRight, feature: 'warehouse' },
   { id: "locations", title: "Locations", icon: MapPin, feature: 'warehouse' },

@@ -56,6 +56,8 @@ export interface BusinessProfile {
   bank_account_number?: string | null;
   bank_branch?: string | null;
   bank_swift_code?: string | null;
+  // Onboarding
+  onboarding_completed?: boolean | null;
 }
 
 import { AppRole } from "@/lib/role-config";
