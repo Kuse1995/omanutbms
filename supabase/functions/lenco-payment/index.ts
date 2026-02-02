@@ -244,12 +244,29 @@ Deno.serve(async (req) => {
     if (payment_method === "mobile_money") {
       // Normalize phone number for Lenco (remove + prefix, ensure 260 prefix)
       let normalizedPhone = phone_number || "";
-      if (normalizedPhone.startsWith("+")) {
-        normalizedPhone = normalizedPhone.slice(1);
-      }
-      if (!normalizedPhone.startsWith("260") && normalizedPhone.length === 9) {
+      console.log("Original phone_number:", phone_number);
+      
+      // Remove any non-digit characters (including +, spaces, dashes)
+      normalizedPhone = normalizedPhone.replace(/\D/g, "");
+      console.log("After removing non-digits:", normalizedPhone);
+      
+      // Handle different input formats:
+      // - "972064502" (9 digits, local without country code)
+      // - "260972064502" (12 digits, with country code)
+      // - "0972064502" (10 digits, with leading zero)
+      if (normalizedPhone.startsWith("0") && normalizedPhone.length === 10) {
+        // Remove leading zero and add country code
+        normalizedPhone = `260${normalizedPhone.slice(1)}`;
+      } else if (normalizedPhone.length === 9) {
+        // Add country code for 9-digit local numbers
         normalizedPhone = `260${normalizedPhone}`;
+      } else if (normalizedPhone.length === 12 && normalizedPhone.startsWith("260")) {
+        // Already in correct format
+      } else {
+        console.error("Unexpected phone format, length:", normalizedPhone.length, "value:", normalizedPhone);
       }
+      
+      console.log("Final normalized phone:", normalizedPhone);
       
       // Mobile Money Collection
       const mobileMoneyPayload = {
@@ -261,6 +278,8 @@ Deno.serve(async (req) => {
         narration: `${plan} subscription - ${billing_period}`,
         network: operator?.toUpperCase() || "MTN",
       };
+      
+      console.log("Lenco payload:", JSON.stringify(mobileMoneyPayload));
 
       const response = await fetch(`${LENCO_BASE_URL}/collections/mobile-money`, {
         method: "POST",
