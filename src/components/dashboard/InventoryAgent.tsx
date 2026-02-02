@@ -37,7 +37,8 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Package, AlertTriangle, RefreshCw, Mail, Loader2, Plus, Pencil, FileUp, Download, Palette, Ruler, ImageIcon, Building2, PackagePlus, Archive, ArchiveRestore, Eye, EyeOff, ChevronDown, Trash2, MapPin } from "lucide-react";
+import { Package, AlertTriangle, RefreshCw, Mail, Loader2, Plus, Pencil, FileUp, Download, Palette, Ruler, ImageIcon, Building2, PackagePlus, Archive, ArchiveRestore, Eye, EyeOff, ChevronDown, Trash2, MapPin, Search, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { ProductModal } from "./ProductModal";
 import { InventoryImportModal } from "./InventoryImportModal";
@@ -104,6 +105,9 @@ export function InventoryAgent() {
   const [itemToRestore, setItemToRestore] = useState<InventoryItem | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [classFilter, setClassFilter] = useState<string | null>(null);
+  // Search state
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
@@ -142,6 +146,11 @@ export function InventoryAgent() {
       if (classFilter) {
         countQuery = countQuery.eq("inventory_class", classFilter);
       }
+      // Add search filter
+      if (debouncedSearch.trim()) {
+        const searchPattern = `%${debouncedSearch.trim()}%`;
+        countQuery = countQuery.or(`name.ilike.${searchPattern},sku.ilike.${searchPattern}`);
+      }
       
       const { count } = await countQuery;
       setTotalCount(count || 0);
@@ -162,6 +171,11 @@ export function InventoryAgent() {
       }
       if (classFilter) {
         query = query.eq("inventory_class", classFilter);
+      }
+      // Add search filter
+      if (debouncedSearch.trim()) {
+        const searchPattern = `%${debouncedSearch.trim()}%`;
+        query = query.or(`name.ilike.${searchPattern},sku.ilike.${searchPattern}`);
       }
       
       const { data: inventoryData, error } = await query
@@ -225,17 +239,25 @@ export function InventoryAgent() {
     }
   };
 
+  // Debounce search term
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   useEffect(() => {
     if (tenantId) {
       fetchInventory();
     }
-  }, [tenantId, currentBranch?.id, currentPage, showArchived, classFilter]);
+  }, [tenantId, currentBranch?.id, currentPage, showArchived, classFilter, debouncedSearch]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
     setSelectedIds(new Set());
-  }, [currentBranch?.id, showArchived, classFilter]);
+  }, [currentBranch?.id, showArchived, classFilter, debouncedSearch]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -551,8 +573,27 @@ export function InventoryAgent() {
           </Collapsible>
         )}
 
+        {/* Search Bar */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder={`Search ${terminology.productsLabel.toLowerCase()} by name or SKU...`}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9 pr-9 bg-background border-input"
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
         {/* Filter Chips - simplified with server-side counts */}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Badge
             variant={classFilter === null ? "default" : "outline"}
             className={`cursor-pointer ${classFilter === null ? "bg-[#004B8D] text-white" : "hover:bg-[#004B8D]/10"}`}
