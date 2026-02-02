@@ -87,7 +87,7 @@ const FABRIC_TYPES = [
 export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOperationsContinuation }: CustomDesignWizardProps) {
   const { toast } = useToast();
   const { tenantId, tenantUser } = useTenant();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, role } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
@@ -103,8 +103,10 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
   });
 
   // Check if current user can configure handoff (admin/manager only)
-  const canConfigureHandoff = tenantUser?.role === 'admin' || tenantUser?.role === 'manager';
-  const isOperationsRole = tenantUser?.role === 'operations_manager';
+  const effectiveRole = tenantUser?.role || role;
+  const canConfigureHandoff = effectiveRole === 'admin' || effectiveRole === 'manager';
+  // Check operations role from both tenantUser and useAuth role for reliability
+  const isOperationsRole = effectiveRole === 'operations_manager';
   // Form state - Updated with Dodo Wear form fields
   const [formData, setFormData] = useState({
     // Client Info (Step 1)
