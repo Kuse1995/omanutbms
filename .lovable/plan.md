@@ -1,125 +1,169 @@
 
+# Plan: Bulk Selection Feature for Inventory + Branch Assignment on Import
 
-# Plan: Job Cards Sidebar Placement + Owner-Only Business Type Selection
+## Overview
 
-## Problem Summary
+This plan implements two improvements to the inventory management system:
 
-Two issues need to be addressed:
-
-1. **Job Cards not visible in sidebar** - The Job Cards tab exists but is not categorized in any menu group, making it invisible in the collapsible sidebar navigation
-2. **Business Type wizard shows for all users** - Currently any user logging into a tenant without a business type sees the wizard. It should ONLY show to the tenant owner/creator
+1. **Bulk Selection Actions** - Add checkboxes to select multiple inventory items and perform bulk delete or move-to-branch operations
+2. **Branch Selection on Import** - Add option to assign imported inventory to a specific branch during the CSV/Excel import process
 
 ---
 
-## Solution Overview
+## Current Gap Analysis
+
+| Feature | Current State | Proposed |
+|---------|---------------|----------|
+| Item Selection | None - single-item actions only | Checkbox on each row + "Select All" |
+| Bulk Delete | Not available | Delete multiple selected items |
+| Bulk Move | Not available (transfers exist but require approval) | Direct branch reassignment for selected items |
+| Import to Branch | No branch option | Branch dropdown in import modal |
+
+---
+
+## Part 1: Bulk Selection Feature
+
+### UI Changes to InventoryAgent.tsx
+
+Add selection state and action bar:
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│                           CHANGES REQUIRED                                    │
+│  ☐  │ SKU        │ Product     │ Location │ Stock │ Price │ Status │ Actions │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│  1. Add 'job-cards' to the 'Inventory & Stock' menu category                 │
-│  2. Make job-cards visibility conditional on autoshop business type          │
-│  3. Update Dashboard.tsx to check tenantUser.is_owner before showing wizard  │
+│  ☑  │ PROD-001   │ Brake Pads  │ Branch A │  45   │ K250  │ In Stock│ ...     │
+│  ☑  │ PROD-002   │ Oil Filter  │ Branch A │  30   │ K85   │ In Stock│ ...     │
+│  ☐  │ PROD-003   │ Spark Plugs │ Branch B │  12   │ K45   │ Low     │ ...     │
 └──────────────────────────────────────────────────────────────────────────────┘
+             ▲
+             │
+    ┌────────┴────────────────────────────────────────────────────────┐
+    │  ⚡ Bulk Actions Bar (appears when items selected)              │
+    │  [3 items selected]  [🗑 Delete Selected]  [📍 Move to Branch ▼] │
+    └─────────────────────────────────────────────────────────────────┘
 ```
+
+### Implementation Details
+
+1. **Selection State**
+   - Add `selectedIds: Set<string>` state to track selected item IDs
+   - Add "Select All" checkbox in table header
+   - Add individual checkbox in each table row
+
+2. **Bulk Actions Bar**
+   - Appears when `selectedIds.size > 0`
+   - Shows count of selected items
+   - "Delete Selected" button (with confirmation dialog)
+   - "Move to Branch" dropdown selector
+
+3. **Bulk Delete Logic**
+   - Confirmation dialog showing count of items to delete
+   - Loop through selected IDs and delete from `inventory` table
+   - Clear selection after operation
+   - Refresh inventory list
+
+4. **Bulk Move Logic**
+   - Branch selector dropdown (populated from `branches` table)
+   - Updates `default_location_id` for all selected items
+   - No transfer approval required (direct reassignment)
+   - Useful for correcting imports or reorganizing stock
 
 ---
 
-## Implementation Details
+## Part 2: Branch Selection on Import
 
-### Change 1: Add Job Cards to Inventory Category
+### UI Changes to InventoryImportModal.tsx
 
-**File: `src/components/dashboard/DashboardSidebar.tsx`**
+Add branch selector before import confirmation:
 
-Update the `menuCategories` array to include `job-cards` in the `inventory-stock` category:
-
-```typescript
-{
-  id: 'inventory-stock',
-  label: 'Inventory & Stock',
-  icon: Package,
-  items: ['inventory', 'returns', 'shop', 'warehouse', 'stock-transfers', 'locations', 'job-cards'],
-}
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│  Import Preview                                                  │
+│  ─────────────────────────────────────────────────────────────  │
+│  ✓ 25 Valid   ✗ 2 Invalid                                       │
+│                                                                  │
+│  📍 Assign to Branch: [▼ Select Branch      ]                   │
+│     ○ Headquarters                                               │
+│     ○ Branch A                                                   │
+│     ○ Branch B                                                   │
+│     • No Branch (Central Stock)                                  │
+│                                                                  │
+│  [Preview Table...]                                              │
+│                                                                  │
+│  [Cancel]                          [Import 25 Items]            │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-This will place Job Cards alongside inventory items, where mechanics expect to find service-related features.
+### Implementation Details
 
-### Change 2: Business-Type-Specific Visibility for Job Cards
+1. **Add Branch State**
+   - Add `targetBranchId: string | null` state
+   - Fetch branches on modal open using `useBranch` hook or direct query
 
-**File: `src/components/dashboard/DashboardSidebar.tsx`**
+2. **Branch Selector UI**
+   - Show above the preview table in "preview" step
+   - Default to "No Branch" (null) for central/unassigned stock
+   - Only visible when multi-branch is enabled
 
-Add logic to the `getVisibleMenuItems()` function to only show `job-cards` for the `autoshop` business type:
-
-```typescript
-// Only show job-cards for autoshop business type
-if (item.id === 'job-cards' && businessType !== 'autoshop') return false;
-```
-
-This ensures Job Cards is exclusive to auto shop tenants and hidden for all other business types.
-
-### Change 3: Owner-Only Business Type Selection
-
-**File: `src/pages/Dashboard.tsx`**
-
-Update the condition that renders `BusinessTypeSetupWizard` to also check if the current user is the tenant owner:
-
-**Current Logic:**
-```typescript
-{!businessProfile?.onboarding_completed && !businessProfile?.business_type && (
-  <BusinessTypeSetupWizard onComplete={refetchTenant} />
-)}
-```
-
-**New Logic:**
-```typescript
-{!businessProfile?.onboarding_completed && 
- !businessProfile?.business_type && 
- tenantUser?.is_owner === true && (
-  <BusinessTypeSetupWizard onComplete={refetchTenant} />
-)}
-```
-
-This ensures:
-- Only the tenant owner (who created the account) sees the business type selection
-- Subsequent employees/staff logging into the same tenant will NOT see this wizard
-- The wizard appears once for the owner and never again after selection
+3. **Import Logic Update**
+   - Pass `default_location_id: targetBranchId` when inserting/updating inventory items
+   - Applied to all imported rows
 
 ---
 
-## Technical Notes
+## Technical Implementation
 
-### Why `is_owner` Works
-
-The `tenant_users` table has an `is_owner` boolean column that is set to `true` when a user creates a new tenant during signup. This is the exact field we need to distinguish between:
-- **Tenant Owner**: The person who signed up and created the tenant (should see wizard)
-- **Team Members**: Staff who were invited or added later (should NOT see wizard)
-
-### Why Inventory Category for Job Cards
-
-For auto shops, mechanics need quick access to:
-1. Parts inventory (to check stock)
-2. Job Cards (to log repair work)
-
-Placing Job Cards in the "Inventory & Stock" collapsible category groups these together logically, matching the workflow where a mechanic:
-1. Opens a job card for a vehicle
-2. Looks up required parts in inventory
-3. Records parts used on the job card
-
----
-
-## Files to Modify
+### Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/components/dashboard/DashboardSidebar.tsx` | Add `job-cards` to inventory category, add autoshop-only visibility check |
-| `src/pages/Dashboard.tsx` | Add `tenantUser?.is_owner` check for wizard display |
+| `src/components/dashboard/InventoryAgent.tsx` | Add selection state, checkboxes, bulk actions bar |
+| `src/components/dashboard/InventoryImportModal.tsx` | Add branch selector, update import logic |
+
+### New Components (Optional)
+
+Could extract bulk actions bar to a reusable component, but for simplicity it will be integrated directly into InventoryAgent.
+
+---
+
+## User Experience Flow
+
+### Bulk Move Flow
+1. User views inventory list
+2. Checks boxes next to items they want to move
+3. Clicks "Move to Branch" dropdown
+4. Selects target branch
+5. Confirmation: "Move 5 items to Branch A?"
+6. Items updated, selection cleared, list refreshed
+
+### Bulk Delete Flow
+1. User selects items
+2. Clicks "Delete Selected"
+3. Confirmation dialog: "Permanently delete 5 items?"
+4. Items deleted from database
+5. Selection cleared, list refreshed
+
+### Import with Branch Flow
+1. User opens Import modal
+2. Uploads CSV/Excel file
+3. Preview shows parsed data
+4. User selects target branch from dropdown
+5. Clicks "Import X Items"
+6. All items created with selected branch as `default_location_id`
+
+---
+
+## Security Considerations
+
+- Bulk delete follows existing RLS policies (only items in user's tenant)
+- Bulk move uses `default_location_id` update (covered by existing inventory UPDATE policy)
+- Import already respects tenant_id isolation
 
 ---
 
 ## Expected Outcome
 
-1. **Auto Shop Users**: Will see "Job Cards" in the "Inventory & Stock" sidebar category alongside Inventory, Returns, and Shop Manager
-2. **Non-Auto Shop Users**: Will NOT see Job Cards in their sidebar
-3. **Tenant Owners**: Will see the Business Type Selection wizard on first login
-4. **Team Members/Staff**: Will NOT see the wizard when they log into an existing tenant - they inherit the business type already set by the owner
-
+1. Users can efficiently manage multiple inventory items at once
+2. Imported stock can be directly assigned to the correct branch
+3. "Move" is distinct from "Transfer" - no approval workflow needed
+4. Reduces manual work when reorganizing inventory across locations
