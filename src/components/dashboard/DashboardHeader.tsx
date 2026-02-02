@@ -67,7 +67,7 @@ export function DashboardHeader() {
         </Alert>
       )}
       <DemoModeIndicator />
-      <TrialBanner onUpgrade={() => setUpgradeModalOpen(true)} />
+      <TrialBanner />
       <header className="h-16 border-b border-[var(--brand-primary,#004B8D)]/10 bg-white/80 backdrop-blur-sm px-6 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-4">
           <SidebarTrigger className="text-[var(--brand-primary,#004B8D)] hover:bg-[var(--brand-primary,#004B8D)]/10" />

@@ -1,15 +1,13 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Clock, X, Sparkles, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTrialStatus } from "@/hooks/useTrialStatus";
 import { useBilling } from "@/hooks/useBilling";
 
-interface TrialBannerProps {
-  onUpgrade?: () => void;
-}
-
-export function TrialBanner({ onUpgrade }: TrialBannerProps) {
+export function TrialBanner() {
+  const navigate = useNavigate();
   const { isTrialing, isExpiringSoon, daysRemaining, loading } = useTrialStatus();
   const { planConfig } = useBilling();
   const [isDismissed, setIsDismissed] = useState(false);
@@ -82,7 +80,7 @@ export function TrialBanner({ onUpgrade }: TrialBannerProps) {
           <div className="flex items-center gap-2">
             <Button
               size="sm"
-              onClick={onUpgrade}
+              onClick={() => navigate("/pay")}
               className={`gap-1.5 ${
                 isUrgent 
                   ? "bg-amber-500 hover:bg-amber-600 text-white" 
