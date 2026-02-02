@@ -22,8 +22,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Package, AlertTriangle, RefreshCw, Mail, Loader2, Plus, Pencil, FileUp, Download, Palette, Ruler, ImageIcon, Building2, PackagePlus, Archive, ArchiveRestore, Eye, EyeOff, ChevronDown } from "lucide-react";
+import { Package, AlertTriangle, RefreshCw, Mail, Loader2, Plus, Pencil, FileUp, Download, Palette, Ruler, ImageIcon, Building2, PackagePlus, Archive, ArchiveRestore, Eye, EyeOff, ChevronDown, Trash2, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ProductModal } from "./ProductModal";
 import { InventoryImportModal } from "./InventoryImportModal";
@@ -36,6 +42,7 @@ import { useFeatures } from "@/hooks/useFeatures";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface TechnicalSpec {
   label: string;
@@ -87,9 +94,15 @@ export function InventoryAgent() {
   const [itemToRestore, setItemToRestore] = useState<InventoryItem | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [classFilter, setClassFilter] = useState<string | null>(null);
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [bulkMoveDialogOpen, setBulkMoveDialogOpen] = useState(false);
+  const [targetBranchId, setTargetBranchId] = useState<string | null>(null);
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const { toast } = useToast();
   const { tenantId } = useTenant();
-  const { currentBranch, isMultiBranchEnabled } = useBranch();
+  const { currentBranch, isMultiBranchEnabled, branches } = useBranch();
   const { terminology, currencySymbol } = useFeatures();
   const { config, businessType } = useBusinessConfig();
   const formFields = config.formFields;
@@ -254,6 +267,92 @@ export function InventoryAgent() {
     () => inventoryForView.filter((item) => classFilter === null || (item.inventory_class || 'finished_good') === classFilter),
     [inventoryForView, classFilter]
   );
+
+  // Bulk selection helpers
+  const allVisibleSelected = visibleInventory.length > 0 && visibleInventory.every(item => selectedIds.has(item.id));
+  const someSelected = selectedIds.size > 0;
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(new Set(visibleInventory.map(item => item.id)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handleSelectItem = (itemId: string, checked: boolean) => {
+    const newSet = new Set(selectedIds);
+    if (checked) {
+      newSet.add(itemId);
+    } else {
+      newSet.delete(itemId);
+    }
+    setSelectedIds(newSet);
+  };
+
+  const handleBulkDelete = async () => {
+    if (!tenantId || selectedIds.size === 0) return;
+    setIsBulkProcessing(true);
+    try {
+      const { error } = await supabase
+        .from("inventory")
+        .delete()
+        .in("id", Array.from(selectedIds))
+        .eq("tenant_id", tenantId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Items Deleted",
+        description: `${selectedIds.size} ${terminology.productsLabel.toLowerCase()} deleted successfully`,
+      });
+      setSelectedIds(new Set());
+      fetchInventory();
+    } catch (error: any) {
+      console.error("Bulk delete error:", error);
+      toast({
+        title: "Delete Failed",
+        description: error?.message || "Could not delete items",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBulkProcessing(false);
+      setBulkDeleteDialogOpen(false);
+    }
+  };
+
+  const handleBulkMove = async () => {
+    if (!tenantId || selectedIds.size === 0 || targetBranchId === null) return;
+    setIsBulkProcessing(true);
+    try {
+      const { error } = await supabase
+        .from("inventory")
+        .update({ default_location_id: targetBranchId || null })
+        .in("id", Array.from(selectedIds))
+        .eq("tenant_id", tenantId);
+
+      if (error) throw error;
+
+      const targetBranch = branches.find(b => b.id === targetBranchId);
+      toast({
+        title: "Items Moved",
+        description: `${selectedIds.size} ${terminology.productsLabel.toLowerCase()} moved to ${targetBranch?.name || 'Central Stock'}`,
+      });
+      setSelectedIds(new Set());
+      setTargetBranchId(null);
+      fetchInventory();
+    } catch (error: any) {
+      console.error("Bulk move error:", error);
+      toast({
+        title: "Move Failed",
+        description: error?.message || "Could not move items",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBulkProcessing(false);
+      setBulkMoveDialogOpen(false);
+    }
+  };
 
   // Check if any products have variants - hide columns if none do
   const hasAnyColors = useMemo(() => visibleInventory.some(item => (item.color_count || 0) > 0), [visibleInventory]);
@@ -449,9 +548,79 @@ export function InventoryAgent() {
                   📋 Consumables ({consumablesCount})
                 </Badge>
               )}
-            </div>
-          );
-        })()}
+          </div>
+        );
+      })()}
+
+        {/* Bulk Actions Bar */}
+        {someSelected && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-3 p-3 bg-[#004B8D]/10 border border-[#004B8D]/20 rounded-lg"
+          >
+            <span className="text-sm font-medium text-[#003366]">
+              {selectedIds.size} item{selectedIds.size !== 1 ? 's' : ''} selected
+            </span>
+            <div className="flex-1" />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setBulkDeleteDialogOpen(true)}
+              className="border-red-300 text-red-600 hover:bg-red-50"
+            >
+              <Trash2 className="w-4 h-4 mr-1" />
+              Delete Selected
+            </Button>
+            {isMultiBranchEnabled && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-[#004B8D]/30 text-[#004B8D]"
+                  >
+                    <MapPin className="w-4 h-4 mr-1" />
+                    Move to Branch
+                    <ChevronDown className="w-3 h-3 ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="bg-white border shadow-lg z-50">
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setTargetBranchId("");
+                      setBulkMoveDialogOpen(true);
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <span className="text-muted-foreground">No Branch (Central)</span>
+                  </DropdownMenuItem>
+                  {branches.map((branch) => (
+                    <DropdownMenuItem
+                      key={branch.id}
+                      onClick={() => {
+                        setTargetBranchId(branch.id);
+                        setBulkMoveDialogOpen(true);
+                      }}
+                      className="cursor-pointer"
+                    >
+                      {branch.is_headquarters && "🏢 "}
+                      {branch.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedIds(new Set())}
+              className="text-[#004B8D]/60"
+            >
+              Clear
+            </Button>
+          </motion.div>
+        )}
 
         {/* Inventory Table */}
         <Card className="bg-white border-[#004B8D]/10">
@@ -469,6 +638,13 @@ export function InventoryAgent() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={allVisibleSelected}
+                        onCheckedChange={handleSelectAll}
+                        aria-label="Select all"
+                      />
+                    </TableHead>
                     <TableHead>SKU</TableHead>
                     <TableHead>{terminology.productLabel}</TableHead>
                     {showMaterialsAndConsumables && <TableHead>Type</TableHead>}
@@ -496,7 +672,14 @@ export function InventoryAgent() {
                 </TableHeader>
                 <TableBody>
                   {visibleInventory.map((item) => (
-                    <TableRow key={item.id}>
+                    <TableRow key={item.id} data-state={selectedIds.has(item.id) ? "selected" : undefined}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedIds.has(item.id)}
+                          onCheckedChange={(checked) => handleSelectItem(item.id, !!checked)}
+                          aria-label={`Select ${item.name}`}
+                        />
+                      </TableCell>
                       <TableCell className="font-mono text-sm">{item.sku}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -685,6 +868,76 @@ export function InventoryAgent() {
                 className="bg-[#004B8D] hover:bg-[#003366]"
               >
                 {itemToArchive ? "Archive" : "Restore"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Bulk Delete Confirmation */}
+        <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete {selectedIds.size} {terminology.productsLabel}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. All selected {terminology.productsLabel.toLowerCase()} will be permanently deleted.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isBulkProcessing}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleBulkDelete}
+                disabled={isBulkProcessing}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                {isBulkProcessing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete {selectedIds.size} Items
+                  </>
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Bulk Move Confirmation */}
+        <AlertDialog open={bulkMoveDialogOpen} onOpenChange={setBulkMoveDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Move {selectedIds.size} {terminology.productsLabel}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Move selected items to{" "}
+                <strong>
+                  {targetBranchId === "" 
+                    ? "Central Stock (No Branch)" 
+                    : branches.find(b => b.id === targetBranchId)?.name || "selected branch"}
+                </strong>
+                . This updates the default location for these items.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isBulkProcessing}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleBulkMove}
+                disabled={isBulkProcessing}
+                className="bg-[#004B8D] hover:bg-[#003366]"
+              >
+                {isBulkProcessing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Moving...
+                  </>
+                ) : (
+                  <>
+                    <MapPin className="w-4 h-4 mr-2" />
+                    Move Items
+                  </>
+                )}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
