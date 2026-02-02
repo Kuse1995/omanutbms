@@ -63,7 +63,9 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
 const SELF_SERVICE_INTENTS = [
   'clock_in', 'clock_out', 'my_attendance', 
   'my_tasks', 'task_details', 'my_schedule',
-  'my_pay', 'help'
+  'my_pay', 'help',
+  // Allow read-only stock queries for all employees
+  'check_stock', 'list_products'
 ];
 
 // Confirmation thresholds (in ZMW)
@@ -1103,14 +1105,35 @@ async function handleGenerateInvoice(supabase: any, entities: Record<string, any
 
 // ========== EMPLOYEE TASK HANDLERS ==========
 
-async function handleMyTasks(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
-  // Get the employee ID linked to this user (via whatsapp_user_mappings or employees table)
-  const { data: employee } = await supabase
-    .from('employees')
-    .select('id, full_name')
-    .eq('tenant_id', context.tenant_id)
-    .eq('user_id', context.user_id)
-    .maybeSingle();
+async function handleMyTasks(supabase: any, entities: Record<string, any>, context: ExecutionContext & { employee_data?: any }) {
+  let employee;
+  
+  // Self-service path: use pre-validated employee data or fetch by employee_id
+  if (context.is_self_service && context.employee_id) {
+    if ((context as any).employee_data) {
+      employee = (context as any).employee_data;
+    } else {
+      const { data, error } = await supabase
+        .from('employees')
+        .select('id, full_name')
+        .eq('id', context.employee_id)
+        .eq('tenant_id', context.tenant_id)
+        .maybeSingle();
+      if (error || !data) {
+        return { success: false, message: '❌ You\'re not registered as an employee. Contact HR.' };
+      }
+      employee = data;
+    }
+  } else {
+    // Standard path: find employee by user_id
+    const { data } = await supabase
+      .from('employees')
+      .select('id, full_name')
+      .eq('tenant_id', context.tenant_id)
+      .eq('user_id', context.user_id)
+      .maybeSingle();
+    employee = data;
+  }
 
   // Query custom orders assigned to this user or employee
   let query = supabase
@@ -1123,9 +1146,19 @@ async function handleMyTasks(supabase: any, entities: Record<string, any>, conte
 
   // Filter by assigned_to (user_id) or assigned_tailor_id (employee_id)
   if (employee?.id) {
-    query = query.or(`assigned_to.eq.${context.user_id},assigned_tailor_id.eq.${employee.id}`);
-  } else {
+    if (context.user_id) {
+      query = query.or(`assigned_to.eq.${context.user_id},assigned_tailor_id.eq.${employee.id}`);
+    } else {
+      query = query.eq('assigned_tailor_id', employee.id);
+    }
+  } else if (context.user_id) {
     query = query.eq('assigned_to', context.user_id);
+  } else {
+    return { 
+      success: true, 
+      message: '📋 No tasks can be found - you\'re not linked to any orders yet.',
+      data: [] 
+    };
   }
 
   const { data: orders, error } = await query;
@@ -1215,17 +1248,34 @@ async function handleTaskDetails(supabase: any, entities: Record<string, any>, c
   };
 }
 
-async function handleMySchedule(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+async function handleMySchedule(supabase: any, entities: Record<string, any>, context: ExecutionContext & { employee_data?: any }) {
   const today = new Date();
   const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-  // Get employee ID
-  const { data: employee } = await supabase
-    .from('employees')
-    .select('id')
-    .eq('tenant_id', context.tenant_id)
-    .eq('user_id', context.user_id)
-    .maybeSingle();
+  let employee;
+  
+  // Self-service path: use pre-validated employee data or fetch by employee_id
+  if (context.is_self_service && context.employee_id) {
+    if ((context as any).employee_data) {
+      employee = (context as any).employee_data;
+    } else {
+      const { data } = await supabase
+        .from('employees')
+        .select('id')
+        .eq('id', context.employee_id)
+        .eq('tenant_id', context.tenant_id)
+        .maybeSingle();
+      employee = data;
+    }
+  } else {
+    const { data } = await supabase
+      .from('employees')
+      .select('id')
+      .eq('tenant_id', context.tenant_id)
+      .eq('user_id', context.user_id)
+      .maybeSingle();
+    employee = data;
+  }
 
   let query = supabase
     .from('custom_orders')
@@ -1236,9 +1286,19 @@ async function handleMySchedule(supabase: any, entities: Record<string, any>, co
     .limit(10);
 
   if (employee?.id) {
-    query = query.or(`assigned_to.eq.${context.user_id},assigned_tailor_id.eq.${employee.id}`);
-  } else {
+    if (context.user_id) {
+      query = query.or(`assigned_to.eq.${context.user_id},assigned_tailor_id.eq.${employee.id}`);
+    } else {
+      query = query.eq('assigned_tailor_id', employee.id);
+    }
+  } else if (context.user_id) {
     query = query.eq('assigned_to', context.user_id);
+  } else {
+    return { 
+      success: true, 
+      message: '📅 No scheduled appointments found.',
+      data: [] 
+    };
   }
 
   const { data: orders, error } = await query;
@@ -1619,14 +1679,38 @@ async function handleMyAttendance(supabase: any, entities: Record<string, any>, 
 
 // ========== PAYROLL HANDLER ==========
 
-async function handleMyPay(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
-  // Find employee
-  const { data: employee } = await supabase
-    .from('employees')
-    .select('id, full_name, base_salary_zmw')
-    .eq('tenant_id', context.tenant_id)
-    .eq('user_id', context.user_id)
-    .maybeSingle();
+async function handleMyPay(supabase: any, entities: Record<string, any>, context: ExecutionContext & { employee_data?: any }) {
+  let employee;
+  
+  // Self-service path: use pre-validated employee data or fetch by employee_id
+  if (context.is_self_service && context.employee_id) {
+    if ((context as any).employee_data) {
+      employee = (context as any).employee_data;
+    } else {
+      const { data, error } = await supabase
+        .from('employees')
+        .select('id, full_name, base_salary_zmw')
+        .eq('id', context.employee_id)
+        .eq('tenant_id', context.tenant_id)
+        .maybeSingle();
+      if (error || !data) {
+        return { success: false, message: '❌ You\'re not registered as an employee. Contact HR.' };
+      }
+      employee = data;
+    }
+  } else {
+    // Standard path: find employee by user_id
+    const { data, error } = await supabase
+      .from('employees')
+      .select('id, full_name, base_salary_zmw')
+      .eq('tenant_id', context.tenant_id)
+      .eq('user_id', context.user_id)
+      .maybeSingle();
+    if (error || !data) {
+      return { success: false, message: '❌ You\'re not registered as an employee. Contact HR.' };
+    }
+    employee = data;
+  }
 
   if (!employee) {
     return { 
