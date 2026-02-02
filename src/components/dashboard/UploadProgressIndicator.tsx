@@ -1,5 +1,5 @@
 import React, { useState, memo } from 'react';
-import { Upload, X, CheckCircle2, AlertCircle, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Upload, X, CheckCircle2, AlertCircle, Loader2, ChevronDown, ChevronUp, Download, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -9,10 +9,88 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useUpload, UploadJob } from '@/contexts/UploadContext';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { useUpload, UploadJob, FailedItem } from '@/contexts/UploadContext';
 import { cn } from '@/lib/utils';
 
+function downloadFailedItemsCSV(job: UploadJob) {
+  if (!job.failedItems?.length) return;
+  
+  const escapeCSV = (str: string) => `"${str.replace(/"/g, '""')}"`;
+  
+  const csv = [
+    'Row,SKU,Name,Error',
+    ...job.failedItems.map(item => 
+      `${item.rowIndex},${escapeCSV(item.sku)},${escapeCSV(item.name)},${escapeCSV(item.error)}`
+    )
+  ].join('\n');
+  
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `failed-items-${job.fileName.replace(/\.[^/.]+$/, '')}-${Date.now()}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function FailedItemsSection({ failedItems }: { failedItems: FailedItem[] }) {
+  const displayItems = failedItems.slice(0, 10);
+  const remainingCount = failedItems.length - displayItems.length;
+
+  return (
+    <div className="mt-2 border rounded-md bg-muted/30">
+      <Table>
+        <TableHeader>
+          <TableRow className="text-xs">
+            <TableHead className="h-8 px-2 w-12">Row</TableHead>
+            <TableHead className="h-8 px-2">SKU</TableHead>
+            <TableHead className="h-8 px-2">Name</TableHead>
+            <TableHead className="h-8 px-2">Error</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {displayItems.map((item, idx) => (
+            <TableRow key={idx} className="text-xs">
+              <TableCell className="py-1.5 px-2 font-mono">{item.rowIndex}</TableCell>
+              <TableCell className="py-1.5 px-2 font-mono truncate max-w-[80px]" title={item.sku}>
+                {item.sku}
+              </TableCell>
+              <TableCell className="py-1.5 px-2 truncate max-w-[100px]" title={item.name}>
+                {item.name}
+              </TableCell>
+              <TableCell className="py-1.5 px-2 text-destructive truncate max-w-[120px]" title={item.error}>
+                {item.error}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      {remainingCount > 0 && (
+        <p className="text-xs text-muted-foreground px-2 py-1.5 border-t">
+          + {remainingCount} more failed items (download CSV for full list)
+        </p>
+      )}
+    </div>
+  );
+}
+
 function UploadJobItem({ job, onCancel }: { job: UploadJob; onCancel: (id: string) => void }) {
+  const [showDetails, setShowDetails] = useState(false);
   const progress = job.totalItems > 0 
     ? Math.round((job.processedItems / job.totalItems) * 100) 
     : 0;
@@ -51,6 +129,8 @@ function UploadJobItem({ job, onCancel }: { job: UploadJob; onCancel: (id: strin
     }
   };
 
+  const hasFailedItems = job.status === 'completed' && job.failedItems && job.failedItems.length > 0;
+
   return (
     <div className="p-3 border-b last:border-b-0">
       <div className="flex items-start gap-2">
@@ -73,7 +153,38 @@ function UploadJobItem({ job, onCancel }: { job: UploadJob; onCancel: (id: strin
           {(job.status === 'processing' || job.status === 'pending') && (
             <Progress value={progress} className="h-1.5 mt-2" />
           )}
-          {job.status === 'completed' && job.results?.failed > 0 && (
+          
+          {hasFailedItems && (
+            <Collapsible open={showDetails} onOpenChange={setShowDetails}>
+              <div className="flex items-center gap-2 mt-1">
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-amber-600 hover:text-amber-700">
+                    <Eye className="h-3 w-3 mr-1" />
+                    {job.failedItems!.length} item(s) failed
+                    {showDetails ? (
+                      <ChevronUp className="h-3 w-3 ml-1" />
+                    ) : (
+                      <ChevronDown className="h-3 w-3 ml-1" />
+                    )}
+                  </Button>
+                </CollapsibleTrigger>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => downloadFailedItemsCSV(job)}
+                >
+                  <Download className="h-3 w-3 mr-1" />
+                  CSV
+                </Button>
+              </div>
+              <CollapsibleContent>
+                <FailedItemsSection failedItems={job.failedItems!} />
+              </CollapsibleContent>
+            </Collapsible>
+          )}
+          
+          {job.status === 'completed' && job.results?.failed > 0 && !hasFailedItems && (
             <p className="text-xs text-amber-600 mt-1">
               {job.results.failed} item(s) failed
             </p>
@@ -141,7 +252,7 @@ export const UploadProgressIndicator = memo(function UploadProgressIndicator() {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 p-0">
+      <PopoverContent align="end" className="w-96 p-0">
         <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/50">
           <h4 className="text-sm font-medium">Upload Progress</h4>
           {completedCount > 0 && (
@@ -155,7 +266,7 @@ export const UploadProgressIndicator = memo(function UploadProgressIndicator() {
             </Button>
           )}
         </div>
-        <ScrollArea className="max-h-[300px]">
+        <ScrollArea className="max-h-[400px]">
           {activeUploads.length === 0 ? (
             <p className="text-sm text-muted-foreground p-4 text-center">
               No active uploads

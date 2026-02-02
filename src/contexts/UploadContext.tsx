@@ -2,6 +2,13 @@ import React, { createContext, useContext, useState, useCallback, useRef, useMem
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
+export interface FailedItem {
+  rowIndex: number;
+  sku: string;
+  name: string;
+  error: string;
+}
+
 export interface UploadJob {
   id: string;
   type: 'inventory' | 'employees' | 'customers';
@@ -10,6 +17,7 @@ export interface UploadJob {
   processedItems: number;
   status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
   results?: { added: number; updated: number; failed: number };
+  failedItems?: FailedItem[];
   error?: string;
   startedAt: Date;
   completedAt?: Date;
@@ -52,6 +60,21 @@ const BATCH_SIZE = 50;
 
 function generateAutoSku(): string {
   return `AUTO-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+}
+
+function formatErrorMessage(message?: string): string {
+  if (!message) return 'Unknown error';
+  if (message.includes('duplicate key value violates unique constraint')) {
+    return 'Duplicate SKU already exists';
+  }
+  if (message.includes('null value in column') && message.includes('name')) {
+    return 'Product name is required';
+  }
+  if (message.includes('invalid input syntax for type numeric')) {
+    return 'Invalid number format';
+  }
+  // Return shortened version if too long
+  return message.length > 50 ? message.substring(0, 47) + '...' : message;
 }
 
 interface UploadProviderProps {
@@ -98,6 +121,7 @@ export function UploadProvider({ children }: UploadProviderProps) {
         let added = 0;
         let updated = 0;
         let failed = 0;
+        const failedItemsList: FailedItem[] = [];
 
         // Phase 1: Get all existing SKUs in one query
         const skuList = rows.filter(r => r.sku).map(r => r.sku);
@@ -157,13 +181,21 @@ export function UploadProvider({ children }: UploadProviderProps) {
             added += batch.length;
           } catch (batchError) {
             // Fallback: try items individually
-            for (const item of insertData) {
+            for (let idx = 0; idx < insertData.length; idx++) {
+              const item = insertData[idx];
+              const originalRow = batch[idx];
               try {
                 const { error } = await supabase.from('inventory').insert(item);
                 if (error) throw error;
                 added++;
-              } catch {
+              } catch (itemError: any) {
                 failed++;
+                failedItemsList.push({
+                  rowIndex: rows.indexOf(originalRow) + 1,
+                  sku: item.sku || '(auto)',
+                  name: item.name || '(no name)',
+                  error: formatErrorMessage(itemError?.message),
+                });
               }
             }
           }
@@ -212,8 +244,14 @@ export function UploadProvider({ children }: UploadProviderProps) {
 
               if (error) throw error;
               updated++;
-            } catch {
+            } catch (itemError: any) {
               failed++;
+              failedItemsList.push({
+                rowIndex: rows.indexOf(row) + 1,
+                sku: row.sku || '(no SKU)',
+                name: row.name || '(no name)',
+                error: formatErrorMessage(itemError?.message),
+              });
             }
           }
 
@@ -226,6 +264,7 @@ export function UploadProvider({ children }: UploadProviderProps) {
           status: 'completed',
           completedAt: new Date(),
           results: { added, updated, failed },
+          failedItems: failedItemsList.length > 0 ? failedItemsList : undefined,
         });
 
         // Show completion toast
