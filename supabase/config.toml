@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.lenco-check-status]
 verify_jwt = false
+
+[functions.lenco-diagnostics]
+verify_jwt = false

@@ -105,6 +105,7 @@ const Pay = () => {
     setErrorMessage(null);
 
     try {
+      // Send raw phone number - backend will normalize
       const response = await supabase.functions.invoke("lenco-payment", {
         body: {
           payment_method: "mobile_money",
@@ -112,7 +113,7 @@ const Pay = () => {
           billing_period: billingPeriod,
           amount: price,
           currency: "ZMW",
-          phone_number: phoneNumber.startsWith("+") ? phoneNumber : `+260${phoneNumber}`,
+          phone_number: phoneNumber, // Send raw, backend normalizes
           operator,
         },
       });
@@ -421,20 +422,23 @@ const Pay = () => {
                           </div>
                           <div className="space-y-2">
                             <Label>Phone Number</Label>
+                            <p className="text-xs text-muted-foreground">
+                              {operator === "MTN" ? "MTN numbers start with 096..." : "Airtel numbers start with 097..."}
+                            </p>
                             <div className="flex gap-2">
                               <div className="flex items-center px-3 bg-muted rounded-md text-sm">
                                 +260
                               </div>
                               <Input
-                                placeholder="97XXXXXXX"
+                                placeholder={operator === "MTN" ? "0961234567" : "0971234567"}
                                 value={phoneNumber}
                                 onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ""))}
-                                maxLength={9}
+                                maxLength={10}
                                 autoFocus
                               />
                             </div>
                             <p className="text-xs text-muted-foreground">
-                              Enter your MTN or Airtel mobile money number
+                              Enter 9-10 digits (with or without leading 0)
                             </p>
                           </div>
                           <Button className="w-full" size="lg" onClick={handleMobileMoneyPayment}>
