@@ -15,6 +15,8 @@ import { formatLocalPrice } from "@/lib/currency-config";
 import { BillingPlan } from "@/lib/billing-plans";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import mtnLogo from "@/assets/mtn-momo-logo.png";
+import airtelLogo from "@/assets/airtel-money-logo.png";
 
 type PaymentStatus = "idle" | "processing" | "awaiting_confirmation" | "completed" | "failed";
 
@@ -333,10 +335,7 @@ const Pay = () => {
                             : "border-border hover:border-yellow-500/50"
                         }`}
                       >
-                        <div className="w-8 h-8 rounded-full bg-yellow-500 flex items-center justify-center text-black font-bold text-xs">
-                          MTN
-                        </div>
-                        <span className="font-medium">MTN MoMo</span>
+                        <img src={mtnLogo} alt="MTN MoMo" className="h-8 w-auto object-contain" />
                       </button>
                       <button
                         onClick={() => setOperator("AIRTEL")}
@@ -346,10 +345,7 @@ const Pay = () => {
                             : "border-border hover:border-red-500/50"
                         }`}
                       >
-                        <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center text-white font-bold text-xs">
-                          AIR
-                        </div>
-                        <span className="font-medium">Airtel Money</span>
+                        <img src={airtelLogo} alt="Airtel Money" className="h-8 w-auto object-contain" />
                       </button>
                     </div>
 
