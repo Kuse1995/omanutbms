@@ -1,137 +1,71 @@
 
+# Plan: Add Functional Search Bar to Inventory Management
 
-# Plan: WhatsApp Document Delivery as PDF Attachments
+## Problem
 
-## Overview
+The Inventory Management screen has **no search functionality**. With 2,500+ items paginated at 100 per page, users must click through 25+ pages to find a specific product. The only search bar visible (in the header) is decorative and not connected to any logic.
 
-Transform all WhatsApp document responses (payslips, invoices, quotations, receipts) from plain text summaries to proper PDF document attachments. This gives employees and customers professional documents they can save, print, or forward.
+## Solution
 
-## Current Behavior vs. Proposed
-
-| Request | Current Response | New Response |
-|---------|-----------------|--------------|
-| "my pay" | Text summary only | Text summary + PDF payslip attached |
-| "send receipt R2026-0001" | Not implemented | Text + PDF receipt attached |
-| "last invoice" | Not implemented | Text + PDF invoice attached |
-| "send quotation Q2026-0012" | Not implemented | Text + PDF quotation attached |
+Add a dedicated search bar to the InventoryAgent component that performs **server-side search** using Supabase's `ilike` operator, searching both product name and SKU.
 
 ---
 
 ## Technical Changes
 
-### 1. Add Payslip PDF Generation
+### 1. Add Search State and Input
 
-**File:** `supabase/functions/generate-whatsapp-document/index.ts`
-
-- Add `payslip` to the supported document types
-- Create payslip-specific data fetching from `payroll_records` table
-- Build a professional payslip PDF with:
-  - Employee name and ID
-  - Pay period dates
-  - Gross salary, deductions breakdown, net pay
-  - Payment status and date
-  - Company branding (logo, name, address)
-
-### 2. Update My Pay Handler to Return Payroll ID
-
-**File:** `supabase/functions/bms-api-bridge/index.ts`
-
-Update `handleMyPay` to include `payroll_id` and `tenant_id` in the response data, enabling the handler to generate a PDF.
+Add a new state variable and debounce logic:
 
 ```typescript
-return {
-  success: true,
-  message: `...`,
-  data: { 
-    payroll_id: payroll.id,  // NEW
-    tenant_id: context.tenant_id,  // NEW
-    ...payroll 
-  },
-};
+const [searchTerm, setSearchTerm] = useState("");
+const [debouncedSearch, setDebouncedSearch] = useState("");
 ```
 
-### 3. Auto-Attach Payslip PDF in WhatsApp Handler
-
-**File:** `supabase/functions/whatsapp-bms-handler/index.ts`
-
-Add logic after the bridge call to detect `my_pay` intent success and generate/attach the payslip PDF:
+Add debounce effect to prevent excessive API calls:
 
 ```typescript
-// Auto-send payslip for my_pay intent
-if (bridgeResult.success && parsedIntent.intent === 'my_pay' && bridgeResult.data?.payroll_id) {
-  try {
-    const docResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-whatsapp-document`, {
-      method: 'POST',
-      headers: { ... },
-      body: JSON.stringify({
-        document_type: 'payslip',
-        document_id: bridgeResult.data.payroll_id,
-        tenant_id: mapping.tenant_id,
-      }),
-    });
-    // Attach PDF if successful
-  } catch (docError) { ... }
+useEffect(() => {
+  const timer = setTimeout(() => {
+    setDebouncedSearch(searchTerm);
+  }, 300);
+  return () => clearTimeout(timer);
+}, [searchTerm]);
+```
+
+### 2. Update Supabase Query
+
+Modify the `fetchInventory` function to include search filtering:
+
+```typescript
+// Add search filter to both count and data queries
+if (debouncedSearch.trim()) {
+  const searchPattern = `%${debouncedSearch.trim()}%`;
+  countQuery = countQuery.or(`name.ilike.${searchPattern},sku.ilike.${searchPattern}`);
+  query = query.or(`name.ilike.${searchPattern},sku.ilike.${searchPattern}`);
 }
 ```
 
-### 4. Add Document Request Intents (Optional Enhancement)
+### 3. Add Search Input UI
 
-**File:** `supabase/functions/bms-intent-parser/index.ts`
-
-Add parsing for explicit document requests:
-- "send receipt R2026-0001" → `send_receipt` intent
-- "last invoice" / "my invoice" → `send_invoice` intent  
-- "quotation Q2026-0015" → `send_quotation` intent
-- "my payslip" / "payslip for January" → `send_payslip` intent
-
-**File:** `supabase/functions/bms-api-bridge/index.ts`
-
-Add handlers for these intents that look up the document and return it with a media URL.
-
----
-
-## Payslip PDF Structure
+Insert a search input between the header and the filter chips:
 
 ```text
-┌───────────────────────────────────────────────────────┐
-│                    PAYSLIP                            │
-│                   PS-2026-0001                        │
-│                                                       │
-│              [COMPANY NAME]                           │
-│           [Address] • [Phone] • [Email]               │
-├───────────────────────────────────────────────────────┤
-│  Employee: John Mwanza                                │
-│  Employee ID: EMP-0042                                │
-│  Pay Period: 1 Jan 2026 - 31 Jan 2026                │
-│  Payment Date: 2 Feb 2026                             │
-├───────────────────────────────────────────────────────┤
-│  EARNINGS                                             │
-│  ───────────────────────────────────────────────      │
-│  Basic Salary                           K 5,000.00    │
-│  Overtime                               K   500.00    │
-│  Allowances                             K   300.00    │
-│                                                       │
-│  GROSS PAY                              K 5,800.00    │
-├───────────────────────────────────────────────────────┤
-│  DEDUCTIONS                                           │
-│  ───────────────────────────────────────────────      │
-│  NAPSA (5%)                             K   250.00    │
-│  PAYE                                   K   180.00    │
-│  Health Insurance                       K    50.00    │
-│                                                       │
-│  TOTAL DEDUCTIONS                       K   480.00    │
-├───────────────────────────────────────────────────────┤
-│                                                       │
-│     ┌─────────────────────────────────────────┐       │
-│     │           NET PAY: K 5,320.00           │       │
-│     │              Status: PAID ✓             │       │
-│     └─────────────────────────────────────────┘       │
-│                                                       │
-├───────────────────────────────────────────────────────┤
-│  [Company Name] • TPIN: 1234567890                    │
-│  Generated: 2 Feb 2026 10:30 AM                       │
-│  Powered by Omanut BMS                                │
-└───────────────────────────────────────────────────────┘
++------------------------------------------------------------------+
+| [Search icon] Search products by name or SKU...           [X]   |
++------------------------------------------------------------------+
+| [All (865)] [Products] [Materials] [Consumables]                 |
++------------------------------------------------------------------+
+```
+
+### 4. Reset Page on Search
+
+When search term changes, reset to page 1:
+
+```typescript
+useEffect(() => {
+  setCurrentPage(1);
+}, [debouncedSearch]);
 ```
 
 ---
@@ -140,59 +74,47 @@ Add handlers for these intents that look up the document and return it with a me
 
 | File | Changes |
 |------|---------|
-| `supabase/functions/generate-whatsapp-document/index.ts` | Add payslip document type with PDF generation |
-| `supabase/functions/bms-api-bridge/index.ts` | Update `handleMyPay` to return payroll_id; optionally add document request handlers |
-| `supabase/functions/whatsapp-bms-handler/index.ts` | Auto-attach payslip PDF for `my_pay` intent |
-| `supabase/functions/bms-intent-parser/index.ts` | Add parsing for `send_receipt`, `send_invoice`, `send_quotation` intents |
+| `src/components/dashboard/InventoryAgent.tsx` | Add search state, debounce effect, update query, add Input UI |
 
 ---
 
-## Expected User Experience
+## UI Design
 
-**Before:**
+The search bar will be placed prominently above the filter chips:
+
 ```
-User: my pay
-
-Bot: 💰 Payslip - Jan 2026
-
-💵 Gross: K 5,800
-➖ Deductions: K 480
-━━━━━━━━━━━━━━━━
-💰 Net Pay: K 5,320
-
-✅ Status: paid
-📅 Paid: 02/02/2026
++----------------------------------------------------------+
+| 🔍 | Search products by name or SKU...              | ✕ |
++----------------------------------------------------------+
 ```
 
-**After:**
-```
-User: my pay
-
-Bot: 💰 Payslip - Jan 2026
-
-💵 Gross: K 5,800
-➖ Deductions: K 480
-━━━━━━━━━━━━━━━━
-💰 Net Pay: K 5,320
-
-✅ Status: paid
-📅 Paid: 02/02/2026
-
-📎 [payslip-PS2026-0001.pdf]
-```
-
-The user receives the same text summary PLUS a professional PDF attachment they can download, forward, or print.
+- **Icon**: Search icon on the left
+- **Placeholder**: "Search by name or SKU..."
+- **Clear button**: Shows when text is entered
+- **Debounced**: 300ms delay before triggering search
 
 ---
 
-## Implementation Order
+## Query Behavior
 
-1. **Phase 1 - Payslip PDF (Priority)**
-   - Add payslip generation to `generate-whatsapp-document`
-   - Update `handleMyPay` to return necessary IDs
-   - Add auto-attach logic in WhatsApp handler
+| User Action | Query Sent |
+|-------------|------------|
+| Type "cotton" | `WHERE (name ILIKE '%cotton%' OR sku ILIKE '%cotton%') AND tenant_id = X` |
+| Clear search | Normal paginated query without search filter |
+| Search + filter | `WHERE ... AND inventory_class = 'raw_material'` (both combined) |
 
-2. **Phase 2 - On-Demand Document Requests**
-   - Add `send_receipt`, `send_invoice`, `send_quotation`, `send_payslip` intents
-   - Allow users to explicitly request documents by number
+---
 
+## Dependencies
+
+The project already has the required `Input` component at `src/components/ui/input.tsx`. No new dependencies needed.
+
+---
+
+## Expected Outcome
+
+1. **Instant search** - Users can find any product by typing a few characters
+2. **Server-side filtering** - Works with any catalog size (10k+ items)
+3. **Combined with filters** - Search works alongside branch, archive, and category filters
+4. **Clear feedback** - Shows "Showing 3 results for 'cotton'" or similar
+5. **Reset on clear** - Clearing search shows all items again
