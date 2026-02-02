@@ -24,22 +24,26 @@ SUPPORTED INTENTS:
 9. send_receipt - Send/get a receipt document
 10. send_invoice - Send/get an invoice document
 11. send_quotation - Send/get a quotation document
-12. help - User needs help with commands
+12. send_payslip - Send/get a payslip document
+13. help - User needs help with commands
 
 === EMPLOYEE & HR INTENTS ===
-13. my_tasks - View my assigned tasks/custom orders
-14. task_details - Get details of a specific order (measurements, specs)
-15. my_schedule - Get my upcoming fittings/collections
-16. clock_in - Clock in for work (attendance)
-17. clock_out - Clock out from work (attendance)
-18. my_attendance - View my attendance summary
-19. my_pay - View my latest payslip summary
+14. my_tasks - View my assigned tasks/custom orders
+15. task_details - Get details of a specific order (measurements, specs)
+16. my_schedule - Get my upcoming fittings/collections
+17. clock_in - Clock in for work (attendance)
+18. clock_out - Clock out from work (attendance)
+19. my_attendance - View my attendance summary
+20. my_pay - View my latest payslip summary
+
+=== DOCUMENT REQUEST INTENTS ===
+21. send_payslip - Send/get a payslip PDF document
 
 === MANAGEMENT INTENTS (admin/manager only) ===
-20. team_attendance - View who's clocked in today
-21. pending_orders - View production queue
-22. low_stock_alerts - View items below reorder level
-23. update_order_status - Update production order status (e.g., "CO-001 cutting done")
+22. team_attendance - View who's clocked in today
+23. pending_orders - View production queue
+24. low_stock_alerts - View items below reorder level
+25. update_order_status - Update production order status (e.g., "CO-001 cutting done")
 
 === LANGUAGE TOLERANCE RULES ===
 Accept broken English, SMS-style text, and informal expressions:
@@ -60,6 +64,19 @@ Accept broken English, SMS-style text, and informal expressions:
 - "my schedule" / "fittings today" / "upcoming" / "wht coming" = my_schedule
 - "clock in" / "im here" / "arrived" / "morning" / "clk in" = clock_in
 - "clock out" / "leaving" / "going home" / "done" / "clk out" / "bye" = clock_out
+- "my hours" / "attendance" / "my time" = my_attendance
+- "my pay" / "salary" / "payslip" / "how much do i earn" / "my payslip" = my_pay
+- "send my payslip" / "get my payslip" / "payslip pdf" = send_payslip
+- "who's in" / "whos in" / "team today" / "attendance today" = team_attendance
+- "pending orders" / "production queue" / "whats in production" = pending_orders
+- "low stock" / "reorder" / "running low" = low_stock_alerts
+
+=== DOCUMENT REQUEST EXPRESSIONS ===
+- "send receipt R2026-0001" / "get receipt 0001" / "receipt R2026-0001" = send_receipt
+- "last receipt" / "my last receipt" = send_receipt (no document_number)
+- "send invoice 2026-0001" / "get invoice" / "last invoice" = send_invoice
+- "send quotation Q2026-0001" / "get quote" / "last quotation" = send_quotation
+- "send payslip" / "get my payslip" / "payslip pdf" / "download payslip" = send_payslip
 - "my hours" / "attendance" / "my time" = my_attendance
 - "my pay" / "salary" / "payslip" / "how much do i earn" = my_pay
 - "who's in" / "whos in" / "team today" / "attendance today" = team_attendance
@@ -174,6 +191,21 @@ Response: {"intent":"pending_orders","confidence":"high","entities":{},"requires
 
 User: "low stock"
 Response: {"intent":"low_stock_alerts","confidence":"high","entities":{},"requires_confirmation":false,"clarification_needed":null}
+
+User: "send receipt R2026-0001"
+Response: {"intent":"send_receipt","confidence":"high","entities":{"document_number":"R2026-0001"},"requires_confirmation":false,"clarification_needed":null}
+
+User: "last invoice"
+Response: {"intent":"send_invoice","confidence":"high","entities":{},"requires_confirmation":false,"clarification_needed":null}
+
+User: "send quotation Q2026-0015"
+Response: {"intent":"send_quotation","confidence":"high","entities":{"document_number":"Q2026-0015"},"requires_confirmation":false,"clarification_needed":null}
+
+User: "my payslip"
+Response: {"intent":"send_payslip","confidence":"high","entities":{},"requires_confirmation":false,"clarification_needed":null}
+
+User: "get payslip pdf"
+Response: {"intent":"send_payslip","confidence":"high","entities":{},"requires_confirmation":false,"clarification_needed":null}
 
 User: "chk stk cement"
 Response: {"intent":"check_stock","confidence":"high","entities":{"product":"cement"},"requires_confirmation":false,"clarification_needed":null}

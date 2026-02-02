@@ -47,6 +47,7 @@ const REQUIRED_FIELDS: Record<string, string[]> = {
   send_receipt: [],
   send_invoice: [],
   send_quotation: [],
+  send_payslip: [],
   // New employee intents
   my_tasks: [],
   task_details: ['order_number'],
@@ -562,15 +563,35 @@ Your admin can upgrade the plan to keep chatting, or it'll reset next month. Con
     }
 
     // Handle document request intents
-    if (['send_receipt', 'send_invoice', 'send_quotation'].includes(parsedIntent.intent)) {
+    if (['send_receipt', 'send_invoice', 'send_quotation', 'send_payslip'].includes(parsedIntent.intent)) {
       const docTypeMap: Record<string, string> = {
         send_receipt: 'receipt',
         send_invoice: 'invoice',
         send_quotation: 'quotation',
+        send_payslip: 'payslip',
       };
       const documentType = docTypeMap[parsedIntent.intent];
 
       try {
+        // For payslip, we need to find the employee's payroll record first
+        let documentId: string | null = null;
+        
+        if (documentType === 'payslip' && mapping.employee_id) {
+          // Get latest payroll for this employee
+          const { data: payroll } = await supabase
+            .from('payroll_records')
+            .select('id')
+            .eq('tenant_id', mapping.tenant_id)
+            .eq('employee_id', mapping.employee_id)
+            .order('pay_period_end', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          if (payroll) {
+            documentId = payroll.id;
+          }
+        }
+
         const docResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-whatsapp-document`, {
           method: 'POST',
           headers: {
@@ -579,6 +600,7 @@ Your admin can upgrade the plan to keep chatting, or it'll reset next month. Con
           },
           body: JSON.stringify({
             document_type: documentType,
+            document_id: documentId,
             document_number: mergedEntities.document_number || null,
             tenant_id: mapping.tenant_id,
           }),
@@ -802,6 +824,45 @@ Your admin can upgrade the plan to keep chatting, or it'll reset next month. Con
         }
       } else {
         console.warn('[whatsapp-bms-handler] Missing receipt_number or tenant_id for PDF generation');
+      }
+    }
+
+    // Auto-send payslip PDF for my_pay intent
+    if (bridgeResult.success && parsedIntent.intent === 'my_pay' && bridgeResult.data?.payroll_id) {
+      const payrollId = bridgeResult.data.payroll_id;
+      const tenantId = bridgeResult.data.tenant_id || mapping.tenant_id;
+      
+      console.log('[whatsapp-bms-handler] Generating payslip PDF for:', payrollId);
+      
+      try {
+        const docResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-whatsapp-document`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            document_type: 'payslip',
+            document_id: payrollId,
+            tenant_id: tenantId,
+          }),
+        });
+
+        const docResult = await docResponse.json();
+        console.log('[whatsapp-bms-handler] Payslip PDF result:', JSON.stringify({
+          ok: docResponse.ok,
+          success: docResult.success,
+          url: docResult.url ? 'present' : 'missing',
+          error: docResult.error,
+        }));
+
+        if (docResponse.ok && docResult.success && docResult.url) {
+          mediaUrl = docResult.url;
+        } else {
+          console.error('[whatsapp-bms-handler] Payslip PDF generation failed:', docResult.error);
+        }
+      } catch (docError) {
+        console.error('[whatsapp-bms-handler] Payslip PDF generation error:', docError);
       }
     }
 

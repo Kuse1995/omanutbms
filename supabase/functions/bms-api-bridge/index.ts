@@ -1755,7 +1755,13 @@ async function handleMyPay(supabase: any, entities: Record<string, any>, context
   return {
     success: true,
     message: `💰 Payslip - ${periodEnd}\n\n💵 Gross: K${(payroll.gross_salary || 0).toLocaleString()}\n➖ Deductions: K${(payroll.total_deductions || 0).toLocaleString()}\n━━━━━━━━━━━━━━━━\n💰 Net Pay: K${(payroll.net_salary || 0).toLocaleString()}\n\n${statusEmoji} Status: ${payroll.status}\n${payroll.payment_date ? `📅 Paid: ${new Date(payroll.payment_date).toLocaleDateString('en-GB')}` : ''}`,
-    data: payroll,
+    // Include payroll_id and tenant_id for PDF generation in WhatsApp handler
+    data: {
+      ...payroll,
+      payroll_id: payroll.id,
+      tenant_id: context.tenant_id,
+      employee_name: employee.full_name,
+    },
   };
 }
 
