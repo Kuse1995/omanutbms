@@ -409,12 +409,13 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
       ]);
 
       try {
-        // Check if SKU exists for this tenant
+        // Check if SKU exists for this tenant (only active items - archived items are ignored)
         const { data: existing } = await supabase
           .from("inventory")
           .select("id")
           .eq("sku", row.sku)
           .eq("tenant_id", tenantId)
+          .eq("is_archived", false)
           .maybeSingle();
 
         if (existing) {
