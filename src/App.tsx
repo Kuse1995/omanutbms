@@ -70,15 +70,15 @@ const App = () => (
         <TenantProvider>
           <DemoModeProvider>
             <BrandingProvider>
-              <UploadProvider>
-                <OmanutAdvisor />
-                <Toaster />
-                <Sonner />
-                <BrowserRouter>
+              <BrowserRouter>
+                <UploadProvider>
+                  <OmanutAdvisor />
+                  <Toaster />
+                  <Sonner />
                   <AnimatedRoutes />
                   <DemoModeToggle />
-                </BrowserRouter>
-              </UploadProvider>
+                </UploadProvider>
+              </BrowserRouter>
             </BrandingProvider>
           </DemoModeProvider>
         </TenantProvider>
