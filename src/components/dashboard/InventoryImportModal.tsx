@@ -18,12 +18,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Upload, FileSpreadsheet, Download, CheckCircle2, XCircle, Loader2, Wand2, Settings2, AlertCircle } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Upload, FileSpreadsheet, Download, CheckCircle2, XCircle, Loader2, Wand2, Settings2, AlertCircle, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/hooks/useTenant";
+import { useBranch } from "@/hooks/useBranch";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 import { ImportConverterModal } from "./ImportConverterModal";
 import { CSVColumnMapper, SchemaField } from "./CSVColumnMapper";
@@ -98,9 +107,11 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
   const [sourceColumns, setSourceColumns] = useState<string[]>([]);
   const [processingLog, setProcessingLog] = useState<ProcessingLogItem[]>([]);
   const [currentItemIndex, setCurrentItemIndex] = useState(0);
+  const [targetBranchId, setTargetBranchId] = useState<string>("none");
   const logEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const { tenantId } = useTenant();
+  const { isMultiBranchEnabled, branches } = useBranch();
   const { terminology } = useBusinessConfig();
 
   // Auto-scroll processing log to bottom
@@ -119,6 +130,7 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
     setSourceColumns([]);
     setProcessingLog([]);
     setCurrentItemIndex(0);
+    setTargetBranchId("none");
   };
 
   const handleConvertedData = (data: any[]) => {
@@ -406,19 +418,25 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
           .maybeSingle();
 
         if (existing) {
-          // Update
+          // Update - include branch assignment
+          const updateData: Record<string, any> = {
+            name: row.name,
+            current_stock: row.current_stock,
+            unit_price: row.unit_price,
+            cost_price: row.cost_price || 0,
+            reorder_level: row.reorder_level,
+            liters_per_unit: row.liters_per_unit,
+            description: row.description || null,
+            category: row.category || null,
+          };
+          // Apply branch assignment if set
+          if (targetBranchId !== "none") {
+            updateData.default_location_id = targetBranchId === "" ? null : targetBranchId;
+          }
+
           const { error } = await supabase
             .from("inventory")
-            .update({
-              name: row.name,
-              current_stock: row.current_stock,
-              unit_price: row.unit_price,
-              cost_price: row.cost_price || 0,
-              reorder_level: row.reorder_level,
-              liters_per_unit: row.liters_per_unit,
-              description: row.description || null,
-              category: row.category || null,
-            })
+            .update(updateData)
             .eq("id", existing.id);
 
           if (error) throw error;
@@ -433,21 +451,24 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
             )
           );
         } else {
-          // Insert
+          // Insert - include branch assignment
+          const insertData = {
+            tenant_id: tenantId,
+            sku: row.sku,
+            name: row.name,
+            current_stock: row.current_stock,
+            unit_price: row.unit_price,
+            cost_price: row.cost_price || 0,
+            reorder_level: row.reorder_level,
+            liters_per_unit: row.liters_per_unit,
+            description: row.description || null,
+            category: row.category || null,
+            default_location_id: (targetBranchId !== "none" && targetBranchId !== "") ? targetBranchId : null,
+          };
+
           const { error } = await supabase
             .from("inventory")
-            .insert({
-              tenant_id: tenantId,
-              sku: row.sku,
-              name: row.name,
-              current_stock: row.current_stock,
-              unit_price: row.unit_price,
-              cost_price: row.cost_price || 0,
-              reorder_level: row.reorder_level,
-              liters_per_unit: row.liters_per_unit,
-              description: row.description || null,
-              category: row.category || null,
-            });
+            .insert(insertData);
 
           if (error) throw error;
           added++;
@@ -680,6 +701,40 @@ PROD-003,Premium Product,5,8500,6000,2,premium,High-end product with full featur
                 Upload Different File
               </Button>
             </div>
+
+            {/* Branch Selection for Import */}
+            {isMultiBranchEnabled && (
+              <div className="flex items-center gap-3 p-3 bg-[#004B8D]/5 border border-[#004B8D]/10 rounded-lg">
+                <Building2 className="h-5 w-5 text-[#0077B6] flex-shrink-0" />
+                <div className="flex-1">
+                  <Label htmlFor="target-branch" className="text-sm font-medium text-[#003366]">
+                    Assign to Branch
+                  </Label>
+                  <p className="text-xs text-[#004B8D]/60">
+                    All imported items will be assigned to this location
+                  </p>
+                </div>
+                <Select value={targetBranchId} onValueChange={setTargetBranchId}>
+                  <SelectTrigger className="w-[200px] bg-white">
+                    <SelectValue placeholder="Select branch..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border shadow-lg z-50">
+                    <SelectItem value="none">
+                      <span className="text-muted-foreground">Don't assign</span>
+                    </SelectItem>
+                    <SelectItem value="">
+                      <span>Central Stock (No Branch)</span>
+                    </SelectItem>
+                    {branches.map((branch) => (
+                      <SelectItem key={branch.id} value={branch.id}>
+                        {branch.is_headquarters && "🏢 "}
+                        {branch.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {/* Preview Table */}
             <div className="border border-[#004B8D]/10 rounded-lg overflow-hidden max-h-[300px] overflow-y-auto">
