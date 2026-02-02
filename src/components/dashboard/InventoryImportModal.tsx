@@ -69,7 +69,7 @@ interface ProcessingLogItem {
 type ImportStep = "upload" | "mapping" | "preview";
 
 const inventorySchemaFields: SchemaField[] = [
-  { key: 'sku', label: 'SKU', required: true, type: 'string', aliases: ['product_code', 'item_code', 'code', 'barcode'] },
+  { key: 'sku', label: 'SKU', required: false, type: 'string', aliases: ['product_code', 'item_code', 'code', 'barcode'] },
   { key: 'name', label: 'Name', required: true, type: 'string', aliases: ['product_name', 'item_name', 'product', 'item', 'title'] },
   { key: 'unit_price', label: 'Unit Price (Selling)', required: true, type: 'number', aliases: ['price', 'selling_price', 'retail_price', 'sale_price'] },
   { key: 'cost_price', label: 'Cost Price (Purchase)', required: false, type: 'number', aliases: ['cost', 'purchase_price', 'buying_price', 'wholesale'] },
@@ -172,9 +172,8 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
         rowNumber: idx + 1,
       };
       
-      // Validate
+      // Validate - SKU is optional (will be auto-generated if missing)
       const errors: string[] = [];
-      if (!parsed.sku) errors.push("SKU is required");
       if (!parsed.name) errors.push("Name is required");
       if (parsed.unit_price < 0) errors.push("Selling price cannot be negative");
       if (parsed.cost_price < 0) errors.push("Cost price cannot be negative");
@@ -204,8 +203,7 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
       row.description = String(normalizedRow.description || "").trim();
       row.category = String(normalizedRow.category || "").trim();
 
-      // Validation
-      if (!row.sku) row.errors.push("SKU is required");
+      // Validation - SKU is optional (will be auto-generated if missing)
       if (!row.name) row.errors.push("Name is required");
       if (row.unit_price < 0) row.errors.push("Selling price cannot be negative");
       if (row.cost_price < 0) row.errors.push("Cost price cannot be negative");
@@ -402,21 +400,29 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
       const row = validRows[i];
       setCurrentItemIndex(i + 1);
       
+      // Auto-generate SKU if missing
+      const effectiveSku = row.sku || `AUTO-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+      
       // Add processing item to log
       setProcessingLog(prev => [
-        ...prev.filter(item => item.sku !== row.sku),
-        { sku: row.sku, name: row.name, status: 'processing' }
+        ...prev.filter(item => item.sku !== effectiveSku),
+        { sku: effectiveSku, name: row.name, status: 'processing' }
       ]);
 
       try {
         // Check if SKU exists for this tenant (only active items - archived items are ignored)
-        const { data: existing } = await supabase
-          .from("inventory")
-          .select("id")
-          .eq("sku", row.sku)
-          .eq("tenant_id", tenantId)
-          .eq("is_archived", false)
-          .maybeSingle();
+        // If original SKU was empty, skip lookup since we generated a new unique one
+        let existing = null;
+        if (row.sku) {
+          const { data } = await supabase
+            .from("inventory")
+            .select("id")
+            .eq("sku", row.sku)
+            .eq("tenant_id", tenantId)
+            .eq("is_archived", false)
+            .maybeSingle();
+          existing = data;
+        }
 
         if (existing) {
           // Update - include branch assignment
@@ -446,16 +452,16 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
           // Update log with success
           setProcessingLog(prev => 
             prev.map(item => 
-              item.sku === row.sku 
+              item.sku === effectiveSku 
                 ? { ...item, status: 'success' as const, action: 'updated' as const }
                 : item
             )
           );
         } else {
-          // Insert - include branch assignment
+          // Insert - include branch assignment, use generated SKU
           const insertData = {
             tenant_id: tenantId,
-            sku: row.sku,
+            sku: effectiveSku,
             name: row.name,
             current_stock: row.current_stock,
             unit_price: row.unit_price,
@@ -477,7 +483,7 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
           // Update log with success
           setProcessingLog(prev => 
             prev.map(item => 
-              item.sku === row.sku 
+              item.sku === effectiveSku 
                 ? { ...item, status: 'success' as const, action: 'added' as const }
                 : item
             )
@@ -494,7 +500,7 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
         // Update log with error
         setProcessingLog(prev => 
           prev.map(item => 
-            item.sku === row.sku 
+            item.sku === effectiveSku 
               ? { ...item, status: 'error' as const, error: error?.message || 'Unknown error' }
               : item
           )
@@ -703,6 +709,19 @@ PROD-003,Premium Product,5,8500,6000,2,premium,High-end product with full featur
               </Button>
             </div>
 
+            {/* Auto-SKU Info Banner */}
+            {parsedData.some(r => r.isValid && !r.sku) && (
+              <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-amber-800 font-medium text-sm">SKU will be auto-generated</p>
+                  <p className="text-amber-700 text-xs">
+                    {parsedData.filter(r => r.isValid && !r.sku).length} item(s) without SKU will receive an auto-generated code (e.g., AUTO-1234567-A7X9)
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Branch Selection for Import */}
             {isMultiBranchEnabled && (
               <div className="flex items-center gap-3 p-3 bg-[#004B8D]/5 border border-[#004B8D]/10 rounded-lg">
@@ -758,7 +777,11 @@ PROD-003,Premium Product,5,8500,6000,2,premium,High-end product with full featur
                       className={row.isValid ? "hover:bg-[#004B8D]/5" : "bg-red-50 hover:bg-red-50"}
                     >
                       <TableCell className="text-[#004B8D]/50 text-sm">{row.rowNumber}</TableCell>
-                      <TableCell className="font-mono text-sm">{row.sku || "-"}</TableCell>
+                      <TableCell className="font-mono text-sm">
+                        {row.sku || (
+                          <span className="text-amber-600 italic">(Auto)</span>
+                        )}
+                      </TableCell>
                       <TableCell>{row.name || "-"}</TableCell>
                       <TableCell className="text-right">{row.current_stock}</TableCell>
                       <TableCell className="text-right">K {row.unit_price?.toLocaleString()}</TableCell>
