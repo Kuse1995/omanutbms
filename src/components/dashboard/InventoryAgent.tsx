@@ -96,7 +96,7 @@ export function InventoryAgent() {
   const [classFilter, setClassFilter] = useState<string | null>(null);
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [bulkArchiveDialogOpen, setBulkArchiveDialogOpen] = useState(false);
   const [bulkMoveDialogOpen, setBulkMoveDialogOpen] = useState(false);
   const [targetBranchId, setTargetBranchId] = useState<string | null>(null);
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
@@ -290,34 +290,34 @@ export function InventoryAgent() {
     setSelectedIds(newSet);
   };
 
-  const handleBulkDelete = async () => {
+  const handleBulkArchive = async () => {
     if (!tenantId || selectedIds.size === 0) return;
     setIsBulkProcessing(true);
     try {
       const { error } = await supabase
         .from("inventory")
-        .delete()
+        .update({ is_archived: true })
         .in("id", Array.from(selectedIds))
         .eq("tenant_id", tenantId);
 
       if (error) throw error;
 
       toast({
-        title: "Items Deleted",
-        description: `${selectedIds.size} ${terminology.productsLabel.toLowerCase()} deleted successfully`,
+        title: "Items Archived",
+        description: `${selectedIds.size} ${terminology.productsLabel.toLowerCase()} archived successfully. View them using "Show Archived" toggle.`,
       });
       setSelectedIds(new Set());
       fetchInventory();
     } catch (error: any) {
-      console.error("Bulk delete error:", error);
+      console.error("Bulk archive error:", error);
       toast({
-        title: "Delete Failed",
-        description: error?.message || "Could not delete items",
+        title: "Archive Failed",
+        description: error?.message || "Could not archive items",
         variant: "destructive",
       });
     } finally {
       setIsBulkProcessing(false);
-      setBulkDeleteDialogOpen(false);
+      setBulkArchiveDialogOpen(false);
     }
   };
 
@@ -566,11 +566,11 @@ export function InventoryAgent() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setBulkDeleteDialogOpen(true)}
-              className="border-red-300 text-red-600 hover:bg-red-50"
+              onClick={() => setBulkArchiveDialogOpen(true)}
+              className="border-amber-400 text-amber-700 hover:bg-amber-50"
             >
-              <Trash2 className="w-4 h-4 mr-1" />
-              Delete Selected
+              <Archive className="w-4 h-4 mr-1" />
+              Archive Selected
             </Button>
             {isMultiBranchEnabled && (
               <DropdownMenu>
@@ -873,31 +873,32 @@ export function InventoryAgent() {
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* Bulk Delete Confirmation */}
-        <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+        {/* Bulk Archive Confirmation */}
+        <AlertDialog open={bulkArchiveDialogOpen} onOpenChange={setBulkArchiveDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete {selectedIds.size} {terminology.productsLabel}?</AlertDialogTitle>
+              <AlertDialogTitle>Archive {selectedIds.size} {terminology.productsLabel}?</AlertDialogTitle>
               <AlertDialogDescription>
-                This action cannot be undone. All selected {terminology.productsLabel.toLowerCase()} will be permanently deleted.
+                These items will be hidden from sales and inventory lists but kept for historical records.
+                You can restore them anytime via the "Show Archived" toggle.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={isBulkProcessing}>Cancel</AlertDialogCancel>
               <AlertDialogAction
-                onClick={handleBulkDelete}
+                onClick={handleBulkArchive}
                 disabled={isBulkProcessing}
-                className="bg-red-600 hover:bg-red-700"
+                className="bg-amber-600 hover:bg-amber-700"
               >
                 {isBulkProcessing ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Deleting...
+                    Archiving...
                   </>
                 ) : (
                   <>
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Delete {selectedIds.size} Items
+                    <Archive className="w-4 h-4 mr-2" />
+                    Archive {selectedIds.size} Items
                   </>
                 )}
               </AlertDialogAction>
