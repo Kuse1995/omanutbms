@@ -53,23 +53,47 @@ export function HandoffConfigPanel({ config, onChange, disabled }: HandoffConfig
     setLoading(true);
 
     try {
-      const { data, error } = await supabase
+      // NOTE:
+      // We intentionally do NOT use embedded selects like `profiles(full_name)` here because
+      // `tenant_users.user_id` is not a declared foreign key to `profiles.user_id`, so PostgREST
+      // may fail with “Could not find a relationship…”. Instead we fetch user_ids then look up
+      // display names from profiles.
+      const { data: tenantUsers, error: tuError } = await supabase
         .from("tenant_users")
-        .select(`
-          user_id,
-          profiles(full_name)
-        `)
+        .select("user_id")
         .eq("tenant_id", tenantId)
         .eq("role", "operations_manager");
 
-      if (error) throw error;
+      if (tuError) throw tuError;
 
-      const mapped = (data || [])
-        .map((tu: any) => ({
-          user_id: tu.user_id,
-          full_name: tu.profiles?.full_name || "Unknown Officer",
-        }))
-        .filter((o: OperationsOfficer) => o.full_name);
+      const userIds = Array.from(
+        new Set((tenantUsers || []).map((tu: any) => tu.user_id).filter(Boolean))
+      ) as string[];
+
+      // Try to resolve names (may be restricted by RLS for non-admins; we still show placeholders)
+      const profilesMap: Record<string, string> = {};
+      if (userIds.length > 0) {
+        const { data: profiles, error: profilesError } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", userIds);
+
+        if (!profilesError) {
+          for (const p of (profiles || []) as any[]) {
+            if (p?.user_id) profilesMap[p.user_id] = p.full_name || "";
+          }
+        }
+      }
+
+      const mapped: OperationsOfficer[] = userIds
+        .map((userId) => {
+          const name = profilesMap[userId];
+          return {
+            user_id: userId,
+            full_name: name?.trim() ? name.trim() : `User ${userId.slice(0, 8)}`,
+          };
+        })
+        .sort((a, b) => a.full_name.localeCompare(b.full_name));
 
       setOfficers(mapped);
     } catch (err) {
