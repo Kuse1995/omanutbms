@@ -99,18 +99,32 @@ Deno.serve(async (req) => {
     let newStatus = payment.status;
     let failureReason = null;
 
+    console.log("Lenco API response:", JSON.stringify(lencoData));
+
     if (response.ok && lencoData.data) {
       const lencoStatus = lencoData.data.status?.toLowerCase();
       
+      console.log("Lenco status:", lencoStatus);
+      
       if (lencoStatus === "successful" || lencoStatus === "completed") {
         newStatus = "completed";
-      } else if (lencoStatus === "failed") {
+      } else if (lencoStatus === "failed" || lencoStatus === "declined" || lencoStatus === "cancelled" || lencoStatus === "canceled") {
         newStatus = "failed";
-        // Handle both field naming conventions from Lenco
-        failureReason = lencoData.data.reasonForFailure || lencoData.data.failureReason || "Payment failed";
-      } else if (lencoStatus === "expired") {
+        // Handle various field naming conventions from Lenco
+        failureReason = lencoData.data.reasonForFailure || lencoData.data.failureReason || lencoData.data.reason || "Payment failed";
+      } else if (lencoStatus === "expired" || lencoStatus === "timeout") {
         newStatus = "expired";
         failureReason = "Payment request expired";
+      } else if (lencoStatus === "insufficient_funds" || lencoStatus === "insufficient-funds") {
+        newStatus = "failed";
+        failureReason = "Insufficient balance";
+      }
+      
+      // Check reasonForFailure field even if status is still pending (Lenco sometimes sets reason before status)
+      if (newStatus === "pending" && (lencoData.data.reasonForFailure || lencoData.data.failureReason)) {
+        newStatus = "failed";
+        failureReason = lencoData.data.reasonForFailure || lencoData.data.failureReason;
+        console.log("Detected failure from reason field:", failureReason);
       }
 
       // Update payment record if status changed
