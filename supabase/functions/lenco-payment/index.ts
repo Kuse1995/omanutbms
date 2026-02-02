@@ -38,6 +38,54 @@ function normalizeCurrency(input: CurrencyInput): string {
   );
 }
 
+function uniqueStrings(items: string[]) {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of items) {
+    if (!item) continue;
+    if (seen.has(item)) continue;
+    seen.add(item);
+    out.push(item);
+  }
+  return out;
+}
+
+// Lenco's "mobile-money" endpoint can be strict about phone format depending on country/network.
+// For Zambia, we retry the common variants to avoid false negatives:
+// - local: 0XXXXXXXXX (10 digits)
+// - international: 260XXXXXXXXX (12 digits)
+// - E.164: +260XXXXXXXXX
+function buildZambiaPhoneVariants(rawPhone: string): string[] {
+  const digits = (rawPhone || "").replace(/\D/g, "");
+  if (!digits) return [];
+
+  // helper: given local 9 digits (no leading 0, no country code)
+  const fromLocal9 = (local9: string) =>
+    uniqueStrings([`0${local9}`, `260${local9}`, `+260${local9}`]);
+
+  // 9-digit local (e.g. 972064502)
+  if (digits.length === 9) {
+    return fromLocal9(digits);
+  }
+
+  // 10-digit local with leading 0 (e.g. 0972064502)
+  if (digits.length === 10 && digits.startsWith("0")) {
+    return uniqueStrings([digits, ...fromLocal9(digits.slice(1))]);
+  }
+
+  // 12-digit international without plus (e.g. 260972064502)
+  if (digits.length === 12 && digits.startsWith("260")) {
+    const local9 = digits.slice(3);
+    return uniqueStrings([`0${local9}`, digits, `+${digits}`]);
+  }
+
+  // If it's some other shape, still try a couple of safe guesses.
+  return uniqueStrings([
+    digits,
+    digits.startsWith("+") ? digits : `+${digits}`,
+  ]);
+}
+
 async function provisionTenantForUser(params: {
   // NOTE: In Edge Functions we don't have generated DB types, so keep this untyped.
   admin: any;
@@ -242,87 +290,96 @@ Deno.serve(async (req) => {
     let lencoResponse: any;
 
     if (payment_method === "mobile_money") {
-      // Normalize phone number for Lenco (remove + prefix, ensure 260 prefix)
-      let normalizedPhone = phone_number || "";
       console.log("Original phone_number:", phone_number);
-      
-      // Remove any non-digit characters (including +, spaces, dashes)
-      normalizedPhone = normalizedPhone.replace(/\D/g, "");
-      console.log("After removing non-digits:", normalizedPhone);
-      
-      // Handle different input formats:
-      // - "972064502" (9 digits, local without country code)
-      // - "260972064502" (12 digits, with country code)
-      // - "0972064502" (10 digits, with leading zero)
-      if (normalizedPhone.startsWith("0") && normalizedPhone.length === 10) {
-        // Remove leading zero and add country code
-        normalizedPhone = `260${normalizedPhone.slice(1)}`;
-      } else if (normalizedPhone.length === 9) {
-        // Add country code for 9-digit local numbers
-        normalizedPhone = `260${normalizedPhone}`;
-      } else if (normalizedPhone.length === 12 && normalizedPhone.startsWith("260")) {
-        // Already in correct format
-      } else {
-        console.error("Unexpected phone format, length:", normalizedPhone.length, "value:", normalizedPhone);
-      }
-      
-      console.log("Final normalized phone:", normalizedPhone);
-      
-      // Mobile Money Collection
-      const mobileMoneyPayload = {
-        reference,
-        amount: amount.toString(),
-        currency: currencyCode === "ZMW" ? "ZMW" : "USD",
-        accountNumber: normalizedPhone,
-        accountName: userEmail,
-        narration: `${plan} subscription - ${billing_period}`,
-        network: operator?.toUpperCase() || "MTN",
-      };
-      
-      console.log("Lenco payload:", JSON.stringify(mobileMoneyPayload));
 
-      const response = await fetch(`${LENCO_BASE_URL}/collections/mobile-money`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${lencoSecretKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(mobileMoneyPayload),
-      });
-
-      lencoResponse = await response.json();
-
-      if (!response.ok) {
-        console.error("Lenco mobile money error:", lencoResponse);
-        
-        // Update payment record with failure
+      const phoneVariants = buildZambiaPhoneVariants(phone_number || "");
+      if (phoneVariants.length === 0) {
         await supabase
           .from("subscription_payments")
-          .update({ 
-            status: "failed",
-            failure_reason: lencoResponse.message || "Mobile money request failed"
-          })
+          .update({ status: "failed", failure_reason: "Phone number missing" })
           .eq("id", paymentRecord.id);
 
         return new Response(
-          JSON.stringify({ 
-            error: lencoResponse.message || "Mobile money payment failed",
-            details: lencoResponse 
-          }),
+          JSON.stringify({ error: "Phone number is required" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
+      console.log("Phone variants to try:", JSON.stringify(phoneVariants));
+
+      let lastError: any = null;
+
+      for (const accountNumber of phoneVariants) {
+        // Mobile Money Collection (retry for phone formats)
+        const mobileMoneyPayload = {
+          reference,
+          amount: amount.toString(),
+          currency: currencyCode === "ZMW" ? "ZMW" : "USD",
+          accountNumber,
+          accountName: userEmail,
+          narration: `${plan} subscription - ${billing_period}`,
+          network: operator?.toUpperCase() || "MTN",
+        };
+
+        console.log("Trying Lenco payload:", JSON.stringify(mobileMoneyPayload));
+
+        const response = await fetch(`${LENCO_BASE_URL}/collections/mobile-money`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${lencoSecretKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(mobileMoneyPayload),
+        });
+
+        lencoResponse = await response.json();
+
+        if (response.ok) {
+          console.log("Lenco mobile money success:", JSON.stringify(lencoResponse));
+          return new Response(
+            JSON.stringify({
+              success: true,
+              payment_id: paymentRecord.id,
+              reference,
+              status: "pending",
+              message: "Please check your phone to authorize the payment",
+              lenco_status: lencoResponse.status,
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        lastError = lencoResponse;
+        console.error("Lenco mobile money error:", lencoResponse);
+
+        const msg = String(lencoResponse?.message || "").toLowerCase();
+        const isInvalidPhone =
+          lencoResponse?.errorCode === "01" || msg.includes("invalid phone");
+
+        if (isInvalidPhone) {
+          // Try next variant
+          continue;
+        }
+
+        // Non-phone error: don't keep retrying.
+        break;
+      }
+
+      // Update payment record with failure (after all variants attempted)
+      await supabase
+        .from("subscription_payments")
+        .update({
+          status: "failed",
+          failure_reason: lastError?.message || "Mobile money request failed",
+        })
+        .eq("id", paymentRecord.id);
+
       return new Response(
         JSON.stringify({
-          success: true,
-          payment_id: paymentRecord.id,
-          reference,
-          status: "pending",
-          message: "Please check your phone to authorize the payment",
-          lenco_status: lencoResponse.status,
+          error: lastError?.message || "Mobile money payment failed",
+          details: lastError,
         }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
 
     } else if (payment_method === "bank_transfer") {
