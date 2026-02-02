@@ -10,12 +10,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/hooks/useTenant";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 import { useBranch } from "@/hooks/useBranch";
+
+const ITEMS_PER_PAGE = 100;
 
 interface InventoryItem {
   id: string;
@@ -46,15 +56,36 @@ export function SmartInventory() {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const { toast } = useToast();
   const { tenantId } = useTenant();
   const { terminology } = useBusinessConfig();
   const { currentBranch, isMultiBranchEnabled } = useBranch();
+  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
   const fetchInventory = async () => {
     if (!tenantId) return;
     
     try {
+      const from = (currentPage - 1) * ITEMS_PER_PAGE;
+      const to = from + ITEMS_PER_PAGE - 1;
+
+      // First get total count
+      let countQuery = supabase
+        .from("inventory")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId)
+        .eq("is_archived", false);
+      
+      if (currentBranch && isMultiBranchEnabled) {
+        countQuery = countQuery.eq("default_location_id", currentBranch.id);
+      }
+      
+      const { count } = await countQuery;
+      setTotalCount(count || 0);
+
+      // Then fetch paginated data
       let query = supabase
         .from("inventory")
         .select("id, sku, name, current_stock, reserved, ai_prediction, status, item_type, category, default_location_id")
@@ -66,7 +97,9 @@ export function SmartInventory() {
         query = query.eq("default_location_id", currentBranch.id);
       }
       
-      const { data, error } = await query.order("name").limit(10000);
+      const { data, error } = await query
+        .order("name")
+        .range(from, to);
 
       if (error) throw error;
       setInventory(data || []);
@@ -87,7 +120,12 @@ export function SmartInventory() {
       setIsLoading(true);
       fetchInventory();
     }
-  }, [tenantId, currentBranch?.id]);
+  }, [tenantId, currentBranch?.id, currentPage]);
+
+  // Reset page when branch changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [currentBranch?.id]);
 
   useEffect(() => {
     // Subscribe to real-time changes
@@ -170,7 +208,7 @@ export function SmartInventory() {
           <div>
             <h2 className="text-xl font-bold text-white">Smart {terminology.inventory}</h2>
           <p className="text-sm text-slate-400">
-            Warehouse View • {inventory.filter(i => !isServiceItem(i)).length} {terminology.products.toLowerCase()} • {inventory.filter(i => isServiceItem(i)).length} services
+            Warehouse View • {totalCount.toLocaleString()} items total
           </p>
           </div>
         </div>
@@ -261,6 +299,55 @@ export function SmartInventory() {
           </TableBody>
         </Table>
       </div>
+      
+      {/* Pagination Controls */}
+      {totalCount > ITEMS_PER_PAGE && (
+        <div className="flex items-center justify-between p-4 border-t border-slate-700">
+          <p className="text-sm text-slate-400">
+            Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1}-{Math.min(currentPage * ITEMS_PER_PAGE, totalCount)} of {totalCount.toLocaleString()} items
+          </p>
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious 
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  className={`text-slate-300 hover:text-white hover:bg-slate-700 ${currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}`}
+                />
+              </PaginationItem>
+              {/* Show page numbers */}
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum: number;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+                return (
+                  <PaginationItem key={pageNum}>
+                    <PaginationLink
+                      onClick={() => setCurrentPage(pageNum)}
+                      isActive={currentPage === pageNum}
+                      className={`cursor-pointer ${currentPage === pageNum ? 'bg-[#004B8D] text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700'}`}
+                    >
+                      {pageNum}
+                    </PaginationLink>
+                  </PaginationItem>
+                );
+              })}
+              <PaginationItem>
+                <PaginationNext 
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  className={`text-slate-300 hover:text-white hover:bg-slate-700 ${currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}`}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
     </motion.div>
   );
 }

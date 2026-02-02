@@ -28,6 +28,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Package, AlertTriangle, RefreshCw, Mail, Loader2, Plus, Pencil, FileUp, Download, Palette, Ruler, ImageIcon, Building2, PackagePlus, Archive, ArchiveRestore, Eye, EyeOff, ChevronDown, Trash2, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -79,6 +87,8 @@ interface InventoryItem {
   is_archived?: boolean;
 }
 
+const ITEMS_PER_PAGE = 100;
+
 export function InventoryAgent() {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [lowStockItems, setLowStockItems] = useState<InventoryItem[]>([]);
@@ -94,6 +104,9 @@ export function InventoryAgent() {
   const [itemToRestore, setItemToRestore] = useState<InventoryItem | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [classFilter, setClassFilter] = useState<string | null>(null);
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkArchiveDialogOpen, setBulkArchiveDialogOpen] = useState(false);
@@ -107,26 +120,53 @@ export function InventoryAgent() {
   const { config, businessType } = useBusinessConfig();
   const formFields = config.formFields;
   const showMaterialsAndConsumables = businessType === 'fashion';
+  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
   const fetchInventory = async () => {
     if (!tenantId) return;
     
     try {
-      // Fetch inventory with variant counts and location info
+      const from = (currentPage - 1) * ITEMS_PER_PAGE;
+      const to = from + ITEMS_PER_PAGE - 1;
+
+      // First get total count with same filters
+      let countQuery = supabase
+        .from("inventory")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId)
+        .eq("is_archived", showArchived);
+      
+      if (currentBranch && isMultiBranchEnabled) {
+        countQuery = countQuery.eq("default_location_id", currentBranch.id);
+      }
+      if (classFilter) {
+        countQuery = countQuery.eq("inventory_class", classFilter);
+      }
+      
+      const { count } = await countQuery;
+      setTotalCount(count || 0);
+
+      // Fetch paginated inventory with variant counts and location info
       let query = supabase
         .from("inventory")
         .select(`
           *,
           branches!default_location_id(name)
         `)
-        .eq("tenant_id", tenantId);
+        .eq("tenant_id", tenantId)
+        .eq("is_archived", showArchived);
       
       // Filter by branch when one is selected
       if (currentBranch && isMultiBranchEnabled) {
         query = query.eq("default_location_id", currentBranch.id);
       }
+      if (classFilter) {
+        query = query.eq("inventory_class", classFilter);
+      }
       
-      const { data: inventoryData, error } = await query.order("name").limit(10000);
+      const { data: inventoryData, error } = await query
+        .order("name")
+        .range(from, to);
 
       if (error) throw error;
 
@@ -156,15 +196,21 @@ export function InventoryAgent() {
       }));
 
       setInventory(enrichedInventory);
+      
+      // Low stock items - fetch separately without pagination for alerts
+      const { data: lowStockData } = await supabase
+        .from("inventory")
+        .select("id, name, sku, current_stock, reorder_level, item_type, category")
+        .eq("tenant_id", tenantId)
+        .eq("is_archived", false)
+        .lt("current_stock", 10);
+      
+      const serviceCategories = ['consultation', 'project', 'retainer', 'training', 'support', 'package', 'treatment', 'haircut', 'styling', 'coloring', 'spa', 'bridal', 'barbering', 'consultation_fee', 'lab_test', 'procedure', 'vaccination', 'repair', 'maintenance', 'diagnostics', 'service', 'services', 'maintenance_service'];
       setLowStockItems(
-        enrichedInventory.filter(
-          (item) => {
-            // Exclude services from low stock alerts
-            const serviceCategories = ['consultation', 'project', 'retainer', 'training', 'support', 'package', 'treatment', 'haircut', 'styling', 'coloring', 'spa', 'bridal', 'barbering', 'consultation_fee', 'lab_test', 'procedure', 'vaccination', 'repair', 'maintenance', 'diagnostics', 'service', 'services', 'maintenance_service'];
-            const isService = (item as any).item_type === 'service' || serviceCategories.includes(item.category || '');
-            return !item.is_archived && !isService && item.current_stock < (item.reorder_level || 10);
-          }
-        )
+        ((lowStockData || []) as any[]).filter((item) => {
+          const isService = item.item_type === 'service' || serviceCategories.includes(item.category || '');
+          return !isService && item.current_stock < (item.reorder_level || 10);
+        })
       );
     } catch (error) {
       console.error("Error fetching inventory:", error);
@@ -183,7 +229,13 @@ export function InventoryAgent() {
     if (tenantId) {
       fetchInventory();
     }
-  }, [tenantId, currentBranch?.id]);
+  }, [tenantId, currentBranch?.id, currentPage, showArchived, classFilter]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+    setSelectedIds(new Set());
+  }, [currentBranch?.id, showArchived, classFilter]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -258,15 +310,8 @@ export function InventoryAgent() {
     }
   };
 
-  const inventoryForView = useMemo(
-    () => inventory.filter((item) => (showArchived ? item.is_archived === true : item.is_archived !== true)),
-    [inventory, showArchived]
-  );
-
-  const visibleInventory = useMemo(
-    () => inventoryForView.filter((item) => classFilter === null || (item.inventory_class || 'finished_good') === classFilter),
-    [inventoryForView, classFilter]
-  );
+  // Server-side filtering is applied, so visible inventory is directly from fetch
+  const visibleInventory = inventory;
 
   // Bulk selection helpers
   const allVisibleSelected = visibleInventory.length > 0 && visibleInventory.every(item => selectedIds.has(item.id));
@@ -506,51 +551,41 @@ export function InventoryAgent() {
           </Collapsible>
         )}
 
-        {/* Filter Chips - Hide empty categories and fashion-specific filters */}
-        {(() => {
-          const productsCount = inventoryForView.filter(i => (i.inventory_class || 'finished_good') === 'finished_good').length;
-          const materialsCount = inventoryForView.filter(i => i.inventory_class === 'raw_material').length;
-          const consumablesCount = inventoryForView.filter(i => i.inventory_class === 'consumable').length;
-          
-          return (
-            <div className="flex flex-wrap gap-2">
+        {/* Filter Chips - simplified with server-side counts */}
+        <div className="flex flex-wrap gap-2">
+          <Badge
+            variant={classFilter === null ? "default" : "outline"}
+            className={`cursor-pointer ${classFilter === null ? "bg-[#004B8D] text-white" : "hover:bg-[#004B8D]/10"}`}
+            onClick={() => setClassFilter(null)}
+          >
+            {showArchived ? `Archived` : `All`} ({totalCount.toLocaleString()})
+          </Badge>
+          <Badge
+            variant={classFilter === "finished_good" ? "default" : "outline"}
+            className={`cursor-pointer ${classFilter === "finished_good" ? "bg-[#004B8D] text-white" : "hover:bg-[#004B8D]/10"}`}
+            onClick={() => setClassFilter("finished_good")}
+          >
+            📦 {terminology.productsLabel}
+          </Badge>
+          {showMaterialsAndConsumables && (
+            <>
               <Badge
-                variant={classFilter === null ? "default" : "outline"}
-                className={`cursor-pointer ${classFilter === null ? "bg-[#004B8D] text-white" : "hover:bg-[#004B8D]/10"}`}
-                onClick={() => setClassFilter(null)}
+                variant={classFilter === "raw_material" ? "default" : "outline"}
+                className={`cursor-pointer ${classFilter === "raw_material" ? "bg-purple-600 text-white" : "hover:bg-purple-50"}`}
+                onClick={() => setClassFilter("raw_material")}
               >
-                {showArchived ? `Archived` : `All`} ({inventoryForView.length})
+                🧵 Materials
               </Badge>
-              {productsCount > 0 && (
-                <Badge
-                  variant={classFilter === "finished_good" ? "default" : "outline"}
-                  className={`cursor-pointer ${classFilter === "finished_good" ? "bg-[#004B8D] text-white" : "hover:bg-[#004B8D]/10"}`}
-                  onClick={() => setClassFilter("finished_good")}
-                >
-                  📦 {terminology.productsLabel} ({productsCount})
-                </Badge>
-              )}
-              {showMaterialsAndConsumables && materialsCount > 0 && (
-                <Badge
-                  variant={classFilter === "raw_material" ? "default" : "outline"}
-                  className={`cursor-pointer ${classFilter === "raw_material" ? "bg-purple-600 text-white" : "hover:bg-purple-50"}`}
-                  onClick={() => setClassFilter("raw_material")}
-                >
-                  🧵 Materials ({materialsCount})
-                </Badge>
-              )}
-              {showMaterialsAndConsumables && consumablesCount > 0 && (
-                <Badge
-                  variant={classFilter === "consumable" ? "default" : "outline"}
-                  className={`cursor-pointer ${classFilter === "consumable" ? "bg-gray-600 text-white" : "hover:bg-gray-50"}`}
-                  onClick={() => setClassFilter("consumable")}
-                >
-                  📋 Consumables ({consumablesCount})
-                </Badge>
-              )}
-          </div>
-        );
-      })()}
+              <Badge
+                variant={classFilter === "consumable" ? "default" : "outline"}
+                className={`cursor-pointer ${classFilter === "consumable" ? "bg-gray-600 text-white" : "hover:bg-gray-50"}`}
+                onClick={() => setClassFilter("consumable")}
+              >
+                📋 Consumables
+              </Badge>
+            </>
+          )}
+        </div>
 
         {/* Bulk Actions Bar */}
         {someSelected && (
@@ -807,6 +842,55 @@ export function InventoryAgent() {
                   ))}
                 </TableBody>
               </Table>
+            )}
+            
+            {/* Pagination Controls */}
+            {totalCount > ITEMS_PER_PAGE && (
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#004B8D]/10">
+                <p className="text-sm text-[#004B8D]/60">
+                  Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1}-{Math.min(currentPage * ITEMS_PER_PAGE, totalCount)} of {totalCount.toLocaleString()} items
+                </p>
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious 
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      />
+                    </PaginationItem>
+                    {/* Show page numbers */}
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum: number;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      return (
+                        <PaginationItem key={pageNum}>
+                          <PaginationLink
+                            onClick={() => setCurrentPage(pageNum)}
+                            isActive={currentPage === pageNum}
+                            className="cursor-pointer"
+                          >
+                            {pageNum}
+                          </PaginationLink>
+                        </PaginationItem>
+                      );
+                    })}
+                    <PaginationItem>
+                      <PaginationNext 
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              </div>
             )}
           </CardContent>
         </Card>
