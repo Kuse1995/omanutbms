@@ -1,169 +1,142 @@
 
-# Plan: Bulk Selection Feature for Inventory + Branch Assignment on Import
 
-## Overview
+# Plan: Replace Delete with Archive + Allow Re-Import Over Archived Items
 
-This plan implements two improvements to the inventory management system:
+## Problem Summary
 
-1. **Bulk Selection Actions** - Add checkboxes to select multiple inventory items and perform bulk delete or move-to-branch operations
-2. **Branch Selection on Import** - Add option to assign imported inventory to a specific branch during the CSV/Excel import process
-
----
-
-## Current Gap Analysis
-
-| Feature | Current State | Proposed |
-|---------|---------------|----------|
-| Item Selection | None - single-item actions only | Checkbox on each row + "Select All" |
-| Bulk Delete | Not available | Delete multiple selected items |
-| Bulk Move | Not available (transfers exist but require approval) | Direct branch reassignment for selected items |
-| Import to Branch | No branch option | Branch dropdown in import modal |
+1. **Delete Button Fails**: Items with sales history can't be deleted due to foreign key constraints
+2. **Re-Import Blocked**: When an archived item exists with the same SKU, importing updates the archived item instead of creating a fresh one
 
 ---
 
-## Part 1: Bulk Selection Feature
-
-### UI Changes to InventoryAgent.tsx
-
-Add selection state and action bar:
+## Solution Overview
 
 ```text
-┌──────────────────────────────────────────────────────────────────────────────┐
-│  ☐  │ SKU        │ Product     │ Location │ Stock │ Price │ Status │ Actions │
-├──────────────────────────────────────────────────────────────────────────────┤
-│  ☑  │ PROD-001   │ Brake Pads  │ Branch A │  45   │ K250  │ In Stock│ ...     │
-│  ☑  │ PROD-002   │ Oil Filter  │ Branch A │  30   │ K85   │ In Stock│ ...     │
-│  ☐  │ PROD-003   │ Spark Plugs │ Branch B │  12   │ K45   │ Low     │ ...     │
-└──────────────────────────────────────────────────────────────────────────────┘
-             ▲
-             │
-    ┌────────┴────────────────────────────────────────────────────────┐
-    │  ⚡ Bulk Actions Bar (appears when items selected)              │
-    │  [3 items selected]  [🗑 Delete Selected]  [📍 Move to Branch ▼] │
-    └─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              CHANGES REQUIRED                                    │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│  1. Replace "Delete Selected" button with "Archive Selected" button             │
+│  2. Update bulk action to use archive (is_archived = true) instead of delete   │
+│  3. Modify import logic to skip archived items when checking for existing SKU  │
+│     → This allows creating new items with same SKU as archived ones            │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
-
-### Implementation Details
-
-1. **Selection State**
-   - Add `selectedIds: Set<string>` state to track selected item IDs
-   - Add "Select All" checkbox in table header
-   - Add individual checkbox in each table row
-
-2. **Bulk Actions Bar**
-   - Appears when `selectedIds.size > 0`
-   - Shows count of selected items
-   - "Delete Selected" button (with confirmation dialog)
-   - "Move to Branch" dropdown selector
-
-3. **Bulk Delete Logic**
-   - Confirmation dialog showing count of items to delete
-   - Loop through selected IDs and delete from `inventory` table
-   - Clear selection after operation
-   - Refresh inventory list
-
-4. **Bulk Move Logic**
-   - Branch selector dropdown (populated from `branches` table)
-   - Updates `default_location_id` for all selected items
-   - No transfer approval required (direct reassignment)
-   - Useful for correcting imports or reorganizing stock
 
 ---
 
-## Part 2: Branch Selection on Import
+## Part 1: Replace Bulk Delete with Bulk Archive
 
-### UI Changes to InventoryImportModal.tsx
+### Changes to InventoryAgent.tsx
 
-Add branch selector before import confirmation:
+**Button Label Change:**
+- Change "Delete Selected" → "Archive Selected"
+- Change icon from `Trash2` → `Archive`
+- Change button style from red to amber/warning
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│  Import Preview                                                  │
-│  ─────────────────────────────────────────────────────────────  │
-│  ✓ 25 Valid   ✗ 2 Invalid                                       │
-│                                                                  │
-│  📍 Assign to Branch: [▼ Select Branch      ]                   │
-│     ○ Headquarters                                               │
-│     ○ Branch A                                                   │
-│     ○ Branch B                                                   │
-│     • No Branch (Central Stock)                                  │
-│                                                                  │
-│  [Preview Table...]                                              │
-│                                                                  │
-│  [Cancel]                          [Import 25 Items]            │
-└─────────────────────────────────────────────────────────────────┘
-```
+**Handler Change:**
+- Rename `handleBulkDelete` → `handleBulkArchive`
+- Change from `.delete()` to `.update({ is_archived: true })`
+- Update toast messages accordingly
 
-### Implementation Details
-
-1. **Add Branch State**
-   - Add `targetBranchId: string | null` state
-   - Fetch branches on modal open using `useBranch` hook or direct query
-
-2. **Branch Selector UI**
-   - Show above the preview table in "preview" step
-   - Default to "No Branch" (null) for central/unassigned stock
-   - Only visible when multi-branch is enabled
-
-3. **Import Logic Update**
-   - Pass `default_location_id: targetBranchId` when inserting/updating inventory items
-   - Applied to all imported rows
+**Dialog Update:**
+- Change title from "Delete X Products?" to "Archive X Products?"
+- Change description to explain items will be hidden but kept for history
+- Remove warning about "cannot be undone" (archived items can be restored)
 
 ---
 
-## Technical Implementation
+## Part 2: Allow Re-Import Over Archived Items
 
-### Files to Modify
+### Changes to InventoryImportModal.tsx
 
-| File | Changes |
-|------|---------|
-| `src/components/dashboard/InventoryAgent.tsx` | Add selection state, checkboxes, bulk actions bar |
-| `src/components/dashboard/InventoryImportModal.tsx` | Add branch selector, update import logic |
+**Current Logic (Problem):**
+```typescript
+const { data: existing } = await supabase
+  .from("inventory")
+  .select("id")
+  .eq("sku", row.sku)
+  .eq("tenant_id", tenantId)
+  .maybeSingle();  // ❌ Finds archived items too
+```
 
-### New Components (Optional)
+**New Logic (Solution):**
+```typescript
+const { data: existing } = await supabase
+  .from("inventory")
+  .select("id")
+  .eq("sku", row.sku)
+  .eq("tenant_id", tenantId)
+  .eq("is_archived", false)  // ✅ Only find active items
+  .maybeSingle();
+```
 
-Could extract bulk actions bar to a reusable component, but for simplicity it will be integrated directly into InventoryAgent.
+This means:
+- If SKU exists and is **active** → Update the existing item
+- If SKU exists but is **archived** → Create a NEW item with that SKU
+- If SKU doesn't exist → Create a new item
 
 ---
 
 ## User Experience Flow
 
-### Bulk Move Flow
-1. User views inventory list
-2. Checks boxes next to items they want to move
-3. Clicks "Move to Branch" dropdown
-4. Selects target branch
-5. Confirmation: "Move 5 items to Branch A?"
-6. Items updated, selection cleared, list refreshed
+### Archiving Items
+```text
+User selects items → Clicks "Archive Selected"
+         │
+         ▼
+┌─────────────────────────────────┐
+│  Archive Confirmation Dialog    │
+│  "Archive 5 Products?"          │
+│  These will be hidden but kept  │
+│  for sales history. Restore     │
+│  anytime via "Show Archived".   │
+└─────────────────────────────────┘
+         │
+         ▼
+Items set to is_archived = true
+Disappear from main list
+Visible in "Show Archived" mode
+```
 
-### Bulk Delete Flow
-1. User selects items
-2. Clicks "Delete Selected"
-3. Confirmation dialog: "Permanently delete 5 items?"
-4. Items deleted from database
-5. Selection cleared, list refreshed
-
-### Import with Branch Flow
-1. User opens Import modal
-2. Uploads CSV/Excel file
-3. Preview shows parsed data
-4. User selects target branch from dropdown
-5. Clicks "Import X Items"
-6. All items created with selected branch as `default_location_id`
+### Re-Importing Archived SKUs
+```text
+User has archived item: SKU = "BRAKE-001"
+User uploads CSV with same SKU "BRAKE-001"
+         │
+         ▼
+Import finds no ACTIVE item with that SKU
+         │
+         ▼
+Creates NEW item with SKU "BRAKE-001"
+Old archived version preserved for history
+```
 
 ---
 
-## Security Considerations
+## Technical Implementation
 
-- Bulk delete follows existing RLS policies (only items in user's tenant)
-- Bulk move uses `default_location_id` update (covered by existing inventory UPDATE policy)
-- Import already respects tenant_id isolation
+### File: src/components/dashboard/InventoryAgent.tsx
+
+| Change | Location | Description |
+|--------|----------|-------------|
+| State rename | Line ~99 | `bulkDeleteDialogOpen` → `bulkArchiveDialogOpen` |
+| Handler rename | Line ~293-321 | `handleBulkDelete` → `handleBulkArchive`, change to `.update({ is_archived: true })` |
+| Button UI | Lines ~566-574 | Change to Archive style (amber, Archive icon) |
+| Dialog content | Lines ~876-906 | Update title, description, button text for archive |
+
+### File: src/components/dashboard/InventoryImportModal.tsx
+
+| Change | Location | Description |
+|--------|----------|-------------|
+| SKU lookup query | Lines ~413-418 | Add `.eq("is_archived", false)` filter |
 
 ---
 
 ## Expected Outcome
 
-1. Users can efficiently manage multiple inventory items at once
-2. Imported stock can be directly assigned to the correct branch
-3. "Move" is distinct from "Transfer" - no approval workflow needed
-4. Reduces manual work when reorganizing inventory across locations
+1. **No more FK constraint errors** - Archive preserves data relationships
+2. **Fresh imports work** - Same SKU can be imported again after archiving
+3. **History preserved** - Archived items remain visible in "Show Archived" mode
+4. **Restorable** - Accidentally archived items can be restored anytime
+5. **Clean workflow** - Upload mistake? Archive old items, re-import correct data
+
