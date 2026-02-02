@@ -26,12 +26,13 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
-import { Upload, FileSpreadsheet, Download, CheckCircle2, XCircle, Wand2, Settings2, AlertCircle, Building2 } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Upload, FileSpreadsheet, Download, CheckCircle2, XCircle, Wand2, Settings2, AlertCircle, Building2, Loader2, RefreshCw, SkipForward } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/hooks/useTenant";
 import { useBranch } from "@/hooks/useBranch";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
-import { useUpload } from "@/contexts/UploadContext";
+import { useUpload, ImportAnalysis } from "@/contexts/UploadContext";
 import { ImportConverterModal } from "./ImportConverterModal";
 import { CSVColumnMapper, SchemaField } from "./CSVColumnMapper";
 
@@ -56,7 +57,9 @@ interface ParsedRow {
   rowNumber: number;
 }
 
-type ImportStep = "upload" | "mapping" | "preview";
+type ImportStep = "upload" | "mapping" | "analysis" | "preview";
+
+type ExistingItemMode = 'skip' | 'update';
 
 const inventorySchemaFields: SchemaField[] = [
   { key: 'sku', label: 'SKU', required: false, type: 'string', aliases: ['product_code', 'item_code', 'code', 'barcode'] },
@@ -94,11 +97,14 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
   const [sourceColumns, setSourceColumns] = useState<string[]>([]);
   const [targetBranchId, setTargetBranchId] = useState<string>("none");
   const [uploadStarted, setUploadStarted] = useState(false);
+  const [importAnalysis, setImportAnalysis] = useState<ImportAnalysis | null>(null);
+  const [existingItemMode, setExistingItemMode] = useState<ExistingItemMode>('update');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { toast } = useToast();
   const { tenantId } = useTenant();
   const { isMultiBranchEnabled, branches } = useBranch();
   const { terminology } = useBusinessConfig();
-  const { startInventoryUpload } = useUpload();
+  const { startInventoryUpload, analyzeImport } = useUpload();
 
   const resetState = () => {
     setParsedData([]);
@@ -107,28 +113,67 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
     setSourceColumns([]);
     setTargetBranchId("none");
     setUploadStarted(false);
+    setImportAnalysis(null);
+    setExistingItemMode('update');
+    setIsAnalyzing(false);
   };
 
-  const handleConvertedData = (data: any[]) => {
+  const handleConvertedData = async (data: any[]) => {
     // Convert the AI-extracted data to our ParsedRow format
     const validated = convertToParsedRows(data);
     setParsedData(validated);
-    setImportStep("preview");
     setActiveTab("spreadsheet");
+    
+    // Trigger analysis
+    if (tenantId) {
+      setIsAnalyzing(true);
+      setImportStep("analysis");
+      try {
+        const analysis = await analyzeImport(validated, tenantId);
+        setImportAnalysis(analysis);
+      } catch (error) {
+        console.error('Analysis failed:', error);
+      } finally {
+        setIsAnalyzing(false);
+      }
+    } else {
+      setImportStep("preview");
+    }
+    
     toast({
       title: "Data Ready for Import",
       description: `${validated.filter(r => r.isValid).length} items ready to import`,
     });
   };
 
-  const handleMappingComplete = (mappings: Record<string, string>, transformedData: Record<string, any>[]) => {
+  const handleMappingComplete = async (mappings: Record<string, string>, transformedData: Record<string, any>[]) => {
     const validated = convertToParsedRows(transformedData);
     setParsedData(validated);
-    setImportStep("preview");
+    
+    // Trigger analysis
+    if (tenantId) {
+      setIsAnalyzing(true);
+      setImportStep("analysis");
+      try {
+        const analysis = await analyzeImport(validated, tenantId);
+        setImportAnalysis(analysis);
+      } catch (error) {
+        console.error('Analysis failed:', error);
+      } finally {
+        setIsAnalyzing(false);
+      }
+    } else {
+      setImportStep("preview");
+    }
+    
     toast({
       title: "Mapping Applied",
       description: `${validated.filter(r => r.isValid).length} items ready to import`,
     });
+  };
+
+  const proceedToPreview = () => {
+    setImportStep("preview");
   };
 
   const convertToParsedRows = (data: any[]): ParsedRow[] => {
@@ -254,7 +299,7 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
     }
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const { columns, rows } = isCSV 
           ? parseCSVRaw(e.target?.result as string)
@@ -298,7 +343,22 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
             return normalized;
           }));
           setParsedData(validated);
-          setImportStep("preview");
+          
+          // Trigger analysis
+          if (tenantId) {
+            setIsAnalyzing(true);
+            setImportStep("analysis");
+            try {
+              const analysis = await analyzeImport(validated, tenantId);
+              setImportAnalysis(analysis);
+            } catch (error) {
+              console.error('Analysis failed:', error);
+            } finally {
+              setIsAnalyzing(false);
+            }
+          } else {
+            setImportStep("preview");
+          }
         }
       } catch (error) {
         console.error("Parse error:", error);
@@ -366,7 +426,7 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
       description: `${validRows.length} items are being imported in the background. You can navigate away safely.`,
     });
 
-    // Delegate to background upload context
+    // Delegate to background upload context with skipExisting option
     await startInventoryUpload(
       `${validRows.length} inventory items`,
       validRows,
@@ -374,6 +434,7 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
         tenantId,
         targetBranchId: targetBranchId !== "none" ? targetBranchId : undefined,
         onSuccess,
+        skipExisting: existingItemMode === 'skip',
       }
     );
 
@@ -526,7 +587,98 @@ PROD-003,Premium Product,5,8500,6000,2,premium,High-end product with full featur
             />
           )}
 
-          {/* Step 3: Preview & Import */}
+          {/* Step 3: Import Analysis */}
+          {importStep === "analysis" && (
+            <div className="space-y-4">
+              {isAnalyzing ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <Loader2 className="h-10 w-10 animate-spin text-[#0077B6] mb-4" />
+                  <p className="text-[#003366] font-medium">Analyzing your import...</p>
+                  <p className="text-[#004B8D]/60 text-sm mt-1">
+                    Checking for duplicates in your {terminology.inventory.toLowerCase()}
+                  </p>
+                </div>
+              ) : importAnalysis ? (
+                <>
+                  <div className="bg-[#0077B6]/5 border border-[#0077B6]/20 rounded-lg p-4 space-y-3">
+                    <h4 className="font-medium text-[#003366] flex items-center gap-2">
+                      <FileSpreadsheet className="h-5 w-5 text-[#0077B6]" />
+                      Import Analysis
+                    </h4>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <span className="text-[#004B8D]/70">Total items in file:</span>
+                      <span className="font-medium text-[#003366]">{importAnalysis.total.toLocaleString()}</span>
+                      
+                      <span className="text-[#004B8D]/70">New items (will be added):</span>
+                      <span className="font-medium text-green-700">{importAnalysis.newItems.toLocaleString()}</span>
+                      
+                      <span className="text-[#004B8D]/70">Existing items (by SKU):</span>
+                      <span className="font-medium text-amber-700">{importAnalysis.existingItems.toLocaleString()}</span>
+                      
+                      <span className="text-[#004B8D]/70">Without SKU (auto-generate):</span>
+                      <span className="font-medium text-blue-700">{importAnalysis.autoGenerate.toLocaleString()}</span>
+                    </div>
+                  </div>
+
+                  {importAnalysis.existingItems > 0 && (
+                    <div className="border border-[#004B8D]/20 rounded-lg p-4 space-y-3">
+                      <Label className="text-sm font-medium text-[#003366]">
+                        How should we handle existing items?
+                      </Label>
+                      <RadioGroup 
+                        value={existingItemMode} 
+                        onValueChange={(v) => setExistingItemMode(v as ExistingItemMode)}
+                        className="space-y-3"
+                      >
+                        <div className="flex items-start space-x-3 p-3 rounded-lg border border-[#004B8D]/10 hover:bg-[#004B8D]/5 transition-colors">
+                          <RadioGroupItem value="skip" id="skip" className="mt-0.5" />
+                          <div className="flex-1">
+                            <Label htmlFor="skip" className="font-medium text-[#003366] flex items-center gap-2 cursor-pointer">
+                              <SkipForward className="h-4 w-4 text-blue-600" />
+                              Skip existing (faster)
+                            </Label>
+                            <p className="text-xs text-[#004B8D]/60 mt-1">
+                              Only add new items. {importAnalysis.existingItems} existing items will be ignored.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-start space-x-3 p-3 rounded-lg border border-[#004B8D]/10 hover:bg-[#004B8D]/5 transition-colors">
+                          <RadioGroupItem value="update" id="update" className="mt-0.5" />
+                          <div className="flex-1">
+                            <Label htmlFor="update" className="font-medium text-[#003366] flex items-center gap-2 cursor-pointer">
+                              <RefreshCw className="h-4 w-4 text-amber-600" />
+                              Update existing (merge data)
+                            </Label>
+                            <p className="text-xs text-[#004B8D]/60 mt-1">
+                              Update {importAnalysis.existingItems} existing items with new data from the file.
+                            </p>
+                          </div>
+                        </div>
+                      </RadioGroup>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={resetState}
+                      className="border-[#004B8D]/20 text-[#004B8D]"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={proceedToPreview}
+                      className="bg-[#004B8D] hover:bg-[#003366] text-white"
+                    >
+                      Continue to Preview
+                    </Button>
+                  </div>
+                </>
+              ) : null}
+            </div>
+          )}
+
+          {/* Step 4: Preview & Import */}
           {importStep === "preview" && (
           <div className="space-y-4">
             {/* Summary */}

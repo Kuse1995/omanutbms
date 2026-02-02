@@ -23,7 +23,7 @@ export interface UploadJob {
   completedAt?: Date;
 }
 
-interface InventoryRow {
+export interface InventoryRow {
   sku: string;
   name: string;
   current_stock: number;
@@ -35,10 +35,19 @@ interface InventoryRow {
   category: string;
 }
 
-interface UploadOptions {
+export interface ImportAnalysis {
+  total: number;
+  newItems: number;
+  existingItems: number;
+  autoGenerate: number;
+  existingSkus: string[];
+}
+
+export interface UploadOptions {
   tenantId: string;
   targetBranchId?: string;
   onSuccess?: () => void;
+  skipExisting?: boolean;
 }
 
 interface UploadContextType {
@@ -49,6 +58,7 @@ interface UploadContextType {
     rows: InventoryRow[],
     options: UploadOptions
   ) => Promise<string>;
+  analyzeImport: (rows: InventoryRow[], tenantId: string) => Promise<ImportAnalysis>;
   cancelUpload: (jobId: string) => void;
   clearCompletedUploads: () => void;
   getUploadProgress: (jobId: string) => number;
@@ -117,10 +127,11 @@ export function UploadProvider({ children }: UploadProviderProps) {
       try {
         updateUpload(jobId, { status: 'processing' });
 
-        const { tenantId, targetBranchId, onSuccess } = options;
+        const { tenantId, targetBranchId, onSuccess, skipExisting } = options;
         let added = 0;
         let updated = 0;
         let failed = 0;
+        let skipped = 0;
         const failedItemsList: FailedItem[] = [];
 
         // Phase 1: Get all existing SKUs in one query
@@ -145,9 +156,16 @@ export function UploadProvider({ children }: UploadProviderProps) {
           return;
         }
 
-        // Phase 2: Categorize rows
+        // Phase 2: Categorize rows based on skipExisting flag
         const toInsert = rows.filter(r => !r.sku || !existingSkuMap.has(r.sku));
-        const toUpdate = rows.filter(r => r.sku && existingSkuMap.has(r.sku));
+        const toUpdate = skipExisting 
+          ? [] // Skip all updates when skipExisting is true
+          : rows.filter(r => r.sku && existingSkuMap.has(r.sku));
+        
+        // Track skipped items
+        if (skipExisting) {
+          skipped = rows.filter(r => r.sku && existingSkuMap.has(r.sku)).length;
+        }
 
         let processedCount = 0;
 
@@ -267,18 +285,19 @@ export function UploadProvider({ children }: UploadProviderProps) {
           failedItems: failedItemsList.length > 0 ? failedItemsList : undefined,
         });
 
-        // Show completion toast
+        // Show completion toast with skipped info
+        const skippedMsg = skipped > 0 ? `, ${skipped} skipped` : '';
         if (failed === rows.length) {
           toast.error('Import failed', {
             description: 'All items failed to import. Check permissions.',
           });
         } else if (failed > 0) {
           toast.warning('Import partially complete', {
-            description: `${added} added, ${updated} updated, ${failed} failed`,
+            description: `${added} added, ${updated} updated, ${failed} failed${skippedMsg}`,
           });
         } else {
           toast.success('Import complete', {
-            description: `${added} added, ${updated} updated`,
+            description: `${added} added, ${updated} updated${skippedMsg}`,
           });
         }
 
@@ -324,6 +343,36 @@ export function UploadProvider({ children }: UploadProviderProps) {
     return Math.round((job.processedItems / job.totalItems) * 100);
   }, [uploads]);
 
+  // Pre-import analysis to detect duplicates
+  const analyzeImport = useCallback(async (
+    rows: InventoryRow[], 
+    tenantId: string
+  ): Promise<ImportAnalysis> => {
+    const skuList = rows.filter(r => r.sku).map(r => r.sku);
+    
+    let existingSkus: string[] = [];
+    if (skuList.length > 0) {
+      const { data: existingItems } = await supabase
+        .from('inventory')
+        .select('sku')
+        .in('sku', skuList)
+        .eq('tenant_id', tenantId)
+        .eq('is_archived', false);
+      
+      existingSkus = existingItems?.map(i => i.sku) || [];
+    }
+    
+    const existingSet = new Set(existingSkus);
+    
+    return {
+      total: rows.length,
+      newItems: rows.filter(r => r.sku && !existingSet.has(r.sku)).length,
+      existingItems: rows.filter(r => r.sku && existingSet.has(r.sku)).length,
+      autoGenerate: rows.filter(r => !r.sku).length,
+      existingSkus,
+    };
+  }, []);
+
   const hasActiveUploads = uploads.some(
     job => job.status === 'pending' || job.status === 'processing'
   );
@@ -332,10 +381,11 @@ export function UploadProvider({ children }: UploadProviderProps) {
     activeUploads: uploads,
     hasActiveUploads,
     startInventoryUpload,
+    analyzeImport,
     cancelUpload,
     clearCompletedUploads,
     getUploadProgress,
-  }), [uploads, hasActiveUploads, startInventoryUpload, cancelUpload, clearCompletedUploads, getUploadProgress]);
+  }), [uploads, hasActiveUploads, startInventoryUpload, analyzeImport, cancelUpload, clearCompletedUploads, getUploadProgress]);
 
   return (
     <UploadContext.Provider value={contextValue}>

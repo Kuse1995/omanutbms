@@ -1,5 +1,5 @@
 import React, { useState, memo } from 'react';
-import { Upload, X, CheckCircle2, AlertCircle, Loader2, ChevronDown, ChevronUp, Download, Eye } from 'lucide-react';
+import { Upload, X, CheckCircle2, AlertCircle, Loader2, ChevronDown, ChevronUp, Download, Eye, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -42,6 +42,30 @@ function downloadFailedItemsCSV(job: UploadJob) {
   const link = document.createElement('a');
   link.href = url;
   link.download = `failed-items-${job.fileName.replace(/\.[^/.]+$/, '')}-${Date.now()}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+// Download failed items in a ready-to-import format
+function downloadRetryCSV(job: UploadJob) {
+  if (!job.failedItems?.length) return;
+  
+  const escapeCSV = (str: string) => `"${str.replace(/"/g, '""')}"`;
+  
+  const csv = [
+    'sku,name,current_stock,unit_price,cost_price,reorder_level,category,description',
+    ...job.failedItems.map(item => 
+      `${escapeCSV(item.sku || '')},${escapeCSV(item.name)},0,0,0,10,,`
+    )
+  ].join('\n');
+  
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `retry-import-${Date.now()}.csv`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -156,7 +180,7 @@ function UploadJobItem({ job, onCancel }: { job: UploadJob; onCancel: (id: strin
           
           {hasFailedItems && (
             <Collapsible open={showDetails} onOpenChange={setShowDetails}>
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <CollapsibleTrigger asChild>
                   <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-amber-600 hover:text-amber-700">
                     <Eye className="h-3 w-3 mr-1" />
@@ -173,9 +197,20 @@ function UploadJobItem({ job, onCancel }: { job: UploadJob; onCancel: (id: strin
                   size="sm"
                   className="h-6 px-2 text-xs"
                   onClick={() => downloadFailedItemsCSV(job)}
+                  title="Download error details for failed items"
                 >
                   <Download className="h-3 w-3 mr-1" />
-                  CSV
+                  Errors
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs text-blue-600 hover:text-blue-700"
+                  onClick={() => downloadRetryCSV(job)}
+                  title="Download failed items in import-ready format"
+                >
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  Retry CSV
                 </Button>
               </div>
               <CollapsibleContent>
