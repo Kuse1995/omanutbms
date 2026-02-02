@@ -1,5 +1,4 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from "xlsx";
 import {
   Dialog,
@@ -26,14 +25,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Progress } from "@/components/ui/progress";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
-import { Upload, FileSpreadsheet, Download, CheckCircle2, XCircle, Loader2, Wand2, Settings2, AlertCircle, Building2 } from "lucide-react";
+import { Upload, FileSpreadsheet, Download, CheckCircle2, XCircle, Wand2, Settings2, AlertCircle, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/hooks/useTenant";
 import { useBranch } from "@/hooks/useBranch";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
+import { useUpload } from "@/contexts/UploadContext";
 import { ImportConverterModal } from "./ImportConverterModal";
 import { CSVColumnMapper, SchemaField } from "./CSVColumnMapper";
 
@@ -56,14 +54,6 @@ interface ParsedRow {
   isValid: boolean;
   errors: string[];
   rowNumber: number;
-}
-
-interface ProcessingLogItem {
-  sku: string;
-  name: string;
-  status: 'processing' | 'success' | 'error';
-  action?: 'added' | 'updated';
-  error?: string;
 }
 
 type ImportStep = "upload" | "mapping" | "preview";
@@ -96,41 +86,27 @@ function needsColumnMapping(columns: string[]): boolean {
 
 export function InventoryImportModal({ open, onOpenChange, onSuccess }: InventoryImportModalProps) {
   const [parsedData, setParsedData] = useState<ParsedRow[]>([]);
-  const [isImporting, setIsImporting] = useState(false);
-  const [importProgress, setImportProgress] = useState(0);
-  const [importResults, setImportResults] = useState<{ added: number; updated: number; failed: number } | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isConverterOpen, setIsConverterOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("spreadsheet");
   const [importStep, setImportStep] = useState<ImportStep>("upload");
   const [rawFileData, setRawFileData] = useState<Record<string, any>[]>([]);
   const [sourceColumns, setSourceColumns] = useState<string[]>([]);
-  const [processingLog, setProcessingLog] = useState<ProcessingLogItem[]>([]);
-  const [currentItemIndex, setCurrentItemIndex] = useState(0);
   const [targetBranchId, setTargetBranchId] = useState<string>("none");
-  const logEndRef = useRef<HTMLDivElement>(null);
+  const [uploadStarted, setUploadStarted] = useState(false);
   const { toast } = useToast();
   const { tenantId } = useTenant();
   const { isMultiBranchEnabled, branches } = useBranch();
   const { terminology } = useBusinessConfig();
-
-  // Auto-scroll processing log to bottom
-  useEffect(() => {
-    if (logEndRef.current && isImporting) {
-      logEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [processingLog, isImporting]);
+  const { startInventoryUpload } = useUpload();
 
   const resetState = () => {
     setParsedData([]);
-    setImportProgress(0);
-    setImportResults(null);
     setImportStep("upload");
     setRawFileData([]);
     setSourceColumns([]);
-    setProcessingLog([]);
-    setCurrentItemIndex(0);
     setTargetBranchId("none");
+    setUploadStarted(false);
   };
 
   const handleConvertedData = (data: any[]) => {
@@ -296,7 +272,6 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
         // Store raw data for potential mapping
         setRawFileData(rows);
         setSourceColumns(columns);
-        setImportResults(null);
 
         // Check if columns need mapping
         if (needsColumnMapping(columns)) {
@@ -383,161 +358,28 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
       return;
     }
 
-    setIsImporting(true);
-    setImportProgress(0);
-    setProcessingLog([]);
-    setCurrentItemIndex(0);
+    // Start background upload with batch processing
+    setUploadStarted(true);
+    
+    toast({
+      title: "Import Started",
+      description: `${validRows.length} items are being imported in the background. You can navigate away safely.`,
+    });
 
-    let added = 0;
-    let updated = 0;
-    let failed = 0;
-    let firstErrorMessage: string | null = null;
-
-    // Debug: log import context for troubleshooting
-    console.log("Import context:", { tenantId });
-
-    for (let i = 0; i < validRows.length; i++) {
-      const row = validRows[i];
-      setCurrentItemIndex(i + 1);
-      
-      // Auto-generate SKU if missing
-      const effectiveSku = row.sku || `AUTO-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
-      
-      // Add processing item to log
-      setProcessingLog(prev => [
-        ...prev.filter(item => item.sku !== effectiveSku),
-        { sku: effectiveSku, name: row.name, status: 'processing' }
-      ]);
-
-      try {
-        // Check if SKU exists for this tenant (only active items - archived items are ignored)
-        // If original SKU was empty, skip lookup since we generated a new unique one
-        let existing = null;
-        if (row.sku) {
-          const { data } = await supabase
-            .from("inventory")
-            .select("id")
-            .eq("sku", row.sku)
-            .eq("tenant_id", tenantId)
-            .eq("is_archived", false)
-            .maybeSingle();
-          existing = data;
-        }
-
-        if (existing) {
-          // Update - include branch assignment
-          const updateData: Record<string, any> = {
-            name: row.name,
-            current_stock: row.current_stock,
-            unit_price: row.unit_price,
-            cost_price: row.cost_price || 0,
-            reorder_level: row.reorder_level,
-            liters_per_unit: row.liters_per_unit,
-            description: row.description || null,
-            category: row.category || null,
-          };
-          // Apply branch assignment if set (central = null, none = don't change)
-          if (targetBranchId !== "none") {
-            updateData.default_location_id = targetBranchId === "central" ? null : targetBranchId;
-          }
-
-          const { error } = await supabase
-            .from("inventory")
-            .update(updateData)
-            .eq("id", existing.id);
-
-          if (error) throw error;
-          updated++;
-          
-          // Update log with success
-          setProcessingLog(prev => 
-            prev.map(item => 
-              item.sku === effectiveSku 
-                ? { ...item, status: 'success' as const, action: 'updated' as const }
-                : item
-            )
-          );
-        } else {
-          // Insert - include branch assignment, use generated SKU
-          const insertData = {
-            tenant_id: tenantId,
-            sku: effectiveSku,
-            name: row.name,
-            current_stock: row.current_stock,
-            unit_price: row.unit_price,
-            cost_price: row.cost_price || 0,
-            reorder_level: row.reorder_level,
-            liters_per_unit: row.liters_per_unit,
-            description: row.description || null,
-            category: row.category || null,
-            default_location_id: (targetBranchId !== "none" && targetBranchId !== "central") ? targetBranchId : null,
-          };
-
-          const { error } = await supabase
-            .from("inventory")
-            .insert(insertData);
-
-          if (error) throw error;
-          added++;
-          
-          // Update log with success
-          setProcessingLog(prev => 
-            prev.map(item => 
-              item.sku === effectiveSku 
-                ? { ...item, status: 'success' as const, action: 'added' as const }
-                : item
-            )
-          );
-        }
-      } catch (error: any) {
-        console.error("Import error for row:", row, error);
-        // Capture first error for user feedback
-        if (!firstErrorMessage && error?.message) {
-          firstErrorMessage = error.message;
-        }
-        failed++;
-        
-        // Update log with error
-        setProcessingLog(prev => 
-          prev.map(item => 
-            item.sku === effectiveSku 
-              ? { ...item, status: 'error' as const, error: error?.message || 'Unknown error' }
-              : item
-          )
-        );
+    // Delegate to background upload context
+    await startInventoryUpload(
+      `${validRows.length} inventory items`,
+      validRows,
+      {
+        tenantId,
+        targetBranchId: targetBranchId !== "none" ? targetBranchId : undefined,
+        onSuccess,
       }
+    );
 
-      setImportProgress(Math.round(((i + 1) / validRows.length) * 100));
-    }
-
-    setIsImporting(false);
-    setImportResults({ added, updated, failed });
-
-    // Show appropriate toast based on results
-    if (failed === validRows.length && firstErrorMessage) {
-      toast({
-        title: "Import Failed",
-        description: firstErrorMessage.includes("row-level security")
-          ? "Permission denied. Your role may not allow inventory imports."
-          : firstErrorMessage,
-        variant: "destructive",
-      });
-    } else if (failed > 0) {
-      toast({
-        title: "Import Partially Complete",
-        description: `${added} added, ${updated} updated, ${failed} failed. ${firstErrorMessage ? `Error: ${firstErrorMessage}` : ''}`,
-        variant: "default",
-      });
-    } else {
-      toast({
-        title: "Import Complete",
-        description: `${added} added, ${updated} updated`,
-      });
-    }
-
-    if (added > 0 || updated > 0) {
-      onSuccess();
-    }
+    // Close modal - upload continues in background
+    onOpenChange(false);
+    resetState();
   };
 
   const downloadTemplate = () => {
@@ -799,102 +641,6 @@ PROD-003,Premium Product,5,8500,6000,2,premium,High-end product with full featur
               </Table>
             </div>
 
-            {/* Import Progress with Processing Log */}
-            {isImporting && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-[#004B8D]/60">Importing...</span>
-                  <span className="text-[#003366] font-medium">{importProgress}%</span>
-                </div>
-                <Progress value={importProgress} className="h-2" />
-                
-                <div className="text-sm text-[#004B8D]/70">
-                  Processing item {currentItemIndex} of {parsedData.filter(r => r.isValid).length}...
-                </div>
-                
-                {/* Processing Log */}
-                <ScrollArea className="h-[150px] border border-[#004B8D]/10 rounded-lg bg-white">
-                  <div className="p-2 space-y-1">
-                    {processingLog.map((item, idx) => (
-                      <div 
-                        key={`${item.sku}-${idx}`}
-                        className={`flex items-center gap-2 p-2 rounded text-sm ${
-                          item.status === 'error' 
-                            ? 'bg-red-50' 
-                            : item.status === 'success' 
-                              ? 'bg-green-50' 
-                              : 'bg-blue-50'
-                        }`}
-                      >
-                        {item.status === 'processing' && (
-                          <Loader2 className="h-4 w-4 animate-spin text-blue-600 flex-shrink-0" />
-                        )}
-                        {item.status === 'success' && (
-                          <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
-                        )}
-                        {item.status === 'error' && (
-                          <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0" />
-                        )}
-                        <span className="font-mono text-xs text-muted-foreground">{item.sku}</span>
-                        <span className="truncate flex-1">{item.name}</span>
-                        {item.status === 'success' && (
-                          <Badge variant="outline" className="text-xs">
-                            {item.action === 'added' ? 'Added' : 'Updated'}
-                          </Badge>
-                        )}
-                        {item.status === 'processing' && (
-                          <span className="text-xs text-blue-600">Processing</span>
-                        )}
-                        {item.status === 'error' && (
-                          <span className="text-xs text-red-600 truncate max-w-[100px]" title={item.error}>
-                            {item.error}
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                    <div ref={logEndRef} />
-                  </div>
-                </ScrollArea>
-              </div>
-            )}
-
-            {/* Results */}
-            {importResults && !isImporting && (
-              <div className="space-y-3">
-                <div className="p-4 bg-[#004B8D]/5 rounded-lg">
-                  <p className="text-[#003366] font-medium mb-2">Import Complete</p>
-                  <div className="flex gap-4 text-sm">
-                    <span className="text-green-600">{importResults.added} added</span>
-                    <span className="text-blue-600">{importResults.updated} updated</span>
-                    {importResults.failed > 0 && (
-                      <span className="text-red-600">{importResults.failed} failed</span>
-                    )}
-                  </div>
-                </div>
-                
-                {/* Final Processing Log (collapsed if successful, expanded if errors) */}
-                {processingLog.length > 0 && importResults.failed > 0 && (
-                  <ScrollArea className="h-[120px] border border-red-200 rounded-lg bg-red-50/50">
-                    <div className="p-2 space-y-1">
-                      {processingLog.filter(item => item.status === 'error').map((item, idx) => (
-                        <div 
-                          key={`${item.sku}-${idx}`}
-                          className="flex items-center gap-2 p-2 rounded text-sm bg-red-50"
-                        >
-                          <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0" />
-                          <span className="font-mono text-xs text-muted-foreground">{item.sku}</span>
-                          <span className="truncate flex-1">{item.name}</span>
-                          <span className="text-xs text-red-600 truncate max-w-[150px]" title={item.error}>
-                            {item.error}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                )}
-              </div>
-            )}
-
             {/* Actions */}
             <div className="flex justify-end gap-3">
               <Button
@@ -906,20 +652,11 @@ PROD-003,Premium Product,5,8500,6000,2,premium,High-end product with full featur
               </Button>
               <Button
                 onClick={handleImport}
-                disabled={isImporting || validCount === 0}
+                disabled={uploadStarted || validCount === 0}
                 className="bg-[#004B8D] hover:bg-[#003366] text-white"
               >
-                {isImporting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Importing...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Import {validCount} Items
-                  </>
-                )}
+                <Upload className="h-4 w-4 mr-2" />
+                Import {validCount} Items
               </Button>
             </div>
           </div>

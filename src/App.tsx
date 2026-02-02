@@ -8,6 +8,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { TenantProvider } from "@/hooks/useTenant";
 import { BrandingProvider } from "@/contexts/BrandingContext";
 import { DemoModeProvider } from "@/contexts/DemoModeContext";
+import { UploadProvider } from "@/contexts/UploadContext";
 import { ProtectedRoute } from "@/components/dashboard/ProtectedRoute";
 import { DemoModeToggle } from "@/components/demo/DemoModeToggle";
 import { OmanutAdvisor } from "@/components/dashboard/OmanutAdvisor";
@@ -69,13 +70,15 @@ const App = () => (
         <TenantProvider>
           <DemoModeProvider>
             <BrandingProvider>
-              <OmanutAdvisor />
-              <Toaster />
-              <Sonner />
-              <BrowserRouter>
-                <AnimatedRoutes />
-                <DemoModeToggle />
-              </BrowserRouter>
+              <UploadProvider>
+                <OmanutAdvisor />
+                <Toaster />
+                <Sonner />
+                <BrowserRouter>
+                  <AnimatedRoutes />
+                  <DemoModeToggle />
+                </BrowserRouter>
+              </UploadProvider>
             </BrandingProvider>
           </DemoModeProvider>
         </TenantProvider>
