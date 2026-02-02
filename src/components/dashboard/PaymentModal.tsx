@@ -141,7 +141,7 @@ export function PaymentModal({ open, onOpenChange }: PaymentModalProps) {
           plan: selectedPlan,
           billing_period: billingPeriod,
           amount: price,
-          currency: currency || "USD",
+          currency: "ZMW", // Always use ZMW since billing_plan_configs prices are in ZMW
           phone_number: phoneNumber, // Send raw, backend normalizes
           operator,
         },
@@ -176,7 +176,7 @@ export function PaymentModal({ open, onOpenChange }: PaymentModalProps) {
           plan: selectedPlan,
           billing_period: billingPeriod,
           amount: price,
-          currency: currency || "USD",
+          currency: "ZMW", // Always use ZMW since billing_plan_configs prices are in ZMW
         },
       });
 
@@ -207,7 +207,7 @@ export function PaymentModal({ open, onOpenChange }: PaymentModalProps) {
           plan: selectedPlan,
           billing_period: billingPeriod,
           amount: price,
-          currency: currency || "USD",
+          currency: "ZMW", // Always use ZMW since billing_plan_configs prices are in ZMW
           card_redirect_url: `${window.location.origin}/bms?payment=complete`,
         },
       });

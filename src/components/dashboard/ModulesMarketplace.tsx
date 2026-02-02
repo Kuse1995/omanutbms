@@ -60,8 +60,12 @@ function ModuleCard({ module, isEnabled, addon, onActivate }: ModuleCardProps) {
   const Icon = getIconComponent(module.icon);
   const isCore = module.category === 'core';
 
-  const price = addon?.monthly_price || module.pricing?.monthlyPriceZMW;
-  const isUsageBased = addon?.pricing_type === "per_unit";
+  // Fix pricing display: use unit_price for usage-based add-ons, monthly_price for fixed
+  const isUsageBased = addon?.pricing_type === "per_unit" || addon?.pricing_type === "usage";
+  const hasFixedMonthlyPrice = addon?.monthly_price && addon.monthly_price > 0;
+  const price = hasFixedMonthlyPrice 
+    ? addon.monthly_price 
+    : (isUsageBased && addon?.unit_price ? addon.unit_price : module.pricing?.monthlyPriceZMW);
 
   return (
     <Card className={`relative overflow-hidden transition-all ${
@@ -201,16 +205,16 @@ export function ModulesMarketplace() {
     return features[featureKey as keyof typeof features] ?? module.defaultEnabled;
   };
 
-  // Map module keys to addon keys
+  // Map module keys to addon keys - only modules with direct addon equivalents
   const getAddonForModule = (module: ModuleDefinition): AddonDefinition | undefined => {
-    const moduleToAddonMap: Record<string, string> = {
+    // Only map modules that have direct addon equivalents in the database
+    // Multi-branch and WhatsApp are standalone add-ons, not module upgrades
+    const validMappings: Record<string, string> = {
       'inventory': 'inventory_items',
       'warehouse': 'warehouse_management',
-      'agents': 'multi_branch',
-      'website_cms': 'whatsapp_messages',
     };
-    const addonKey = moduleToAddonMap[module.moduleKey];
-    return addons.find(a => a.addon_key === addonKey);
+    const addonKey = validMappings[module.moduleKey];
+    return addonKey ? addons.find(a => a.addon_key === addonKey) : undefined;
   };
 
   const handleActivateAddon = (addon: AddonDefinition) => {
