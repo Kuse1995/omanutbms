@@ -441,7 +441,9 @@ const Pay = () => {
                             </div>
                           </div>
                           <Button className="w-full" size="lg" onClick={handleMobileMoneyPayment}>
-                            Pay {formatLocalPrice(price || 0, countryCode)}
+                            Pay {pricesAreLocal 
+                              ? `K${(price || 0).toLocaleString()}` 
+                              : formatLocalPrice(price || 0, countryCode)}
                           </Button>
                         </>
                       )}
@@ -503,7 +505,9 @@ const Pay = () => {
                           </p>
                           <Button className="w-full" size="lg" onClick={handleCardPayment}>
                             <CreditCard className="w-4 h-4 mr-2" />
-                            Pay {formatLocalPrice(price || 0, countryCode)} with Card
+                            Pay {pricesAreLocal 
+                              ? `K${(price || 0).toLocaleString()}` 
+                              : formatLocalPrice(price || 0, countryCode)} with Card
                           </Button>
                         </div>
                       )}

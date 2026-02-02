@@ -53,8 +53,11 @@ export function PaymentModal({ open, onOpenChange }: PaymentModalProps) {
   const [bankDetails, setBankDetails] = useState<BankDetails | null>(null);
 
   const planData = plans[selectedPlan];
-  const price = billingPeriod === "annual" ? planData.annualPrice : planData.monthlyPrice * 12;
+  const price = billingPeriod === "annual" ? planData.annualPrice : planData.monthlyPrice;
   const monthlyEquivalent = billingPeriod === "annual" ? Math.round(planData.annualPrice / 12) : planData.monthlyPrice;
+  // Check if plan prices are in ZMW (from database) - if so, don't apply exchange rate conversion
+  const planCurrency = planData?.currency || "USD";
+  const pricesAreLocal = planCurrency === "ZMW";
 
   // Poll for payment status
   useEffect(() => {
@@ -287,11 +290,19 @@ export function PaymentModal({ open, onOpenChange }: PaymentModalProps) {
           <div className="p-4 rounded-lg bg-muted/50 space-y-2">
             <div className="flex justify-between">
               <span className="text-muted-foreground">{planData.label} Plan ({billingPeriod})</span>
-              <span className="font-semibold">{formatLocalPrice(price, countryCode)}</span>
+              <span className="font-semibold">
+                {pricesAreLocal 
+                  ? `K${price.toLocaleString()}` 
+                  : formatLocalPrice(price, countryCode)}
+              </span>
             </div>
             <div className="flex justify-between text-sm text-muted-foreground">
               <span>Monthly equivalent</span>
-              <span>{formatLocalPrice(monthlyEquivalent, countryCode)}/month</span>
+              <span>
+                {pricesAreLocal 
+                  ? `K${monthlyEquivalent.toLocaleString()}` 
+                  : formatLocalPrice(monthlyEquivalent, countryCode)}/month
+              </span>
             </div>
           </div>
 
@@ -340,7 +351,9 @@ export function PaymentModal({ open, onOpenChange }: PaymentModalProps) {
                     </div>
                   </div>
                   <Button className="w-full" onClick={handleMobileMoneyPayment}>
-                    Pay {formatLocalPrice(price, countryCode)}
+                    Pay {pricesAreLocal 
+                      ? `K${price.toLocaleString()}` 
+                      : formatLocalPrice(price, countryCode)}
                   </Button>
                 </>
               )}
@@ -399,7 +412,9 @@ export function PaymentModal({ open, onOpenChange }: PaymentModalProps) {
                   </p>
                   <Button className="w-full" onClick={handleCardPayment}>
                     <CreditCard className="w-4 h-4 mr-2" />
-                    Pay {formatLocalPrice(price, countryCode)} with Card
+                    Pay {pricesAreLocal 
+                      ? `K${price.toLocaleString()}` 
+                      : formatLocalPrice(price, countryCode)} with Card
                   </Button>
                 </div>
               )}
