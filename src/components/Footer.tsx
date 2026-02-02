@@ -21,9 +21,10 @@ export function Footer() {
     {
       title: "Contact",
       links: [
-        { label: companyAddress || "Address not configured", href: "#", isText: true },
-        { label: companyPhone ? `Tel: ${companyPhone}` : "Phone not configured", href: companyPhone ? `tel:${companyPhone}` : "#", isText: !companyPhone },
-        { label: companyEmail || "Email not configured", href: companyEmail ? `mailto:${companyEmail}` : "#", isText: !companyEmail },
+        { label: companyAddress || "Lusaka, Zambia", href: "#", isText: true },
+        { label: "WhatsApp Us", href: "https://wa.me/260972064502", isExternal: true },
+        { label: "+260 972 064 502", href: "tel:+260972064502" },
+        { label: "abkanyanta@gmail.com", href: "mailto:abkanyanta@gmail.com" },
       ],
     },
   ];
@@ -93,6 +94,15 @@ export function Footer() {
                       <span className="text-primary-foreground/70 text-sm">
                         {link.label}
                       </span>
+                    ) : link.isExternal ? (
+                      <a
+                        href={link.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary-foreground/70 hover:text-primary-foreground transition-colors text-sm"
+                      >
+                        {link.label}
+                      </a>
                     ) : (
                       <Link
                         to={link.href}

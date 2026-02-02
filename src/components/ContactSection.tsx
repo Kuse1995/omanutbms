@@ -1,6 +1,6 @@
 import { motion, useInView } from "framer-motion";
 import { useRef, useState } from "react";
-import { MapPin, Mail, Phone, Send, Loader2 } from "lucide-react";
+import { MapPin, Mail, Phone, Send, Loader2, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,19 +32,26 @@ export function ContactSection() {
     {
       icon: MapPin,
       label: "Address",
-      value: companyAddress || "Contact us for our address",
+      value: companyAddress || "Lusaka, Zambia",
+    },
+    {
+      icon: MessageCircle,
+      label: "WhatsApp",
+      value: "+260 972 064 502",
+      href: "https://wa.me/260972064502",
+      isExternal: true,
     },
     {
       icon: Mail,
       label: "Email",
-      value: companyEmail || "Contact us",
-      href: companyEmail ? `mailto:${companyEmail}` : undefined,
+      value: "abkanyanta@gmail.com",
+      href: "mailto:abkanyanta@gmail.com",
     },
     {
       icon: Phone,
       label: "Phone",
-      value: companyPhone || "Contact us",
-      href: companyPhone ? `tel:${companyPhone}` : undefined,
+      value: "+260 972 064 502",
+      href: "tel:+260972064502",
     },
   ];
 
@@ -226,9 +233,11 @@ export function ContactSection() {
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground mb-1">{info.label}</p>
-                      {info.href ? (
+                    {info.href ? (
                         <a
                           href={info.href}
+                          target={info.isExternal ? "_blank" : undefined}
+                          rel={info.isExternal ? "noopener noreferrer" : undefined}
                           className="text-foreground font-medium hover:text-primary transition-colors"
                         >
                           {info.value}

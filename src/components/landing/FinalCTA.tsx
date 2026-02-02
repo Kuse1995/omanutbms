@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { useInView } from "framer-motion";
 import { useRef } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, MessageSquare } from "lucide-react";
+import { ArrowRight, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function FinalCTA() {
@@ -34,10 +34,14 @@ export function FinalCTA() {
               </Link>
             </Button>
             <Button asChild variant="outline" size="lg">
-              <Link to="/contact">
-                <MessageSquare className="mr-2 h-5 w-5" />
+              <a 
+                href="https://wa.me/260972064502?text=Hi%2C%20I%27m%20interested%20in%20Omanut%20BMS" 
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <MessageCircle className="mr-2 h-5 w-5" />
                 Talk to Sales
-              </Link>
+              </a>
             </Button>
           </div>
         </motion.div>

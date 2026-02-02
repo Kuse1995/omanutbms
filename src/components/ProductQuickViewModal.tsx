@@ -407,14 +407,14 @@ export function ProductQuickViewModal({ product, isOpen, onClose }: ProductQuick
               </DropdownMenuTrigger>
               <DropdownMenuContent align="center" className="w-48 z-50 bg-popover border border-border shadow-lg">
                 <DropdownMenuItem asChild className="cursor-pointer hover:bg-accent focus:bg-accent">
-                  <a href="tel:+260956905652" className="flex items-center gap-2 w-full">
+                  <a href="tel:+260972064502" className="flex items-center gap-2 w-full">
                     <Phone className="w-4 h-4 text-green-600" />
                     <span>Call Now</span>
                   </a>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild className="cursor-pointer hover:bg-accent focus:bg-accent">
                   <a 
-                    href="https://wa.me/260956905652" 
+                    href="https://wa.me/260972064502" 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 w-full"
