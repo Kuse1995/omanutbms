@@ -126,7 +126,7 @@ export function InventoryAgent() {
         query = query.eq("default_location_id", currentBranch.id);
       }
       
-      const { data: inventoryData, error } = await query.order("name");
+      const { data: inventoryData, error } = await query.order("name").limit(10000);
 
       if (error) throw error;
 

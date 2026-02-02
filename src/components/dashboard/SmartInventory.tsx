@@ -66,7 +66,7 @@ export function SmartInventory() {
         query = query.eq("default_location_id", currentBranch.id);
       }
       
-      const { data, error } = await query.order("name");
+      const { data, error } = await query.order("name").limit(10000);
 
       if (error) throw error;
       setInventory(data || []);
