@@ -310,7 +310,17 @@ Deno.serve(async (req) => {
       let lastError: any = null;
 
       for (const accountNumber of phoneVariants) {
-        // Mobile Money Collection (retry for phone formats)
+        // Lenco expects lowercase operator names: "mtn", "airtel"
+        // Map common user inputs to Lenco's expected format
+        const rawOperator = (operator || "MTN").toUpperCase();
+        let lencoOperator = "mtn"; // default
+        if (rawOperator.includes("AIRTEL")) {
+          lencoOperator = "airtel";
+        } else if (rawOperator.includes("MTN")) {
+          lencoOperator = "mtn";
+        }
+
+        // Mobile Money Collection
         const mobileMoneyPayload = {
           reference,
           amount: amount.toString(),
@@ -318,7 +328,7 @@ Deno.serve(async (req) => {
           accountNumber,
           accountName: userEmail,
           narration: `${plan} subscription - ${billing_period}`,
-          network: operator?.toUpperCase() || "MTN",
+          operator: lencoOperator,
         };
 
         console.log("Trying Lenco payload:", JSON.stringify(mobileMoneyPayload));
