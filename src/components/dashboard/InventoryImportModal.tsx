@@ -430,9 +430,9 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
             description: row.description || null,
             category: row.category || null,
           };
-          // Apply branch assignment if set
+          // Apply branch assignment if set (central = null, none = don't change)
           if (targetBranchId !== "none") {
-            updateData.default_location_id = targetBranchId === "" ? null : targetBranchId;
+            updateData.default_location_id = targetBranchId === "central" ? null : targetBranchId;
           }
 
           const { error } = await supabase
@@ -464,7 +464,7 @@ export function InventoryImportModal({ open, onOpenChange, onSuccess }: Inventor
             liters_per_unit: row.liters_per_unit,
             description: row.description || null,
             category: row.category || null,
-            default_location_id: (targetBranchId !== "none" && targetBranchId !== "") ? targetBranchId : null,
+            default_location_id: (targetBranchId !== "none" && targetBranchId !== "central") ? targetBranchId : null,
           };
 
           const { error } = await supabase
@@ -723,7 +723,7 @@ PROD-003,Premium Product,5,8500,6000,2,premium,High-end product with full featur
                     <SelectItem value="none">
                       <span className="text-muted-foreground">Don't assign</span>
                     </SelectItem>
-                    <SelectItem value="">
+                    <SelectItem value="central">
                       <span>Central Stock (No Branch)</span>
                     </SelectItem>
                     {branches.map((branch) => (
