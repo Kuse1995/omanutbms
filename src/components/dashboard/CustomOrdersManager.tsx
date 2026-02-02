@@ -78,8 +78,8 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secon
 
 export function CustomOrdersManager() {
   const { toast } = useToast();
-  const { tenant, tenantUser } = useTenant();
-  const { isAdmin, canEdit: canEditRole, user } = useAuth();
+  const { tenant, tenantUser, loading: tenantLoading } = useTenant();
+  const { isAdmin, canEdit: canEditRole, user, role } = useAuth();
   const { currencySymbol } = useBusinessConfig();
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<CustomOrder[]>([]);
@@ -98,7 +98,8 @@ export function CustomOrdersManager() {
   const [orderToDelete, setOrderToDelete] = useState<CustomOrder | null>(null);
 
   const canEdit = isAdmin || canEditRole;
-  const isOperationsRole = tenantUser?.role === 'operations_manager';
+  // Check operations role from both tenantUser and useAuth role for reliability
+  const isOperationsRole = tenantUser?.role === 'operations_manager' || role === 'operations_manager';
 
   // Handle continuing an order (for ops handoff)
   const handleContinueOrder = (orderId: string) => {
