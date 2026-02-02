@@ -21,6 +21,7 @@ import { NotificationsCenter } from "./NotificationsCenter";
 import { TrialBanner } from "./TrialBanner";
 import { UpgradePlanModal } from "./UpgradePlanModal";
 import { BranchSelector } from "./BranchSelector";
+import { UploadProgressIndicator } from "./UploadProgressIndicator";
 import { DemoModeIndicator } from "@/components/demo/DemoModeIndicator";
 
 export function DashboardHeader() {
@@ -79,8 +80,9 @@ export function DashboardHeader() {
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <BranchSelector />
+          <UploadProgressIndicator />
           <div data-tour="header-notifications">
             <NotificationsCenter />
           </div>

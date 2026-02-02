@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext, ReactNode } from "react";
+import { useState, useEffect, createContext, useContext, useMemo, useCallback, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 
@@ -90,7 +90,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchTenantData = async () => {
+  const fetchTenantData = useCallback(async () => {
     if (!user) {
       setTenant(null);
       setTenantUser(null);
@@ -163,7 +163,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     if (!authLoading) {
@@ -199,17 +199,17 @@ export function TenantProvider({ children }: { children: ReactNode }) {
 
   const tenantId = tenantUser?.tenant_id ?? null;
 
+  const contextValue = useMemo(() => ({
+    tenant,
+    tenantUser,
+    businessProfile,
+    tenantId,
+    loading: loading || authLoading,
+    refetchTenant: fetchTenantData,
+  }), [tenant, tenantUser, businessProfile, tenantId, loading, authLoading, fetchTenantData]);
+
   return (
-    <TenantContext.Provider
-      value={{
-        tenant,
-        tenantUser,
-        businessProfile,
-        tenantId,
-        loading: loading || authLoading,
-        refetchTenant: fetchTenantData,
-      }}
-    >
+    <TenantContext.Provider value={contextValue}>
       {children}
     </TenantContext.Provider>
   );

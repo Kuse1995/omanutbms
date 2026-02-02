@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, memo } from 'react';
 import { Building2, ChevronDown, MapPin } from 'lucide-react';
 import {
   DropdownMenu,
@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { useBranch } from '@/hooks/useBranch';
 import { cn } from '@/lib/utils';
 
-export const BranchSelector: React.FC = () => {
+export const BranchSelector = memo(function BranchSelector() {
   const {
     branches,
     currentBranch,
@@ -23,14 +23,17 @@ export const BranchSelector: React.FC = () => {
     loading,
   } = useBranch();
 
+  // Memoize filtered branches to prevent unnecessary recalculations
+  const accessibleBranches = useMemo(() => 
+    canAccessAllBranches 
+      ? branches 
+      : branches.filter(b => b.id === userBranchId),
+    [branches, canAccessAllBranches, userBranchId]
+  );
+
   if (!isMultiBranchEnabled || branches.length === 0) {
     return null;
   }
-
-  // Filter branches for non-admin users to only show their assigned branch
-  const accessibleBranches = canAccessAllBranches 
-    ? branches 
-    : branches.filter(b => b.id === userBranchId);
 
   // If user can only access one branch, just show it as a label (no dropdown)
   if (!canAccessAllBranches && accessibleBranches.length <= 1) {
@@ -121,4 +124,4 @@ export const BranchSelector: React.FC = () => {
       </DropdownMenuContent>
     </DropdownMenu>
   );
-};
+});

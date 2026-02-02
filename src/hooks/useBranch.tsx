@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from './useTenant';
 
@@ -114,19 +114,19 @@ export const BranchProvider: React.FC<BranchProviderProps> = ({ children }) => {
     }
   }, []);
 
+  const contextValue = useMemo(() => ({
+    branches,
+    currentBranch,
+    setCurrentBranch,
+    isMultiBranchEnabled,
+    canAccessAllBranches,
+    userBranchId,
+    loading,
+    refetchBranches: fetchBranches,
+  }), [branches, currentBranch, setCurrentBranch, isMultiBranchEnabled, canAccessAllBranches, userBranchId, loading, fetchBranches]);
+
   return (
-    <BranchContext.Provider
-      value={{
-        branches,
-        currentBranch,
-        setCurrentBranch,
-        isMultiBranchEnabled,
-        canAccessAllBranches,
-        userBranchId,
-        loading,
-        refetchBranches: fetchBranches,
-      }}
-    >
+    <BranchContext.Provider value={contextValue}>
       {children}
     </BranchContext.Provider>
   );
