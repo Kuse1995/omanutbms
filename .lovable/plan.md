@@ -1,142 +1,158 @@
 
 
-# Plan: Replace Delete with Archive + Allow Re-Import Over Archived Items
+# Plan: Relaxed SKU Rule for Inventory Imports
 
 ## Problem Summary
 
-1. **Delete Button Fails**: Items with sales history can't be deleted due to foreign key constraints
-2. **Re-Import Blocked**: When an archived item exists with the same SKU, importing updates the archived item instead of creating a fresh one
+Some tenants don't track products by SKU. Currently:
+- The database requires a non-null SKU
+- The import modal marks SKU as "required"
+- Rows without SKU fail validation and can't be imported
 
 ---
 
-## Solution Overview
+## Proposed Solution: Auto-Generate SKU When Missing
+
+The best approach is to **auto-generate a unique SKU** when one isn't provided. This:
+- Maintains database integrity (unique constraint satisfied)
+- Allows tenants without SKU systems to import freely
+- Preserves SKU-based duplicate detection for tenants who DO use them
+- Requires no database schema changes
+
+---
+
+## Implementation Details
+
+### 1. Schema Definition Change
+
+Update `inventorySchemaFields` to make SKU optional:
+
+```typescript
+// Before
+{ key: 'sku', label: 'SKU', required: true, ... }
+
+// After  
+{ key: 'sku', label: 'SKU', required: false, ... }
+```
+
+### 2. Auto-Generate SKU Logic
+
+When SKU is empty during import:
 
 ```text
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                              CHANGES REQUIRED                                    │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│  1. Replace "Delete Selected" button with "Archive Selected" button             │
-│  2. Update bulk action to use archive (is_archived = true) instead of delete   │
-│  3. Modify import logic to skip archived items when checking for existing SKU  │
-│     → This allows creating new items with same SKU as archived ones            │
-└─────────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│  SKU Generation Pattern                                         │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Format: AUTO-{timestamp}-{random}                               │
+│  Example: AUTO-1738500000-A7X9                                   │
+│                                                                  │
+│  • Guaranteed unique per import batch                            │
+│  • Clearly identifiable as auto-generated                        │
+│  • Can be edited later by user if needed                         │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
----
+### 3. Validation Logic Change
 
-## Part 1: Replace Bulk Delete with Bulk Archive
+Update the validation in `convertToParsedRows`:
 
-### Changes to InventoryAgent.tsx
-
-**Button Label Change:**
-- Change "Delete Selected" → "Archive Selected"
-- Change icon from `Trash2` → `Archive`
-- Change button style from red to amber/warning
-
-**Handler Change:**
-- Rename `handleBulkDelete` → `handleBulkArchive`
-- Change from `.delete()` to `.update({ is_archived: true })`
-- Update toast messages accordingly
-
-**Dialog Update:**
-- Change title from "Delete X Products?" to "Archive X Products?"
-- Change description to explain items will be hidden but kept for history
-- Remove warning about "cannot be undone" (archived items can be restored)
-
----
-
-## Part 2: Allow Re-Import Over Archived Items
-
-### Changes to InventoryImportModal.tsx
-
-**Current Logic (Problem):**
 ```typescript
-const { data: existing } = await supabase
-  .from("inventory")
-  .select("id")
-  .eq("sku", row.sku)
-  .eq("tenant_id", tenantId)
-  .maybeSingle();  // ❌ Finds archived items too
+// Before
+if (!parsed.sku) errors.push("SKU is required");
+
+// After
+// SKU is optional - will be auto-generated if empty
+// (No validation error for missing SKU)
 ```
 
-**New Logic (Solution):**
+### 4. Import Logic Change
+
+Update `handleImport` to generate SKU for new items:
+
 ```typescript
-const { data: existing } = await supabase
-  .from("inventory")
-  .select("id")
-  .eq("sku", row.sku)
-  .eq("tenant_id", tenantId)
-  .eq("is_archived", false)  // ✅ Only find active items
-  .maybeSingle();
+// When inserting new item without SKU
+const generatedSku = row.sku || `AUTO-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+
+const insertData = {
+  sku: generatedSku,
+  // ... rest of fields
+};
 ```
 
-This means:
-- If SKU exists and is **active** → Update the existing item
-- If SKU exists but is **archived** → Create a NEW item with that SKU
-- If SKU doesn't exist → Create a new item
+### 5. Preview Display
+
+Show users when SKU will be auto-generated:
+- Display "(Auto)" badge next to empty SKU cells in preview table
+- Add info message: "Items without SKU will get one auto-generated"
 
 ---
 
 ## User Experience Flow
 
-### Archiving Items
 ```text
-User selects items → Clicks "Archive Selected"
-         │
-         ▼
-┌─────────────────────────────────┐
-│  Archive Confirmation Dialog    │
-│  "Archive 5 Products?"          │
-│  These will be hidden but kept  │
-│  for sales history. Restore     │
-│  anytime via "Show Archived".   │
-└─────────────────────────────────┘
-         │
-         ▼
-Items set to is_archived = true
-Disappear from main list
-Visible in "Show Archived" mode
-```
-
-### Re-Importing Archived SKUs
-```text
-User has archived item: SKU = "BRAKE-001"
-User uploads CSV with same SKU "BRAKE-001"
-         │
-         ▼
-Import finds no ACTIVE item with that SKU
-         │
-         ▼
-Creates NEW item with SKU "BRAKE-001"
-Old archived version preserved for history
+User uploads CSV without SKU column
+           │
+           ▼
+┌────────────────────────────────────────┐
+│  Import Preview                         │
+│  ─────────────────────────────────────  │
+│  ℹ️ 15 items will have SKU generated    │
+│                                         │
+│  │ SKU        │ Name      │ Price │     │
+│  │ (Auto)     │ T-Shirt   │ K150  │     │
+│  │ (Auto)     │ Jeans     │ K350  │     │
+│  │ SHOE-001   │ Sneakers  │ K450  │     │
+│                                         │
+│           [Import 3 Items]              │
+└────────────────────────────────────────┘
+           │
+           ▼
+Items created with:
+- AUTO-1738500123-A7X9 → T-Shirt
+- AUTO-1738500123-B3K2 → Jeans  
+- SHOE-001 → Sneakers (user's SKU kept)
 ```
 
 ---
 
-## Technical Implementation
+## Duplicate Handling
 
-### File: src/components/dashboard/InventoryAgent.tsx
+When SKU is empty:
+- **Can't match existing items** → Always creates new record
+- This is intentional: without a SKU, there's no identifier to match
 
-| Change | Location | Description |
-|--------|----------|-------------|
-| State rename | Line ~99 | `bulkDeleteDialogOpen` → `bulkArchiveDialogOpen` |
-| Handler rename | Line ~293-321 | `handleBulkDelete` → `handleBulkArchive`, change to `.update({ is_archived: true })` |
-| Button UI | Lines ~566-574 | Change to Archive style (amber, Archive icon) |
-| Dialog content | Lines ~876-906 | Update title, description, button text for archive |
+When SKU is provided:
+- **Matches existing active item** → Updates it
+- **Matches archived item** → Creates new record
+- **No match** → Creates new record
 
-### File: src/components/dashboard/InventoryImportModal.tsx
+---
 
-| Change | Location | Description |
-|--------|----------|-------------|
-| SKU lookup query | Lines ~413-418 | Add `.eq("is_archived", false)` filter |
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/components/dashboard/InventoryImportModal.tsx` | Remove SKU required validation, add auto-generate logic, show "(Auto)" in preview |
+
+---
+
+## Why This Approach?
+
+| Alternative | Pros | Cons |
+|-------------|------|------|
+| ❌ Make SKU nullable in DB | Simple | Breaks unique constraint, complicates queries |
+| ❌ Use product name as SKU | Uses existing data | Names aren't unique, causes conflicts |
+| ✅ **Auto-generate SKU** | Maintains integrity, no DB changes | Users may need to edit later |
+| ❌ Require SKU always | Maintains current behavior | Blocks tenants without SKU system |
 
 ---
 
 ## Expected Outcome
 
-1. **No more FK constraint errors** - Archive preserves data relationships
-2. **Fresh imports work** - Same SKU can be imported again after archiving
-3. **History preserved** - Archived items remain visible in "Show Archived" mode
-4. **Restorable** - Accidentally archived items can be restored anytime
-5. **Clean workflow** - Upload mistake? Archive old items, re-import correct data
+1. **Tenants with SKUs**: Import works exactly as before
+2. **Tenants without SKUs**: Can now import freely with auto-generated identifiers
+3. **Mixed cases**: Provided SKUs are used, missing ones are generated
+4. **No database changes required**
 
