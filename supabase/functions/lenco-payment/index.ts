@@ -242,12 +242,21 @@ Deno.serve(async (req) => {
     let lencoResponse: any;
 
     if (payment_method === "mobile_money") {
+      // Normalize phone number for Lenco (remove + prefix, ensure 260 prefix)
+      let normalizedPhone = phone_number || "";
+      if (normalizedPhone.startsWith("+")) {
+        normalizedPhone = normalizedPhone.slice(1);
+      }
+      if (!normalizedPhone.startsWith("260") && normalizedPhone.length === 9) {
+        normalizedPhone = `260${normalizedPhone}`;
+      }
+      
       // Mobile Money Collection
       const mobileMoneyPayload = {
         reference,
         amount: amount.toString(),
         currency: currencyCode === "ZMW" ? "ZMW" : "USD",
-        accountNumber: phone_number,
+        accountNumber: normalizedPhone,
         accountName: userEmail,
         narration: `${plan} subscription - ${billing_period}`,
         network: operator?.toUpperCase() || "MTN",
