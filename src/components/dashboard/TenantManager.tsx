@@ -140,7 +140,7 @@ export function TenantManager() {
           agents_enabled: isGrowth || isEnterprise,
           impact_enabled: isGrowth || isEnterprise,
           website_enabled: isGrowth || isEnterprise,
-          whatsapp_enabled: true, // All plans now have WhatsApp (with usage limits)
+          whatsapp_enabled: false, // WhatsApp is an add-on only feature
           advanced_accounting_enabled: isEnterprise, // Enterprise only
           whatsapp_messages_used: 0,
           whatsapp_usage_reset_date: new Date().toISOString().split('T')[0]

@@ -24,7 +24,6 @@ const featureComparison: FeatureRow[] = [
   // Limits
   { category: "Usage Limits", feature: "Team Members", starter: "1 user", growth: "10 users", enterprise: "Unlimited" },
   { category: "Usage Limits", feature: "Inventory Items", starter: "100 items", growth: "1,000 items", enterprise: "Unlimited" },
-  { category: "Usage Limits", feature: "WhatsApp Messages", starter: "30/month", growth: "500/month", enterprise: "Unlimited" },
   { category: "Usage Limits", feature: "AI Advisor Queries", starter: "10/day", growth: "50/day", enterprise: "Unlimited" },
   
   // Accounting
@@ -45,7 +44,7 @@ const featureComparison: FeatureRow[] = [
   { category: "AI & Automation", feature: "AI Advisor (Basic)", starter: true, growth: true, enterprise: true },
   { category: "AI & Automation", feature: "AI Teaching Mode", starter: false, growth: true, enterprise: true },
   { category: "AI & Automation", feature: "Document Import AI", starter: false, growth: true, enterprise: true },
-  { category: "AI & Automation", feature: "WhatsApp Assistant", starter: true, growth: true, enterprise: true },
+  { category: "AI & Automation", feature: "WhatsApp Assistant", starter: "Add-on", growth: "Add-on", enterprise: "Add-on" },
   
   // Distribution
   { category: "Distribution", feature: "Agent Network", starter: false, growth: true, enterprise: true },
