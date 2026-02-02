@@ -1,225 +1,132 @@
 
-# Plan: Smart Import Resume & Duplicate Detection
+# Plan: Fix Trial/Onboarding + Payment Gateway Issues
 
-## Problem
+## Issues Identified
 
-When importing a large file (e.g., 7,000 items) and only 500 succeed due to errors or interruptions, users have no clear way to:
-1. Know which items were successfully uploaded vs which failed
-2. Re-upload the remaining 6,500 items without creating duplicates
-3. Easily "retry failed items only" from a previous import
+### Issue 1: Wrong Amount on Payment Buttons
+**Location**: `src/components/dashboard/PaymentModal.tsx` line 56, `src/pages/Pay.tsx` buttons
 
-## Current State
+**Problem**: The PaymentModal price calculation has a bug:
+```typescript
+// WRONG - Monthly period is multiplied by 12
+const price = billingPeriod === "annual" ? planData.annualPrice : planData.monthlyPrice * 12;
+```
 
-The system already has some building blocks:
-- `FailedItem[]` tracking with row index, SKU, name, and error reason
-- "Download Failed Items CSV" button in `UploadProgressIndicator`
-- Duplicate SKU detection during import (existing items are updated, not inserted)
+For monthly billing, it multiplies `monthlyPrice * 12`, which is incorrect. A monthly payment should just be `monthlyPrice`.
 
-**What's Missing:**
-- No pre-import analysis showing "X items already exist"
-- No option to "Skip existing" or "Update existing"
-- No way to easily re-import only the failed items
+Additionally, the display uses `formatLocalPrice()` which applies exchange rate conversion, but the database prices are already in ZMW (K799/month for Pro). This causes double conversion.
+
+**Database prices (from billing_plan_configs)**:
+- Starter: K299/month, K3,000/year (ZMW)
+- Pro/Growth: K799/month, K9,000/year (ZMW)
+- Enterprise: K1,999/month, K22,999/year (ZMW)
+
+### Issue 2: Payment Gateway Error - "Invalid phone"
+**Location**: Edge function `lenco-payment/index.ts`
+
+**Problem**: The Lenco mobile money API returns "Invalid phone" error. Looking at the logs:
+```
+Lenco mobile money error: { status: false, errorCode: "01", message: "Invalid phone", data: null }
+```
+
+The phone number format may not match Lenco's expected format. Current code sends:
+```typescript
+accountNumber: phone_number,  // e.g., "+260972064502"
+```
+
+Lenco API might expect:
+- Numbers without the "+" prefix
+- Different format for Zambian numbers
+- A specific format like "260972064502" (without +)
+
+### Issue 3: Currency Confusion in Price Display
+**Location**: Multiple payment UI components
+
+**Problem**: The system has two pricing sources:
+1. **Code defaults** (`billing-plans.ts`): Prices in USD ($29/month for Pro)
+2. **Database overrides** (`billing_plan_configs`): Prices in ZMW (K799/month for Pro)
+
+The `formatLocalPrice()` function always applies exchange rate conversion from USD to local currency, but when prices come from the database in ZMW, this double-converts them.
 
 ---
 
-## Solution
+## Technical Fixes
 
-### 1. Pre-Import Analysis Phase
+### File 1: `src/components/dashboard/PaymentModal.tsx`
 
-Before starting the upload, scan the database to identify:
-- Items that **already exist** (matched by SKU)
-- Items that are **new** (no matching SKU)
-- Items with **missing/auto-generate SKU** (will always be treated as new)
+**Fix price calculation** (line 56):
+```typescript
+// BEFORE (WRONG)
+const price = billingPeriod === "annual" ? planData.annualPrice : planData.monthlyPrice * 12;
 
-Display this in a summary:
-
-```text
-+--------------------------------------------------+
-| Import Analysis                                   |
-+--------------------------------------------------+
-| 📊 Total items in file:        7,000             |
-| ✅ New items (will be added):  6,200             |
-| 🔄 Existing items (by SKU):      800             |
-| ⚠️ Without SKU (auto-generate):  150             |
-+--------------------------------------------------+
-| How should we handle existing items?             |
-| ○ Skip existing (faster, adds only new items)    |
-| ● Update existing (merge with current data)      |
-+--------------------------------------------------+
+// AFTER (CORRECT)
+const price = billingPeriod === "annual" ? planData.annualPrice : planData.monthlyPrice;
 ```
 
-### 2. Enhanced Import Options
-
-Add a new option before import starts:
-
-| Option | Behavior |
-|--------|----------|
-| **Skip existing** | Only insert new items, completely skip rows where SKU already exists in inventory |
-| **Update existing** | Current behavior - update existing items with new data from the file |
-
-### 3. "Retry Failed Only" Feature
-
-After an import with failures, provide a button to:
-1. Download a **corrected CSV template** pre-filled with failed items
-2. Or a "Retry failed items" action that re-queues just the failed rows
-
----
-
-## Technical Changes
-
-### File 1: `src/contexts/UploadContext.tsx`
-
-Add analysis function and skip-existing mode:
-
+**Fix price display** to respect native currency:
 ```typescript
-interface UploadOptions {
-  tenantId: string;
-  targetBranchId?: string;
-  onSuccess?: () => void;
-  skipExisting?: boolean;  // NEW: Skip items that already exist
-}
+const planCurrency = planData?.currency || "USD";
+const pricesAreLocal = planCurrency === "ZMW";
 
-// NEW: Pre-import analysis function
-async analyzeImport(rows: InventoryRow[], tenantId: string): Promise<ImportAnalysis> {
-  const skuList = rows.filter(r => r.sku).map(r => r.sku);
-  
-  const { data: existingItems } = await supabase
-    .from('inventory')
-    .select('sku')
-    .in('sku', skuList)
-    .eq('tenant_id', tenantId)
-    .eq('is_archived', false);
-  
-  const existingSkus = new Set(existingItems?.map(i => i.sku) || []);
-  
-  return {
-    total: rows.length,
-    newItems: rows.filter(r => r.sku && !existingSkus.has(r.sku)).length,
-    existingItems: rows.filter(r => r.sku && existingSkus.has(r.sku)).length,
-    autoGenerate: rows.filter(r => !r.sku).length,
-    existingSkus: Array.from(existingSkus),
-  };
-}
+// In button and price display:
+{pricesAreLocal 
+  ? `K${price.toLocaleString()}` 
+  : formatLocalPrice(price, countryCode)}
 ```
 
-Modify `startInventoryUpload` to respect `skipExisting`:
+### File 2: `src/pages/Pay.tsx`
 
+The Pay page already has the `pricesAreLocal` logic (lines 66-67), but needs to be applied consistently to ALL buttons.
+
+**Update Mobile Money button** (around line 460):
 ```typescript
-// If skipExisting is true, filter out items that already exist
-const toInsert = skipExisting
-  ? rows.filter(r => !r.sku || !existingSkuMap.has(r.sku))
-  : rows.filter(r => !r.sku || !existingSkuMap.has(r.sku));
-
-const toUpdate = skipExisting
-  ? []  // Skip all updates when skipExisting is true
-  : rows.filter(r => r.sku && existingSkuMap.has(r.sku));
+<Button className="w-full" onClick={handleMobileMoneyPayment}>
+  Pay {pricesAreLocal ? `K${price?.toLocaleString()}` : formatLocalPrice(price || 0, countryCode)}
+</Button>
 ```
 
-### File 2: `src/components/dashboard/InventoryImportModal.tsx`
+**Update Card button and Bank button** similarly.
 
-Add analysis step UI between mapping and import:
+### File 3: `supabase/functions/lenco-payment/index.ts`
 
-1. After preview step, add an "Analyze" phase
-2. Show the breakdown of new vs existing items
-3. Add radio buttons for skip/update mode
-4. Only then show the "Import" button
+**Fix phone number formatting** for Lenco API:
 
 ```typescript
-// New state
-const [importAnalysis, setImportAnalysis] = useState<ImportAnalysis | null>(null);
-const [existingItemMode, setExistingItemMode] = useState<'skip' | 'update'>('update');
-const [isAnalyzing, setIsAnalyzing] = useState(false);
+// Normalize phone number for Lenco (remove + prefix)
+const normalizedPhone = phone_number?.startsWith("+") 
+  ? phone_number.slice(1)  // Remove + prefix
+  : phone_number?.startsWith("260")
+    ? phone_number
+    : `260${phone_number}`;
 
-// Analysis UI component
-<div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-  <h4 className="font-medium text-blue-900">📊 Import Analysis</h4>
-  <div className="grid grid-cols-2 gap-2 text-sm">
-    <span>New items:</span>
-    <span className="font-medium text-green-700">{analysis.newItems}</span>
-    <span>Already in inventory:</span>
-    <span className="font-medium text-amber-700">{analysis.existingItems}</span>
-    <span>Auto-generate SKU:</span>
-    <span className="font-medium text-blue-700">{analysis.autoGenerate}</span>
-  </div>
-  
-  {analysis.existingItems > 0 && (
-    <div className="pt-2 border-t border-blue-200">
-      <Label className="text-sm">How to handle existing items?</Label>
-      <RadioGroup value={existingItemMode} onValueChange={setExistingItemMode}>
-        <div className="flex items-center space-x-2">
-          <RadioGroupItem value="skip" id="skip" />
-          <Label htmlFor="skip">Skip existing (only add new)</Label>
-        </div>
-        <div className="flex items-center space-x-2">
-          <RadioGroupItem value="update" id="update" />
-          <Label htmlFor="update">Update existing with file data</Label>
-        </div>
-      </RadioGroup>
-    </div>
-  )}
-</div>
-```
-
-### File 3: `src/components/dashboard/UploadProgressIndicator.tsx`
-
-Add "Download Ready-to-Retry CSV" button that exports failed items in the correct import format:
-
-```typescript
-function downloadRetryCSV(job: UploadJob) {
-  if (!job.failedItems?.length) return;
-  
-  const csv = [
-    'sku,name,current_stock,unit_price,cost_price,reorder_level,category,description',
-    ...job.failedItems.map(item => 
-      `${item.sku},"${item.name}",0,0,0,10,,`
-    )
-  ].join('\n');
-  
-  // Download as retry-import-{timestamp}.csv
-}
+const mobileMoneyPayload = {
+  reference,
+  amount: amount.toString(),
+  currency: currencyCode === "ZMW" ? "ZMW" : "USD",
+  accountNumber: normalizedPhone,  // Use normalized phone
+  accountName: userEmail,
+  narration: `${plan} subscription - ${billing_period}`,
+  network: operator?.toUpperCase() || "MTN",
+};
 ```
 
 ---
 
-## Files to Modify
+## Summary of Changes
 
-| File | Changes |
-|------|---------|
-| `src/contexts/UploadContext.tsx` | Add `analyzeImport()`, add `skipExisting` option |
-| `src/components/dashboard/InventoryImportModal.tsx` | Add analysis UI, radio buttons for skip/update |
-| `src/components/dashboard/UploadProgressIndicator.tsx` | Add "Download Retry CSV" button |
-
----
-
-## User Flow (After Implementation)
-
-### Scenario: Partial Upload Resume
-
-1. **Day 1**: User uploads 7,000 items → 500 succeed, 6,500 fail
-2. User downloads "Failed Items CSV" with 6,500 rows
-3. User fixes data issues in the CSV
-
-4. **Day 2**: User re-uploads the corrected 6,500-item file
-5. System shows analysis:
-   ```
-   New items: 6,200
-   Already in inventory: 300 (from yesterday's successful 500)
-   ```
-6. User selects "Skip existing" → Only 6,200 new items are imported
-7. No duplicates, no unnecessary updates
-
-### Scenario: Quick Retry
-
-1. After import with 100 failures, user clicks "Download Retry CSV"
-2. Gets a clean CSV with just the 100 failed items
-3. Fixes errors, re-imports
-4. System shows "100 new items" (no conflicts)
+| File | Issue | Fix |
+|------|-------|-----|
+| `PaymentModal.tsx` | Wrong price calc (monthly * 12) | Remove the `* 12` multiplication |
+| `PaymentModal.tsx` | Double currency conversion | Add `pricesAreLocal` check like Pay.tsx |
+| `Pay.tsx` | Button amounts may not use native price | Ensure all buttons use `pricesAreLocal` format |
+| `lenco-payment/index.ts` | Phone format rejected by Lenco | Normalize phone to remove "+" prefix |
 
 ---
 
 ## Expected Outcome
 
-1. **Pre-import visibility**: Users know exactly what will be added vs updated before clicking Import
-2. **Duplicate prevention**: "Skip existing" mode prevents re-processing already-imported items
-3. **Easy retry flow**: One-click download of failed items in import-ready format
-4. **No data loss**: Users never lose track of what succeeded or failed
+After these fixes:
+1. **Monthly payments show correct price**: K799 instead of K9,588 (799*12)
+2. **No double currency conversion**: K799 stays as K799, not converted again
+3. **Mobile money payments work**: Phone number format matches Lenco's expectations
+4. **Consistent pricing across all buttons**: Pay button, Mobile Money, Card, and Bank Transfer all show the same correct amount
