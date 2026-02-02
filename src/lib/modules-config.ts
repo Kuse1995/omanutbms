@@ -8,6 +8,7 @@ export type PricingTier = 'free' | 'starter' | 'professional' | 'enterprise';
 
 export interface ModulePricing {
   tier: 'starter' | 'growth' | 'enterprise';
+  /** @deprecated Use addon_definitions table for pricing - this is for display fallback only */
   monthlyPriceZMW?: number;
   description?: string;
 }

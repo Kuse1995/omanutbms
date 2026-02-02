@@ -124,7 +124,8 @@ export function AddonPurchaseModal({ open, onOpenChange, addon, onSuccess }: Add
     setErrorMessage(null);
 
     try {
-      const price = addon.monthly_price || addon.unit_price || 0;
+      // Use displayPrice which is already correctly calculated for usage-based vs fixed
+      const paymentAmount = hasFixedMonthlyPrice ? addon.monthly_price! : (addon.unit_price || 0);
       
       const response = await supabase.functions.invoke("lenco-payment", {
         body: {
@@ -132,8 +133,8 @@ export function AddonPurchaseModal({ open, onOpenChange, addon, onSuccess }: Add
           plan: "addon", // Indicate this is an add-on purchase
           addon_key: addon.addon_key,
           billing_period: "monthly",
-          amount: price,
-          currency: currency || "ZMW",
+          amount: paymentAmount,
+          currency: "ZMW", // Always use ZMW since addon prices are in ZMW
           phone_number: phoneNumber,
           operator,
         },
@@ -167,8 +168,12 @@ export function AddonPurchaseModal({ open, onOpenChange, addon, onSuccess }: Add
   if (!addon) return null;
 
   const IconComponent = iconMap[addon.icon || "Package"] || Package;
-  const price = addon.monthly_price || addon.unit_price || 0;
-  const isUsageBased = addon.pricing_type === "per_unit";
+  
+  // Fix pricing display for usage-based vs fixed add-ons
+  const isUsageBased = addon.pricing_type === "per_unit" || addon.pricing_type === "usage";
+  const hasFixedMonthlyPrice = addon.pricing_type === "fixed" && addon.monthly_price && addon.monthly_price > 0;
+  const displayPrice = hasFixedMonthlyPrice ? addon.monthly_price : (addon.unit_price || 0);
+  const priceLabel = hasFixedMonthlyPrice ? "/month" : `/${addon.unit_label || "unit"}`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -191,10 +196,8 @@ export function AddonPurchaseModal({ open, onOpenChange, addon, onSuccess }: Add
             <div className="flex justify-between items-center">
               <span className="text-muted-foreground">Price</span>
               <div className="text-right">
-                <span className="text-xl font-bold">K{price.toLocaleString()}</span>
-                <span className="text-muted-foreground text-sm">
-                  {isUsageBased ? `/${addon.unit_label || "unit"}` : "/month"}
-                </span>
+                <span className="text-xl font-bold">K{displayPrice.toLocaleString()}</span>
+                <span className="text-muted-foreground text-sm">{priceLabel}</span>
               </div>
             </div>
             {isUsageBased && (
@@ -236,7 +239,10 @@ export function AddonPurchaseModal({ open, onOpenChange, addon, onSuccess }: Add
               </div>
 
               <Button className="w-full" onClick={handlePayment}>
-                Pay K{price.toLocaleString()}
+                {hasFixedMonthlyPrice 
+                  ? `Pay K${displayPrice.toLocaleString()}/month`
+                  : `Activate (K${displayPrice}${priceLabel})`
+                }
               </Button>
             </div>
           )}
