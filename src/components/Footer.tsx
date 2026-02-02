@@ -1,12 +1,15 @@
 import { useRef } from "react";
 import { motion, useInView } from "framer-motion";
 import { Link } from "react-router-dom";
-import { useBusinessConfig } from "@/hooks/useBusinessConfig";
+
+// Platform branding - always show Omanut on public pages
+const PLATFORM_NAME = "Omanut";
+const PLATFORM_LOGO = "/omanut-logo.png";
+const PLATFORM_TAGLINE = "Authorized distributor of quality water filtration products.";
 
 export function Footer() {
   const footerRef = useRef<HTMLElement>(null);
   const isInView = useInView(footerRef, { once: true, margin: "-50px" });
-  const { companyName, logoUrl, companyEmail, companyPhone, companyAddress, tagline } = useBusinessConfig();
 
   const footerLinks = [
     {
@@ -21,7 +24,7 @@ export function Footer() {
     {
       title: "Contact",
       links: [
-        { label: companyAddress || "Lusaka, Zambia", href: "#", isText: true },
+        { label: "Lusaka, Zambia", href: "#", isText: true },
         { label: "WhatsApp Us", href: "https://wa.me/260972064502", isExternal: true },
         { label: "+260 972 064 502", href: "tel:+260972064502" },
         { label: "abkanyanta@gmail.com", href: "mailto:abkanyanta@gmail.com" },
@@ -60,24 +63,16 @@ export function Footer() {
         >
           {/* Brand */}
           <motion.div variants={itemVariants}>
-            {logoUrl ? (
-              <img
-                src={logoUrl}
-                alt={companyName || "Company Logo"}
-                className="h-16 w-auto mb-3 rounded-lg"
-              />
-            ) : (
-              <div className="h-16 w-16 mb-3 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-white font-bold text-2xl">
-                  {companyName?.charAt(0) || "B"}
-                </span>
-              </div>
-            )}
+            <img
+              src={PLATFORM_LOGO}
+              alt={PLATFORM_NAME}
+              className="h-16 w-auto mb-3 rounded-lg"
+            />
             <p className="text-primary-foreground/70 text-sm mb-3 max-w-xs leading-relaxed">
-              {tagline || "Your trusted business partner."}
+              {PLATFORM_TAGLINE}
             </p>
             <p className="text-primary-foreground/50 text-xs">
-              © {new Date().getFullYear()} {companyName || "Company Name"}
+              © {new Date().getFullYear()} {PLATFORM_NAME}
             </p>
           </motion.div>
 

@@ -2,7 +2,10 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, ChevronDown } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import { useBusinessConfig } from "@/hooks/useBusinessConfig";
+
+// Platform branding - always show Omanut on public pages
+const PLATFORM_NAME = "Omanut";
+const PLATFORM_LOGO = "/omanut-logo.png";
 
 const navigationItems = [
   {
@@ -42,7 +45,6 @@ export function Navbar() {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [expandedMobileItem, setExpandedMobileItem] = useState<string | null>(null);
   const location = useLocation();
-  const { companyName, logoUrl } = useBusinessConfig();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -83,15 +85,11 @@ export function Navbar() {
       <nav className="container-custom flex items-center justify-between h-16">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-3">
-          {logoUrl ? (
-            <img
-              src={logoUrl}
-              alt={companyName || "Company Logo"}
-              className="h-10 w-auto object-contain"
-            />
-          ) : (
-            <span className="text-white font-bold text-xl">{companyName || "BMS"}</span>
-          )}
+          <img
+            src={PLATFORM_LOGO}
+            alt={PLATFORM_NAME}
+            className="h-10 w-auto object-contain"
+          />
         </Link>
 
         {/* Desktop Navigation */}
