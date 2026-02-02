@@ -1,81 +1,137 @@
 
 
-# Plan: Remove Arbitrary Limit + Add Pagination for Large Catalogs
+# Plan: WhatsApp Document Delivery as PDF Attachments
 
-## Problem Identified
+## Overview
 
-The inventory display is working correctly - it shows items filtered by the selected branch:
-- **Downstairs**: 1,522 items
-- **KITWE**: 972 items
-- **Central/Unassigned**: 414 items
-- Plus other branches
+Transform all WhatsApp document responses (payslips, invoices, quotations, receipts) from plain text summaries to proper PDF document attachments. This gives employees and customers professional documents they can save, print, or forward.
 
-The `.limit(10000)` is a workaround, but enterprise clients may have 50,000+ items. We need proper pagination instead of arbitrary limits.
+## Current Behavior vs. Proposed
 
----
-
-## Solution: Server-Side Pagination
-
-Replace the fixed limit with paginated queries that load items in pages of 100. Users can navigate through pages efficiently.
+| Request | Current Response | New Response |
+|---------|-----------------|--------------|
+| "my pay" | Text summary only | Text summary + PDF payslip attached |
+| "send receipt R2026-0001" | Not implemented | Text + PDF receipt attached |
+| "last invoice" | Not implemented | Text + PDF invoice attached |
+| "send quotation Q2026-0012" | Not implemented | Text + PDF quotation attached |
 
 ---
 
 ## Technical Changes
 
-### 1. Add Pagination State to InventoryAgent
+### 1. Add Payslip PDF Generation
+
+**File:** `supabase/functions/generate-whatsapp-document/index.ts`
+
+- Add `payslip` to the supported document types
+- Create payslip-specific data fetching from `payroll_records` table
+- Build a professional payslip PDF with:
+  - Employee name and ID
+  - Pay period dates
+  - Gross salary, deductions breakdown, net pay
+  - Payment status and date
+  - Company branding (logo, name, address)
+
+### 2. Update My Pay Handler to Return Payroll ID
+
+**File:** `supabase/functions/bms-api-bridge/index.ts`
+
+Update `handleMyPay` to include `payroll_id` and `tenant_id` in the response data, enabling the handler to generate a PDF.
 
 ```typescript
-// New state variables
-const [currentPage, setCurrentPage] = useState(1);
-const [totalCount, setTotalCount] = useState(0);
-const ITEMS_PER_PAGE = 100;
-```
-
-### 2. Update Query to Use Pagination
-
-```typescript
-const fetchInventory = async () => {
-  if (!tenantId) return;
-  
-  const from = (currentPage - 1) * ITEMS_PER_PAGE;
-  const to = from + ITEMS_PER_PAGE - 1;
-
-  // First get total count
-  let countQuery = supabase
-    .from("inventory")
-    .select("id", { count: "exact", head: true })
-    .eq("tenant_id", tenantId);
-  
-  if (!showArchived) countQuery = countQuery.eq("is_archived", false);
-  if (currentBranch && isMultiBranchEnabled) {
-    countQuery = countQuery.eq("default_location_id", currentBranch.id);
-  }
-  
-  const { count } = await countQuery;
-  setTotalCount(count || 0);
-
-  // Then fetch paginated data
-  let query = supabase
-    .from("inventory")
-    .select(`*, branches!default_location_id(name)`)
-    .eq("tenant_id", tenantId)
-    .order("name")
-    .range(from, to);  // Paginate instead of limit
-  
-  // Apply filters...
-  const { data, error } = await query;
-  // ...
+return {
+  success: true,
+  message: `...`,
+  data: { 
+    payroll_id: payroll.id,  // NEW
+    tenant_id: context.tenant_id,  // NEW
+    ...payroll 
+  },
 };
 ```
 
-### 3. Add Pagination UI
+### 3. Auto-Attach Payslip PDF in WhatsApp Handler
 
-Add pagination controls below the inventory table:
+**File:** `supabase/functions/whatsapp-bms-handler/index.ts`
+
+Add logic after the bridge call to detect `my_pay` intent success and generate/attach the payslip PDF:
+
+```typescript
+// Auto-send payslip for my_pay intent
+if (bridgeResult.success && parsedIntent.intent === 'my_pay' && bridgeResult.data?.payroll_id) {
+  try {
+    const docResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-whatsapp-document`, {
+      method: 'POST',
+      headers: { ... },
+      body: JSON.stringify({
+        document_type: 'payslip',
+        document_id: bridgeResult.data.payroll_id,
+        tenant_id: mapping.tenant_id,
+      }),
+    });
+    // Attach PDF if successful
+  } catch (docError) { ... }
+}
+```
+
+### 4. Add Document Request Intents (Optional Enhancement)
+
+**File:** `supabase/functions/bms-intent-parser/index.ts`
+
+Add parsing for explicit document requests:
+- "send receipt R2026-0001" → `send_receipt` intent
+- "last invoice" / "my invoice" → `send_invoice` intent  
+- "quotation Q2026-0015" → `send_quotation` intent
+- "my payslip" / "payslip for January" → `send_payslip` intent
+
+**File:** `supabase/functions/bms-api-bridge/index.ts`
+
+Add handlers for these intents that look up the document and return it with a media URL.
+
+---
+
+## Payslip PDF Structure
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│ Showing 1-100 of 1,522 items          │ ◀ 1 2 3 ... 16 ▶       │
-└─────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────┐
+│                    PAYSLIP                            │
+│                   PS-2026-0001                        │
+│                                                       │
+│              [COMPANY NAME]                           │
+│           [Address] • [Phone] • [Email]               │
+├───────────────────────────────────────────────────────┤
+│  Employee: John Mwanza                                │
+│  Employee ID: EMP-0042                                │
+│  Pay Period: 1 Jan 2026 - 31 Jan 2026                │
+│  Payment Date: 2 Feb 2026                             │
+├───────────────────────────────────────────────────────┤
+│  EARNINGS                                             │
+│  ───────────────────────────────────────────────      │
+│  Basic Salary                           K 5,000.00    │
+│  Overtime                               K   500.00    │
+│  Allowances                             K   300.00    │
+│                                                       │
+│  GROSS PAY                              K 5,800.00    │
+├───────────────────────────────────────────────────────┤
+│  DEDUCTIONS                                           │
+│  ───────────────────────────────────────────────      │
+│  NAPSA (5%)                             K   250.00    │
+│  PAYE                                   K   180.00    │
+│  Health Insurance                       K    50.00    │
+│                                                       │
+│  TOTAL DEDUCTIONS                       K   480.00    │
+├───────────────────────────────────────────────────────┤
+│                                                       │
+│     ┌─────────────────────────────────────────┐       │
+│     │           NET PAY: K 5,320.00           │       │
+│     │              Status: PAID ✓             │       │
+│     └─────────────────────────────────────────┘       │
+│                                                       │
+├───────────────────────────────────────────────────────┤
+│  [Company Name] • TPIN: 1234567890                    │
+│  Generated: 2 Feb 2026 10:30 AM                       │
+│  Powered by Omanut BMS                                │
+└───────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -84,81 +140,59 @@ Add pagination controls below the inventory table:
 
 | File | Changes |
 |------|---------|
-| `src/components/dashboard/InventoryAgent.tsx` | Add pagination state, update query to use `.range()`, add pagination UI |
-| `src/components/dashboard/SmartInventory.tsx` | Same pagination pattern (if needed for Warehouse View) |
+| `supabase/functions/generate-whatsapp-document/index.ts` | Add payslip document type with PDF generation |
+| `supabase/functions/bms-api-bridge/index.ts` | Update `handleMyPay` to return payroll_id; optionally add document request handlers |
+| `supabase/functions/whatsapp-bms-handler/index.ts` | Auto-attach payslip PDF for `my_pay` intent |
+| `supabase/functions/bms-intent-parser/index.ts` | Add parsing for `send_receipt`, `send_invoice`, `send_quotation` intents |
 
 ---
 
-## UI Components
+## Expected User Experience
 
-Using existing `Pagination` component from `src/components/ui/pagination.tsx`:
+**Before:**
+```
+User: my pay
 
-```typescript
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
+Bot: 💰 Payslip - Jan 2026
 
-// In render:
-<div className="flex items-center justify-between mt-4">
-  <p className="text-sm text-muted-foreground">
-    Showing {from + 1}-{Math.min(to, totalCount)} of {totalCount.toLocaleString()} items
-  </p>
-  <Pagination>
-    <PaginationContent>
-      <PaginationItem>
-        <PaginationPrevious 
-          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-          className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-        />
-      </PaginationItem>
-      {/* Page numbers */}
-      <PaginationItem>
-        <PaginationNext 
-          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-          className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
-        />
-      </PaginationItem>
-    </PaginationContent>
-  </Pagination>
-</div>
+💵 Gross: K 5,800
+➖ Deductions: K 480
+━━━━━━━━━━━━━━━━
+💰 Net Pay: K 5,320
+
+✅ Status: paid
+📅 Paid: 02/02/2026
 ```
 
----
+**After:**
+```
+User: my pay
 
-## Reset Page on Filter Change
+Bot: 💰 Payslip - Jan 2026
 
-When branch or archive filter changes, reset to page 1:
+💵 Gross: K 5,800
+➖ Deductions: K 480
+━━━━━━━━━━━━━━━━
+💰 Net Pay: K 5,320
 
-```typescript
-useEffect(() => {
-  setCurrentPage(1);
-}, [currentBranch?.id, showArchived, classFilter]);
+✅ Status: paid
+📅 Paid: 02/02/2026
+
+📎 [payslip-PS2026-0001.pdf]
 ```
 
----
-
-## Performance Benefits
-
-| Scenario | Before (limit 10000) | After (pagination) |
-|----------|---------------------|-------------------|
-| 1,500 items | Load all 1,500 at once | Load 100, navigate |
-| 10,000 items | Load all 10,000 at once | Load 100, navigate |
-| 50,000 items | Would hit limit | Load 100, navigate |
-| Memory usage | High for large catalogs | Constant ~100 items |
-| Initial load time | 2-5 seconds | ~200ms |
+The user receives the same text summary PLUS a professional PDF attachment they can download, forward, or print.
 
 ---
 
-## Expected Outcome
+## Implementation Order
 
-1. **No arbitrary limits** - Enterprise catalogs of any size work
-2. **Fast initial load** - Only 100 items loaded per page
-3. **Clear navigation** - Users see "Page 1 of 16" etc.
-4. **Branch filtering intact** - Shows only selected branch's items
-5. **Total count visible** - "Showing 1-100 of 1,522 items"
+1. **Phase 1 - Payslip PDF (Priority)**
+   - Add payslip generation to `generate-whatsapp-document`
+   - Update `handleMyPay` to return necessary IDs
+   - Add auto-attach logic in WhatsApp handler
+
+2. **Phase 2 - On-Demand Document Requests**
+   - Add `send_receipt`, `send_invoice`, `send_quotation`, `send_payslip` intents
+   - Allow users to explicitly request documents by number
 
