@@ -14,7 +14,7 @@ import { useBilling } from "@/hooks/useBilling";
 import { useBillingPlans } from "@/hooks/useBillingPlans";
 import { useGeoLocation } from "@/hooks/useGeoLocation";
 import { useAuth } from "@/hooks/useAuth";
-import { formatLocalPrice, getAvailableCurrencies } from "@/lib/currency-config";
+import { formatLocalPrice } from "@/lib/currency-config";
 import { BillingPlan } from "@/lib/billing-plans";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -36,8 +36,7 @@ const Pay = () => {
   const { user } = useAuth();
   const { plan: currentPlan, status: billingStatus } = useBilling();
   const { plans, planKeys, loading: plansLoading } = useBillingPlans();
-  const { countryCode, setPreferredCurrency, currency } = useGeoLocation();
-  const currencies = getAvailableCurrencies();
+  const { countryCode } = useGeoLocation();
 
   // Get plan from URL param or default to current/growth
   const urlPlan = searchParams.get("plan") as BillingPlan | null;
@@ -112,7 +111,7 @@ const Pay = () => {
           plan: selectedPlan,
           billing_period: billingPeriod,
           amount: price,
-          currency: currency || "USD",
+          currency: "ZMW",
           phone_number: phoneNumber.startsWith("+") ? phoneNumber : `+260${phoneNumber}`,
           operator,
         },
@@ -145,7 +144,7 @@ const Pay = () => {
           plan: selectedPlan,
           billing_period: billingPeriod,
           amount: price,
-          currency: currency || "USD",
+          currency: "ZMW",
         },
       });
 
@@ -176,7 +175,7 @@ const Pay = () => {
           plan: selectedPlan,
           billing_period: billingPeriod,
           amount: price,
-          currency: currency || "USD",
+          currency: "ZMW",
           card_redirect_url: `${window.location.origin}/bms?payment=complete`,
         },
       });
@@ -345,22 +344,16 @@ const Pay = () => {
                   </div>
                 </div>
 
-                {/* Currency Selector */}
+                {/* Currency Display - Locked to Zambia */}
                 <div className="space-y-3">
                   <Label className="text-white">Currency</Label>
-                  <Select value={countryCode} onValueChange={setPreferredCurrency} disabled={paymentStatus !== "idle"}>
-                    <SelectTrigger className="bg-card">
-                      <Globe className="w-4 h-4 mr-2" />
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {currencies.map((c) => (
-                        <SelectItem key={c.countryCode} value={c.countryCode}>
-                          {c.flag} {c.currencyCode}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center gap-2 p-3 rounded-md bg-card border">
+                    <Globe className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm">🇿🇲 ZMW (Zambian Kwacha)</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Payments available in Zambia only
+                  </p>
                 </div>
 
                 {/* Price Summary */}
@@ -437,8 +430,12 @@ const Pay = () => {
                                 value={phoneNumber}
                                 onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ""))}
                                 maxLength={9}
+                                autoFocus
                               />
                             </div>
+                            <p className="text-xs text-muted-foreground">
+                              Enter your MTN or Airtel mobile money number
+                            </p>
                           </div>
                           <Button className="w-full" size="lg" onClick={handleMobileMoneyPayment}>
                             Pay {pricesAreLocal 
@@ -496,129 +493,26 @@ const Pay = () => {
                       )}
                     </TabsContent>
 
-                    {/* Card Tab */}
+                    {/* Card Tab - Coming Soon */}
                     <TabsContent value="card" className="space-y-4">
-                      {paymentStatus === "idle" && (
-                        <div className="space-y-4">
-                          <p className="text-sm text-muted-foreground">
-                            You'll be redirected to a secure payment page to enter your card details.
-                          </p>
-                          <Button className="w-full" size="lg" onClick={handleCardPayment}>
-                            <CreditCard className="w-4 h-4 mr-2" />
-                            Pay {pricesAreLocal 
-                              ? `K${(price || 0).toLocaleString()}` 
-                              : formatLocalPrice(price || 0, countryCode)} with Card
-                          </Button>
-                        </div>
-                      )}
-
-                      {paymentStatus === "processing" && (
-                        <div className="p-8 text-center">
-                          <Loader2 className="w-8 h-8 mx-auto animate-spin text-primary mb-2" />
-                          <p className="text-sm text-muted-foreground">Redirecting to payment page...</p>
-                        </div>
-                      )}
-
-                      {paymentStatus === "failed" && (
-                        <div className="p-6 text-center border rounded-lg bg-red-50 dark:bg-red-950/20">
-                          <AlertCircle className="w-10 h-10 mx-auto text-red-500 mb-3" />
-                          <p className="font-medium mb-1">Payment Failed</p>
-                          <p className="text-sm text-muted-foreground mb-4">
-                            {errorMessage || "Something went wrong"}
-                          </p>
-                          <Button variant="outline" onClick={resetPayment}>
-                            Try Again
-                          </Button>
-                        </div>
-                      )}
+                      <div className="p-8 text-center border-2 border-dashed rounded-lg">
+                        <CreditCard className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
+                        <Badge variant="secondary" className="mb-2">Coming Soon</Badge>
+                        <p className="text-sm text-muted-foreground">
+                          Card payments will be available soon. Use Mobile Money for now.
+                        </p>
+                      </div>
                     </TabsContent>
 
-                    {/* Bank Transfer Tab */}
+                    {/* Bank Transfer Tab - Coming Soon */}
                     <TabsContent value="bank" className="space-y-4">
-                      {paymentStatus === "idle" && (
-                        <div className="space-y-4">
-                          <p className="text-sm text-muted-foreground">
-                            Generate bank account details to transfer your payment.
-                          </p>
-                          <Button className="w-full" size="lg" onClick={handleBankTransferPayment}>
-                            <Building2 className="w-4 h-4 mr-2" />
-                            Generate Bank Details
-                          </Button>
-                        </div>
-                      )}
-
-                      {paymentStatus === "processing" && (
-                        <div className="p-8 text-center">
-                          <Loader2 className="w-8 h-8 mx-auto animate-spin text-primary mb-2" />
-                          <p className="text-sm text-muted-foreground">Generating bank details...</p>
-                        </div>
-                      )}
-
-                      {paymentStatus === "awaiting_confirmation" && bankDetails && (
-                        <div className="space-y-4">
-                          <div className="p-4 rounded-lg bg-muted/50 space-y-3">
-                            <div className="flex justify-between items-center">
-                              <span className="text-sm text-muted-foreground">Bank Name</span>
-                              <span className="font-medium">{bankDetails.bank_name}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-sm text-muted-foreground">Account Name</span>
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium">{bankDetails.account_name}</span>
-                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(bankDetails.account_name)}>
-                                  <Copy className="w-3 h-3" />
-                                </Button>
-                              </div>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-sm text-muted-foreground">Account Number</span>
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono font-medium">{bankDetails.account_number}</span>
-                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(bankDetails.account_number)}>
-                                  <Copy className="w-3 h-3" />
-                                </Button>
-                              </div>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-sm text-muted-foreground">Amount</span>
-                              <span className="font-bold text-lg">{bankDetails.currency} {bankDetails.amount.toLocaleString()}</span>
-                            </div>
-                          </div>
-                          <p className="text-xs text-muted-foreground text-center">
-                            Transfer the exact amount above. Your subscription will activate once payment is confirmed.
-                          </p>
-                          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                            Waiting for bank transfer...
-                          </div>
-                        </div>
-                      )}
-
-                      {paymentStatus === "completed" && (
-                        <div className="p-6 text-center border rounded-lg bg-green-50 dark:bg-green-950/20">
-                          <CheckCircle2 className="w-10 h-10 mx-auto text-green-500 mb-3" />
-                          <p className="font-medium mb-1">Payment Successful!</p>
-                          <p className="text-sm text-muted-foreground mb-4">
-                            Your subscription is now active
-                          </p>
-                          <Button onClick={() => navigate("/bms")}>
-                            Go to Dashboard
-                          </Button>
-                        </div>
-                      )}
-
-                      {paymentStatus === "failed" && (
-                        <div className="p-6 text-center border rounded-lg bg-red-50 dark:bg-red-950/20">
-                          <AlertCircle className="w-10 h-10 mx-auto text-red-500 mb-3" />
-                          <p className="font-medium mb-1">Failed to Generate Details</p>
-                          <p className="text-sm text-muted-foreground mb-4">
-                            {errorMessage || "Something went wrong"}
-                          </p>
-                          <Button variant="outline" onClick={resetPayment}>
-                            Try Again
-                          </Button>
-                        </div>
-                      )}
+                      <div className="p-8 text-center border-2 border-dashed rounded-lg">
+                        <Building2 className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
+                        <Badge variant="secondary" className="mb-2">Coming Soon</Badge>
+                        <p className="text-sm text-muted-foreground">
+                          Bank transfers will be available soon. Use Mobile Money for now.
+                        </p>
+                      </div>
                     </TabsContent>
                   </Tabs>
 
