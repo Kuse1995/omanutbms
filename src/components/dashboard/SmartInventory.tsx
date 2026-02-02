@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Package, AlertTriangle, TrendingUp, RefreshCw, Loader2 } from "lucide-react";
+import { Package, AlertTriangle, TrendingUp, RefreshCw, Loader2, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -58,11 +59,26 @@ export function SmartInventory() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const { toast } = useToast();
   const { tenantId } = useTenant();
   const { terminology } = useBusinessConfig();
   const { currentBranch, isMultiBranchEnabled } = useBranch();
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Reset page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch]);
 
   const fetchInventory = async () => {
     if (!tenantId) return;
@@ -81,6 +97,12 @@ export function SmartInventory() {
       if (currentBranch && isMultiBranchEnabled) {
         countQuery = countQuery.eq("default_location_id", currentBranch.id);
       }
+
+      // Apply search filter to count
+      if (debouncedSearch.trim()) {
+        const searchPattern = `%${debouncedSearch.trim()}%`;
+        countQuery = countQuery.or(`name.ilike.${searchPattern},sku.ilike.${searchPattern}`);
+      }
       
       const { count } = await countQuery;
       setTotalCount(count || 0);
@@ -95,6 +117,12 @@ export function SmartInventory() {
       // If a specific branch is selected, filter by default_location_id
       if (currentBranch && isMultiBranchEnabled) {
         query = query.eq("default_location_id", currentBranch.id);
+      }
+
+      // Apply search filter to data query
+      if (debouncedSearch.trim()) {
+        const searchPattern = `%${debouncedSearch.trim()}%`;
+        query = query.or(`name.ilike.${searchPattern},sku.ilike.${searchPattern}`);
       }
       
       const { data, error } = await query
@@ -120,7 +148,7 @@ export function SmartInventory() {
       setIsLoading(true);
       fetchInventory();
     }
-  }, [tenantId, currentBranch?.id, currentPage]);
+  }, [tenantId, currentBranch?.id, currentPage, debouncedSearch]);
 
   // Reset page when branch changes
   useEffect(() => {
@@ -208,7 +236,7 @@ export function SmartInventory() {
           <div>
             <h2 className="text-xl font-bold text-white">Smart {terminology.inventory}</h2>
           <p className="text-sm text-slate-400">
-            Warehouse View • {totalCount.toLocaleString()} items total
+            Warehouse View • {totalCount.toLocaleString()} items{debouncedSearch ? ` matching "${debouncedSearch}"` : " total"}
           </p>
           </div>
         </div>
@@ -220,6 +248,27 @@ export function SmartInventory() {
           <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
           Sync {terminology.inventory}
         </Button>
+      </div>
+
+      {/* Search Bar */}
+      <div className="p-4 border-b border-slate-700">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Input
+            placeholder="Search by name or SKU..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10 pr-10 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400"
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="overflow-x-auto">
