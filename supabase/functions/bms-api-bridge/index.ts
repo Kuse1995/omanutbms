@@ -803,38 +803,101 @@ Your receipt PDF is attached above.`;
   };
 }
 
-async function handleGetSalesSummary(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
-  const { period = 'today' } = entities;
+/**
+ * Normalizes period strings to standard values.
+ * Handles variations like "past week", "last week", "this_week", etc.
+ */
+function normalizePeriod(period: string): string {
+  const normalized = String(period || 'today').toLowerCase().trim().replace(/\s+/g, '_');
   
+  // Map common variations to standard values
+  const periodMap: Record<string, string> = {
+    'today': 'today',
+    'yesterday': 'yesterday',
+    'this_week': 'this_week',
+    'thisweek': 'this_week',
+    'past_week': 'past_week',
+    'pastweek': 'past_week',
+    'last_week': 'past_week',
+    'lastweek': 'past_week',
+    'this_month': 'this_month',
+    'thismonth': 'this_month',
+    'past_month': 'past_month',
+    'pastmonth': 'past_month',
+    'last_month': 'past_month',
+    'lastmonth': 'past_month',
+    'week': 'this_week',
+    'month': 'this_month',
+  };
+  
+  return periodMap[normalized] || normalized;
+}
+
+/**
+ * Calculates date range for a given period.
+ */
+function getDateRangeForPeriod(period: string): { startDate: Date; endDate: Date; label: string } {
+  const normalizedPeriod = normalizePeriod(period);
   let startDate: Date;
-  const endDate = new Date();
+  let endDate = new Date();
+  let label = period.replace(/_/g, ' ');
   
-  switch (period) {
+  switch (normalizedPeriod) {
     case 'today':
       startDate = new Date();
       startDate.setHours(0, 0, 0, 0);
+      label = 'today';
       break;
     case 'yesterday':
       startDate = new Date();
       startDate.setDate(startDate.getDate() - 1);
       startDate.setHours(0, 0, 0, 0);
+      endDate = new Date();
       endDate.setDate(endDate.getDate() - 1);
       endDate.setHours(23, 59, 59, 999);
+      label = 'yesterday';
       break;
     case 'this_week':
       startDate = new Date();
       startDate.setDate(startDate.getDate() - startDate.getDay());
       startDate.setHours(0, 0, 0, 0);
+      label = 'this week';
+      break;
+    case 'past_week':
+      // Last 7 days
+      startDate = new Date();
+      startDate.setDate(startDate.getDate() - 7);
+      startDate.setHours(0, 0, 0, 0);
+      label = 'past 7 days';
       break;
     case 'this_month':
       startDate = new Date();
       startDate.setDate(1);
       startDate.setHours(0, 0, 0, 0);
+      label = 'this month';
+      break;
+    case 'past_month':
+      // Last 30 days
+      startDate = new Date();
+      startDate.setDate(startDate.getDate() - 30);
+      startDate.setHours(0, 0, 0, 0);
+      label = 'past 30 days';
       break;
     default:
+      // Default to today
       startDate = new Date();
       startDate.setHours(0, 0, 0, 0);
+      label = 'today';
   }
+  
+  return { startDate, endDate, label };
+}
+
+async function handleGetSalesSummary(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const { period = 'today' } = entities;
+  const { startDate, endDate, label } = getDateRangeForPeriod(period);
+  
+  console.log(`[get_sales_summary] Period: ${period} -> ${label}, Range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
 
   const { data, error } = await supabase
     .from('sales')
@@ -849,55 +912,26 @@ async function handleGetSalesSummary(supabase: any, entities: Record<string, any
   }
 
   const totalSales = data?.length || 0;
-  const totalRevenue = data?.reduce((sum: number, sale: any) => sum + sale.total_amount, 0) || 0;
+  const totalRevenue = data?.reduce((sum: number, sale: any) => sum + Number(sale.total_amount || 0), 0) || 0;
   const cashSales =
-    data?.filter((s: any) => s.payment_method === 'Cash').reduce((sum: number, s: any) => sum + s.total_amount, 0) || 0;
+    data?.filter((s: any) => s.payment_method === 'Cash').reduce((sum: number, s: any) => sum + Number(s.total_amount || 0), 0) || 0;
   const mobileSales =
-    data?.filter((s: any) => s.payment_method === 'Mobile Money').reduce((sum: number, s: any) => sum + s.total_amount, 0) || 0;
+    data?.filter((s: any) => s.payment_method === 'Mobile Money').reduce((sum: number, s: any) => sum + Number(s.total_amount || 0), 0) || 0;
   const cardSales =
-    data?.filter((s: any) => s.payment_method === 'Card').reduce((sum: number, s: any) => sum + s.total_amount, 0) || 0;
-
-  const periodLabel = period.replace('_', ' ');
+    data?.filter((s: any) => s.payment_method === 'Card').reduce((sum: number, s: any) => sum + Number(s.total_amount || 0), 0) || 0;
 
   return {
     success: true,
-    message: `📊 Sales Summary (${periodLabel}):\n\n📈 Total Sales: ${totalSales}\n💰 Revenue: K${totalRevenue.toLocaleString()}\n💵 Cash: K${cashSales.toLocaleString()}\n📱 Mobile Money: K${mobileSales.toLocaleString()}\n💳 Card: K${cardSales.toLocaleString()}`,
+    message: `📊 Sales Summary (${label}):\n\n📈 Total Sales: ${totalSales}\n💰 Revenue: K${totalRevenue.toLocaleString()}\n💵 Cash: K${cashSales.toLocaleString()}\n📱 Mobile Money: K${mobileSales.toLocaleString()}\n💳 Card: K${cardSales.toLocaleString()}`,
     data: { total_sales: totalSales, total_revenue: totalRevenue },
   };
 }
 
 async function handleGetSalesDetails(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
   const { period = 'today' } = entities;
+  const { startDate, endDate, label } = getDateRangeForPeriod(period);
   
-  let startDate: Date;
-  const endDate = new Date();
-  
-  switch (period) {
-    case 'today':
-      startDate = new Date();
-      startDate.setHours(0, 0, 0, 0);
-      break;
-    case 'yesterday':
-      startDate = new Date();
-      startDate.setDate(startDate.getDate() - 1);
-      startDate.setHours(0, 0, 0, 0);
-      endDate.setDate(endDate.getDate() - 1);
-      endDate.setHours(23, 59, 59, 999);
-      break;
-    case 'this_week':
-      startDate = new Date();
-      startDate.setDate(startDate.getDate() - startDate.getDay());
-      startDate.setHours(0, 0, 0, 0);
-      break;
-    case 'this_month':
-      startDate = new Date();
-      startDate.setDate(1);
-      startDate.setHours(0, 0, 0, 0);
-      break;
-    default:
-      startDate = new Date();
-      startDate.setHours(0, 0, 0, 0);
-  }
+  console.log(`[get_sales_details] Period: ${period} -> ${label}, Range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
 
   // Get individual sales with customer details
   const { data: sales, error } = await supabase
@@ -915,26 +949,24 @@ async function handleGetSalesDetails(supabase: any, entities: Record<string, any
   }
 
   if (!sales || sales.length === 0) {
-    const periodLabel = period.replace('_', ' ');
     return { 
       success: true, 
-      message: `📊 No sales found for ${periodLabel}.`,
+      message: `📊 No sales found for ${label}.`,
       data: [] 
     };
   }
 
-  const periodLabel = period.replace('_', ' ');
-  const totalRevenue = sales.reduce((sum: number, sale: any) => sum + sale.total_amount, 0);
+  const totalRevenue = sales.reduce((sum: number, sale: any) => sum + Number(sale.total_amount || 0), 0);
   
   // Format each sale with customer details
   const salesList = sales.map((sale: any, index: number) => {
     const saleDate = new Date(sale.sale_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
-    return `${index + 1}. ${sale.sale_number}\n   👤 ${sale.customer_name}\n   💰 K${sale.total_amount.toLocaleString()} (${sale.payment_method})\n   📅 ${saleDate}`;
+    return `${index + 1}. ${sale.sale_number}\n   👤 ${sale.customer_name}\n   💰 K${Number(sale.total_amount || 0).toLocaleString()} (${sale.payment_method})\n   📅 ${saleDate}`;
   }).join('\n\n');
 
   return {
     success: true,
-    message: `📊 Sales Breakdown (${periodLabel}):\n\n${salesList}\n\n━━━━━━━━━━━━━━━━\n💵 Total: K${totalRevenue.toLocaleString()} | ${sales.length} sales`,
+    message: `📊 Sales Breakdown (${label}):\n\n${salesList}\n\n━━━━━━━━━━━━━━━━\n💵 Total: K${totalRevenue.toLocaleString()} | ${sales.length} sales`,
     data: sales,
   };
 }

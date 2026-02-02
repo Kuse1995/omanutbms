@@ -749,7 +749,8 @@ Your admin can upgrade the plan to keep chatting, or it'll reset next month. Con
     });
 
     const bridgeResult = await bridgeResponse.json();
-    let responseMessage = bridgeResult.message || (bridgeResult.success ? '✅ Done!' : '❌ Failed.');
+    // Bridge returns 'message' on success, 'error' on failure (4xx/5xx responses)
+    let responseMessage = bridgeResult.message || bridgeResult.error || (bridgeResult.success ? '✅ Done!' : '❌ Failed.');
     let mediaUrl: string | null = null;
 
     // If clock_in/clock_out failed because location is needed, store pending confirmation
