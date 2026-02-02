@@ -102,7 +102,7 @@ const menuCategories: MenuCategory[] = [
     id: 'inventory-stock',
     label: 'Inventory & Stock',
     icon: Package,
-    items: ['inventory', 'returns', 'shop', 'warehouse', 'stock-transfers', 'locations'],
+    items: ['inventory', 'returns', 'shop', 'warehouse', 'stock-transfers', 'locations', 'job-cards'],
   },
   {
     id: 'custom-workflow',
@@ -194,6 +194,8 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
       if (item.id === 'production-floor' && !isCustomDesignerEnabled && !isProductionTrackingEnabled) return false;
       // "Customers" is part of custom workflow, so hide it too if the workflow isn't enabled
       if (item.id === 'customers' && !isCustomDesignerEnabled) return false;
+      // Only show job-cards for autoshop business type
+      if (item.id === 'job-cards' && businessType !== 'autoshop') return false;
       return true;
     });
   };

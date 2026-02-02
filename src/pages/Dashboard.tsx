@@ -69,7 +69,7 @@ const Dashboard = () => {
   const { isSuperAdmin } = useAuth();
   const { isCustomDesignerEnabled, isProductionTrackingEnabled } = useEnterpriseFeatures();
   const { runTour, completeTour, isLoading: tourLoading, welcomeVideoCompleted, onWelcomeVideoComplete } = useOnboardingTour();
-  const { businessProfile, refetchTenant } = useTenant();
+  const { businessProfile, tenantUser, refetchTenant } = useTenant();
   const branding = useBranding();
   const applyBranding = useApplyTenantBranding();
 
@@ -276,8 +276,10 @@ const Dashboard = () => {
             </div>
           </div>
           
-          {/* Business Type Setup Wizard - shows for new tenants */}
-          {!businessProfile?.onboarding_completed && !businessProfile?.business_type && (
+          {/* Business Type Setup Wizard - shows for new tenants (owner only) */}
+          {!businessProfile?.onboarding_completed && 
+           !businessProfile?.business_type && 
+           tenantUser?.is_owner === true && (
             <BusinessTypeSetupWizard onComplete={refetchTenant} />
           )}
           
