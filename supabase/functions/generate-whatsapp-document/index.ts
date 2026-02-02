@@ -11,7 +11,7 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 interface DocumentRequest {
-  document_type: 'receipt' | 'invoice' | 'quotation';
+  document_type: 'receipt' | 'invoice' | 'quotation' | 'payslip';
   document_id?: string;
   document_number?: string;
   tenant_id: string;
@@ -216,6 +216,46 @@ serve(async (req) => {
         .select('*')
         .eq('quotation_id', data.id);
       items = quotationItems || [];
+
+    } else if (document_type === 'payslip') {
+      // PAYSLIP DOCUMENT TYPE - for WhatsApp payroll delivery
+      let payrollQuery = supabase
+        .from('payroll_records')
+        .select('*, employees(full_name, employee_number)')
+        .eq('tenant_id', tenant_id);
+      
+      if (document_id) {
+        payrollQuery = payrollQuery.eq('id', document_id);
+      } else if (document_number) {
+        // Try to parse PS-YYYYMM format or just use as-is
+        payrollQuery = payrollQuery.order('pay_period_end', { ascending: false }).limit(1);
+      } else {
+        payrollQuery = payrollQuery.order('pay_period_end', { ascending: false }).limit(1);
+      }
+
+      const { data: payrollData, error: payrollError } = await payrollQuery.maybeSingle();
+      
+      if (payrollError || !payrollData) {
+        console.error('Payslip not found:', payrollError);
+        return new Response(
+          JSON.stringify({ error: 'Payslip not found', details: payrollError?.message }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Format payslip number from pay period
+      const periodStart = new Date(payrollData.pay_period_start);
+      actualDocNumber = `PS-${periodStart.getFullYear()}${String(periodStart.getMonth() + 1).padStart(2, '0')}`;
+      
+      documentData = {
+        ...payrollData,
+        employee_name: payrollData.employees?.full_name || 'Employee',
+        employee_number: payrollData.employees?.employee_number || '',
+      };
+
+      // Payslips don't have items in the same way - we'll structure earnings/deductions in the PDF generator
+      items = [];
+
     } else {
       return new Response(
         JSON.stringify({ error: 'Invalid document_type' }),
@@ -319,6 +359,10 @@ async function generateStyledPDF(
   company: CompanyInfo,
   totalLiters: number
 ): Promise<Uint8Array> {
+  // Handle payslip separately with its own layout
+  if (docType === 'payslip') {
+    return generatePayslipPDF(data, company);
+  }
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([612, 792]); // Letter size
   
@@ -746,4 +790,360 @@ function formatCurrency(amount: number, symbol: string): string {
 
 function truncateText(text: string, maxLen: number): string {
   return text.length > maxLen ? text.substring(0, maxLen - 2) + '..' : text;
+}
+
+// ============ PAYSLIP PDF GENERATOR ============
+async function generatePayslipPDF(data: any, company: CompanyInfo): Promise<Uint8Array> {
+  const pdfDoc = await PDFDocument.create();
+  const page = pdfDoc.addPage([612, 792]); // Letter size
+  
+  const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  
+  const { width, height } = page.getSize();
+  const margin = 50;
+  let y = height - margin;
+
+  // Colors
+  const primaryBlue = rgb(0, 75/255, 141/255);
+  const greenBg = rgb(220/255, 252/255, 231/255);
+  const greenText = rgb(22/255, 163/255, 74/255);
+  const redBg = rgb(254/255, 226/255, 226/255);
+  const redText = rgb(220/255, 38/255, 38/255);
+  const grayText = rgb(107/255, 114/255, 128/255);
+  const darkText = rgb(55/255, 65/255, 81/255);
+  const lightGray = rgb(243/255, 244/255, 246/255);
+  const borderGray = rgb(229/255, 231/255, 235/255);
+
+  const boxWidth = width - (margin * 2);
+
+  // Extract payroll data
+  const employeeName = data.employee_name || 'Employee';
+  const employeeNumber = data.employee_number || '';
+  const periodStart = new Date(data.pay_period_start);
+  const periodEnd = new Date(data.pay_period_end);
+  const periodLabel = periodStart.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + 
+                      ' - ' + periodEnd.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const paymentDate = data.paid_date ? new Date(data.paid_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Pending';
+  
+  // Financial data
+  const basicSalary = data.basic_salary || data.gross_salary || 0;
+  const allowances = data.allowances || 0;
+  const overtimePay = data.overtime_pay || 0;
+  const bonus = data.bonus || 0;
+  const grossPay = data.gross_salary || (basicSalary + allowances + overtimePay + bonus);
+  
+  const napsaDeduction = data.napsa_deduction || 0;
+  const payeDeduction = data.paye_deduction || 0;
+  const nhimaDeduction = data.nhima_deduction || 0;
+  const loanDeduction = data.loan_deduction || 0;
+  const otherDeductions = data.other_deductions || 0;
+  const totalDeductions = data.total_deductions || (napsaDeduction + payeDeduction + nhimaDeduction + loanDeduction + otherDeductions);
+  
+  const netPay = data.net_salary || (grossPay - totalDeductions);
+  const status = data.status || 'pending';
+  const statusEmoji = status === 'paid' ? 'PAID' : status === 'approved' ? 'APPROVED' : 'PENDING';
+
+  // ============ HEADER ============
+  page.drawText('PAYSLIP', {
+    x: width / 2 - helveticaBold.widthOfTextAtSize('PAYSLIP', 22) / 2,
+    y: y,
+    size: 22,
+    font: helveticaBold,
+    color: primaryBlue,
+  });
+  y -= 20;
+
+  // Payslip number
+  const psNumber = `PS-${periodStart.getFullYear()}${String(periodStart.getMonth() + 1).padStart(2, '0')}`;
+  page.drawText(psNumber, {
+    x: width / 2 - helvetica.widthOfTextAtSize(psNumber, 11) / 2,
+    y: y,
+    size: 11,
+    font: helvetica,
+    color: grayText,
+  });
+  y -= 25;
+
+  // Company name
+  page.drawText(company.companyName, {
+    x: width / 2 - helveticaBold.widthOfTextAtSize(company.companyName, 14) / 2,
+    y: y,
+    size: 14,
+    font: helveticaBold,
+    color: darkText,
+  });
+  y -= 15;
+
+  // Contact info
+  const contactInfo = [company.companyEmail, company.companyPhone].filter(Boolean).join(' | ');
+  if (contactInfo) {
+    page.drawText(contactInfo, {
+      x: width / 2 - helvetica.widthOfTextAtSize(contactInfo, 9) / 2,
+      y: y,
+      size: 9,
+      font: helvetica,
+      color: grayText,
+    });
+    y -= 10;
+  }
+
+  // Header underline
+  y -= 5;
+  page.drawLine({
+    start: { x: margin, y: y },
+    end: { x: width - margin, y: y },
+    thickness: 2,
+    color: primaryBlue,
+  });
+  y -= 25;
+
+  // ============ EMPLOYEE INFO SECTION ============
+  page.drawRectangle({
+    x: margin,
+    y: y - 60,
+    width: boxWidth,
+    height: 60,
+    color: lightGray,
+  });
+
+  const infoItems = [
+    { label: 'Employee:', value: employeeName },
+    { label: 'Employee ID:', value: employeeNumber || 'N/A' },
+    { label: 'Pay Period:', value: periodLabel },
+    { label: 'Payment Date:', value: paymentDate },
+  ];
+
+  let infoY = y - 15;
+  const halfWidth = boxWidth / 2;
+  
+  for (let i = 0; i < infoItems.length; i++) {
+    const item = infoItems[i];
+    const xPos = i % 2 === 0 ? margin + 10 : margin + halfWidth;
+    const yPos = i < 2 ? infoY : infoY - 25;
+    
+    page.drawText(item.label, { x: xPos, y: yPos, size: 9, font: helvetica, color: grayText });
+    page.drawText(item.value, { x: xPos + 75, y: yPos, size: 9, font: helveticaBold, color: darkText });
+  }
+
+  y -= 75;
+
+  // ============ EARNINGS & DEDUCTIONS ============
+  const colWidth = (boxWidth - 20) / 2;
+
+  // EARNINGS SECTION
+  page.drawText('EARNINGS', {
+    x: margin,
+    y: y,
+    size: 11,
+    font: helveticaBold,
+    color: greenText,
+  });
+  
+  // DEDUCTIONS SECTION
+  page.drawText('DEDUCTIONS', {
+    x: margin + colWidth + 20,
+    y: y,
+    size: 11,
+    font: helveticaBold,
+    color: redText,
+  });
+  y -= 5;
+
+  // Draw column backgrounds
+  page.drawRectangle({
+    x: margin,
+    y: y - 110,
+    width: colWidth,
+    height: 110,
+    color: greenBg,
+  });
+  
+  page.drawRectangle({
+    x: margin + colWidth + 20,
+    y: y - 110,
+    width: colWidth,
+    height: 110,
+    color: redBg,
+  });
+
+  // Earnings items
+  const earnings = [
+    { label: 'Basic Salary', value: basicSalary },
+    { label: 'Allowances', value: allowances },
+    { label: 'Overtime Pay', value: overtimePay },
+    { label: 'Bonus', value: bonus },
+  ].filter(e => e.value > 0);
+
+  let earningsY = y - 20;
+  for (const earning of earnings) {
+    page.drawText(earning.label, { x: margin + 10, y: earningsY, size: 9, font: helvetica, color: darkText });
+    const valText = `K ${earning.value.toLocaleString()}`;
+    page.drawText(valText, { 
+      x: margin + colWidth - helvetica.widthOfTextAtSize(valText, 9) - 10, 
+      y: earningsY, 
+      size: 9, 
+      font: helvetica, 
+      color: darkText 
+    });
+    earningsY -= 18;
+  }
+
+  // Gross Pay total
+  page.drawLine({
+    start: { x: margin + 10, y: y - 90 },
+    end: { x: margin + colWidth - 10, y: y - 90 },
+    thickness: 1,
+    color: greenText,
+  });
+  page.drawText('GROSS PAY', { x: margin + 10, y: y - 105, size: 10, font: helveticaBold, color: greenText });
+  const grossText = `K ${grossPay.toLocaleString()}`;
+  page.drawText(grossText, { 
+    x: margin + colWidth - helveticaBold.widthOfTextAtSize(grossText, 10) - 10, 
+    y: y - 105, 
+    size: 10, 
+    font: helveticaBold, 
+    color: greenText 
+  });
+
+  // Deductions items
+  const deductions = [
+    { label: 'NAPSA (5%)', value: napsaDeduction },
+    { label: 'PAYE (Tax)', value: payeDeduction },
+    { label: 'NHIMA', value: nhimaDeduction },
+    { label: 'Loan Deduction', value: loanDeduction },
+    { label: 'Other Deductions', value: otherDeductions },
+  ].filter(d => d.value > 0);
+
+  let deductionsY = y - 20;
+  for (const deduction of deductions) {
+    page.drawText(deduction.label, { x: margin + colWidth + 30, y: deductionsY, size: 9, font: helvetica, color: darkText });
+    const valText = `K ${deduction.value.toLocaleString()}`;
+    page.drawText(valText, { 
+      x: margin + boxWidth - helvetica.widthOfTextAtSize(valText, 9) - 10, 
+      y: deductionsY, 
+      size: 9, 
+      font: helvetica, 
+      color: darkText 
+    });
+    deductionsY -= 18;
+  }
+
+  // Total Deductions
+  page.drawLine({
+    start: { x: margin + colWidth + 30, y: y - 90 },
+    end: { x: margin + boxWidth - 10, y: y - 90 },
+    thickness: 1,
+    color: redText,
+  });
+  page.drawText('TOTAL DEDUCTIONS', { x: margin + colWidth + 30, y: y - 105, size: 10, font: helveticaBold, color: redText });
+  const dedText = `K ${totalDeductions.toLocaleString()}`;
+  page.drawText(dedText, { 
+    x: margin + boxWidth - helveticaBold.widthOfTextAtSize(dedText, 10) - 10, 
+    y: y - 105, 
+    size: 10, 
+    font: helveticaBold, 
+    color: redText 
+  });
+
+  y -= 130;
+
+  // ============ NET PAY BOX ============
+  const netPayBoxHeight = 70;
+  page.drawRectangle({
+    x: margin,
+    y: y - netPayBoxHeight,
+    width: boxWidth,
+    height: netPayBoxHeight,
+    color: greenBg,
+  });
+
+  // Border
+  page.drawRectangle({
+    x: margin + 2,
+    y: y - netPayBoxHeight + 2,
+    width: boxWidth - 4,
+    height: netPayBoxHeight - 4,
+    borderColor: greenText,
+    borderWidth: 2,
+  });
+
+  page.drawText('NET PAY', {
+    x: width / 2 - helvetica.widthOfTextAtSize('NET PAY', 12) / 2,
+    y: y - 25,
+    size: 12,
+    font: helvetica,
+    color: grayText,
+  });
+
+  const netPayText = `K ${netPay.toLocaleString()}`;
+  page.drawText(netPayText, {
+    x: width / 2 - helveticaBold.widthOfTextAtSize(netPayText, 28) / 2,
+    y: y - 52,
+    size: 28,
+    font: helveticaBold,
+    color: greenText,
+  });
+
+  // Status badge
+  const statusColor = status === 'paid' ? greenText : status === 'approved' ? rgb(234/255, 179/255, 8/255) : grayText;
+  const statusText = `Status: ${statusEmoji}`;
+  page.drawText(statusText, {
+    x: width / 2 - helveticaBold.widthOfTextAtSize(statusText, 10) / 2,
+    y: y - 68,
+    size: 10,
+    font: helveticaBold,
+    color: statusColor,
+  });
+
+  y -= netPayBoxHeight + 30;
+
+  // ============ FOOTER ============
+  page.drawLine({
+    start: { x: margin, y: y },
+    end: { x: width - margin, y: y },
+    thickness: 1,
+    color: borderGray,
+  });
+  y -= 15;
+
+  const footerText = 'This is a computer-generated payslip and does not require a signature.';
+  page.drawText(footerText, {
+    x: width / 2 - helvetica.widthOfTextAtSize(footerText, 8) / 2,
+    y: y,
+    size: 8,
+    font: helvetica,
+    color: grayText,
+  });
+  y -= 15;
+
+  page.drawText(company.companyName, {
+    x: width / 2 - helvetica.widthOfTextAtSize(company.companyName, 9) / 2,
+    y: y,
+    size: 9,
+    font: helvetica,
+    color: grayText,
+  });
+  y -= 20;
+
+  const generatedText = `Generated: ${new Date().toLocaleString()}`;
+  page.drawText(generatedText, {
+    x: width / 2 - helvetica.widthOfTextAtSize(generatedText, 8) / 2,
+    y: y,
+    size: 8,
+    font: helvetica,
+    color: rgb(209/255, 213/255, 219/255),
+  });
+  y -= 10;
+
+  const poweredByText = 'Powered by Omanut BMS';
+  page.drawText(poweredByText, {
+    x: width / 2 - helvetica.widthOfTextAtSize(poweredByText, 8) / 2,
+    y: y,
+    size: 8,
+    font: helvetica,
+    color: rgb(209/255, 213/255, 219/255),
+  });
+
+  return await pdfDoc.save();
 }
