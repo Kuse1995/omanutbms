@@ -4917,6 +4917,10 @@ export type Database = {
       }
     }
     Functions: {
+      activate_addon: {
+        Args: { p_addon_key: string; p_quantity?: number; p_tenant_id: string }
+        Returns: boolean
+      }
       calculate_engagement_score: {
         Args: { p_start_date?: string; p_user_id: string }
         Returns: number
