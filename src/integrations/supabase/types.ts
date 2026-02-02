@@ -3970,6 +3970,7 @@ export type Database = {
           provider: string | null
           status: string
           tenant_id: string
+          updated_at: string | null
           verified_at: string | null
           virtual_account_bank: string | null
           virtual_account_number: string | null
@@ -3991,6 +3992,7 @@ export type Database = {
           provider?: string | null
           status?: string
           tenant_id: string
+          updated_at?: string | null
           verified_at?: string | null
           virtual_account_bank?: string | null
           virtual_account_number?: string | null
@@ -4012,6 +4014,7 @@ export type Database = {
           provider?: string | null
           status?: string
           tenant_id?: string
+          updated_at?: string | null
           verified_at?: string | null
           virtual_account_bank?: string | null
           virtual_account_number?: string | null

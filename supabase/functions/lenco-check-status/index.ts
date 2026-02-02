@@ -106,7 +106,8 @@ Deno.serve(async (req) => {
         newStatus = "completed";
       } else if (lencoStatus === "failed") {
         newStatus = "failed";
-        failureReason = lencoData.data.failureReason || "Payment failed";
+        // Handle both field naming conventions from Lenco
+        failureReason = lencoData.data.reasonForFailure || lencoData.data.failureReason || "Payment failed";
       } else if (lencoStatus === "expired") {
         newStatus = "expired";
         failureReason = "Payment request expired";
@@ -124,7 +125,7 @@ Deno.serve(async (req) => {
           .update({
             status: newStatus,
             failure_reason: failureReason,
-            updated_at: new Date().toISOString(),
+            verified_at: newStatus === "completed" ? new Date().toISOString() : null,
           })
           .eq("id", payment.id);
 
@@ -139,15 +140,15 @@ Deno.serve(async (req) => {
             billingEndDate.setMonth(billingEndDate.getMonth() + 1);
           }
 
+          // Use plan_key (correct column name)
           await serviceClient
             .from("business_profiles")
             .update({
               billing_status: "active",
-              billing_plan: payment.plan_selected || "growth",
+              billing_plan: payment.plan_key || "growth",
               billing_start_date: billingStartDate.toISOString(),
               billing_end_date: billingEndDate.toISOString(),
               trial_expires_at: null,
-              updated_at: new Date().toISOString(),
             })
             .eq("tenant_id", payment.tenant_id);
         }

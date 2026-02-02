@@ -86,8 +86,19 @@ function buildZambiaPhoneVariants(rawPhone: string): string[] {
   ]);
 }
 
+// Build operator variants for Zambia
+// Lenco expects specific operator codes: "mtn", "airtel (zm)" for Zambia
+function buildOperatorVariants(rawOperator: string): string[] {
+  const upper = (rawOperator || "MTN").toUpperCase();
+  if (upper.includes("AIRTEL")) {
+    // Try Zambia-specific first, then generic
+    return ["airtel (zm)", "airtel"];
+  }
+  // MTN - try generic first, then Zambia-specific if needed
+  return ["mtn", "mtn (zm)"];
+}
+
 async function provisionTenantForUser(params: {
-  // NOTE: In Edge Functions we don't have generated DB types, so keep this untyped.
   admin: any;
   userId: string;
   userEmail: string;
@@ -305,74 +316,94 @@ Deno.serve(async (req) => {
         );
       }
 
+      // Build operator variants based on input
+      const operatorVariants = buildOperatorVariants(operator || "MTN");
+      
       console.log("Phone variants to try:", JSON.stringify(phoneVariants));
+      console.log("Operator variants to try:", JSON.stringify(operatorVariants));
 
       let lastError: any = null;
+      let successfulVariant: { phone: string; operator: string } | null = null;
 
+      // Try each phone variant with each operator variant
+      outerLoop:
       for (const accountNumber of phoneVariants) {
-        // Lenco expects lowercase operator names: "mtn", "airtel"
-        // Map common user inputs to Lenco's expected format
-        const rawOperator = (operator || "MTN").toUpperCase();
-        let lencoOperator = "mtn"; // default
-        if (rawOperator.includes("AIRTEL")) {
-          lencoOperator = "airtel";
-        } else if (rawOperator.includes("MTN")) {
-          lencoOperator = "mtn";
+        for (const lencoOperator of operatorVariants) {
+          // Mobile Money Collection - send both phone and accountNumber for compatibility
+          const mobileMoneyPayload = {
+            reference,
+            amount: amount.toString(),
+            currency: currencyCode === "ZMW" ? "ZMW" : "USD",
+            phone: accountNumber,
+            accountNumber,
+            accountName: userEmail,
+            narration: `${plan} subscription - ${billing_period}`,
+            operator: lencoOperator,
+          };
+
+          console.log("Trying Lenco payload:", JSON.stringify(mobileMoneyPayload));
+
+          const response = await fetch(`${LENCO_BASE_URL}/collections/mobile-money`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${lencoSecretKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(mobileMoneyPayload),
+          });
+
+          lencoResponse = await response.json();
+
+          if (response.ok) {
+            successfulVariant = { phone: accountNumber, operator: lencoOperator };
+            console.log("Lenco mobile money success:", JSON.stringify(lencoResponse));
+            
+            // Update payment record with successful variant info
+            await supabase
+              .from("subscription_payments")
+              .update({
+                metadata: { 
+                  successful_phone_variant: accountNumber,
+                  successful_operator_variant: lencoOperator,
+                },
+              })
+              .eq("id", paymentRecord.id);
+
+            return new Response(
+              JSON.stringify({
+                success: true,
+                payment_id: paymentRecord.id,
+                reference,
+                status: "pending",
+                message: "Please check your phone to authorize the payment",
+                lenco_status: lencoResponse.data?.status || lencoResponse.status,
+                lenco_message: lencoResponse.message,
+              }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+
+          lastError = lencoResponse;
+          console.error("Lenco mobile money error:", lencoResponse);
+
+          const msg = String(lencoResponse?.message || "").toLowerCase();
+          const isInvalidPhone =
+            lencoResponse?.errorCode === "01" || msg.includes("invalid phone");
+          const isInvalidOperator = msg.includes("operator") || msg.includes("network");
+
+          // If it's an operator issue, try next operator for same phone
+          if (isInvalidOperator) {
+            continue;
+          }
+
+          // If it's a phone issue, try next phone variant (reset operator loop)
+          if (isInvalidPhone) {
+            break;
+          }
+
+          // Non-phone/operator error: don't keep retrying
+          break outerLoop;
         }
-
-        // Mobile Money Collection
-        const mobileMoneyPayload = {
-          reference,
-          amount: amount.toString(),
-          currency: currencyCode === "ZMW" ? "ZMW" : "USD",
-          accountNumber,
-          accountName: userEmail,
-          narration: `${plan} subscription - ${billing_period}`,
-          operator: lencoOperator,
-        };
-
-        console.log("Trying Lenco payload:", JSON.stringify(mobileMoneyPayload));
-
-        const response = await fetch(`${LENCO_BASE_URL}/collections/mobile-money`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${lencoSecretKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(mobileMoneyPayload),
-        });
-
-        lencoResponse = await response.json();
-
-        if (response.ok) {
-          console.log("Lenco mobile money success:", JSON.stringify(lencoResponse));
-          return new Response(
-            JSON.stringify({
-              success: true,
-              payment_id: paymentRecord.id,
-              reference,
-              status: "pending",
-              message: "Please check your phone to authorize the payment",
-              lenco_status: lencoResponse.status,
-            }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-
-        lastError = lencoResponse;
-        console.error("Lenco mobile money error:", lencoResponse);
-
-        const msg = String(lencoResponse?.message || "").toLowerCase();
-        const isInvalidPhone =
-          lencoResponse?.errorCode === "01" || msg.includes("invalid phone");
-
-        if (isInvalidPhone) {
-          // Try next variant
-          continue;
-        }
-
-        // Non-phone error: don't keep retrying.
-        break;
       }
 
       // Update payment record with failure (after all variants attempted)
@@ -509,7 +540,7 @@ Deno.serve(async (req) => {
           payment_id: paymentRecord.id,
           reference,
           status: "redirect",
-          redirect_url: lencoResponse.data?.authorizationUrl || lencoResponse.data?.checkoutUrl,
+          redirect_url: lencoResponse.data?.authorizationUrl || lencoResponse.data?.authorization_url,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
