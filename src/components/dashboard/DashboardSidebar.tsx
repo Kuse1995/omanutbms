@@ -34,6 +34,7 @@ import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 import { useTenant } from "@/hooks/useTenant";
 import { useEnterpriseFeatures } from "@/hooks/useEnterpriseFeatures";
 import { PoweredByFooter } from "./PoweredByFooter";
+import { SidebarUpgradeCTA } from "./SidebarUpgradeCTA";
 import type { DashboardTab } from "@/pages/Dashboard";
 import type { FeatureKey } from "@/lib/feature-config";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -444,6 +445,9 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
       </SidebarContent>
 
       <SidebarFooter className="p-4 border-t border-white/10">
+        {/* Upgrade CTA for trial/inactive users */}
+        <SidebarUpgradeCTA />
+        
         <SidebarMenu>
           <SidebarMenuItem data-tour="settings-nav">
             <SidebarMenuButton 

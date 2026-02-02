@@ -26,6 +26,8 @@ interface PaymentRequest {
   operator?: string;
   // Card specific (for hosted checkout redirect)
   card_redirect_url?: string;
+  // Add-on specific
+  addon_key?: string;
 }
 
 function normalizeCurrency(input: CurrencyInput): string {
@@ -266,11 +268,19 @@ Deno.serve(async (req) => {
 
     // Parse request body
     const body: PaymentRequest = await req.json();
-    const { payment_method, plan, billing_period, amount, currency, phone_number, operator, card_redirect_url } = body;
+    const { payment_method, plan, billing_period, amount, currency, phone_number, operator, card_redirect_url, addon_key } = body;
     const currencyCode = normalizeCurrency(currency);
 
+    // Determine if this is an add-on purchase or subscription
+    const isAddonPurchase = plan === "addon" && addon_key;
+    const paymentDescription = isAddonPurchase 
+      ? `${addon_key} add-on activation`
+      : `${plan} subscription - ${billing_period}`;
+
     // Generate unique reference
-    const reference = `SUB-${tenantId.slice(0, 8)}-${Date.now()}`;
+    const reference = isAddonPurchase 
+      ? `ADDON-${tenantId.slice(0, 8)}-${Date.now()}`
+      : `SUB-${tenantId.slice(0, 8)}-${Date.now()}`;
 
     // Create pending subscription payment record
     const { data: paymentRecord, error: insertError } = await supabase
@@ -281,11 +291,12 @@ Deno.serve(async (req) => {
         currency: currencyCode,
         payment_method,
         status: "pending",
-        plan_key: plan,
+        plan_key: isAddonPurchase ? "addon" : plan,
         billing_period,
         lenco_reference: reference,
         phone_number: phone_number || null,
         operator: operator || null,
+        metadata: isAddonPurchase ? { addon_key } : null,
       })
       .select()
       .single();
@@ -337,7 +348,7 @@ Deno.serve(async (req) => {
             phone: accountNumber,
             accountNumber,
             accountName: userEmail,
-            narration: `${plan} subscription - ${billing_period}`,
+            narration: paymentDescription,
             operator: lencoOperator,
           };
 
@@ -430,7 +441,7 @@ Deno.serve(async (req) => {
         amount: amount.toString(),
         currency: currencyCode === "ZMW" ? "ZMW" : "USD",
         accountName: userEmail,
-        narration: `${plan} subscription - ${billing_period}`,
+        narration: paymentDescription,
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
       };
 
@@ -499,7 +510,7 @@ Deno.serve(async (req) => {
         amount: amount.toString(),
         currency: currencyCode === "ZMW" ? "ZMW" : "USD",
         email: userEmail,
-        narration: `${plan} subscription - ${billing_period}`,
+        narration: paymentDescription,
         redirectUrl: card_redirect_url || `${req.headers.get("origin")}/bms?payment=complete`,
       };
 

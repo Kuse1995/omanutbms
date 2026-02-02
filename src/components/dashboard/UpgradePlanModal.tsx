@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Check, Crown, Sparkles, Mail, Zap } from "lucide-react";
+import { Check, Crown, Sparkles, Zap } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +24,7 @@ interface UpgradePlanModalProps {
 }
 
 export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) {
+  const navigate = useNavigate();
   const { plan: currentPlan, planConfig: currentPlanConfig } = useBilling();
   const { plans, planKeys, loading } = useBillingPlans();
   const [isAnnual, setIsAnnual] = useState(true);
@@ -40,8 +42,14 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
     return Math.round(savings);
   };
 
+  const handleUpgrade = (planKey: BillingPlan) => {
+    // Navigate to /pay with pre-selected plan
+    onOpenChange(false);
+    navigate(`/pay?plan=${planKey}`);
+  };
+
   const handleContactSales = () => {
-    window.location.href = "mailto:admin@omanut.co?subject=Plan Upgrade Request";
+    window.location.href = "mailto:admin@omanut.co?subject=Enterprise Plan Inquiry";
   };
 
   return (
@@ -173,11 +181,15 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
                       className="w-full gap-2"
                       onClick={handleContactSales}
                     >
-                      <Mail className="w-4 h-4" />
+                      <Zap className="w-4 h-4" />
                       Contact Sales
                     </Button>
                   ) : isUpgradeOption ? (
-                    <Button className="w-full" onClick={handleContactSales}>
+                    <Button 
+                      className="w-full gap-2" 
+                      onClick={() => handleUpgrade(planKey)}
+                    >
+                      <Zap className="w-4 h-4" />
                       Upgrade to {planData.label}
                     </Button>
                   ) : (
@@ -194,8 +206,8 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
         {/* Footer Note */}
         <div className="text-center text-sm text-muted-foreground mt-6 pt-6 border-t">
           <p>
-            Plan changes are processed manually by our team. 
-            Contact <a href="mailto:admin@omanut.co" className="text-primary hover:underline">admin@omanut.co</a> for assistance.
+            Upgrade instantly with Mobile Money, Card, or Bank Transfer. 
+            Enterprise plans require custom setup — contact us for details.
           </p>
         </div>
       </DialogContent>

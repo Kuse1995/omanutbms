@@ -1,12 +1,17 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useFeatures } from "@/hooks/useFeatures";
+import { useBilling } from "@/hooks/useBilling";
 import { allModules, ModuleDefinition } from "@/lib/modules-config";
+import { supabase } from "@/integrations/supabase/client";
+import { AddonPurchaseModal } from "./AddonPurchaseModal";
 import { 
   Check, Lock, Mail, Sparkles, Package, LayoutDashboard, ShoppingCart, 
   Receipt, Calculator, Users, Shield, Settings, Store, Briefcase, 
-  BookOpen, Heart, Globe, Warehouse 
+  BookOpen, Heart, Globe, Warehouse, Info, Zap 
 } from "lucide-react";
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -31,14 +36,32 @@ function getPricingBadge(tier: string | undefined) {
   }
 }
 
+interface AddonDefinition {
+  id: string;
+  addon_key: string;
+  display_name: string;
+  description: string | null;
+  monthly_price: number | null;
+  annual_price: number | null;
+  unit_price: number | null;
+  unit_label: string | null;
+  pricing_type: string;
+  icon: string | null;
+}
+
 interface ModuleCardProps {
   module: ModuleDefinition;
   isEnabled: boolean;
+  addon?: AddonDefinition;
+  onActivate?: (addon: AddonDefinition) => void;
 }
 
-function ModuleCard({ module, isEnabled }: ModuleCardProps) {
+function ModuleCard({ module, isEnabled, addon, onActivate }: ModuleCardProps) {
   const Icon = getIconComponent(module.icon);
   const isCore = module.category === 'core';
+
+  const price = addon?.monthly_price || module.pricing?.monthlyPriceZMW;
+  const isUsageBased = addon?.pricing_type === "per_unit";
 
   return (
     <Card className={`relative overflow-hidden transition-all ${
@@ -85,15 +108,58 @@ function ModuleCard({ module, isEnabled }: ModuleCardProps) {
             </div>
           )}
           
-          {!isEnabled && !isCore && (
-            <Button variant="outline" size="sm" className="text-xs gap-1">
-              <Sparkles className="w-3 h-3" />
-              Upgrade
+          {!isEnabled && !isCore && addon && (
+            <Button 
+              variant="default" 
+              size="sm" 
+              className="text-xs gap-1"
+              onClick={() => onActivate?.(addon)}
+            >
+              <Zap className="w-3 h-3" />
+              Activate
             </Button>
+          )}
+          
+          {!isEnabled && !isCore && !addon && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="sm" className="text-xs gap-1" disabled>
+                    <Sparkles className="w-3 h-3" />
+                    Upgrade
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Contact support to enable this module</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
         </div>
         
-        {module.pricing?.description && (
+        {/* Pricing info */}
+        {price && !isEnabled && (
+          <div className="flex items-center gap-1 mt-3 pt-3 border-t text-sm">
+            <span className="font-semibold text-foreground">K{price.toLocaleString()}</span>
+            <span className="text-muted-foreground">
+              {isUsageBased ? `/${addon?.unit_label || "unit"}` : "/month"}
+            </span>
+            {isUsageBased && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Info className="w-3 h-3 text-muted-foreground ml-1" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>Usage-based pricing. You pay for what you use beyond your plan limits.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
+        )}
+        
+        {module.pricing?.description && isEnabled && (
           <p className="text-xs text-muted-foreground mt-3 pt-3 border-t">
             {module.pricing.description}
           </p>
@@ -105,6 +171,26 @@ function ModuleCard({ module, isEnabled }: ModuleCardProps) {
 
 export function ModulesMarketplace() {
   const { features, loading } = useFeatures();
+  const { plan, planConfig } = useBilling();
+  const [addons, setAddons] = useState<AddonDefinition[]>([]);
+  const [selectedAddon, setSelectedAddon] = useState<AddonDefinition | null>(null);
+  const [addonModalOpen, setAddonModalOpen] = useState(false);
+
+  // Fetch addon definitions
+  useEffect(() => {
+    const fetchAddons = async () => {
+      const { data } = await supabase
+        .from("addon_definitions")
+        .select("*")
+        .eq("is_active", true)
+        .order("sort_order");
+      
+      if (data) {
+        setAddons(data);
+      }
+    };
+    fetchAddons();
+  }, []);
 
   const isModuleEnabled = (module: ModuleDefinition): boolean => {
     if (module.category === 'core') return true;
@@ -113,6 +199,23 @@ export function ModulesMarketplace() {
     if (!featureKey) return module.defaultEnabled;
     
     return features[featureKey as keyof typeof features] ?? module.defaultEnabled;
+  };
+
+  // Map module keys to addon keys
+  const getAddonForModule = (module: ModuleDefinition): AddonDefinition | undefined => {
+    const moduleToAddonMap: Record<string, string> = {
+      'inventory': 'inventory_items',
+      'warehouse': 'warehouse_management',
+      'agents': 'multi_branch',
+      'website_cms': 'whatsapp_messages',
+    };
+    const addonKey = moduleToAddonMap[module.moduleKey];
+    return addons.find(a => a.addon_key === addonKey);
+  };
+
+  const handleActivateAddon = (addon: AddonDefinition) => {
+    setSelectedAddon(addon);
+    setAddonModalOpen(true);
   };
 
   const coreModules = allModules.filter(m => m.category === 'core');
@@ -142,6 +245,21 @@ export function ModulesMarketplace() {
           Explore available modules and features for your organization.
         </p>
       </div>
+
+      {/* Current Plan Summary */}
+      <Card className="bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
+        <CardContent className="py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Current Plan</p>
+              <p className="text-xl font-bold">{planConfig.label}</p>
+            </div>
+            <Badge variant="secondary" className="text-sm">
+              {plan === "growth" ? "Pro" : plan === "enterprise" ? "Enterprise" : "Starter"}
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Core Modules */}
       <section>
@@ -191,7 +309,9 @@ export function ModulesMarketplace() {
               <ModuleCard 
                 key={module.moduleKey} 
                 module={module} 
-                isEnabled={false} 
+                isEnabled={false}
+                addon={getAddonForModule(module)}
+                onActivate={handleActivateAddon}
               />
             ))}
           </div>
@@ -207,12 +327,25 @@ export function ModulesMarketplace() {
               Contact our sales team to customize your plan and enable additional modules.
             </p>
           </div>
-          <Button className="gap-2 whitespace-nowrap">
-            <Mail className="w-4 h-4" />
-            Contact Sales
+          <Button className="gap-2 whitespace-nowrap" asChild>
+            <a href="mailto:admin@omanut.co?subject=Custom Plan Request">
+              <Mail className="w-4 h-4" />
+              Contact Sales
+            </a>
           </Button>
         </CardContent>
       </Card>
+
+      {/* Addon Purchase Modal */}
+      <AddonPurchaseModal
+        open={addonModalOpen}
+        onOpenChange={setAddonModalOpen}
+        addon={selectedAddon}
+        onSuccess={() => {
+          // Refresh the page to reflect the new addon status
+          window.location.reload();
+        }}
+      />
     </div>
   );
 }
