@@ -85,14 +85,27 @@ Deno.serve(async (req) => {
     }
 
     // Check status with Lenco API
-    const lencoRef = payment.lenco_reference;
-    const response = await fetch(`${LENCO_BASE_URL}/collections/${lencoRef}`, {
+    // We store the provider-side collection identifier in `payment_reference` (preferred).
+    // Fallback to metadata values for older rows.
+    const metadata = (payment.metadata || {}) as Record<string, unknown>;
+    const providerId =
+      (payment.payment_reference as string | null) ||
+      (metadata.lenco_provider_reference as string | null) ||
+      (metadata.lenco_collection_id as string | null);
+
+    // Backward-compat fallback (this is our client reference and may not be valid for /collections/{id})
+    const lencoIdForLookup = providerId || payment.lenco_reference;
+
+    const response = await fetch(
+      `${LENCO_BASE_URL}/collections/${encodeURIComponent(String(lencoIdForLookup))}`,
+      {
       method: "GET",
       headers: {
         Authorization: `Bearer ${lencoSecretKey}`,
         "Content-Type": "application/json",
       },
-    });
+      }
+    );
 
     const lencoData = await response.json();
 
@@ -102,7 +115,7 @@ Deno.serve(async (req) => {
     console.log("Lenco API response:", JSON.stringify(lencoData));
 
     if (response.ok && lencoData.data) {
-      const lencoStatus = lencoData.data.status?.toLowerCase();
+      const lencoStatus = String(lencoData.data.status || "").toLowerCase();
       
       console.log("Lenco status:", lencoStatus);
       
@@ -118,6 +131,9 @@ Deno.serve(async (req) => {
       } else if (lencoStatus === "insufficient_funds" || lencoStatus === "insufficient-funds") {
         newStatus = "failed";
         failureReason = "Insufficient balance";
+      } else if (lencoStatus === "pay-offline" || lencoStatus === "pending" || lencoStatus === "processing") {
+        // Keep as pending
+        newStatus = "pending";
       }
       
       // Check reasonForFailure field even if status is still pending (Lenco sometimes sets reason before status)

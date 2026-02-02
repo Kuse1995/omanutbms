@@ -373,9 +373,19 @@ Deno.serve(async (req) => {
             await supabase
               .from("subscription_payments")
               .update({
+                // Store provider-side identifiers so status polling can query /collections/{id}
+                // Lenco typically returns both:
+                // - data.id (UUID)
+                // - data.lencoReference (numeric/string)
+                // We prefer lencoReference for the collections lookup, but keep both in metadata.
+                payment_reference: lencoResponse?.data?.lencoReference || lencoResponse?.data?.id || null,
+                provider: "lenco",
                 metadata: { 
+                  ...(paymentRecord?.metadata || {}),
                   successful_phone_variant: accountNumber,
                   successful_operator_variant: lencoOperator,
+                  lenco_collection_id: lencoResponse?.data?.id || null,
+                  lenco_provider_reference: lencoResponse?.data?.lencoReference || null,
                 },
               })
               .eq("id", paymentRecord.id);
