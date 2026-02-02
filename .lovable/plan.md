@@ -1,154 +1,206 @@
 
-# Payment Status Feedback & Timeout Reminder Improvements
 
-## What you're asking for
+# Payment Accessibility and Add-ons Marketplace Plan
 
-1. **Insufficient balance** → Show the failure reason ("Insufficient funds") on the computer screen
-2. **User takes too long to enter PIN** → Remind them to enter the PIN or try again
+## Current Situation Analysis
 
----
+**Payment Access Points Today:**
+1. `/pay` page - Standalone checkout page (requires navigation away from dashboard)
+2. `PaymentModal` - Triggered from `SubscriptionManager` and `TrialBanner` (limited visibility)
+3. `UpgradePlanModal` - Shows plans but only says "Contact Sales" (no actual payment flow)
 
-## Current Behavior
+**Add-ons System Today:**
+1. `TenantAddonsDialog` - Admin-only, hidden in super-admin panel
+2. `ModulesMarketplace` - Shows modules but "Upgrade" button doesn't do anything actionable
+3. `addon_definitions` table has 4 add-ons: Inventory Items, WhatsApp Messages, Multi-Branch, Warehouse
 
-The payment flow currently:
-- Polls every 5 seconds for status updates via `lenco-check-status`
-- Shows "Waiting for confirmation..." while polling
-- Transitions to "Payment Failed" only when `status === "failed"`
-
-**Problem 1**: The backend correctly detects `expired` status (when user doesn't enter PIN in time) but the frontend only checks for `"failed"` — it ignores `"expired"`.
-
-**Problem 2**: There's no visible timer or reminder during the waiting period.
-
----
-
-## Implementation Plan
-
-### 1. Handle `expired` status in the UI
-
-Update the polling logic in both `Pay.tsx` and `PaymentModal.tsx`:
-
-```typescript
-// Current code (misses expired)
-if (response.data?.status === "failed") {
-  setPaymentStatus("failed");
-  setErrorMessage(response.data?.failure_reason || "Payment failed");
-}
-
-// Fixed code (handles both)
-if (response.data?.status === "failed" || response.data?.status === "expired") {
-  setPaymentStatus("failed");
-  setErrorMessage(response.data?.failure_reason || "Payment failed or expired");
-}
-```
-
-### 2. Add a countdown timer + PIN reminder
-
-When payment enters `awaiting_confirmation`, start a visible countdown (e.g., 2 minutes):
-
-- **Display**: "Enter your PIN within X:XX" with a decreasing timer
-- **At 60 seconds**: Show a warning "Time running out! Enter your PIN now"
-- **At 0**: Show "Payment may have expired. Check your phone or try again"
-
-Technical approach:
-- Add `waitStartTime` state when entering `awaiting_confirmation`
-- Add a `useEffect` with a 1-second interval to update remaining time
-- Display countdown in the "Check your phone" UI
-- Show progressive urgency as time decreases
-
-### 3. Improve failure messages for common scenarios
-
-Map specific failure reasons to friendlier messages:
-
-| Lenco Response | Display to User |
-|----------------|-----------------|
-| `Insufficient funds` | "Insufficient balance on your phone. Please top up and try again." |
-| `Payment request expired` | "You didn't enter your PIN in time. Please try again." |
-| `User declined` | "You cancelled the payment on your phone." |
-| Default | Original message from Lenco |
+**Problems:**
+- Users must navigate to `/pay` or dig into settings to pay
+- No in-context payment prompts when users hit limits
+- Add-ons are invisible to regular users
+- No self-service add-on purchase flow
+- "Upgrade" buttons in ModulesMarketplace don't actually upgrade
 
 ---
 
-## Files to be modified
+## Proposed Solution
 
-| File | Changes |
-|------|---------|
-| `src/pages/Pay.tsx` | Add expired status handling, countdown timer, friendly error messages |
-| `src/components/dashboard/PaymentModal.tsx` | Same changes for consistency |
+### 1. Add Payment CTAs Throughout the Dashboard
+
+**a) Persistent Upgrade Button in Sidebar (for trial/inactive users)**
+- Add a subtle "Upgrade" button at the bottom of the sidebar for users on trial or inactive status
+- Opens `PaymentModal` directly
+
+**b) Contextual Payment Prompts**
+- When users hit inventory limits: Show inline banner with "Add more items" CTA
+- When WhatsApp message quota is low: Show warning with upgrade option
+- When users try to access locked features: Show upgrade modal with that feature highlighted
+
+### 2. Add-ons Marketplace for Self-Service Purchases
+
+**a) Transform `ModulesMarketplace` into an Actionable Add-ons Store**
+- Show current plan + available add-ons
+- Each add-on card shows: Description, Price (K/month or usage-based), Status (Active/Available)
+- "Activate" button opens a dedicated `AddonPurchaseModal`
+
+**b) Create `AddonPurchaseModal` Component**
+- Displays add-on details + pricing
+- Uses the same Lenco payment flow as subscriptions
+- Creates a separate `subscription_payments` record with `addon_key`
+
+**c) Add-on Pricing Education**
+- Add info tooltips explaining usage-based vs fixed pricing
+- Show current usage and projected cost for tiered add-ons
+- Display plan limits clearly with "Included" vs "Extra K1/item" messaging
+
+### 3. Streamline the Upgrade Flow
+
+**a) Fix `UpgradePlanModal` to Actually Process Payments**
+- Replace "Contact Sales" with direct payment flow for Starter/Growth plans
+- Use the working `PaymentModal` logic or navigate to `/pay?plan=X`
+
+**b) Add Quick Upgrade from `TrialBanner`**
+- Current flow: Banner → PaymentModal → Select plan → Pay
+- Keep this but ensure it's prominent and works smoothly
+
+### 4. Add-on Purchase Flow (Technical Implementation)
+
+**Backend Changes:**
+- Extend `lenco-payment` to accept `addon_key` parameter
+- Create new payment type: `addon_purchase` vs `subscription`
+- On successful payment, enable the add-on in `tenant_addons` table
+
+**Frontend Changes:**
+- Create `AddonPurchaseModal` component
+- Update `ModulesMarketplace` with actionable buttons
+- Add usage tracking display for metered add-ons
 
 ---
 
-## Awaiting Confirmation UI Preview
+## Implementation Details
 
+### Phase 1: Make Payments More Accessible
+
+**Files to modify:**
+- `src/components/dashboard/DashboardSidebar.tsx` - Add upgrade CTA for trial users
+- `src/components/dashboard/UpgradePlanModal.tsx` - Connect to actual payment flow
+- `src/components/dashboard/ModulesMarketplace.tsx` - Make "Upgrade" buttons work
+
+**New Sidebar CTA (conceptual):**
 ```text
-┌────────────────────────────────────┐
-│         📱 Check your phone        │
-│                                    │
-│   Authorize the payment on your    │
-│   MTN phone to complete            │
-│                                    │
-│   ⏱️ Enter PIN within 1:45         │
-│                                    │
-│   ⟳ Waiting for confirmation...   │
-│                                    │
-│   [Cancel Payment]                 │
-└────────────────────────────────────┘
+┌─────────────────────────────────────┐
+│ [Sidebar content...]                │
+│                                     │
+│ ┌─────────────────────────────────┐ │
+│ │ ⚡ Upgrade to Pro                │ │
+│ │ 5 days left in trial            │ │
+│ │ [Subscribe Now]                 │ │
+│ └─────────────────────────────────┘ │
+└─────────────────────────────────────┘
 ```
 
-When time runs low (< 30 seconds):
+### Phase 2: Create Add-ons Purchase Experience
+
+**New component: `AddonPurchaseModal`**
+- Props: `addonKey`, `onSuccess`, `open`, `onOpenChange`
+- Shows add-on details from `addon_definitions`
+- Displays pricing (fixed monthly or per-unit)
+- Uses Lenco Mobile Money payment flow
+- On success: Updates `tenant_addons` and refreshes features
+
+**Update `ModulesMarketplace`:**
+- Each disabled add-on shows "K150/mo" or "K1/item" pricing
+- "Activate" button opens `AddonPurchaseModal`
+- Active add-ons show usage meter if applicable
+
+### Phase 3: Educate Users About Add-ons
+
+**Add-ons Info Section in Modules Page:**
 ```text
-│   ⚠️ Time running out! (0:28)      │
-│   Enter your PIN now               │
+┌────────────────────────────────────────────────────────────┐
+│ 📦 How Add-ons Work                                        │
+│                                                            │
+│ Your Pro plan includes:                                    │
+│ • 500 inventory items (currently using 340)               │
+│ • 500 WhatsApp messages/month                             │
+│                                                            │
+│ Need more? Purchase add-ons:                              │
+│ • Extra inventory: K1 per item/month                      │
+│ • Multi-Branch: K200/mo base + K100/branch                │
+│ • Warehouse: K150/mo flat rate                            │
+│                                                            │
+│ [View All Add-ons]                                        │
+└────────────────────────────────────────────────────────────┘
 ```
+
+**Contextual limit warnings (new component: `UsageLimitBanner`):**
+- Shows when user approaches 80% of any limit
+- "You've used 450/500 inventory items this month"
+- "Add more capacity" button → opens add-on purchase
+
+### Phase 4: Backend Updates for Add-on Payments
+
+**Update `lenco-payment/index.ts`:**
+- Accept optional `addon_key` in request body
+- If `addon_key` present, record as add-on purchase
+- On webhook completion, call new RPC to enable add-on
+
+**New database function: `activate_addon()`**
+- Inserts/updates `tenant_addons` with `is_enabled = true`
+- Syncs feature flags in `business_profiles` (for multi_branch, warehouse, etc.)
 
 ---
 
-## Technical Details
+## User Journey Examples
 
-### New state variables needed:
-```typescript
-const [waitStartTime, setWaitStartTime] = useState<Date | null>(null);
-const [remainingSeconds, setRemainingSeconds] = useState<number>(120); // 2 min default
-```
+### Journey 1: Trial User Upgrades to Paid
+1. User sees trial banner: "5 days left"
+2. Clicks "Upgrade Now"
+3. PaymentModal opens with plan selection
+4. Selects "Annual" billing, enters MTN phone
+5. Approves on phone → Subscription active
 
-### Countdown effect:
-```typescript
-useEffect(() => {
-  if (paymentStatus !== "awaiting_confirmation" || !waitStartTime) return;
-  
-  const interval = setInterval(() => {
-    const elapsed = Math.floor((Date.now() - waitStartTime.getTime()) / 1000);
-    const remaining = Math.max(0, 120 - elapsed);
-    setRemainingSeconds(remaining);
-    
-    if (remaining === 0) {
-      // Don't auto-fail, just show warning (Lenco may still accept)
-    }
-  }, 1000);
-  
-  return () => clearInterval(interval);
-}, [paymentStatus, waitStartTime]);
-```
+### Journey 2: User Purchases Multi-Branch Add-on
+1. User goes to Settings → Modules & Plans
+2. Sees "Multi-Branch Management - K200/mo"
+3. Clicks "Activate"
+4. AddonPurchaseModal shows pricing details
+5. Pays via Mobile Money
+6. Add-on enabled, "Branches" appears in sidebar
 
-### Friendly error message mapper:
-```typescript
-const getFriendlyErrorMessage = (reason: string | null): string => {
-  if (!reason) return "Something went wrong. Please try again.";
-  const lower = reason.toLowerCase();
-  if (lower.includes("insufficient")) return "Insufficient balance. Please top up and try again.";
-  if (lower.includes("expired")) return "You didn't enter your PIN in time. Please try again.";
-  if (lower.includes("declined") || lower.includes("cancelled")) return "You cancelled the payment.";
-  return reason;
-};
-```
+### Journey 3: User Hits Inventory Limit
+1. User tries to add product #501 (on Growth plan with 500 limit)
+2. Toast shows: "Inventory limit reached. Add more capacity?"
+3. Clicks link → opens AddonPurchaseModal for inventory add-on
+4. Sees: "K1/item/month for items beyond 500"
+5. Pays → Can now add unlimited items (billed per usage)
+
+---
+
+## Files to Create/Modify
+
+| File | Action | Description |
+|------|--------|-------------|
+| `src/components/dashboard/AddonPurchaseModal.tsx` | Create | New modal for buying add-ons |
+| `src/components/dashboard/UsageLimitBanner.tsx` | Create | Contextual limit warning component |
+| `src/components/dashboard/SidebarUpgradeCTA.tsx` | Create | Sidebar upgrade prompt for trial users |
+| `src/components/dashboard/ModulesMarketplace.tsx` | Modify | Add pricing and actionable buttons |
+| `src/components/dashboard/UpgradePlanModal.tsx` | Modify | Connect to actual payment flow |
+| `src/components/dashboard/DashboardSidebar.tsx` | Modify | Add upgrade CTA component |
+| `supabase/functions/lenco-payment/index.ts` | Modify | Support add-on purchases |
+| Database migration | Create | Add `activate_addon()` RPC function |
 
 ---
 
 ## Summary
 
-This plan adds:
-1. Proper handling of `expired` payment status
-2. A visible countdown timer during PIN entry wait
-3. Friendly, actionable error messages for common failures
-4. A cancel button during the waiting period
+This plan transforms the payment experience from "hidden on /pay page" to "everywhere users need it":
 
-The insufficient balance error you just experienced should now display correctly on screen, and future users will see a helpful timer reminding them to enter their PIN quickly.
+1. **Sidebar CTA** - Trial users see upgrade prompt constantly
+2. **Working upgrade modals** - UpgradePlanModal actually processes payments
+3. **Self-service add-ons** - Users can buy add-ons from Modules page
+4. **Contextual prompts** - Hit a limit? See an upgrade option right there
+5. **Clear pricing education** - Users understand what they're paying for
+
+The same Lenco Mobile Money integration we just fixed will power all these flows.
+
