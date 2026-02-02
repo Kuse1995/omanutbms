@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Headphones, Mail, Phone } from "lucide-react";
+import { Headphones, Mail, Phone, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
@@ -47,6 +47,20 @@ export function SupportContactButton() {
                   <a href={`mailto:${supportEmail}`}>
                     <Mail className="w-5 h-5 mr-2" />
                     Email Support
+                  </a>
+                </Button>
+                <Button
+                  asChild
+                  size="lg"
+                  className="bg-green-500 hover:bg-green-600 text-white font-semibold"
+                >
+                  <a 
+                    href="https://wa.me/260972064502" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                  >
+                    <MessageCircle className="w-5 h-5 mr-2" />
+                    WhatsApp
                   </a>
                 </Button>
                 <Button
