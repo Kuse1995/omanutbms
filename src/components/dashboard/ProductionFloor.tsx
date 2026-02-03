@@ -142,7 +142,10 @@ export function ProductionFloor() {
 
   const handleDragOver = (e: React.DragEvent, status: KanbanStatus) => {
     e.preventDefault();
-    setDropTarget(status);
+    // Only update state if it actually changed to avoid infinite renders
+    if (dropTarget !== status) {
+      setDropTarget(status);
+    }
   };
 
   const handleDragLeave = () => {
@@ -239,11 +242,13 @@ export function ProductionFloor() {
     }
   };
 
-  // Handle QC approval - order already updated by modal
+  // Handle QC approval - update local state with QC completion data
   const handleQCApproved = (orderId: string, qcData: { qcChecks: QCCheckItem[]; qcNotes: string }) => {
     setOrders(prev =>
       prev.map(o =>
-        o.id === orderId ? { ...o, status: 'fitting' } : o
+        o.id === orderId 
+          ? { ...o, status: 'fitting', qc_completed_at: new Date().toISOString() } 
+          : o
       )
     );
     setShowQCModal(false);
