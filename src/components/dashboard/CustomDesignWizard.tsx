@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   User, 
@@ -93,6 +93,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [existingOrderData, setExistingOrderData] = useState<any>(null);
+  const [isLoadingOrder, setIsLoadingOrder] = useState(false);
 
   // Handoff configuration
   const [handoffConfig, setHandoffConfig] = useState<HandoffConfig>({
@@ -158,7 +159,94 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
     setValidationErrors([]);
   };
 
-  // Step validation logic - Updated for 7 steps
+  // Load existing order data when continuing/editing
+  useEffect(() => {
+    const loadExistingOrder = async () => {
+      if (!editOrderId || !tenantId || !open) return;
+
+      setIsLoadingOrder(true);
+      try {
+        const { data: order, error } = await supabase
+          .from('custom_orders')
+          .select(`
+            *,
+            customers(id, name, phone, email, whatsapp_number, residential_address)
+          `)
+          .eq('id', editOrderId)
+          .eq('tenant_id', tenantId)
+          .single();
+
+        if (error) throw error;
+        if (!order) return;
+
+        setExistingOrderData(order);
+
+        // Populate form data from existing order
+        const measurements = (order.measurements as GarmentMeasurements) || {};
+        const materials = (order.estimated_material_cost && order.quoted_price) 
+          ? [] // Materials aren't stored in DB, would need separate table
+          : [];
+
+        setFormData({
+          customerName: order.customers?.name || '',
+          customerPhone: order.customers?.phone || '',
+          customerWhatsApp: order.whatsapp_number || order.customers?.whatsapp_number || '',
+          customerEmail: order.customers?.email || '',
+          residentialAddress: order.residential_address || order.customers?.residential_address || '',
+          productionType: (order.production_type as 'normal' | 'express') || 'normal',
+          fittingDate: order.fitting_date || '',
+          collectionDate: order.collection_date || '',
+          collectionTime: order.collection_time || '',
+          tagMaterial: order.tag_material || '',
+          designType: order.design_type || '',
+          fabric: order.fabric || '',
+          color: order.color || '',
+          styleNotes: order.style_notes || '',
+          measurements,
+          sketchUrls: order.reference_images || [],
+          referenceNotes: '',
+          generatedImages: (order.generated_images as any[]) || [],
+          materials,
+          laborHours: order.estimated_labor_hours || 0,
+          skillLevel: (order.tailor_skill_level as SkillLevel) || 'Senior',
+          hourlyRate: order.labor_hourly_rate || 75,
+          tailorId: order.assigned_tailor_id || null,
+          marginPercentage: order.margin_percentage || 30,
+          priceLocked: order.price_locked || false,
+          estimatedCost: order.estimated_cost || 0,
+          depositAmount: order.deposit_paid || 0,
+          dueDate: order.due_date || '',
+          customerSignature: order.collection_signature_url || null,
+        });
+
+        // If this is an operations continuation, set handoff config from order
+        if (isOperationsContinuation && order.handoff_step !== null) {
+          setHandoffConfig({
+            enabled: true,
+            handoffStep: order.handoff_step,
+            assignedUserId: order.assigned_operations_user_id,
+            notes: order.handoff_notes || '',
+          });
+
+          // Jump to the step after the handoff step (where ops manager should start)
+          const startStep = Math.min((order.handoff_step || 0) + 1, WIZARD_STEPS.length - 1);
+          setCurrentStep(startStep);
+        }
+      } catch (error: any) {
+        console.error('Error loading order:', error);
+        toast({
+          title: 'Error loading order',
+          description: error.message,
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoadingOrder(false);
+      }
+    };
+
+    loadExistingOrder();
+  }, [editOrderId, tenantId, open, isOperationsContinuation]);
+
   const validateStep = (stepIndex: number): { valid: boolean; errors: string[] } => {
     const errors: string[] = [];
 
@@ -299,7 +387,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
     setIsSavingDraft(true);
     try {
       // Create or get customer if we have name and phone
-      let customerId: string | null = null;
+      let customerId: string | null = existingOrderData?.customer_id || null;
       
       if (formData.customerName && formData.customerPhone) {
         const { data: existingCustomer } = await supabase
@@ -311,6 +399,17 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
         
         if (existingCustomer) {
           customerId = existingCustomer.id;
+          // Update customer with latest info
+          await supabase
+            .from('customers')
+            .update({
+              name: formData.customerName,
+              email: formData.customerEmail || null,
+              measurements: formData.measurements,
+              whatsapp_number: formData.customerWhatsApp || null,
+              residential_address: formData.residentialAddress || null,
+            })
+            .eq('id', customerId);
         } else {
           const { data: newCustomer, error: customerError } = await supabase
             .from('customers')
@@ -338,8 +437,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
       const laborCost = formData.laborHours * formData.hourlyRate;
       const { quotedPrice } = calculateQuote(materialCost, laborCost, formData.marginPercentage);
 
-      const insertData: Record<string, unknown> = {
-        tenant_id: tenantId,
+      const orderData: Record<string, unknown> = {
         customer_id: customerId,
         design_type: formData.designType || null,
         fabric: formData.fabric || null,
@@ -349,7 +447,6 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
         estimated_cost: quotedPrice || formData.estimatedCost || null,
         deposit_paid: formData.depositAmount || null,
         due_date: formData.dueDate || null,
-        status: 'draft', // Draft status
         reference_images: formData.sketchUrls.length > 0 ? formData.sketchUrls : null,
         generated_images: formData.generatedImages.length > 0 ? formData.generatedImages : [],
         assigned_tailor_id: formData.tailorId,
@@ -360,8 +457,9 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
         estimated_labor_cost: laborCost || null,
         margin_percentage: formData.marginPercentage || null,
         quoted_price: quotedPrice || null,
-        price_locked: false,
-        // New Dodo Wear form fields
+        price_locked: formData.priceLocked,
+        collection_signature_url: formData.customerSignature || null,
+        // Dodo Wear form fields
         whatsapp_number: formData.customerWhatsApp || null,
         residential_address: formData.residentialAddress || null,
         production_type: formData.productionType,
@@ -369,56 +467,121 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
         collection_date: formData.collectionDate || null,
         collection_time: formData.collectionTime || null,
         tag_material: formData.tagMaterial || null,
-        // Handoff fields
-        ...(handoffConfig.enabled && handoffConfig.assignedUserId ? {
-          handoff_step: handoffConfig.handoffStep,
-          handoff_status: 'pending_handoff',
-          assigned_operations_user_id: handoffConfig.assignedUserId,
-          handed_off_at: new Date().toISOString(),
-          handoff_notes: handoffConfig.notes || null,
-        } : {}),
-        created_by: user?.id,
       };
-      
-      const { data: orderData, error } = await supabase
-        .from('custom_orders')
-        .insert(insertData as any)
-        .select('id, order_number')
-        .single();
 
-      if (error) throw error;
+      // Determine if this is an UPDATE or INSERT
+      const isUpdate = !!editOrderId;
+      let savedOrder: { id: string; order_number: string } | null = null;
 
-      // If handoff is enabled, create notification for the assigned ops manager
-      if (handoffConfig.enabled && handoffConfig.assignedUserId && orderData) {
-        // Get the officer's name for the toast
-        const { data: officerProfile } = await supabase
-          .from('profiles')
-          .select('full_name')
-          .eq('user_id', handoffConfig.assignedUserId)
-          .maybeSingle();
+      if (isUpdate) {
+        // UPDATE existing order
+        const { data, error } = await supabase
+          .from('custom_orders')
+          .update(orderData)
+          .eq('id', editOrderId)
+          .eq('tenant_id', tenantId)
+          .select('id, order_number')
+          .single();
 
-        const officerName = officerProfile?.full_name || 'Operations Manager';
+        if (error) throw error;
+        savedOrder = data;
 
-        // Create notification for the ops manager
-        await supabase.from('admin_alerts').insert({
-          tenant_id: tenantId,
-          target_user_id: handoffConfig.assignedUserId,
-          alert_type: 'order_handoff',
-          message: `New order assigned to you: ${orderData.order_number} for ${formData.customerName}`,
-          related_table: 'custom_orders',
-          related_id: orderData.id,
-          is_read: false,
-        });
+        // If operations manager is handing back
+        if (isOperationsContinuation && existingOrderData?.handoff_status === 'in_progress') {
+          // Update handoff status to handed_back
+          await supabase
+            .from('custom_orders')
+            .update({
+              handoff_status: 'handed_back',
+              handed_back_at: new Date().toISOString(),
+            })
+            .eq('id', editOrderId);
 
-        toast({
-          title: "Order Handed Off",
-          description: `Order ${orderData.order_number} assigned to ${officerName}. They'll receive a notification.`,
-        });
+          // Notify the original admin
+          if (existingOrderData?.created_by) {
+            const { data: opsProfile } = await supabase
+              .from('profiles')
+              .select('full_name')
+              .eq('user_id', user?.id)
+              .maybeSingle();
+
+            await supabase.from('admin_alerts').insert({
+              tenant_id: tenantId,
+              target_user_id: existingOrderData.created_by,
+              alert_type: 'order_handed_back',
+              message: `Order ${savedOrder?.order_number} has been handed back by ${opsProfile?.full_name || 'Operations'}`,
+              related_table: 'custom_orders',
+              related_id: editOrderId,
+              is_read: false,
+            });
+          }
+
+          toast({
+            title: "Order Handed Back",
+            description: `Order ${savedOrder?.order_number} has been updated and handed back to admin for review.`,
+          });
+        } else {
+          toast({
+            title: "Order Updated",
+            description: `Order ${savedOrder?.order_number} has been updated successfully.`,
+          });
+        }
       } else {
-        toast({
-          title: "Draft Saved",
-          description: `Draft order for ${formData.customerName} has been saved. You can continue editing it later.`,
-        });
+        // INSERT new order
+        const insertData = {
+          ...orderData,
+          tenant_id: tenantId,
+          status: 'draft',
+          created_by: user?.id,
+          // Handoff fields (only for new orders)
+          ...(handoffConfig.enabled && handoffConfig.assignedUserId ? {
+            handoff_step: handoffConfig.handoffStep,
+            handoff_status: 'pending_handoff',
+            assigned_operations_user_id: handoffConfig.assignedUserId,
+            handed_off_at: new Date().toISOString(),
+            handoff_notes: handoffConfig.notes || null,
+          } : {}),
+        };
+        
+        const { data, error } = await supabase
+          .from('custom_orders')
+          .insert(insertData as any)
+          .select('id, order_number')
+          .single();
+
+        if (error) throw error;
+        savedOrder = data;
+
+        // If handoff is enabled, create notification for the assigned ops manager
+        if (handoffConfig.enabled && handoffConfig.assignedUserId && savedOrder) {
+          const { data: officerProfile } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('user_id', handoffConfig.assignedUserId)
+            .maybeSingle();
+
+          const officerName = officerProfile?.full_name || 'Operations Manager';
+
+          await supabase.from('admin_alerts').insert({
+            tenant_id: tenantId,
+            target_user_id: handoffConfig.assignedUserId,
+            alert_type: 'order_handoff',
+            message: `New order assigned to you: ${savedOrder.order_number} for ${formData.customerName}`,
+            related_table: 'custom_orders',
+            related_id: savedOrder.id,
+            is_read: false,
+          });
+
+          toast({
+            title: "Order Handed Off",
+            description: `Order ${savedOrder.order_number} assigned to ${officerName}. They'll receive a notification.`,
+          });
+        } else {
+          toast({
+            title: "Draft Saved",
+            description: `Draft order for ${formData.customerName} has been saved. You can continue editing it later.`,
+          });
+        }
       }
 
       onSuccess?.();
@@ -1213,40 +1376,59 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 bg-gradient-to-b from-background to-muted/20">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentStep}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center ${
-                  currentStep === WIZARD_STEPS.length - 1 
-                    ? 'bg-emerald-100 text-emerald-600' 
-                    : 'bg-amber-100 text-amber-600'
-                }`}>
-                  {React.createElement(WIZARD_STEPS[currentStep].icon, { className: "h-4 w-4 sm:h-5 sm:w-5" })}
+          {isLoadingOrder ? (
+            <div className="flex flex-col items-center justify-center h-64 gap-4">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+              >
+                <Sparkles className="h-8 w-8 text-amber-500" />
+              </motion.div>
+              <p className="text-muted-foreground">Loading order data...</p>
+            </div>
+          ) : (
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentStep}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center ${
+                    currentStep === WIZARD_STEPS.length - 1 
+                      ? 'bg-emerald-100 text-emerald-600' 
+                      : 'bg-amber-100 text-amber-600'
+                  }`}>
+                    {React.createElement(WIZARD_STEPS[currentStep].icon, { className: "h-4 w-4 sm:h-5 sm:w-5" })}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-base sm:text-lg text-foreground">
+                      {WIZARD_STEPS[currentStep].label}
+                    </h3>
+                    <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
+                      {currentStep === 0 && "Enter customer contact details"}
+                      {currentStep === 1 && "Set production timeline and scheduling"}
+                      {currentStep === 2 && "Specify design and fabric requirements"}
+                      {currentStep === 3 && "Record body measurements by garment type"}
+                      {currentStep === 4 && "Upload references and generate previews"}
+                      {currentStep === 5 && "Calculate materials and labor costs"}
+                      {currentStep === 6 && "Review order and get customer signature"}
+                    </p>
+                  </div>
+                  {/* Show read-only badge if step is locked */}
+                  {isStepReadOnly(currentStep) && (
+                    <Badge variant="secondary" className="ml-auto flex items-center gap-1">
+                      <Lock className="h-3 w-3" />
+                      Read Only
+                    </Badge>
+                  )}
                 </div>
-                <div>
-                  <h3 className="font-semibold text-base sm:text-lg text-foreground">
-                    {WIZARD_STEPS[currentStep].label}
-                  </h3>
-                  <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
-                    {currentStep === 0 && "Enter customer contact details"}
-                    {currentStep === 1 && "Set production timeline and scheduling"}
-                    {currentStep === 2 && "Specify design and fabric requirements"}
-                    {currentStep === 3 && "Record body measurements by garment type"}
-                    {currentStep === 4 && "Upload references and generate previews"}
-                    {currentStep === 5 && "Calculate materials and labor costs"}
-                    {currentStep === 6 && "Review order and get customer signature"}
-                  </p>
-                </div>
-              </div>
-              {renderStepContent()}
-            </motion.div>
-          </AnimatePresence>
+                {renderStepContent()}
+              </motion.div>
+            </AnimatePresence>
+          )}
         </div>
 
         {/* Footer */}
