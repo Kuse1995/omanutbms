@@ -4925,6 +4925,10 @@ export type Database = {
         Args: { p_start_date?: string; p_user_id: string }
         Returns: number
       }
+      can_access_custom_order: {
+        Args: { _assigned_user_id: string; _tenant_id: string }
+        Returns: boolean
+      }
       can_edit_branch_inventory: {
         Args: { _branch_id: string; _tenant_id: string }
         Returns: boolean
