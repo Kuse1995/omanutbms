@@ -1,269 +1,275 @@
 
 
-# Stock Transfer Continuity & Audit Trail Improvements
+# Interactive Mannequin Measurement Guide
 
-## Problem Summary
+## Overview
 
-After investigating the stock transfer system, I found several gaps that prevent proper tracking and recording of inventory movements:
-
-1. **No audit trail** - Changes to `stock_transfers`, `branch_inventory`, and `inventory` tables are NOT logged
-2. **Source stock not properly tracked** - The Warehouse has no `branch_inventory` entries, so deductions fall back to main inventory without proper branch-level tracking
-3. **Incomplete historical data** - Some completed transfers have NULL values for critical fields
-4. **No movement history table** - There's no dedicated log showing the complete stock movement trail
+Add a visual mannequin/body diagram that highlights measurement locations when users enable detailed measurements mode. The diagram will be interactive - hovering or clicking on measurement labels will highlight the corresponding area on the mannequin, making it intuitive for tailors and customers to understand exactly where each measurement is taken.
 
 ---
 
-## Proposed Solution
+## Solution Design
 
-### 1. Add Audit Triggers for Stock Tables
+### Visual Approach
 
-Create triggers to log all changes to stock-related tables:
+Create SVG-based mannequin diagrams for different garment types:
 
 ```text
-Tables to add audit triggers:
-+---------------------+
-| stock_transfers     |  <-- INSERT, UPDATE, DELETE
-| branch_inventory    |  <-- INSERT, UPDATE, DELETE  
-| inventory           |  <-- UPDATE (for stock changes)
-+---------------------+
+┌──────────────────────────────────────────────┐
+│  ┌─────────┐           ┌─────────────────┐   │
+│  │         │           │ Measurements    │   │
+│  │   ○     │ ◄──────── │ • Shoulder ✓    │   │
+│  │  /|\    │           │ • Bust [      ] │   │
+│  │  / \    │           │ • Waist ✓       │   │
+│  │         │           │ • Hip [      ]  │   │
+│  └─────────┘           └─────────────────┘   │
+│  [Mannequin]           [Input Fields]        │
+└──────────────────────────────────────────────┘
 ```
 
-This ensures every change is recorded in the `audit_log` table.
+### Key Features
+
+1. **Two Mannequin Types**: Upper body (for tops/dresses) and lower body (for trousers/skirts)
+2. **Interactive Highlighting**: Hover over a measurement field to highlight the corresponding body area
+3. **SVG Line Indicators**: Dotted lines from measurement points to labels
+4. **Gender-Neutral Design**: Simple silhouette suitable for all clients
+5. **Responsive Layout**: Diagram on left (desktop) or top (mobile)
 
 ---
 
-### 2. Create Stock Movement History Table
+## Implementation Details
 
-Add a dedicated table to track every physical stock movement with complete context:
+### Phase 1: Create SVG Mannequin Components
 
-| Column | Purpose |
-|--------|---------|
-| `movement_type` | transfer_out, transfer_in, sale, return, adjustment, restock |
-| `from_branch_id` | Source location (NULL for restocks) |
-| `to_branch_id` | Destination location (NULL for sales) |
-| `reference_type` | stock_transfer, sale, adjustment, restock |
-| `reference_id` | ID of the related record |
-| `quantity_before` | Stock level before movement |
-| `quantity_after` | Stock level after movement |
+Create reusable SVG components with highlighted regions:
 
----
+| Component | Purpose |
+|-----------|---------|
+| `MannequinUpperBody.tsx` | Shoulder, bust, waist, chest, arm measurements |
+| `MannequinLowerBody.tsx` | Waist, hip, thigh, inseam, outseam measurements |
+| `MannequinFull.tsx` | Combined for dresses/full outfits |
 
-### 3. Initialize Warehouse Branch Inventory
+**SVG Structure Example:**
 
-The current system relies on `branch_inventory` for branch-specific stock, but Warehouses don't have entries. We need to:
+```typescript
+interface MannequinProps {
+  highlightedArea?: string;  // e.g., 'bust', 'waist', 'shoulder'
+  onAreaClick?: (area: string) => void;
+}
 
-1. Create `branch_inventory` records for existing warehouse products
-2. Update `StockTransferModal` to create source `branch_inventory` records if missing
-
----
-
-### 4. Improve Transfer Completion Logic
-
-Update `complete_stock_transfer` function to:
-
-1. Log movements to the new `stock_movements` table
-2. Properly handle the source branch inventory (create if missing)
-3. Record before/after quantities for complete audit
-
----
-
-### 5. Add Stock Movements Viewer UI
-
-Add a new tab/section in Inventory Agent to display:
-- Complete movement history for any product
-- Filter by branch, date range, movement type
-- Click-through to related records (transfers, sales, etc.)
-
----
-
-## Implementation Steps
-
-### Phase 1: Database Changes
-
-**A. Add audit triggers:**
-```sql
--- Attach to stock_transfers
-CREATE TRIGGER audit_stock_transfers_insert
-  AFTER INSERT ON stock_transfers
-  FOR EACH ROW EXECUTE FUNCTION audit_table_insert();
-
-CREATE TRIGGER audit_stock_transfers_update
-  AFTER UPDATE ON stock_transfers
-  FOR EACH ROW EXECUTE FUNCTION audit_table_update();
-
--- Similar for branch_inventory
-```
-
-**B. Create stock_movements table:**
-```sql
-CREATE TABLE stock_movements (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID REFERENCES tenants(id),
-  inventory_id UUID REFERENCES inventory(id),
-  branch_id UUID REFERENCES branches(id),
-  movement_type TEXT NOT NULL,
-  quantity INTEGER NOT NULL,
-  quantity_before INTEGER,
-  quantity_after INTEGER,
-  reference_type TEXT,
-  reference_id UUID,
-  notes TEXT,
-  created_by UUID REFERENCES auth.users(id),
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
-**C. Update complete_stock_transfer function:**
-- Add movement logging
-- Ensure source branch_inventory exists or create it
-- Record quantity changes
-
----
-
-### Phase 2: UI Updates
-
-**A. Update StockTransfersManager:**
-- Add "View History" action for completed transfers
-- Show movement details in a timeline format
-
-**B. Add StockMovementsViewer component:**
-- Filterable list of all stock movements
-- Group by product or by date
-- Export capability
-
-**C. Update WarehouseView:**
-- Use `branch_inventory` for warehouse-specific stock levels
-- Add quick action to view movement history
-
----
-
-## Technical Details
-
-### New Database Migration
-
-```sql
--- 1. Create stock_movements table
-CREATE TABLE public.stock_movements (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  inventory_id UUID NOT NULL REFERENCES inventory(id) ON DELETE CASCADE,
-  branch_id UUID REFERENCES branches(id),
-  movement_type TEXT NOT NULL CHECK (
-    movement_type IN ('transfer_out', 'transfer_in', 'sale', 'return', 
-                      'adjustment', 'restock', 'damage', 'correction')
-  ),
-  quantity INTEGER NOT NULL,
-  quantity_before INTEGER,
-  quantity_after INTEGER,
-  reference_type TEXT,
-  reference_id UUID,
-  notes TEXT,
-  created_by UUID REFERENCES auth.users(id),
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 2. Add audit triggers to stock tables
-CREATE TRIGGER audit_stock_transfers_insert
-  AFTER INSERT ON stock_transfers
-  FOR EACH ROW EXECUTE FUNCTION audit_table_insert();
-
-CREATE TRIGGER audit_stock_transfers_update
-  AFTER UPDATE ON stock_transfers
-  FOR EACH ROW EXECUTE FUNCTION audit_table_update();
-
-CREATE TRIGGER audit_branch_inventory_insert
-  AFTER INSERT ON branch_inventory
-  FOR EACH ROW EXECUTE FUNCTION audit_table_insert();
-
-CREATE TRIGGER audit_branch_inventory_update
-  AFTER UPDATE ON branch_inventory
-  FOR EACH ROW EXECUTE FUNCTION audit_table_update();
-
--- 3. RLS for stock_movements
-ALTER TABLE stock_movements ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Tenant users can view stock movements"
-  ON stock_movements FOR SELECT
-  USING (user_belongs_to_tenant(tenant_id));
-
-CREATE POLICY "Tenant managers can insert stock movements"
-  ON stock_movements FOR INSERT
-  WITH CHECK (can_manage_inventory(tenant_id));
-```
-
-### Updated complete_stock_transfer Function
-
-```sql
-CREATE OR REPLACE FUNCTION complete_stock_transfer(p_transfer_id uuid)
-RETURNS void AS $$
-DECLARE
-  v_transfer RECORD;
-  v_source_stock INTEGER;
-  v_target_stock INTEGER;
-BEGIN
-  -- Get transfer details
-  SELECT * INTO v_transfer FROM stock_transfers 
-  WHERE id = p_transfer_id AND status = 'in_transit';
-  
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Transfer not found or not in transit';
-  END IF;
-
-  -- Get source stock level
-  SELECT COALESCE(current_stock, 0) INTO v_source_stock
-  FROM branch_inventory
-  WHERE branch_id = v_transfer.from_branch_id 
-    AND inventory_id = v_transfer.inventory_id;
-
-  -- If no branch_inventory, use main inventory
-  IF v_source_stock IS NULL THEN
-    SELECT current_stock INTO v_source_stock
-    FROM inventory WHERE id = v_transfer.inventory_id;
-  END IF;
-
-  -- Log source movement (transfer_out)
-  INSERT INTO stock_movements (
-    tenant_id, inventory_id, branch_id, movement_type,
-    quantity, quantity_before, quantity_after,
-    reference_type, reference_id
-  ) VALUES (
-    v_transfer.tenant_id, v_transfer.inventory_id, 
-    v_transfer.from_branch_id, 'transfer_out',
-    -v_transfer.quantity, v_source_stock, 
-    v_source_stock - v_transfer.quantity,
-    'stock_transfer', v_transfer.id
+function MannequinUpperBody({ highlightedArea, onAreaClick }: MannequinProps) {
+  return (
+    <svg viewBox="0 0 200 300" className="w-full max-w-[180px]">
+      {/* Body outline */}
+      <path 
+        d="M100,20 ... " 
+        className="fill-slate-100 stroke-slate-400"
+      />
+      
+      {/* Measurement regions - highlighted on hover */}
+      <ellipse 
+        id="bust-region"
+        cx="100" cy="100" rx="45" ry="20"
+        className={cn(
+          "fill-transparent stroke-dashed transition-all cursor-pointer",
+          highlightedArea === 'bust' 
+            ? "fill-primary/20 stroke-primary stroke-2" 
+            : "stroke-muted-foreground/30"
+        )}
+        onClick={() => onAreaClick?.('bust')}
+      />
+      
+      {/* Measurement labels with leader lines */}
+      <line x1="145" y1="100" x2="180" y2="100" className="stroke-muted" />
+      <text x="182" y="104" className="text-xs fill-muted-foreground">Bust</text>
+    </svg>
   );
-
-  -- Deduct from source...
-  -- Add to destination...
-  -- Log destination movement (transfer_in)...
-  
-  -- Mark complete
-  UPDATE stock_transfers SET status = 'completed', 
-    completed_at = NOW() WHERE id = p_transfer_id;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+}
 ```
 
-### Files to Create/Modify
+### Phase 2: Measurement Areas Mapping
+
+Define which body areas correspond to each measurement field:
+
+```typescript
+const MEASUREMENT_AREA_MAP: Record<string, {
+  region: string;
+  description: string;
+  instruction: string;
+}> = {
+  // Dress measurements
+  'dress_bust_full': { 
+    region: 'bust', 
+    description: 'Full Bust', 
+    instruction: 'Measure around the fullest part of the bust' 
+  },
+  'dress_bust_front': { 
+    region: 'bust-front', 
+    description: 'Front Bust', 
+    instruction: 'From center front to side seam at bust level' 
+  },
+  'dress_waist_full': { 
+    region: 'waist', 
+    description: 'Full Waist', 
+    instruction: 'Measure around natural waistline' 
+  },
+  'dress_sh': { 
+    region: 'shoulder', 
+    description: 'Shoulder Width', 
+    instruction: 'From shoulder point to shoulder point across back' 
+  },
+  // ... more mappings
+};
+```
+
+### Phase 3: Integrate with GarmentMeasurementsForm
+
+Update the form to show mannequin alongside measurement inputs:
+
+```typescript
+export function GarmentMeasurementsForm({...}) {
+  const [highlightedMeasurement, setHighlightedMeasurement] = useState<string | null>(null);
+  const [detailedMode, setDetailedMode] = useState(false);
+
+  // Determine which mannequin to show based on garment type
+  const mannequinType = useMemo(() => {
+    if (['trousers', 'skirt'].includes(activeTab)) return 'lower';
+    if (['dress', 'jacket'].includes(activeTab)) return 'full';
+    return 'upper';
+  }, [activeTab]);
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Mannequin Guide - Left side on desktop */}
+      {detailedMode && (
+        <div className="lg:col-span-1 flex flex-col items-center">
+          <MeasurementMannequin
+            type={mannequinType}
+            highlightedArea={highlightedMeasurement}
+            garmentCategory={activeTab}
+            onAreaClick={(area) => {
+              // Focus the corresponding input field
+              const input = document.getElementById(area);
+              input?.focus();
+            }}
+          />
+          
+          {/* Instruction card for highlighted measurement */}
+          {highlightedMeasurement && (
+            <Card className="mt-4 p-3 bg-primary/5 border-primary/20">
+              <p className="text-sm font-medium">
+                {MEASUREMENT_AREA_MAP[highlightedMeasurement]?.description}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {MEASUREMENT_AREA_MAP[highlightedMeasurement]?.instruction}
+              </p>
+            </Card>
+          )}
+        </div>
+      )}
+      
+      {/* Measurement Inputs - Right side */}
+      <div className={cn(
+        detailedMode ? "lg:col-span-2" : "lg:col-span-3"
+      )}>
+        {/* Existing measurement fields */}
+        {category.fields.map((field) => (
+          <div 
+            key={field.key}
+            onMouseEnter={() => setHighlightedMeasurement(field.key)}
+            onMouseLeave={() => setHighlightedMeasurement(null)}
+            onFocus={() => setHighlightedMeasurement(field.key)}
+          >
+            {renderMeasurementField(field)}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+### Phase 4: Mobile-Responsive Layout
+
+On smaller screens, show the mannequin as a collapsible reference:
+
+```typescript
+// Mobile: Show as expandable panel at top
+<div className="lg:hidden">
+  <Collapsible>
+    <CollapsibleTrigger className="w-full">
+      <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+        <span className="text-sm font-medium flex items-center gap-2">
+          <Eye className="h-4 w-4" />
+          View Measurement Guide
+        </span>
+        <ChevronDown className="h-4 w-4" />
+      </div>
+    </CollapsibleTrigger>
+    <CollapsibleContent>
+      <MeasurementMannequin ... />
+    </CollapsibleContent>
+  </Collapsible>
+</div>
+
+// Desktop: Show inline
+<div className="hidden lg:block">
+  <MeasurementMannequin ... />
+</div>
+```
+
+---
+
+## Files to Create/Modify
 
 | File | Changes |
 |------|---------|
-| **Database Migration** | Add `stock_movements` table, audit triggers, update function |
-| `src/components/dashboard/StockMovementsViewer.tsx` | **New** - Display movement history |
-| `src/components/dashboard/InventoryAgent.tsx` | Add "Movement History" tab |
-| `src/components/dashboard/StockTransfersManager.tsx` | Add "View History" button |
-| `src/components/dashboard/WarehouseView.tsx` | Use branch_inventory for filtering |
+| `src/components/dashboard/MeasurementMannequin.tsx` | **New** - Main mannequin component with SVG |
+| `src/components/dashboard/mannequin/UpperBodySVG.tsx` | **New** - SVG for upper body measurements |
+| `src/components/dashboard/mannequin/LowerBodySVG.tsx` | **New** - SVG for lower body measurements |
+| `src/components/dashboard/mannequin/FullBodySVG.tsx` | **New** - SVG for full body (dresses) |
+| `src/components/dashboard/GarmentMeasurementsForm.tsx` | Add mannequin integration, detailed mode toggle |
+| `src/lib/measurement-areas.ts` | **New** - Measurement-to-body-area mapping |
+
+---
+
+## SVG Design Specifications
+
+The mannequin SVGs will be:
+
+- **Minimalist**: Clean line art, not photorealistic
+- **Gender-neutral**: Simple silhouette that works for all clients
+- **Scalable**: SVG format for crisp rendering at any size
+- **Accessible**: Proper ARIA labels for screen readers
+- **Theme-aware**: Uses CSS variables for colors (works in dark mode)
+
+**Measurement Regions (Upper Body):**
+- Shoulder points
+- Neck/collar area
+- Bust line
+- Under-bust line
+- Waist line
+- Armhole
+- Sleeve length path
+- Back length line
+
+**Measurement Regions (Lower Body):**
+- Waist line
+- Hip line
+- Thigh area
+- Crotch point
+- Inseam line
+- Outseam line
+- Knee line
+- Ankle/hem line
 
 ---
 
 ## Expected Outcome
 
-After implementation:
-
-1. **Complete audit trail** - Every stock change is logged automatically
-2. **Movement history** - Users can see exactly where stock moved, when, and why
-3. **Branch-level tracking** - Each location has its own inventory counts
-4. **Debugging capability** - Easy to trace discrepancies by viewing movement history
-5. **Compliance ready** - Full documentation of inventory movements for audits
+1. **Visual guidance**: Users see exactly where each measurement is taken
+2. **Interactive learning**: Hover/focus highlights the body area
+3. **Reduced errors**: Clear visual reference prevents measuring mistakes
+4. **Professional appearance**: Clean diagram enhances the tailoring experience
+5. **Optional feature**: Only shows when detailed mode is enabled (doesn't clutter basic mode)
 
