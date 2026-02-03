@@ -164,6 +164,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
     
     // Pricing (Step 6)
     materials: [] as MaterialItem[],
+    additionalCosts: [] as AdditionalCostItem[],
     laborHours: 0,
     skillLevel: 'Senior' as SkillLevel,
     hourlyRate: 75,
