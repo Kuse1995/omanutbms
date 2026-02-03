@@ -120,31 +120,47 @@ export function WarehouseView() {
     if (!tenant?.id || !selectedWarehouse) return;
     setLoading(true);
     try {
-      // Use type assertion for simpler query
-      const query = (supabase as any)
-        .from("inventory")
-        .select("*")
+      // First, fetch branch_inventory for this warehouse
+      const { data: branchInventoryData, error: branchError } = await supabase
+        .from("branch_inventory")
+        .select(`
+          id,
+          current_stock,
+          reorder_level,
+          inventory:inventory_id(
+            id,
+            name,
+            sku,
+            category,
+            unit_cost,
+            selling_price
+          )
+        `)
         .eq("tenant_id", tenant.id)
-        .order("name");
+        .eq("branch_id", selectedWarehouse);
 
-      const { data, error } = await query;
-      if (error) throw error;
-      
-      setInventory((data || []).map((item: any) => ({
-        id: item.id,
-        product_name: item.name,
-        sku: item.sku || '',
-        category: item.category || null,
-        current_stock: item.quantity || 0,
-        reorder_level: item.reorder_level || 10,
-        unit_cost: item.unit_cost || 0,
-        selling_price: item.selling_price || 0,
-      })));
+      if (branchError) throw branchError;
+
+      // Map branch_inventory data to our WarehouseInventory format
+      const mappedInventory: WarehouseInventory[] = (branchInventoryData || [])
+        .filter((item: any) => item.inventory) // Filter out items where inventory was deleted
+        .map((item: any) => ({
+          id: item.inventory.id,
+          product_name: item.inventory.name,
+          sku: item.inventory.sku || '',
+          category: item.inventory.category || null,
+          current_stock: item.current_stock || 0,
+          reorder_level: item.reorder_level || 10,
+          unit_cost: item.inventory.unit_cost || 0,
+          selling_price: item.inventory.selling_price || 0,
+        }));
+
+      setInventory(mappedInventory);
     } catch (error: any) {
-      console.error("Error fetching inventory:", error);
+      console.error("Error fetching warehouse inventory:", error);
       toast({
         title: "Error",
-        description: "Failed to load inventory",
+        description: "Failed to load warehouse inventory",
         variant: "destructive",
       });
     } finally {
