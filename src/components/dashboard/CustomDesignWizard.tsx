@@ -34,6 +34,7 @@ import { GarmentMeasurementsForm, type GarmentMeasurements, isGarmentCategoryCom
 import { MaterialSelector, type MaterialItem } from "./MaterialSelector";
 import { LaborEstimator, type SkillLevel } from "./LaborEstimator";
 import { PricingBreakdown, calculateQuote } from "./PricingBreakdown";
+import { AdditionalCostsSection, type AdditionalCostItem } from "./AdditionalCostsSection";
 import { SketchUploader } from "./SketchUploader";
 import { CustomerSignaturePad } from "./CustomerSignaturePad";
 import { HandoffConfigPanel, type HandoffConfig } from "./HandoffConfigPanel";
