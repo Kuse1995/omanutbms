@@ -132,6 +132,91 @@ export function SystemResetManager() {
       tables: ["donation_requests"],
       checked: false,
     },
+    // NEW CATEGORIES
+    {
+      id: "custom_orders",
+      label: "Custom Orders & Tailoring",
+      description: "All custom/made-to-measure orders, items, and adjustments",
+      tables: ["custom_order_adjustments", "custom_order_items", "custom_orders"],
+      checked: false,
+    },
+    {
+      id: "job_cards",
+      label: "Job Cards & Production",
+      description: "Production job cards and material usage records",
+      tables: ["job_material_usage", "job_cards"],
+      checked: false,
+    },
+    {
+      id: "customers",
+      label: "Customer Records",
+      description: "All customer profiles and contact information",
+      tables: ["customers"],
+      checked: false,
+    },
+    {
+      id: "collections",
+      label: "Collections",
+      description: "All payment collection records",
+      tables: ["collections"],
+      checked: false,
+    },
+    {
+      id: "inventory_movements",
+      label: "Inventory Movements",
+      description: "Stock movements, adjustments, and restock history",
+      tables: ["stock_movements", "inventory_adjustments", "restock_history"],
+      checked: false,
+    },
+    {
+      id: "stock_transfers",
+      label: "Stock Transfers",
+      description: "Inter-branch stock transfer records",
+      tables: ["stock_transfers"],
+      checked: false,
+    },
+    {
+      id: "attendance",
+      label: "Employee Attendance",
+      description: "All attendance and time tracking records",
+      tables: ["employee_attendance"],
+      checked: false,
+    },
+    {
+      id: "recurring_expenses",
+      label: "Recurring Expenses",
+      description: "Recurring expense templates and schedules",
+      tables: ["recurring_expenses"],
+      checked: false,
+    },
+    {
+      id: "financial_reports",
+      label: "Generated Reports",
+      description: "Saved financial and business reports",
+      tables: ["financial_reports"],
+      checked: false,
+    },
+    {
+      id: "vendors",
+      label: "Vendors & Suppliers",
+      description: "Supplier and vendor records",
+      tables: ["vendors"],
+      checked: false,
+    },
+    {
+      id: "assets",
+      label: "Assets & Depreciation",
+      description: "Fixed assets and depreciation logs",
+      tables: ["asset_logs", "assets"],
+      checked: false,
+    },
+    {
+      id: "audit_logs",
+      label: "Audit Logs",
+      description: "System audit trails (transaction and general)",
+      tables: ["transaction_audit_log", "audit_log"],
+      checked: false,
+    },
   ]);
 
   const toggleCategory = (id: string) => {
@@ -239,7 +324,14 @@ export function SystemResetManager() {
     "sales_transactions", "transactions", "invoice_items", "invoices", "quotation_items", "quotations",
     "payment_receipts", "expenses", "accounts_payable", "agent_transactions", 
     "agent_inventory", "agent_applications", "payroll_records", "website_contacts",
-    "community_messages", "admin_alerts", "donation_requests"
+    "community_messages", "admin_alerts", "donation_requests",
+    // NEW tables
+    "custom_order_adjustments", "custom_order_items", "custom_orders",
+    "job_material_usage", "job_cards", "customers", "collections",
+    "stock_movements", "inventory_adjustments", "restock_history",
+    "stock_transfers", "employee_attendance", "recurring_expenses",
+    "financial_reports", "vendors", "asset_logs", "assets",
+    "transaction_audit_log", "audit_log"
   ];
 
   const handleRestoreFromBackup = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -410,6 +502,39 @@ export function SystemResetManager() {
     if (selectedTableNames.includes("sales_transactions")) {
       // Sales transactions reference inventory - nullify if needed
       await safeNullify("sales_transactions", "product_id");
+    }
+
+    // NEW FK CONSTRAINT HANDLING
+
+    // Handle custom_orders FK constraints - delete children first
+    if (selectedTableNames.includes("custom_orders")) {
+      await safeDeleteChildren("custom_order_adjustments");
+      await safeDeleteChildren("custom_order_items");
+    }
+
+    // Handle job_cards FK constraints - delete children first
+    if (selectedTableNames.includes("job_cards")) {
+      await safeDeleteChildren("job_material_usage");
+    }
+
+    // Handle assets FK constraints - delete logs first
+    if (selectedTableNames.includes("assets")) {
+      await safeDeleteChildren("asset_logs");
+    }
+
+    // Handle customers FK constraints - nullify references before deleting
+    if (selectedTableNames.includes("customers")) {
+      await safeNullify("invoices", "customer_id");
+      await safeNullify("quotations", "customer_id");
+      await safeNullify("custom_orders", "customer_id");
+      await safeNullify("sales_transactions", "customer_id");
+      await safeNullify("job_cards", "customer_id");
+    }
+
+    // Handle vendors FK constraints - nullify references before deleting
+    if (selectedTableNames.includes("vendors")) {
+      await safeNullify("expenses", "vendor_id");
+      await safeNullify("accounts_payable", "vendor_id");
     }
 
     // Now delete the selected tables in order
