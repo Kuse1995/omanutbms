@@ -1,249 +1,269 @@
 
 
-# Custom Order Handoff Notification System
+# Stock Transfer Continuity & Audit Trail Improvements
 
-## Status: ✅ IMPLEMENTED
+## Problem Summary
 
-## Overview
+After investigating the stock transfer system, I found several gaps that prevent proper tracking and recording of inventory movements:
 
-This plan addressed a critical UX gap in the custom order handoff workflow. The following features have been implemented:
-
-1. **Admin confirmation toast** - When clicking "Save Draft" with handoff enabled, show a toast confirming the order was handed off to the specific operations manager
-2. **Operations Manager notification popup** - When the operations manager opens the Custom Orders section, show a prominent alert/dialog about newly assigned orders waiting for them
-
----
-
-## Current State vs. Proposed
-
-| Scenario | Current | Proposed |
-|----------|---------|----------|
-| Admin saves with handoff | Generic "Draft Saved" toast | Specific "Order handed off to [Name]" toast |
-| Ops Manager opens Custom Orders | No special notification | Welcome dialog showing pending assignments |
-| Real-time notification | None | Bell notification via admin_alerts |
+1. **No audit trail** - Changes to `stock_transfers`, `branch_inventory`, and `inventory` tables are NOT logged
+2. **Source stock not properly tracked** - The Warehouse has no `branch_inventory` entries, so deductions fall back to main inventory without proper branch-level tracking
+3. **Incomplete historical data** - Some completed transfers have NULL values for critical fields
+4. **No movement history table** - There's no dedicated log showing the complete stock movement trail
 
 ---
 
-## Implementation Plan
+## Proposed Solution
 
-### 1. Improve Admin Handoff Toast (CustomDesignWizard.tsx)
+### 1. Add Audit Triggers for Stock Tables
 
-Update the save draft flow to show a specific handoff confirmation:
+Create triggers to log all changes to stock-related tables:
 
-**Changes to `handleSaveDraft` function:**
-- After successful insert, check if handoff was enabled
-- If yes, fetch the assigned ops manager's name from the `officers` list already loaded in `HandoffConfigPanel`
-- Show a different toast: "Order handed off to [Name] - They'll receive it in their queue"
-
-**New toast examples:**
-- With handoff: `"Order handed off to John Smith - They'll receive it in their queue"`
-- Without handoff: `"Draft Saved - You can continue editing it later"` (existing behavior)
-
----
-
-### 2. Create Admin Alert on Handoff (CustomDesignWizard.tsx)
-
-When saving with handoff enabled, create an entry in `admin_alerts` so the operations manager sees it in their NotificationsCenter:
-
-```typescript
-// After successful order insert with handoff
-await supabase.from("admin_alerts").insert({
-  tenant_id: tenantId,
-  alert_type: "order_handoff",
-  message: `New order assigned to you: ${orderNumber} for ${customerName}`,
-  related_table: "custom_orders",
-  related_id: newOrderId,
-});
-```
-
-**Note:** This requires adding a `target_user_id` column to `admin_alerts` to filter alerts by recipient, or we create a new table `user_notifications`.
-
----
-
-### 3. Extend admin_alerts Table (Database Migration)
-
-Add a `target_user_id` column to route notifications to specific users:
-
-```sql
-ALTER TABLE admin_alerts 
-ADD COLUMN target_user_id UUID REFERENCES auth.users(id);
-
--- Update RLS to allow users to see their own targeted alerts
-CREATE POLICY "Users can view their targeted alerts"
-  ON admin_alerts FOR SELECT
-  USING (
-    target_user_id = auth.uid()
-    OR target_user_id IS NULL -- Tenant-wide alerts
-  );
-```
-
----
-
-### 4. Update NotificationsCenter (NotificationsCenter.tsx)
-
-Modify the fetch query to:
-1. Filter `admin_alerts` where `target_user_id = auth.uid()` OR `target_user_id IS NULL`
-2. Add handling for `alert_type = 'order_handoff'`
-3. Navigate to custom orders when clicked
-
-**New notification type:**
-```typescript
-type: "handoff" // New type
-title: "New Order Assigned"
-message: "Order CO-2024-0001 for John Doe assigned to you"
-navigate_to: "/bms?tab=fashion&subtab=orders"
-```
-
----
-
-### 5. Create Assignment Welcome Dialog (AssignedOrdersSection.tsx)
-
-When operations manager opens the Custom Orders section and has pending assignments:
-
-1. Check if there are orders with `handoff_status = 'pending_handoff'`
-2. If first visit (use localStorage flag), show a welcome dialog:
-   - "You have X orders waiting for your attention"
-   - List the orders with customer names
-   - "Pick Up" button to mark them as in_progress
-   - "View All" button to close and see the list
-
-**Dialog Content:**
 ```text
-╔═══════════════════════════════════════════╗
-║  📋 Orders Assigned to You                ║
-╠═══════════════════════════════════════════╣
-║  You have 2 orders waiting:               ║
-║                                           ║
-║  • CO-2024-0045 - John Doe (Suit)         ║
-║    Assigned by: Admin | Due: Feb 10       ║
-║                                           ║
-║  • CO-2024-0046 - Mary Smith (Dress)      ║
-║    Assigned by: Manager | Due: Feb 12     ║
-║                                           ║
-║  [Pick Up All]      [View Details]        ║
-╚═══════════════════════════════════════════╝
+Tables to add audit triggers:
++---------------------+
+| stock_transfers     |  <-- INSERT, UPDATE, DELETE
+| branch_inventory    |  <-- INSERT, UPDATE, DELETE  
+| inventory           |  <-- UPDATE (for stock changes)
++---------------------+
 ```
 
----
-
-### 6. Add Hand-Back Confirmation (For Operations Manager)
-
-When ops manager completes their steps and hands back to admin:
-
-1. Update `handoff_status` to `'handed_back'`
-2. Create notification for the admin:
-   ```typescript
-   await supabase.from("admin_alerts").insert({
-     tenant_id: tenantId,
-     target_user_id: order.created_by, // Admin who created the order
-     alert_type: "order_handed_back",
-     message: `Order ${orderNumber} has been handed back by ${opsManagerName}`,
-     related_table: "custom_orders",
-     related_id: orderId,
-   });
-   ```
-3. Show confirmation toast to ops manager
+This ensures every change is recorded in the `audit_log` table.
 
 ---
 
-## Files to Modify
+### 2. Create Stock Movement History Table
 
-| File | Changes |
-|------|---------|
-| **Database Migration** | Add `target_user_id` to `admin_alerts`, update RLS |
-| `src/components/dashboard/CustomDesignWizard.tsx` | Enhanced handoff toast, create admin_alert on save |
-| `src/components/dashboard/NotificationsCenter.tsx` | Handle `order_handoff` type, filter by target_user |
-| `src/components/dashboard/AssignedOrdersSection.tsx` | Add welcome dialog for pending assignments |
-| **New: `src/components/dashboard/HandoffWelcomeDialog.tsx`** | Reusable dialog for assigned order notifications |
+Add a dedicated table to track every physical stock movement with complete context:
+
+| Column | Purpose |
+|--------|---------|
+| `movement_type` | transfer_out, transfer_in, sale, return, adjustment, restock |
+| `from_branch_id` | Source location (NULL for restocks) |
+| `to_branch_id` | Destination location (NULL for sales) |
+| `reference_type` | stock_transfer, sale, adjustment, restock |
+| `reference_id` | ID of the related record |
+| `quantity_before` | Stock level before movement |
+| `quantity_after` | Stock level after movement |
+
+---
+
+### 3. Initialize Warehouse Branch Inventory
+
+The current system relies on `branch_inventory` for branch-specific stock, but Warehouses don't have entries. We need to:
+
+1. Create `branch_inventory` records for existing warehouse products
+2. Update `StockTransferModal` to create source `branch_inventory` records if missing
+
+---
+
+### 4. Improve Transfer Completion Logic
+
+Update `complete_stock_transfer` function to:
+
+1. Log movements to the new `stock_movements` table
+2. Properly handle the source branch inventory (create if missing)
+3. Record before/after quantities for complete audit
+
+---
+
+### 5. Add Stock Movements Viewer UI
+
+Add a new tab/section in Inventory Agent to display:
+- Complete movement history for any product
+- Filter by branch, date range, movement type
+- Click-through to related records (transfers, sales, etc.)
+
+---
+
+## Implementation Steps
+
+### Phase 1: Database Changes
+
+**A. Add audit triggers:**
+```sql
+-- Attach to stock_transfers
+CREATE TRIGGER audit_stock_transfers_insert
+  AFTER INSERT ON stock_transfers
+  FOR EACH ROW EXECUTE FUNCTION audit_table_insert();
+
+CREATE TRIGGER audit_stock_transfers_update
+  AFTER UPDATE ON stock_transfers
+  FOR EACH ROW EXECUTE FUNCTION audit_table_update();
+
+-- Similar for branch_inventory
+```
+
+**B. Create stock_movements table:**
+```sql
+CREATE TABLE stock_movements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID REFERENCES tenants(id),
+  inventory_id UUID REFERENCES inventory(id),
+  branch_id UUID REFERENCES branches(id),
+  movement_type TEXT NOT NULL,
+  quantity INTEGER NOT NULL,
+  quantity_before INTEGER,
+  quantity_after INTEGER,
+  reference_type TEXT,
+  reference_id UUID,
+  notes TEXT,
+  created_by UUID REFERENCES auth.users(id),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**C. Update complete_stock_transfer function:**
+- Add movement logging
+- Ensure source branch_inventory exists or create it
+- Record quantity changes
+
+---
+
+### Phase 2: UI Updates
+
+**A. Update StockTransfersManager:**
+- Add "View History" action for completed transfers
+- Show movement details in a timeline format
+
+**B. Add StockMovementsViewer component:**
+- Filterable list of all stock movements
+- Group by product or by date
+- Export capability
+
+**C. Update WarehouseView:**
+- Use `branch_inventory` for warehouse-specific stock levels
+- Add quick action to view movement history
 
 ---
 
 ## Technical Details
 
-### Database Migration SQL
+### New Database Migration
 
 ```sql
--- Add target_user_id for user-specific notifications
-ALTER TABLE admin_alerts 
-ADD COLUMN IF NOT EXISTS target_user_id UUID REFERENCES auth.users(id);
+-- 1. Create stock_movements table
+CREATE TABLE public.stock_movements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  inventory_id UUID NOT NULL REFERENCES inventory(id) ON DELETE CASCADE,
+  branch_id UUID REFERENCES branches(id),
+  movement_type TEXT NOT NULL CHECK (
+    movement_type IN ('transfer_out', 'transfer_in', 'sale', 'return', 
+                      'adjustment', 'restock', 'damage', 'correction')
+  ),
+  quantity INTEGER NOT NULL,
+  quantity_before INTEGER,
+  quantity_after INTEGER,
+  reference_type TEXT,
+  reference_id UUID,
+  notes TEXT,
+  created_by UUID REFERENCES auth.users(id),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
--- Create index for efficient filtering
-CREATE INDEX IF NOT EXISTS idx_admin_alerts_target_user 
-ON admin_alerts(target_user_id);
+-- 2. Add audit triggers to stock tables
+CREATE TRIGGER audit_stock_transfers_insert
+  AFTER INSERT ON stock_transfers
+  FOR EACH ROW EXECUTE FUNCTION audit_table_insert();
 
--- Update RLS to filter by target user
-DROP POLICY IF EXISTS "Tenant users can view admin_alerts" ON admin_alerts;
+CREATE TRIGGER audit_stock_transfers_update
+  AFTER UPDATE ON stock_transfers
+  FOR EACH ROW EXECUTE FUNCTION audit_table_update();
 
-CREATE POLICY "Users can view relevant admin_alerts"
-  ON admin_alerts FOR SELECT
-  USING (
-    -- Tenant-wide alerts (no specific target)
-    (target_user_id IS NULL AND user_belongs_to_tenant(tenant_id))
-    OR
-    -- Alerts specifically for this user
-    (target_user_id = auth.uid())
+CREATE TRIGGER audit_branch_inventory_insert
+  AFTER INSERT ON branch_inventory
+  FOR EACH ROW EXECUTE FUNCTION audit_table_insert();
+
+CREATE TRIGGER audit_branch_inventory_update
+  AFTER UPDATE ON branch_inventory
+  FOR EACH ROW EXECUTE FUNCTION audit_table_update();
+
+-- 3. RLS for stock_movements
+ALTER TABLE stock_movements ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Tenant users can view stock movements"
+  ON stock_movements FOR SELECT
+  USING (user_belongs_to_tenant(tenant_id));
+
+CREATE POLICY "Tenant managers can insert stock movements"
+  ON stock_movements FOR INSERT
+  WITH CHECK (can_manage_inventory(tenant_id));
+```
+
+### Updated complete_stock_transfer Function
+
+```sql
+CREATE OR REPLACE FUNCTION complete_stock_transfer(p_transfer_id uuid)
+RETURNS void AS $$
+DECLARE
+  v_transfer RECORD;
+  v_source_stock INTEGER;
+  v_target_stock INTEGER;
+BEGIN
+  -- Get transfer details
+  SELECT * INTO v_transfer FROM stock_transfers 
+  WHERE id = p_transfer_id AND status = 'in_transit';
+  
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Transfer not found or not in transit';
+  END IF;
+
+  -- Get source stock level
+  SELECT COALESCE(current_stock, 0) INTO v_source_stock
+  FROM branch_inventory
+  WHERE branch_id = v_transfer.from_branch_id 
+    AND inventory_id = v_transfer.inventory_id;
+
+  -- If no branch_inventory, use main inventory
+  IF v_source_stock IS NULL THEN
+    SELECT current_stock INTO v_source_stock
+    FROM inventory WHERE id = v_transfer.inventory_id;
+  END IF;
+
+  -- Log source movement (transfer_out)
+  INSERT INTO stock_movements (
+    tenant_id, inventory_id, branch_id, movement_type,
+    quantity, quantity_before, quantity_after,
+    reference_type, reference_id
+  ) VALUES (
+    v_transfer.tenant_id, v_transfer.inventory_id, 
+    v_transfer.from_branch_id, 'transfer_out',
+    -v_transfer.quantity, v_source_stock, 
+    v_source_stock - v_transfer.quantity,
+    'stock_transfer', v_transfer.id
   );
+
+  -- Deduct from source...
+  -- Add to destination...
+  -- Log destination movement (transfer_in)...
+  
+  -- Mark complete
+  UPDATE stock_transfers SET status = 'completed', 
+    completed_at = NOW() WHERE id = p_transfer_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 ```
 
-### CustomDesignWizard Changes
+### Files to Create/Modify
 
-1. Pass selected officer name from `HandoffConfigPanel` to parent via callback
-2. Update toast message based on handoff configuration
-3. Insert admin_alert after successful order creation
-
-### NotificationsCenter Changes
-
-1. Update `getIcon` to handle `"handoff"` type
-2. Add routing for `order_handoff` alerts to custom orders
-3. Update query to include `target_user_id` filter
-
-### New HandoffWelcomeDialog Component
-
-A dialog that:
-- Appears when ops manager has pending assignments
-- Uses localStorage to track if shown this session
-- Lists pending orders with key details
-- Provides quick actions (Pick Up All, View Details)
+| File | Changes |
+|------|---------|
+| **Database Migration** | Add `stock_movements` table, audit triggers, update function |
+| `src/components/dashboard/StockMovementsViewer.tsx` | **New** - Display movement history |
+| `src/components/dashboard/InventoryAgent.tsx` | Add "Movement History" tab |
+| `src/components/dashboard/StockTransfersManager.tsx` | Add "View History" button |
+| `src/components/dashboard/WarehouseView.tsx` | Use branch_inventory for filtering |
 
 ---
 
-## Collaboration Flow (After Implementation)
+## Expected Outcome
 
-```text
-ADMIN                                     OPS MANAGER
-  │                                           │
-  │ 1. Creates order with handoff             │
-  │    ↓                                      │
-  │ 2. Clicks "Save Draft"                    │
-  │    ↓                                      │
-  │ 3. Toast: "Handed off to [Name]" ✓        │
-  │    ↓                                      │
-  │ 4. admin_alert created ────────────────►  │
-  │                                           │ 5. Bell notification appears
-  │                                           │    ↓
-  │                                           │ 6. Opens Custom Orders
-  │                                           │    ↓
-  │                                           │ 7. Welcome Dialog shows
-  │                                           │    ↓
-  │                                           │ 8. Picks up order
-  │                                           │    ↓
-  │ ◄──────────────────────────────────────── │ 9. Completes & hands back
-  │                                           │
-  │ 10. Bell notification: "Order returned"   │ 10. Toast: "Handed back" ✓
-  │    ↓                                      │
-  │ 11. Reviews & finalizes                   │
-```
+After implementation:
 
----
-
-## Expected User Experience
-
-**For Admin:**
-- Clear confirmation when order is handed off
-- Notification when ops manager hands it back
-
-**For Operations Manager:**
-- Bell notification in header when assigned
-- Welcome popup when opening Custom Orders
-- Clear indication of which orders are theirs
-- Confirmation when handing back
+1. **Complete audit trail** - Every stock change is logged automatically
+2. **Movement history** - Users can see exactly where stock moved, when, and why
+3. **Branch-level tracking** - Each location has its own inventory counts
+4. **Debugging capability** - Easy to trace discrepancies by viewing movement history
+5. **Compliance ready** - Full documentation of inventory movements for audits
 
