@@ -1,302 +1,275 @@
 
-
-# Update Mandatory Measurements Based on Dodo Wear Client Form
+# Mobile UX/UI Optimization for Custom Orders
 
 ## Overview
 
-Update the `GarmentMeasurementsForm.tsx` component to use the exact measurement fields from the Dodo Wear Client Form document, making them the mandatory standard fields while keeping the custom measurements section for any additional measurements.
+This plan enhances the Custom Orders section for optimal mobile usability, focusing on the `CustomDesignWizard`, `GarmentMeasurementsForm`, `MaterialSelector`, `LaborEstimator`, `AdditionalCostsSection`, and `CustomOrdersManager` components.
 
 ---
 
-## Measurements Extracted from Dodo Wear Form
+## Current Mobile Issues Identified
 
-Based on the uploaded document, here are the measurements used by House of Dodo for each garment type:
-
-### DRESS MEASUREMENTS
-| Abbrev | Full Name |
-|--------|-----------|
-| FL | Full Length |
-| SH | Shoulder |
-| Hip | Hip |
-| UB | Under Bust |
-| HIP | Hip (duplicate in form) |
-| Waist | Waist |
-
-### TROUSERS MEASUREMENTS
-| Abbrev | Full Name |
-|--------|-----------|
-| Waist | Waist |
-| Wideness | Wideness/Width |
-| UB | Upper Body/Hip |
-| Crotch | Crotch/Rise |
-| FL | Full Length |
-| SH | Shoulder/Short Height |
-| In Leg | Inside Leg |
-
-### TOP MEASUREMENTS
-| Abbrev | Full Name |
-|--------|-----------|
-| FL | Full Length |
-| In Leg | Inside Leg |
-| Bust | Bust |
-| Waist | Waist |
-| SL | Sleeve Length |
-| Cuff | Cuff |
-| Join | Join/Armhole |
-
-### SKIRT MEASUREMENTS
-| Abbrev | Full Name |
-|--------|-----------|
-| FL | Full Length |
-| SH | Short/Hip |
-| Knee | Knee Length |
-| Hip | Hip |
-| ND | Knee Down |
-| NW Join | Narrow Width Join |
-
-### SHIRT MEASUREMENTS
-| Abbrev | Full Name |
-|--------|-----------|
-| CH | Chest |
-| Waist | Waist |
-| FL | Full Length |
-| SH | Shoulder |
-| Hip | Hip |
-| SL | Sleeve Length |
-| NW | Narrow Width |
-| Join | Join |
-| Collar | Collar |
-
-### JACKET MEASUREMENTS
-| Abbrev | Full Name |
-|--------|-----------|
-| SH | Shoulder |
-| Bust | Bust |
-| Hip | Hip |
-| SL | Sleeve Length |
-| Join | Join |
-| FL | Full Length |
-| UB | Under Bust |
-| Waist | Waist |
-| Slit | Slit |
-
-### QUALITY CONTROL (Universal Reference)
-These are the comprehensive measurements checked during QC:
-- SH, Bust, SL, W (Waist), Hip, Cuff, Join, ND, CH (Chest)
-- Under Bust, Thigh, Knee, Bottom, Crotch, Inleg, Neck, Arm Height
+| Component | Issue |
+|-----------|-------|
+| **CustomDesignWizard** | Modal too cramped; step navigation icons small; footer buttons crowded |
+| **GarmentMeasurementsForm** | 3-column grid unreadable on mobile; input fields too narrow |
+| **MaterialSelector** | Row layout with 5+ elements overflows; Select dropdowns too small |
+| **LaborEstimator** | 2-column grid cramped; AI button text truncates |
+| **AdditionalCostsSection** | 3-column preset grid unreadable; row items overflow |
+| **CustomOrdersManager** | Table-based layout unusable on mobile; action buttons cramped |
+| **Client Info Form** | 2-column grid forces tiny inputs |
 
 ---
 
-## Implementation Changes
+## Implementation Plan
 
-### 1. Simplify to Two Modes
+### 1. CustomDesignWizard Mobile Overhaul
 
-**Standard Mode (Default)** - Dodo Wear mandatory fields only
-**Custom Mode** - Add-your-own fields for edge cases
+**File:** `src/components/dashboard/CustomDesignWizard.tsx`
 
-This removes the complex numbered 17-point system and the 6-tab garment categories, replacing them with a single unified form based on the Dodo Wear standard.
+**Changes:**
 
-### 2. Create Unified Dodo Wear Measurement Set
-
-Consolidate the measurements into a single comprehensive list that covers all garment types:
-
+a) **Full-screen mobile modal:**
 ```typescript
-const DODO_WEAR_MEASUREMENTS: MeasurementField[] = [
-  // Upper Body
-  { key: 'shoulder', abbrev: 'SH', label: 'Shoulder', tooltip: 'Shoulder width across back' },
-  { key: 'bust', abbrev: 'Bust', label: 'Bust', tooltip: 'Fullest part of bust/chest' },
-  { key: 'chest', abbrev: 'CH', label: 'Chest', tooltip: 'Chest circumference' },
-  { key: 'under_bust', abbrev: 'UB', label: 'Under Bust', tooltip: 'Measurement just below bust line' },
-  { key: 'waist', abbrev: 'Waist', label: 'Waist', tooltip: 'Natural waistline' },
-  { key: 'hip', abbrev: 'Hip', label: 'Hip', tooltip: 'Widest part of hips' },
-  
-  // Arms
-  { key: 'sleeve_length', abbrev: 'SL', label: 'Sleeve Length', tooltip: 'Shoulder to wrist' },
-  { key: 'cuff', abbrev: 'Cuff', label: 'Cuff', tooltip: 'Wrist circumference' },
-  { key: 'join', abbrev: 'Join', label: 'Join', tooltip: 'Armhole to waist join point' },
-  { key: 'arm_height', abbrev: 'Arm H', label: 'Arm Height', tooltip: 'Armhole depth' },
-  
-  // Collar/Neck
-  { key: 'collar', abbrev: 'Collar', label: 'Collar', tooltip: 'Neck/collar circumference' },
-  { key: 'neck', abbrev: 'Neck', label: 'Neck', tooltip: 'Neck circumference' },
-  
-  // Lengths
-  { key: 'full_length', abbrev: 'FL', label: 'Full Length', tooltip: 'Top to hem length' },
-  { key: 'knee_down', abbrev: 'ND', label: 'Knee Down', tooltip: 'Knee to ankle length' },
-  { key: 'knee', abbrev: 'Knee', label: 'Knee', tooltip: 'Knee circumference' },
-  
-  // Lower Body
-  { key: 'wideness', abbrev: 'Wide', label: 'Wideness', tooltip: 'Thigh width preference' },
-  { key: 'crotch', abbrev: 'Crotch', label: 'Crotch', tooltip: 'Crotch depth/rise' },
-  { key: 'in_leg', abbrev: 'In Leg', label: 'In Leg', tooltip: 'Inside leg measurement' },
-  { key: 'thigh', abbrev: 'Thigh', label: 'Thigh', tooltip: 'Thigh circumference' },
-  { key: 'bottom', abbrev: 'Bottom', label: 'Bottom', tooltip: 'Trouser leg opening' },
-  
-  // Jacket Specific
-  { key: 'slit', abbrev: 'Slit', label: 'Slit', tooltip: 'Back slit length' },
-  { key: 'narrow_width', abbrev: 'NW', label: 'Narrow Width', tooltip: 'Narrow part width' },
-];
+// Change from max-w-4xl to full-screen on mobile
+className="bg-background ... w-full max-w-4xl sm:max-w-4xl max-h-[100vh] sm:max-h-[90vh] sm:rounded-2xl rounded-none"
 ```
 
-### 3. Update Form Layout
+b) **Collapsible step navigation on mobile:**
+- Show only current step indicator on mobile with swipe gestures
+- Replace horizontal step bar with a dropdown or compact stepper
 
-Replace the complex tabbed interface with a clean, full-width grid showing all Dodo Wear measurements in logical groups:
+c) **Larger touch targets:**
+- Increase step icons from `w-8 h-8` to `w-11 h-11` on mobile
+- Footer buttons get larger padding
 
-```text
-┌─────────────────────────────────────────────────────────────────────────┐
-│  Unit: [cm] [in]                               [22/22 filled] ✓ Complete│
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  UPPER BODY                                                             │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐│
-│  │ SH           │  │ Bust         │  │ CH           │  │ UB           ││
-│  │ Shoulder     │  │              │  │ Chest        │  │ Under Bust   ││
-│  │ [45.5    ]cm │  │ [92      ]cm │  │ [88      ]cm │  │ [78      ]cm ││
-│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘│
-│                                                                         │
-│  ┌──────────────┐  ┌──────────────┐                                    │
-│  │ Waist        │  │ Hip          │                                    │
-│  │              │  │              │                                    │
-│  │ [68      ]cm │  │ [96      ]cm │                                    │
-│  └──────────────┘  └──────────────┘                                    │
-│                                                                         │
-│  ARMS & COLLAR                                                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐│
-│  │ SL           │  │ Cuff         │  │ Join         │  │ Arm H        ││
-│  │ Sleeve Length│  │              │  │              │  │ Arm Height   ││
-│  │ [60      ]cm │  │ [18      ]cm │  │ [42      ]cm │  │ [24      ]cm ││
-│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘│
-│                                                                         │
-│  ┌──────────────┐  ┌──────────────┐                                    │
-│  │ Collar       │  │ Neck         │                                    │
-│  │              │  │              │                                    │
-│  │ [38      ]cm │  │ [36      ]cm │                                    │
-│  └──────────────┘  └──────────────┘                                    │
-│                                                                         │
-│  LENGTHS                                                                │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                  │
-│  │ FL           │  │ ND           │  │ Knee         │                  │
-│  │ Full Length  │  │ Knee Down    │  │              │                  │
-│  │ [115     ]cm │  │ [52      ]cm │  │ [38      ]cm │                  │
-│  └──────────────┘  └──────────────┘  └──────────────┘                  │
-│                                                                         │
-│  LOWER BODY                                                             │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐│
-│  │ Wide         │  │ Crotch       │  │ In Leg       │  │ Thigh        ││
-│  │ Wideness     │  │              │  │              │  │              ││
-│  │ [24      ]cm │  │ [28      ]cm │  │ [82      ]cm │  │ [56      ]cm ││
-│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘│
-│                                                                         │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                  │
-│  │ Bottom       │  │ Slit         │  │ NW           │                  │
-│  │              │  │              │  │ Narrow Width │                  │
-│  │ [20      ]cm │  │ [15      ]cm │  │ [18      ]cm │                  │
-│  └──────────────┘  └──────────────┘  └──────────────┘                  │
-│                                                                         │
-├─────────────────────────────────────────────────────────────────────────┤
-│  CUSTOM MEASUREMENTS                                           [+ Add] │
-│  ┌─────────────────────────────────────────────────────────────────────┐│
-│  │ (Add any additional measurements not listed above)                  ││
-│  │ [Back Hip          ] [45.5    ]cm  [×]                             ││
-│  │ [Front Rise        ] [28      ]cm  [×]                             ││
-│  └─────────────────────────────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────────────────────────────┘
+d) **Sticky footer optimization:**
+- Stack "Save Draft" below navigation on very small screens
+- Ensure buttons don't overlap
+
+e) **Step content responsiveness:**
+- Change `grid-cols-2` to `grid-cols-1` on mobile for Client Info, Work Details
+- Add proper spacing for date/time pickers
+
+### 2. GarmentMeasurementsForm Mobile Layout
+
+**File:** `src/components/dashboard/GarmentMeasurementsForm.tsx`
+
+**Changes:**
+
+a) **Single-column layout on mobile:**
+```typescript
+// Change from lg:grid-cols-3 to responsive
+<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
 ```
+Already correct, but needs adjustment for the measurement field container.
+
+b) **Wider input fields:**
+```typescript
+// Increase from w-24 to w-28 on mobile, or make responsive
+<div className="relative w-24 sm:w-24 shrink-0">
+```
+
+c) **Touch-friendly measurement rows:**
+- Increase row padding from `p-2.5` to `p-3`
+- Make the entire row tappable to focus the input
+- Larger abbreviation badges
+
+d) **Floating unit toggle:**
+- Make unit toggle sticky at the top when scrolling through measurements
+- Progress badge more prominent
+
+e) **Collapsible groups:**
+- Allow collapsing measurement groups to reduce scroll fatigue
+- Show filled count per group
+
+### 3. MaterialSelector Mobile Optimization
+
+**File:** `src/components/dashboard/MaterialSelector.tsx`
+
+**Changes:**
+
+a) **Stacked row layout:**
+```typescript
+// On mobile, stack the material selector vertically
+<div className="flex flex-col sm:flex-row sm:items-center gap-2 p-3 bg-muted/50 rounded-lg">
+  <div className="w-full sm:flex-1">
+    <Select>...</Select>
+  </div>
+  <div className="flex items-center gap-2">
+    <Input className="w-20" /> {/* Quantity */}
+    <span className="w-12 text-sm">meters</span>
+    <span className="w-20 text-right font-medium">K 375.00</span>
+    <Button>×</Button>
+  </div>
+</div>
+```
+
+b) **Full-width select dropdown:**
+- Material dropdown spans full width on mobile
+- Bottom sheet-style selection on mobile for easier browsing
+
+c) **AI Estimate button:**
+- Stack buttons vertically on mobile header
+- Full-width action buttons
+
+### 4. LaborEstimator Mobile Optimization
+
+**File:** `src/components/dashboard/LaborEstimator.tsx`
+
+**Changes:**
+
+a) **Single-column form:**
+```typescript
+// Stack all inputs vertically on mobile
+<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+```
+
+b) **AI Estimate button placement:**
+- Move to full-width below the title on mobile
+- Or make it a floating action button
+
+c) **Larger input touch targets:**
+- `h-10` instead of `h-9` on mobile
+
+### 5. AdditionalCostsSection Mobile Optimization
+
+**File:** `src/components/dashboard/AdditionalCostsSection.tsx`
+
+**Changes:**
+
+a) **2-column preset grid:**
+```typescript
+// Change from grid-cols-3 to responsive
+<div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3">
+```
+
+b) **Stacked item rows:**
+```typescript
+// Each cost item becomes a card on mobile
+<div className="flex flex-col gap-2 p-3 bg-muted/50 rounded-lg">
+  <div className="flex items-center gap-2">
+    <Select className="flex-1">...</Select>  {/* Type */}
+    <Button size="icon">×</Button>
+  </div>
+  <Input placeholder="Description..." />
+  <div className="flex items-center gap-2">
+    <Input className="w-20" placeholder="Qty" />
+    <Input className="w-24" placeholder="K0" />
+    <span className="ml-auto font-medium">K 50.00</span>
+  </div>
+</div>
+```
+
+### 6. CustomOrdersManager List View
+
+**File:** `src/components/dashboard/CustomOrdersManager.tsx`
+
+**Changes:**
+
+a) **Card-based list instead of table on mobile:**
+```typescript
+// Mobile: render cards; Desktop: render table
+const isMobile = useIsMobile();
+
+{isMobile ? (
+  <div className="space-y-3">
+    {filteredOrders.map(order => (
+      <Card key={order.id} className="p-4">
+        <div className="flex justify-between items-start mb-2">
+          <div>
+            <p className="font-semibold">{order.order_number}</p>
+            <p className="text-sm text-muted-foreground">{order.customers?.name}</p>
+          </div>
+          <Badge>{order.status}</Badge>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span>{order.design_type}</span>
+          <span className="font-medium">K {order.quoted_price}</span>
+        </div>
+        <div className="flex gap-2 mt-3">
+          <Button size="sm" variant="outline">Edit</Button>
+          <Button size="sm" variant="outline">Invoice</Button>
+        </div>
+      </Card>
+    ))}
+  </div>
+) : (
+  <Table>...</Table>
+)}
+```
+
+b) **Status cards:**
+- Horizontal scroll for status summary cards
+- Or collapse to 2-per-row
+
+c) **Search/filter bar:**
+- Stack filter controls vertically on mobile
+
+### 7. Client Info Step (Step 0) Mobile Layout
+
+**File:** `src/components/dashboard/CustomDesignWizard.tsx`
+
+**Changes:**
+
+a) **Single-column input layout:**
+```typescript
+// Change Client Info grid
+<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+```
+
+b) **Full-width phone inputs:**
+- Phone and WhatsApp inputs span full width on mobile
+- Proper spacing between input groups
+
+### 8. Review Step (Step 6) Mobile Layout
+
+**Changes:**
+
+a) **Summary cards stacked:**
+```typescript
+// Change from grid-cols-4 to responsive
+<div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+```
+
+b) **Generated images:**
+- 2 columns on mobile instead of 4
+
+c) **Signature pad:**
+- Ensure signature canvas is wide enough and easy to draw on
 
 ---
 
-## Technical Changes
-
-### Files to Modify
+## Technical Changes Summary
 
 | File | Changes |
 |------|---------|
-| `src/components/dashboard/GarmentMeasurementsForm.tsx` | Replace NUMBERED_MEASUREMENTS with DODO_WEAR_MEASUREMENTS, reorganize into logical groups, simplify UI |
-| `src/lib/numbered-measurements.ts` | Rename to `dodo-wear-measurements.ts` and update exports |
-
-### New Measurement Interface
-
-```typescript
-interface Measurements {
-  // Upper Body
-  shoulder?: number;
-  bust?: number;
-  chest?: number;
-  under_bust?: number;
-  waist?: number;
-  hip?: number;
-  
-  // Arms & Collar
-  sleeve_length?: number;
-  cuff?: number;
-  join?: number;
-  arm_height?: number;
-  collar?: number;
-  neck?: number;
-  
-  // Lengths
-  full_length?: number;
-  knee_down?: number;
-  knee?: number;
-  
-  // Lower Body
-  wideness?: number;
-  crotch?: number;
-  in_leg?: number;
-  thigh?: number;
-  bottom?: number;
-  
-  // Jacket Specific
-  slit?: number;
-  narrow_width?: number;
-  
-  // Metadata
-  _unit?: 'cm' | 'in';
-  custom_measurements?: CustomMeasurement[];
-}
-```
-
-### Measurement Groups for UI Organization
-
-```typescript
-const MEASUREMENT_GROUPS = [
-  {
-    id: 'upper_body',
-    label: 'Upper Body',
-    fields: ['shoulder', 'bust', 'chest', 'under_bust', 'waist', 'hip']
-  },
-  {
-    id: 'arms_collar',
-    label: 'Arms & Collar',
-    fields: ['sleeve_length', 'cuff', 'join', 'arm_height', 'collar', 'neck']
-  },
-  {
-    id: 'lengths',
-    label: 'Lengths',
-    fields: ['full_length', 'knee_down', 'knee']
-  },
-  {
-    id: 'lower_body',
-    label: 'Lower Body',
-    fields: ['wideness', 'crotch', 'in_leg', 'thigh', 'bottom', 'slit', 'narrow_width']
-  }
-];
-```
+| `src/components/dashboard/CustomDesignWizard.tsx` | Full-screen mobile modal, responsive grids, larger touch targets, stacked footer buttons |
+| `src/components/dashboard/GarmentMeasurementsForm.tsx` | Single-column on mobile, collapsible groups, sticky unit toggle, larger inputs |
+| `src/components/dashboard/MaterialSelector.tsx` | Stacked row layout, full-width select, vertical action buttons |
+| `src/components/dashboard/LaborEstimator.tsx` | Single-column form, larger inputs, repositioned AI button |
+| `src/components/dashboard/AdditionalCostsSection.tsx` | 2-column presets, card-style rows on mobile |
+| `src/components/dashboard/CustomOrdersManager.tsx` | Card-based list view on mobile, scrollable status cards |
+| `src/components/dashboard/CustomMeasurementsSection.tsx` | Stacked layout for custom measurement rows |
 
 ---
 
-## Benefits
+## Additional Mobile Enhancements
 
-1. **Matches Existing Workflow** - Uses the exact same measurements from the physical Dodo Wear client form
-2. **Simpler UI** - Removes complex tabbed interface and 17-point numbered system
-3. **Grouped Logically** - Organized by body section for intuitive data entry
-4. **Still Flexible** - Custom measurements section preserved for edge cases
-5. **Fraction Support** - Keeps the existing fraction input (e.g., "45/2")
-6. **Unit Toggle** - Preserves cm/in toggle for international clients
+1. **Sheet-based modals:** Use `Sheet` component (slide from bottom) instead of dialog for better mobile UX on sub-selections
+2. **Haptic feedback:** Add subtle vibration on form completion
+3. **Pull-to-refresh:** Enable on orders list
+4. **Keyboard optimization:** Use `inputMode="decimal"` for number inputs, proper keyboard types
+5. **Scroll indicators:** Visual cues when content extends beyond visible area
 
 ---
 
-## Migration Considerations
+## Expected Outcome
 
-The existing measurement keys in the database will be preserved where they overlap. New keys will be added. Old garment-specific prefixed keys (like `dress_fl`, `trousers_waist`) can remain supported for backward compatibility with existing orders.
-
+After implementation:
+- Wizard steps are fully visible and tappable without zooming
+- Measurement form is easily readable and editable with one hand
+- Material/labor/pricing sections have clear visual hierarchy
+- Orders list is browsable with quick actions visible
+- All buttons meet minimum 44px touch target guidelines
+- No horizontal scrolling required
