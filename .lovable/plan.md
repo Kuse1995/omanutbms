@@ -1,141 +1,178 @@
 
 
-# Make WhatsApp an Add-On Only Feature
+# Fix Operations Manager Access to Custom Orders
 
-## Overview
+## Problem Identified
 
-Currently, WhatsApp is included as a feature in all billing plans (Starter, Pro, Enterprise) with varying message limits. This change will make WhatsApp exclusively an add-on that must be purchased separately, regardless of plan.
+When an admin/manager hands off a custom order to an operations manager, **the operations manager cannot see or update the assigned orders** due to restrictive RLS policies at the database level.
+
+### Root Causes
+
+| Layer | Issue |
+|-------|-------|
+| **Database RLS** | The UPDATE policy on `custom_orders` only allows `admin` and `manager` roles via `is_tenant_admin_or_manager()` |
+| **Missing Policy** | No policy allows updates based on assignment (`assigned_operations_user_id = auth.uid()`) |
+| **profiles RLS** | Operations managers cannot view other users' profiles (needed for "Assigned by" display) |
+
+### Current State
+
+- `custom_orders` UPDATE policy: `is_tenant_admin_or_manager(tenant_id)` - **excludes operations_manager**
+- `can_manage_operations()` helper exists but isn't used for custom_orders
+- No assignment-based access control exists
+
+---
+
+## Solution: Assignment-Based Access
+
+The best collaboration pattern is **assignment-based access**:
+- Admins/managers can see and manage ALL custom orders
+- Operations managers can see and update ONLY orders assigned to them
+
+This follows the principle of least privilege while enabling the handoff workflow.
+
+---
+
+## Implementation Plan
+
+### 1. Database Changes (SQL Migration)
+
+#### A. Create Helper Function for Custom Order Access
+
+```sql
+CREATE OR REPLACE FUNCTION public.can_access_custom_order(
+  _tenant_id UUID, 
+  _assigned_user_id UUID
+)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.tenant_users 
+    WHERE user_id = auth.uid() 
+      AND tenant_id = _tenant_id 
+      AND (
+        -- Admins and managers have full access
+        role IN ('admin', 'manager')
+        OR 
+        -- Operations managers can access orders assigned to them
+        (role = 'operations_manager' AND _assigned_user_id = auth.uid())
+      )
+  )
+$$;
+```
+
+#### B. Update Custom Orders RLS Policies
+
+Drop and recreate the UPDATE policy to include operations managers:
+
+```sql
+-- Drop old restrictive policy
+DROP POLICY IF EXISTS "Tenant admins/managers can update custom_orders" 
+  ON public.custom_orders;
+
+-- Create new policy with assignment-based access
+CREATE POLICY "Authorized users can update custom_orders"
+  ON public.custom_orders FOR UPDATE
+  USING (
+    public.is_tenant_admin_or_manager(tenant_id)
+    OR 
+    (public.can_manage_operations(tenant_id) AND assigned_operations_user_id = auth.uid())
+  );
+```
+
+#### C. Add SELECT Policy for Assigned Operations Managers
+
+Currently, operations managers can see all tenant orders (via `user_belongs_to_tenant`), which is fine. But we should ensure the query in `AssignedOrdersSection` works. The existing SELECT policy is:
+
+```sql
+"Tenant users can view custom_orders" USING (user_belongs_to_tenant(tenant_id))
+```
+
+This is sufficient since operations managers are tenant users.
+
+#### D. Update Profiles RLS for Tenant-Wide Visibility
+
+Allow authenticated tenant members to see profiles of their tenant colleagues:
+
+```sql
+-- Allow tenant users to see colleague profiles (needed for "Assigned by" display)
+CREATE POLICY "Tenant users can view colleague profiles"
+  ON public.profiles FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.tenant_users tu1
+      WHERE tu1.user_id = auth.uid()
+        AND tu1.tenant_id IN (
+          SELECT tu2.tenant_id FROM public.tenant_users tu2 
+          WHERE tu2.user_id = profiles.user_id
+        )
+    )
+  );
+```
+
+---
+
+### 2. Technical Summary
+
+| Change | Purpose |
+|--------|---------|
+| `can_access_custom_order()` function | Reusable helper for assignment-based access |
+| Updated UPDATE policy | Allows ops managers to update their assigned orders |
+| Profiles visibility policy | Enables "Assigned by {name}" display |
+
+---
+
+## Collaboration Flow (After Fix)
+
+```text
+1. Admin creates custom order via Design Wizard
+   └─ Enables handoff, selects Operations Manager, saves
+
+2. Order gets status: handoff_status = 'pending_handoff'
+   └─ assigned_operations_user_id = [ops manager's user_id]
+
+3. Operations Manager logs in
+   └─ Sees "My Assigned Orders" section (AssignedOrdersSection)
+   └─ Can "Pick Up" the order → handoff_status = 'in_progress'
+   └─ Can continue wizard from the designated step
+
+4. Operations Manager completes their steps
+   └─ Hands back → handoff_status = 'handed_back'
+
+5. Admin reviews and finalizes
+```
+
+---
 
 ## Files to Modify
 
 | File | Change |
 |------|--------|
-| `src/lib/billing-plans.ts` | Set `whatsapp: false` for all plans, set `whatsappMessages: 0` |
-| `src/components/landing/PlanComparisonTable.tsx` | Change WhatsApp to "Add-on" for all plans, remove from Usage Limits |
-| `src/components/dashboard/TenantManager.tsx` | Change `whatsapp_enabled: false` for new tenants |
-| `src/lib/business-type-config.ts` | Set `whatsapp: false` in all business type default features |
-| `src/hooks/useBillingPlans.ts` | Update to ensure WhatsApp limits default to 0 |
+| Database Migration | Add helper function + update RLS policies |
+
+No frontend changes needed - the UI already handles the workflow correctly. The issue is purely at the database access layer.
 
 ---
 
-## Detailed Changes
+## Testing Checklist
 
-### 1. billing-plans.ts - Core Plan Configuration
-
-Remove WhatsApp from all plan features and limits:
-
-**Starter Plan:**
-- Change `whatsappMessages: 30` → `whatsappMessages: 0`
-- Change `whatsapp: true` → `whatsapp: false`
-- Remove "WhatsApp assistant (30/month)" from highlights
-
-**Pro/Growth Plan:**
-- Change `whatsappMessages: 500` → `whatsappMessages: 0`
-- Change `whatsapp: true` → `whatsapp: false`
-- Remove "WhatsApp assistant (500/month)" from highlights
-
-**Enterprise Plan:**
-- Change `whatsappMessages: Infinity` → `whatsappMessages: 0`
-- Change `whatsapp: true` → `whatsapp: false`
-- Remove "Unlimited WhatsApp messages" from highlights
+After implementation:
+- [ ] Admin can create order with handoff enabled
+- [ ] Admin can select Operations Manager from dropdown
+- [ ] Operations Manager can view "My Assigned Orders" section
+- [ ] Operations Manager can "Pick Up" an order
+- [ ] Operations Manager can continue the wizard and update measurements/pricing
+- [ ] Operations Manager can see who assigned the order (profiles access)
+- [ ] Admin can see orders with "With Ops" status
 
 ---
 
-### 2. PlanComparisonTable.tsx - UI Display
+## Security Considerations
 
-Update the feature comparison table:
-
-**Remove from Usage Limits section:**
-```typescript
-// DELETE this row:
-{ category: "Usage Limits", feature: "WhatsApp Messages", starter: "30/month", growth: "500/month", enterprise: "Unlimited" },
-```
-
-**Change in AI & Automation section:**
-```typescript
-// FROM:
-{ category: "AI & Automation", feature: "WhatsApp Assistant", starter: true, growth: true, enterprise: true },
-
-// TO:
-{ category: "AI & Automation", feature: "WhatsApp Assistant", starter: "Add-on", growth: "Add-on", enterprise: "Add-on" },
-```
-
----
-
-### 3. TenantManager.tsx - New Tenant Defaults
-
-When creating new tenants, WhatsApp should be disabled by default:
-
-```typescript
-// FROM:
-whatsapp_enabled: true, // All plans now have WhatsApp (with usage limits)
-
-// TO:
-whatsapp_enabled: false, // WhatsApp is an add-on only feature
-```
-
----
-
-### 4. business-type-config.ts - Business Type Defaults
-
-Set `whatsapp: false` in all business type default features. This affects 12 business types:
-- distribution
-- retail
-- school
-- ngo
-- services
-- agriculture
-- hospitality
-- salon
-- healthcare
-- autoshop
-- hybrid
-- fashion
-
-Each business type's `defaultFeatures.whatsapp` will be changed from `true` to `false`.
-
----
-
-### 5. useBillingPlans.ts - Merge Logic
-
-Ensure the hook defaults whatsappMessages to 0 when not overridden:
-
-```typescript
-limits: {
-  // ... other limits
-  whatsappMessages: 0, // WhatsApp is add-on only
-  // ...
-},
-```
-
----
-
-## Impact Summary
-
-| Area | Before | After |
-|------|--------|-------|
-| Starter Plan | WhatsApp included (30 msgs/mo) | No WhatsApp |
-| Pro Plan | WhatsApp included (500 msgs/mo) | No WhatsApp |
-| Enterprise Plan | WhatsApp included (unlimited) | No WhatsApp |
-| New Tenants | WhatsApp enabled by default | WhatsApp disabled |
-| Pricing UI | Shows WhatsApp as feature | Shows "Add-on" |
-| Business Types | WhatsApp enabled in defaults | WhatsApp disabled |
-
-## How Customers Get WhatsApp
-
-After this change, customers will need to:
-1. Go to the Add-ons Marketplace in their dashboard
-2. Purchase the WhatsApp add-on
-3. The add-on activates `whatsapp_enabled` in their `business_profiles`
-
-This aligns with the existing `addon_definitions` table which already has a `whatsapp_messages` add-on defined with tiered pricing.
-
----
-
-## Technical Notes
-
-- The `addon_definitions` table already has WhatsApp defined as an add-on
-- The `activate_addon()` RPC already handles enabling features when purchased
-- The `AddonPurchaseModal` and marketplace flow already work for WhatsApp
-- Existing tenants with WhatsApp enabled will keep access (no retroactive change)
+- Operations managers can ONLY update orders explicitly assigned to them
+- They cannot update orders assigned to other operations managers
+- They cannot delete orders (reserved for admins)
+- Full audit trail maintained via existing triggers
 
