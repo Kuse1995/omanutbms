@@ -232,6 +232,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
           referenceNotes: '',
           generatedImages: (order.generated_images as any[]) || [],
           materials,
+          additionalCosts: [], // Additional costs are loaded from custom_order_items if needed
           laborHours: order.estimated_labor_hours || 0,
           skillLevel: (order.tailor_skill_level as SkillLevel) || 'Senior',
           hourlyRate: order.labor_hourly_rate || 75,
