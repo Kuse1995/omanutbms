@@ -30,7 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
 import { useAuth } from "@/hooks/useAuth";
-import { GarmentMeasurementsForm, type GarmentMeasurements, isGarmentCategoryComplete, getMissingMeasurements, getDefaultTab } from "./GarmentMeasurementsForm";
+import { GarmentMeasurementsForm, type GarmentMeasurements, isGarmentCategoryComplete, getMissingMeasurements, getDefaultTab, serializeMeasurementsForStorage } from "./GarmentMeasurementsForm";
 import { MaterialSelector, type MaterialItem } from "./MaterialSelector";
 import { LaborEstimator, type SkillLevel } from "./LaborEstimator";
 import { PricingBreakdown, calculateQuote } from "./PricingBreakdown";
@@ -428,7 +428,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
             .update({
               name: formData.customerName,
               email: formData.customerEmail || null,
-              measurements: formData.measurements,
+              measurements: serializeMeasurementsForStorage(formData.measurements) as unknown as import("@/integrations/supabase/types").Json,
               whatsapp_number: formData.customerWhatsApp || null,
               residential_address: formData.residentialAddress || null,
             })
@@ -441,7 +441,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
               name: formData.customerName,
               phone: formData.customerPhone,
               email: formData.customerEmail || null,
-              measurements: formData.measurements,
+              measurements: serializeMeasurementsForStorage(formData.measurements) as unknown as import("@/integrations/supabase/types").Json,
               whatsapp_number: formData.customerWhatsApp || null,
               residential_address: formData.residentialAddress || null,
             })
@@ -706,7 +706,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
           await supabase
             .from('customers')
             .update({ 
-              measurements: formData.measurements,
+              measurements: serializeMeasurementsForStorage(formData.measurements) as unknown as import("@/integrations/supabase/types").Json,
               whatsapp_number: formData.customerWhatsApp || null,
               residential_address: formData.residentialAddress || null,
             })
@@ -719,7 +719,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
               name: formData.customerName,
               phone: formData.customerPhone,
               email: formData.customerEmail || null,
-              measurements: formData.measurements,
+              measurements: serializeMeasurementsForStorage(formData.measurements) as unknown as import("@/integrations/supabase/types").Json,
               whatsapp_number: formData.customerWhatsApp || null,
               residential_address: formData.residentialAddress || null,
             })
