@@ -324,7 +324,14 @@ export function SystemResetManager() {
     "sales_transactions", "transactions", "invoice_items", "invoices", "quotation_items", "quotations",
     "payment_receipts", "expenses", "accounts_payable", "agent_transactions", 
     "agent_inventory", "agent_applications", "payroll_records", "website_contacts",
-    "community_messages", "admin_alerts", "donation_requests"
+    "community_messages", "admin_alerts", "donation_requests",
+    // NEW tables
+    "custom_order_adjustments", "custom_order_items", "custom_orders",
+    "job_material_usage", "job_cards", "customers", "collections",
+    "stock_movements", "inventory_adjustments", "restock_history",
+    "stock_transfers", "employee_attendance", "recurring_expenses",
+    "financial_reports", "vendors", "asset_logs", "assets",
+    "transaction_audit_log", "audit_log"
   ];
 
   const handleRestoreFromBackup = async (event: React.ChangeEvent<HTMLInputElement>) => {
