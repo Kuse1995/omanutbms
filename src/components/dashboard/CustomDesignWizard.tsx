@@ -1,29 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-
-// Scroll lock hook
-function useScrollLock(lock: boolean) {
-  useEffect(() => {
-    if (lock) {
-      const originalOverflow = document.body.style.overflow;
-      const originalPaddingRight = document.body.style.paddingRight;
-      
-      // Get scrollbar width to prevent layout shift
-      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-      
-      document.body.style.overflow = 'hidden';
-      if (scrollbarWidth > 0) {
-        document.body.style.paddingRight = `${scrollbarWidth}px`;
-      }
-      
-      return () => {
-        document.body.style.overflow = originalOverflow;
-        document.body.style.paddingRight = originalPaddingRight;
-      };
-    }
-  }, [lock]);
-}
-import { 
+import {
   User, 
   Ruler, 
   Palette, 
@@ -62,6 +39,29 @@ import { CustomerSignaturePad } from "./CustomerSignaturePad";
 import { HandoffConfigPanel, type HandoffConfig } from "./HandoffConfigPanel";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+
+// Scroll lock hook - prevents background scrolling when modal is open
+function useScrollLock(lock: boolean) {
+  useEffect(() => {
+    if (lock) {
+      const originalOverflow = document.body.style.overflow;
+      const originalPaddingRight = document.body.style.paddingRight;
+      
+      // Get scrollbar width to prevent layout shift
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+      
+      document.body.style.overflow = 'hidden';
+      if (scrollbarWidth > 0) {
+        document.body.style.paddingRight = `${scrollbarWidth}px`;
+      }
+      
+      return () => {
+        document.body.style.overflow = originalOverflow;
+        document.body.style.paddingRight = originalPaddingRight;
+      };
+    }
+  }, [lock]);
+}
 
 interface CustomDesignWizardProps {
   open: boolean;
