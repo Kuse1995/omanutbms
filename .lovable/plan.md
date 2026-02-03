@@ -1,100 +1,228 @@
 
-# Fix Invoice Generation Error and Custom Order Quotations
+# Enhanced Measurement Mannequin & Custom Order UX Improvements
 
-## Issues Found
+## Overview
 
-### Issue 1: Invoice Generation Error
-**Error**: `column "record_id" is of type uuid but expression is of type text`
+Based on your reference image and feedback, I'll implement two major improvements:
 
-**Root Cause**: The audit trigger function `audit_table_insert()` was recently modified to cast `NEW.id::text`, but the `audit_log.record_id` column is defined as `UUID`. When an invoice is created, the trigger fires and tries to insert a text value into a UUID column, causing the error.
-
-**Solution**: Fix the audit trigger functions to remove the `::text` cast since `record_id` expects a UUID directly.
-
-### Issue 2: Custom Order Quotations Not Appearing
-**Root Cause**: When a custom order is created via the Custom Design Wizard, it only inserts a record into `custom_orders` with a `quoted_price`. However:
-- No corresponding record is created in the `quotations` table
-- The `QuotationsManager` fetches from the `quotations` table only
-- The `quotation_id` column on `custom_orders` is never populated
-
-**Solution**: When a custom order is confirmed with a quoted price, automatically create a linked quotation record.
+1. **Redesigned Measurement Mannequin**: Transform the current abstract SVG regions into a numbered reference diagram matching your vision - with clear numbered points on the body figure that correspond to a numbered list of measurements
+2. **Fixed Scrolling Issue**: Prevent the background from scrolling when the modal content is scrolled
 
 ---
 
-## Implementation Plan
+## Current Issues
 
-### Phase 1: Fix Audit Trigger Functions (Database)
+### Issue 1: Mannequin Design
+The current SVGs use abstract ellipse regions that highlight on hover. Your reference image shows a cleaner approach:
+- A full-body fashion illustration with clean lines
+- Numbered measurement points (1-17) on the figure
+- A corresponding numbered list on the left side
+- Front and back view to show all measurement locations
 
-Update the three audit functions to remove the erroneous `::text` cast:
+### Issue 2: Background Scrolling
+The `CustomDesignWizard` uses a fixed overlay with `overflow-y-auto` on the content area. However, scroll events may be propagating to the body, causing the background page to scroll when the user scrolls within the modal.
 
-```sql
--- Fix INSERT trigger
-CREATE OR REPLACE FUNCTION public.audit_table_insert()
-RETURNS TRIGGER AS $$
-BEGIN
-  INSERT INTO public.audit_log (
-    table_name, record_id, action, new_data, changed_by, tenant_id
-  ) VALUES (
-    TG_TABLE_NAME, 
-    NEW.id,  -- Remove ::text cast
-    'INSERT', 
-    to_jsonb(NEW), 
-    auth.uid(),
-    NEW.tenant_id
-  );
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+---
 
--- Fix UPDATE trigger  
-CREATE OR REPLACE FUNCTION public.audit_table_update()
--- Similar fix: NEW.id instead of NEW.id::text
+## Solution Design
 
--- Fix DELETE trigger
-CREATE OR REPLACE FUNCTION public.audit_table_delete()
--- Similar fix: OLD.id instead of OLD.id::text
+### Part 1: Redesigned Mannequin SVGs
+
+Create a new mannequin design that matches your reference:
+
+```text
+┌─────────────────────────────────────────────────────┐
+│                                                     │
+│   1. Neck         ───────     ┌─○─┐                │
+│   2. Across Front ─────────   │ 1 │                │
+│   3. Bust         ─────────   ├─2─┼──3──┐          │
+│   4. Under Bust   ─────────   │ 4 │     │          │
+│   5. Waist Circ.  ─────────   ├───┤  [Front View]  │
+│   6. Hip Circ.    ─────────   │ 5 │                │
+│   7. Thigh Circ.  ─────────   ├─6─┤                │
+│   8. Upper Arm    ─────────   │ 7 │                │
+│   9. Elbow Circ.  ─────────   │   │                │
+│  10. Wrist Circ.  ─────────   │ 8 │                │
+│  11. Shoulder to Waist ────   │   │                │
+│  12. Shoulder to Floor ────   │   │                │
+│  ...                          └───┘                │
+│                                                     │
+└─────────────────────────────────────────────────────┘
 ```
 
-### Phase 2: Link Custom Orders to Quotations
+**Design Specifications:**
+- Clean line-art figure (front + back view side by side)
+- Numbered indicators at each measurement point
+- Leader lines connecting numbers to body locations
+- Pink/primary color highlights for active measurements
+- Measurement list on the left with corresponding numbers
 
-Update `CustomDesignWizard.tsx` to create a quotation record when an order is confirmed:
+### Part 2: Fix Modal Scroll Containment
 
-**On Order Confirmation (handleSubmit):**
-1. Create a `quotations` record with the quoted price and customer details
-2. Store the quotation ID in the custom order's `quotation_id` field
-3. The quotation will now appear in QuotationsManager
+Add CSS properties to prevent scroll propagation:
 
-**On Draft Save (handleSaveDraft):**
-- Create/update a draft quotation if a quoted price is set
-- Mark status as "draft" so it's distinguishable from confirmed quotes
+```css
+/* On the modal overlay */
+.modal-overlay {
+  overscroll-behavior: contain;
+  touch-action: none;
+}
 
-**Key Fields to Populate:**
-| Quotations Field | Source |
-|------------------|--------|
-| `quotation_number` | Auto-generated (or use order number) |
-| `client_name` | Customer name from form |
-| `client_email` | Customer email |
-| `client_phone` | Customer phone |
-| `quotation_date` | Current date |
-| `valid_until` | Collection date or due date + 30 days |
-| `status` | "sent" for confirmed, "draft" for drafts |
-| `subtotal` | `quoted_price` |
-| `total_amount` | `quoted_price` |
+/* On the scrollable content */
+.modal-content {
+  overscroll-behavior: contain;
+}
+```
+
+Also add `body` scroll lock when modal is open:
+```typescript
+useEffect(() => {
+  if (open) {
+    document.body.style.overflow = 'hidden';
+  }
+  return () => {
+    document.body.style.overflow = '';
+  };
+}, [open]);
+```
 
 ---
 
-## Files to Modify
+## Implementation Details
+
+### Phase 1: New Measurement Diagram Component
+
+Create a new `NumberedMannequin` component with:
+
+| Feature | Description |
+|---------|-------------|
+| Front/Back Views | Show both front and back body views side by side |
+| Numbered Points | 1-17 (or more) numbered measurement locations |
+| Active Highlighting | When user focuses an input, highlight that number |
+| Measurement List | Numbered list synced with diagram |
+| Leader Lines | Connect numbers to body points |
+
+**Measurement Points (matching your reference):**
+1. Neck
+2. Across Front
+3. Bust (Fullest part)
+4. Under Bust
+5. Waist Circumference
+6. Hip Circumference (Fullest part)
+7. Thigh Circumference (Fullest part)
+8. Upper Arm Circumference (Fullest part)
+9. Elbow Circumference
+10. Wrist Circumference
+11. Shoulder to Waist
+12. Shoulder to Floor
+13. Shoulder to Shoulder
+14. Back Neck to Waist
+15. Across Back
+16. Inner Arm Length (Armhole to wrist)
+17. Ankle
+
+### Phase 2: Update Measurement Form Layout
+
+Redesign `GarmentMeasurementsForm.tsx`:
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│  [Basic/Detailed Toggle]              [Unit: cm | in]       │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌─────────────────────┐  ┌───────────────────────────────┐ │
+│  │   MEASUREMENT       │  │                               │ │
+│  │   LIST              │  │   [MANNEQUIN FIGURES]         │ │
+│  │                     │  │                               │ │
+│  │   1. Neck    [  ]   │  │    ┌─○─┐      ┌─○─┐          │ │
+│  │   2. Bust    [  ]   │  │    │   │      │   │          │ │
+│  │   3. Waist   [  ]   │  │    │   │      │   │          │ │
+│  │   4. Hip     [  ]   │  │   Front      Back            │ │
+│  │   ...               │  │                               │ │
+│  │                     │  │   "Measure around the         │ │
+│  │                     │  │    fullest part of bust"      │ │
+│  └─────────────────────┘  └───────────────────────────────┘ │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Phase 3: Fix Scroll Containment
+
+Update `CustomDesignWizard.tsx`:
+
+```typescript
+// Add scroll lock effect
+useEffect(() => {
+  if (open) {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }
+}, [open]);
+
+// Update the overlay div
+<div 
+  className="fixed inset-0 z-50 ... overflow-hidden"
+  style={{ overscrollBehavior: 'contain' }}
+>
+  <motion.div className="... overflow-hidden">
+    {/* Content area with isolated scroll */}
+    <div 
+      className="flex-1 overflow-y-auto"
+      style={{ overscrollBehavior: 'contain' }}
+    >
+      {/* Step content */}
+    </div>
+  </motion.div>
+</div>
+```
+
+---
+
+## Files to Create/Modify
 
 | File | Changes |
 |------|---------|
-| **New Database Migration** | Fix audit trigger functions to use UUID directly |
-| `src/components/dashboard/CustomDesignWizard.tsx` | Add quotation creation logic in `handleSubmit` and `handleSaveDraft` |
+| `src/components/dashboard/mannequin/NumberedBodySVG.tsx` | **New** - Numbered mannequin with front/back views |
+| `src/components/dashboard/mannequin/UpperBodySVG.tsx` | Update with numbered points |
+| `src/components/dashboard/mannequin/LowerBodySVG.tsx` | Update with numbered points |
+| `src/components/dashboard/mannequin/FullBodySVG.tsx` | Update with numbered points |
+| `src/components/dashboard/MeasurementMannequin.tsx` | Integrate new numbered diagram layout |
+| `src/components/dashboard/GarmentMeasurementsForm.tsx` | Redesign layout with list + diagram side by side |
+| `src/components/dashboard/CustomDesignWizard.tsx` | Fix scroll containment issue |
+| `src/lib/measurement-areas.ts` | Add numbered mapping for all measurements |
 
 ---
 
-## Expected Results
+## Technical Details
 
-After implementation:
-1. Invoice generation from custom orders will work without errors
-2. All audited table operations will work correctly  
-3. Custom order quotes will appear in the Quotations section
-4. Users can track quotes and convert them to invoices from either location
+### Numbered Measurement Map
+
+```typescript
+const NUMBERED_MEASUREMENTS = [
+  { number: 1, key: 'neck', label: 'Neck', instruction: 'Measure around the base of the neck' },
+  { number: 2, key: 'across_front', label: 'Across Front', instruction: 'Measure across chest at armpit level' },
+  { number: 3, key: 'bust', label: 'Bust (Fullest part)', instruction: 'Measure around the fullest part' },
+  // ... 17 total measurements
+];
+```
+
+### Interactive Highlighting
+
+When user hovers/focuses measurement #3 (Bust):
+- The number "3" on the mannequin highlights in pink
+- The leader line becomes prominent
+- An instruction tooltip appears below the figure
+- The input field gets a matching highlight border
+
+---
+
+## Expected Outcome
+
+1. **Professional measurement guide** matching industry standard body measurement charts
+2. **Clear visual reference** with numbered points like your example image
+3. **No background scrolling** - modal content scrolls independently
+4. **Improved UX** - users always know exactly where to measure
+5. **Mobile friendly** - responsive layout with collapsible diagram on small screens
