@@ -277,9 +277,7 @@ const Dashboard = () => {
           </div>
           
           {/* Business Type Setup Wizard - shows for new tenants (owner only) */}
-          {!businessProfile?.onboarding_completed && 
-           !businessProfile?.business_type && 
-           tenantUser?.is_owner === true && (
+          {!businessProfile?.onboarding_completed && tenantUser?.is_owner === true && (
             <BusinessTypeSetupWizard onComplete={refetchTenant} />
           )}
           
