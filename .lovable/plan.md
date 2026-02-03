@@ -1,178 +1,247 @@
 
 
-# Fix Operations Manager Access to Custom Orders
+# Custom Order Handoff Notification System
 
-## Problem Identified
+## Overview
 
-When an admin/manager hands off a custom order to an operations manager, **the operations manager cannot see or update the assigned orders** due to restrictive RLS policies at the database level.
+You've identified a critical UX gap: when an admin assigns an order to an operations manager, there's no clear feedback on either side. This plan adds:
 
-### Root Causes
-
-| Layer | Issue |
-|-------|-------|
-| **Database RLS** | The UPDATE policy on `custom_orders` only allows `admin` and `manager` roles via `is_tenant_admin_or_manager()` |
-| **Missing Policy** | No policy allows updates based on assignment (`assigned_operations_user_id = auth.uid()`) |
-| **profiles RLS** | Operations managers cannot view other users' profiles (needed for "Assigned by" display) |
-
-### Current State
-
-- `custom_orders` UPDATE policy: `is_tenant_admin_or_manager(tenant_id)` - **excludes operations_manager**
-- `can_manage_operations()` helper exists but isn't used for custom_orders
-- No assignment-based access control exists
+1. **Admin confirmation toast** - When clicking "Save Draft" with handoff enabled, show a toast confirming the order was handed off to the specific operations manager
+2. **Operations Manager notification popup** - When the operations manager opens the Custom Orders section, show a prominent alert/dialog about newly assigned orders waiting for them
 
 ---
 
-## Solution: Assignment-Based Access
+## Current State vs. Proposed
 
-The best collaboration pattern is **assignment-based access**:
-- Admins/managers can see and manage ALL custom orders
-- Operations managers can see and update ONLY orders assigned to them
-
-This follows the principle of least privilege while enabling the handoff workflow.
+| Scenario | Current | Proposed |
+|----------|---------|----------|
+| Admin saves with handoff | Generic "Draft Saved" toast | Specific "Order handed off to [Name]" toast |
+| Ops Manager opens Custom Orders | No special notification | Welcome dialog showing pending assignments |
+| Real-time notification | None | Bell notification via admin_alerts |
 
 ---
 
 ## Implementation Plan
 
-### 1. Database Changes (SQL Migration)
+### 1. Improve Admin Handoff Toast (CustomDesignWizard.tsx)
 
-#### A. Create Helper Function for Custom Order Access
+Update the save draft flow to show a specific handoff confirmation:
 
-```sql
-CREATE OR REPLACE FUNCTION public.can_access_custom_order(
-  _tenant_id UUID, 
-  _assigned_user_id UUID
-)
-RETURNS BOOLEAN
-LANGUAGE sql
-STABLE SECURITY DEFINER
-SET search_path TO 'public'
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.tenant_users 
-    WHERE user_id = auth.uid() 
-      AND tenant_id = _tenant_id 
-      AND (
-        -- Admins and managers have full access
-        role IN ('admin', 'manager')
-        OR 
-        -- Operations managers can access orders assigned to them
-        (role = 'operations_manager' AND _assigned_user_id = auth.uid())
-      )
-  )
-$$;
+**Changes to `handleSaveDraft` function:**
+- After successful insert, check if handoff was enabled
+- If yes, fetch the assigned ops manager's name from the `officers` list already loaded in `HandoffConfigPanel`
+- Show a different toast: "Order handed off to [Name] - They'll receive it in their queue"
+
+**New toast examples:**
+- With handoff: `"Order handed off to John Smith - They'll receive it in their queue"`
+- Without handoff: `"Draft Saved - You can continue editing it later"` (existing behavior)
+
+---
+
+### 2. Create Admin Alert on Handoff (CustomDesignWizard.tsx)
+
+When saving with handoff enabled, create an entry in `admin_alerts` so the operations manager sees it in their NotificationsCenter:
+
+```typescript
+// After successful order insert with handoff
+await supabase.from("admin_alerts").insert({
+  tenant_id: tenantId,
+  alert_type: "order_handoff",
+  message: `New order assigned to you: ${orderNumber} for ${customerName}`,
+  related_table: "custom_orders",
+  related_id: newOrderId,
+});
 ```
 
-#### B. Update Custom Orders RLS Policies
+**Note:** This requires adding a `target_user_id` column to `admin_alerts` to filter alerts by recipient, or we create a new table `user_notifications`.
 
-Drop and recreate the UPDATE policy to include operations managers:
+---
+
+### 3. Extend admin_alerts Table (Database Migration)
+
+Add a `target_user_id` column to route notifications to specific users:
 
 ```sql
--- Drop old restrictive policy
-DROP POLICY IF EXISTS "Tenant admins/managers can update custom_orders" 
-  ON public.custom_orders;
+ALTER TABLE admin_alerts 
+ADD COLUMN target_user_id UUID REFERENCES auth.users(id);
 
--- Create new policy with assignment-based access
-CREATE POLICY "Authorized users can update custom_orders"
-  ON public.custom_orders FOR UPDATE
+-- Update RLS to allow users to see their own targeted alerts
+CREATE POLICY "Users can view their targeted alerts"
+  ON admin_alerts FOR SELECT
   USING (
-    public.is_tenant_admin_or_manager(tenant_id)
-    OR 
-    (public.can_manage_operations(tenant_id) AND assigned_operations_user_id = auth.uid())
-  );
-```
-
-#### C. Add SELECT Policy for Assigned Operations Managers
-
-Currently, operations managers can see all tenant orders (via `user_belongs_to_tenant`), which is fine. But we should ensure the query in `AssignedOrdersSection` works. The existing SELECT policy is:
-
-```sql
-"Tenant users can view custom_orders" USING (user_belongs_to_tenant(tenant_id))
-```
-
-This is sufficient since operations managers are tenant users.
-
-#### D. Update Profiles RLS for Tenant-Wide Visibility
-
-Allow authenticated tenant members to see profiles of their tenant colleagues:
-
-```sql
--- Allow tenant users to see colleague profiles (needed for "Assigned by" display)
-CREATE POLICY "Tenant users can view colleague profiles"
-  ON public.profiles FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.tenant_users tu1
-      WHERE tu1.user_id = auth.uid()
-        AND tu1.tenant_id IN (
-          SELECT tu2.tenant_id FROM public.tenant_users tu2 
-          WHERE tu2.user_id = profiles.user_id
-        )
-    )
+    target_user_id = auth.uid()
+    OR target_user_id IS NULL -- Tenant-wide alerts
   );
 ```
 
 ---
 
-### 2. Technical Summary
+### 4. Update NotificationsCenter (NotificationsCenter.tsx)
 
-| Change | Purpose |
-|--------|---------|
-| `can_access_custom_order()` function | Reusable helper for assignment-based access |
-| Updated UPDATE policy | Allows ops managers to update their assigned orders |
-| Profiles visibility policy | Enables "Assigned by {name}" display |
+Modify the fetch query to:
+1. Filter `admin_alerts` where `target_user_id = auth.uid()` OR `target_user_id IS NULL`
+2. Add handling for `alert_type = 'order_handoff'`
+3. Navigate to custom orders when clicked
+
+**New notification type:**
+```typescript
+type: "handoff" // New type
+title: "New Order Assigned"
+message: "Order CO-2024-0001 for John Doe assigned to you"
+navigate_to: "/bms?tab=fashion&subtab=orders"
+```
 
 ---
 
-## Collaboration Flow (After Fix)
+### 5. Create Assignment Welcome Dialog (AssignedOrdersSection.tsx)
 
+When operations manager opens the Custom Orders section and has pending assignments:
+
+1. Check if there are orders with `handoff_status = 'pending_handoff'`
+2. If first visit (use localStorage flag), show a welcome dialog:
+   - "You have X orders waiting for your attention"
+   - List the orders with customer names
+   - "Pick Up" button to mark them as in_progress
+   - "View All" button to close and see the list
+
+**Dialog Content:**
 ```text
-1. Admin creates custom order via Design Wizard
-   └─ Enables handoff, selects Operations Manager, saves
-
-2. Order gets status: handoff_status = 'pending_handoff'
-   └─ assigned_operations_user_id = [ops manager's user_id]
-
-3. Operations Manager logs in
-   └─ Sees "My Assigned Orders" section (AssignedOrdersSection)
-   └─ Can "Pick Up" the order → handoff_status = 'in_progress'
-   └─ Can continue wizard from the designated step
-
-4. Operations Manager completes their steps
-   └─ Hands back → handoff_status = 'handed_back'
-
-5. Admin reviews and finalizes
+╔═══════════════════════════════════════════╗
+║  📋 Orders Assigned to You                ║
+╠═══════════════════════════════════════════╣
+║  You have 2 orders waiting:               ║
+║                                           ║
+║  • CO-2024-0045 - John Doe (Suit)         ║
+║    Assigned by: Admin | Due: Feb 10       ║
+║                                           ║
+║  • CO-2024-0046 - Mary Smith (Dress)      ║
+║    Assigned by: Manager | Due: Feb 12     ║
+║                                           ║
+║  [Pick Up All]      [View Details]        ║
+╚═══════════════════════════════════════════╝
 ```
+
+---
+
+### 6. Add Hand-Back Confirmation (For Operations Manager)
+
+When ops manager completes their steps and hands back to admin:
+
+1. Update `handoff_status` to `'handed_back'`
+2. Create notification for the admin:
+   ```typescript
+   await supabase.from("admin_alerts").insert({
+     tenant_id: tenantId,
+     target_user_id: order.created_by, // Admin who created the order
+     alert_type: "order_handed_back",
+     message: `Order ${orderNumber} has been handed back by ${opsManagerName}`,
+     related_table: "custom_orders",
+     related_id: orderId,
+   });
+   ```
+3. Show confirmation toast to ops manager
 
 ---
 
 ## Files to Modify
 
-| File | Change |
-|------|--------|
-| Database Migration | Add helper function + update RLS policies |
-
-No frontend changes needed - the UI already handles the workflow correctly. The issue is purely at the database access layer.
-
----
-
-## Testing Checklist
-
-After implementation:
-- [ ] Admin can create order with handoff enabled
-- [ ] Admin can select Operations Manager from dropdown
-- [ ] Operations Manager can view "My Assigned Orders" section
-- [ ] Operations Manager can "Pick Up" an order
-- [ ] Operations Manager can continue the wizard and update measurements/pricing
-- [ ] Operations Manager can see who assigned the order (profiles access)
-- [ ] Admin can see orders with "With Ops" status
+| File | Changes |
+|------|---------|
+| **Database Migration** | Add `target_user_id` to `admin_alerts`, update RLS |
+| `src/components/dashboard/CustomDesignWizard.tsx` | Enhanced handoff toast, create admin_alert on save |
+| `src/components/dashboard/NotificationsCenter.tsx` | Handle `order_handoff` type, filter by target_user |
+| `src/components/dashboard/AssignedOrdersSection.tsx` | Add welcome dialog for pending assignments |
+| **New: `src/components/dashboard/HandoffWelcomeDialog.tsx`** | Reusable dialog for assigned order notifications |
 
 ---
 
-## Security Considerations
+## Technical Details
 
-- Operations managers can ONLY update orders explicitly assigned to them
-- They cannot update orders assigned to other operations managers
-- They cannot delete orders (reserved for admins)
-- Full audit trail maintained via existing triggers
+### Database Migration SQL
+
+```sql
+-- Add target_user_id for user-specific notifications
+ALTER TABLE admin_alerts 
+ADD COLUMN IF NOT EXISTS target_user_id UUID REFERENCES auth.users(id);
+
+-- Create index for efficient filtering
+CREATE INDEX IF NOT EXISTS idx_admin_alerts_target_user 
+ON admin_alerts(target_user_id);
+
+-- Update RLS to filter by target user
+DROP POLICY IF EXISTS "Tenant users can view admin_alerts" ON admin_alerts;
+
+CREATE POLICY "Users can view relevant admin_alerts"
+  ON admin_alerts FOR SELECT
+  USING (
+    -- Tenant-wide alerts (no specific target)
+    (target_user_id IS NULL AND user_belongs_to_tenant(tenant_id))
+    OR
+    -- Alerts specifically for this user
+    (target_user_id = auth.uid())
+  );
+```
+
+### CustomDesignWizard Changes
+
+1. Pass selected officer name from `HandoffConfigPanel` to parent via callback
+2. Update toast message based on handoff configuration
+3. Insert admin_alert after successful order creation
+
+### NotificationsCenter Changes
+
+1. Update `getIcon` to handle `"handoff"` type
+2. Add routing for `order_handoff` alerts to custom orders
+3. Update query to include `target_user_id` filter
+
+### New HandoffWelcomeDialog Component
+
+A dialog that:
+- Appears when ops manager has pending assignments
+- Uses localStorage to track if shown this session
+- Lists pending orders with key details
+- Provides quick actions (Pick Up All, View Details)
+
+---
+
+## Collaboration Flow (After Implementation)
+
+```text
+ADMIN                                     OPS MANAGER
+  │                                           │
+  │ 1. Creates order with handoff             │
+  │    ↓                                      │
+  │ 2. Clicks "Save Draft"                    │
+  │    ↓                                      │
+  │ 3. Toast: "Handed off to [Name]" ✓        │
+  │    ↓                                      │
+  │ 4. admin_alert created ────────────────►  │
+  │                                           │ 5. Bell notification appears
+  │                                           │    ↓
+  │                                           │ 6. Opens Custom Orders
+  │                                           │    ↓
+  │                                           │ 7. Welcome Dialog shows
+  │                                           │    ↓
+  │                                           │ 8. Picks up order
+  │                                           │    ↓
+  │ ◄──────────────────────────────────────── │ 9. Completes & hands back
+  │                                           │
+  │ 10. Bell notification: "Order returned"   │ 10. Toast: "Handed back" ✓
+  │    ↓                                      │
+  │ 11. Reviews & finalizes                   │
+```
+
+---
+
+## Expected User Experience
+
+**For Admin:**
+- Clear confirmation when order is handed off
+- Notification when ops manager hands it back
+
+**For Operations Manager:**
+- Bell notification in header when assigned
+- Welcome popup when opening Custom Orders
+- Clear indication of which orders are theirs
+- Confirmation when handing back
 
