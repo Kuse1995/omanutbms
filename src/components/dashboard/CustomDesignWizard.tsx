@@ -1150,6 +1150,9 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
           (sum, m) => sum + m.quantity * m.unitCost, 0
         );
         const laborTotal = formData.laborHours * formData.hourlyRate;
+        const additionalTotal = formData.additionalCosts.reduce(
+          (sum, c) => sum + c.quantity * c.unitPrice, 0
+        );
         
         return (
           <div className="space-y-6">
@@ -1191,9 +1194,17 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
             </div>
 
             <div className="border-t pt-4">
+              <AdditionalCostsSection
+                items={formData.additionalCosts}
+                onChange={(items) => updateFormData('additionalCosts', items)}
+              />
+            </div>
+
+            <div className="border-t pt-4">
               <PricingBreakdown
                 materialCost={materialTotal}
                 laborCost={laborTotal}
+                additionalCost={additionalTotal}
                 marginPercentage={formData.marginPercentage}
                 onMarginChange={(m) => updateFormData('marginPercentage', m)}
                 isLocked={formData.priceLocked}
