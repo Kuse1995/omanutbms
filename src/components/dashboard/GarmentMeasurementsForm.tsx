@@ -1,108 +1,100 @@
 import { useState, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Info, AlertCircle, CheckCircle2, Ruler, Check } from "lucide-react";
+import { Info, CheckCircle2, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { NUMBERED_MEASUREMENTS, getMeasurementByNumber } from "@/lib/numbered-measurements";
+import { DODO_WEAR_MEASUREMENTS, MEASUREMENT_GROUPS, type DodoMeasurementField } from "@/lib/dodo-wear-measurements";
 import { parseFractionInput, formatMeasurementValue } from "@/lib/fraction-parser";
 import { CustomMeasurementsSection, CustomMeasurement } from "./CustomMeasurementsSection";
 
 type MeasurementUnit = 'cm' | 'in';
 
 interface Measurements {
-  // Dress measurements
-  dress_fl?: number;        // Full Length
-  dress_sh?: number;        // Shoulder
-  dress_hip?: number;       // Hip
-  dress_ub?: number;        // Under Bust
-  dress_waist?: number;     // Waist
-  dress_sl?: number;        // Sleeve Length
-  dress_cuff?: number;      // Cuff
-  dress_join?: number;      // Join
-  
-  // Trousers measurements
-  trousers_waist?: number;  // Waist
-  trousers_wideness?: number; // Wideness
-  trousers_ub?: number;     // Upper Body/Hip
-  trousers_crotch?: number; // Crotch
-  trousers_bottom?: number; // Bottom
-  trousers_nd?: number;     // Knee Down
-  trousers_fl?: number;     // Full Length
-  trousers_nw?: number;     // Narrow Width
-  trousers_join?: number;   // Join
-  
-  // Top/Blouse measurements
-  top_fl?: number;          // Full Length
-  top_in_leg?: number;      // In Leg
-  top_bust?: number;        // Bust
-  top_waist?: number;       // Waist
-  top_hip?: number;         // Hip
-  top_ch?: number;          // Chest
-  
-  // Shirt measurements (NEW - matching Dodo Wear form)
-  shirt_fl?: number;        // Full Length
-  shirt_sh?: number;        // Shoulder
-  shirt_hip?: number;       // Hip
-  shirt_chest?: number;     // Chest
-  shirt_sl?: number;        // Sleeve Length
-  shirt_nw?: number;        // Narrow Width
-  shirt_join?: number;      // Join
-  shirt_collar?: number;    // Collar
-  
-  // Skirt measurements
-  skirt_fl?: number;        // Full Length
-  skirt_sh?: number;        // Shoulder/Short
-  skirt_knee?: number;      // Knee
-  skirt_hip?: number;       // Hip
-  skirt_waist?: number;     // Waist
-  
-  // Jacket measurements
-  jacket_sh?: number;       // Shoulder
-  jacket_bust?: number;     // Bust
-  jacket_hip?: number;      // Hip
-  jacket_sl?: number;       // Sleeve Length
-  jacket_join?: number;     // Join
-  jacket_fl?: number;       // Full Length
-  jacket_ub?: number;       // Under Bust
-  jacket_waist?: number;    // Waist
-  jacket_slit?: number;     // Slit
-  
-  // Standard numbered measurements
-  neck?: number;
-  across_front?: number;
+  // Dodo Wear Standard Measurements
+  shoulder?: number;
   bust?: number;
+  chest?: number;
   under_bust?: number;
   waist?: number;
   hip?: number;
+  sleeve_length?: number;
+  cuff?: number;
+  join?: number;
+  arm_height?: number;
+  collar?: number;
+  neck?: number;
+  full_length?: number;
+  knee_down?: number;
+  knee?: number;
+  wideness?: number;
+  crotch?: number;
+  in_leg?: number;
   thigh?: number;
-  upper_arm?: number;
-  elbow?: number;
-  wrist?: number;
-  shoulder_to_waist?: number;
-  shoulder_to_floor?: number;
-  shoulder?: number;
-  back_neck_to_waist?: number;
-  across_back?: number;
-  arm_length?: number;
-  ankle?: number;
+  bottom?: number;
+  slit?: number;
+  narrow_width?: number;
+  
+  // Legacy garment-specific fields (for backward compatibility)
+  dress_fl?: number;
+  dress_sh?: number;
+  dress_hip?: number;
+  dress_ub?: number;
+  dress_waist?: number;
+  dress_sl?: number;
+  dress_cuff?: number;
+  dress_join?: number;
+  trousers_waist?: number;
+  trousers_wideness?: number;
+  trousers_ub?: number;
+  trousers_crotch?: number;
+  trousers_bottom?: number;
+  trousers_nd?: number;
+  trousers_fl?: number;
+  trousers_nw?: number;
+  trousers_join?: number;
+  top_fl?: number;
+  top_in_leg?: number;
+  top_bust?: number;
+  top_waist?: number;
+  top_hip?: number;
+  top_ch?: number;
+  shirt_fl?: number;
+  shirt_sh?: number;
+  shirt_hip?: number;
+  shirt_chest?: number;
+  shirt_sl?: number;
+  shirt_nw?: number;
+  shirt_join?: number;
+  shirt_collar?: number;
+  skirt_fl?: number;
+  skirt_sh?: number;
+  skirt_knee?: number;
+  skirt_hip?: number;
+  skirt_waist?: number;
+  jacket_sh?: number;
+  jacket_bust?: number;
+  jacket_hip?: number;
+  jacket_sl?: number;
+  jacket_join?: number;
+  jacket_fl?: number;
+  jacket_ub?: number;
+  jacket_waist?: number;
+  jacket_slit?: number;
   
   // Store the unit used for input
   _unit?: MeasurementUnit;
   
-  // Custom measurements array (stored as array of objects)
+  // Custom measurements array
   custom_measurements?: CustomMeasurement[];
   
   [key: string]: number | string | MeasurementUnit | CustomMeasurement[] | undefined;
 }
 
-// Helper to serialize measurements for database storage (converts to JSON-compatible format)
+// Helper to serialize measurements for database storage
 export function serializeMeasurementsForStorage(measurements: Measurements): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   
@@ -122,170 +114,63 @@ interface GarmentMeasurementsFormProps {
   showValidation?: boolean;
 }
 
-interface MeasurementField {
-  key: string;
-  abbrev: string;
-  label: string;
-  tooltip: string;
-}
-
-const DRESS_FIELDS: MeasurementField[] = [
-  { key: 'dress_fl', abbrev: 'FL', label: 'Full Length', tooltip: 'Measure from shoulder to hem' },
-  { key: 'dress_sh', abbrev: 'SH', label: 'Shoulder', tooltip: 'Shoulder width across back' },
-  { key: 'dress_hip', abbrev: 'Hip', label: 'Hip', tooltip: 'Widest part of hips' },
-  { key: 'dress_ub', abbrev: 'UB', label: 'Under Bust', tooltip: 'Measurement just below bust line' },
-  { key: 'dress_waist', abbrev: 'Waist', label: 'Waist', tooltip: 'Natural waistline' },
-  { key: 'dress_sl', abbrev: 'SL', label: 'Sleeve Length', tooltip: 'Shoulder to wrist' },
-  { key: 'dress_cuff', abbrev: 'Cuff', label: 'Cuff', tooltip: 'Wrist circumference' },
-  { key: 'dress_join', abbrev: 'Join', label: 'Join', tooltip: 'Armhole to waist join point' },
-];
-
-const TROUSERS_FIELDS: MeasurementField[] = [
-  { key: 'trousers_waist', abbrev: 'Waist', label: 'Waist', tooltip: 'Waist circumference' },
-  { key: 'trousers_wideness', abbrev: 'Wide', label: 'Wideness', tooltip: 'Thigh width preference' },
-  { key: 'trousers_ub', abbrev: 'UB', label: 'Upper Body', tooltip: 'Hip measurement' },
-  { key: 'trousers_crotch', abbrev: 'Crotch', label: 'Crotch', tooltip: 'Crotch depth/rise' },
-  { key: 'trousers_bottom', abbrev: 'Bottom', label: 'Bottom', tooltip: 'Trouser leg opening' },
-  { key: 'trousers_nd', abbrev: 'ND', label: 'Knee Down', tooltip: 'Knee to ankle length' },
-  { key: 'trousers_fl', abbrev: 'FL', label: 'Full Length', tooltip: 'Waist to ankle' },
-  { key: 'trousers_nw', abbrev: 'NW', label: 'Narrow Width', tooltip: 'Narrow part width' },
-  { key: 'trousers_join', abbrev: 'Join', label: 'Join', tooltip: 'Inseam join point' },
-];
-
-const TOP_FIELDS: MeasurementField[] = [
-  { key: 'top_fl', abbrev: 'FL', label: 'Full Length', tooltip: 'Shoulder to hem' },
-  { key: 'top_in_leg', abbrev: 'In Leg', label: 'In Leg', tooltip: 'Inside leg measurement' },
-  { key: 'top_bust', abbrev: 'Bust', label: 'Bust', tooltip: 'Fullest part of bust' },
-  { key: 'top_waist', abbrev: 'Waist', label: 'Waist', tooltip: 'Natural waistline' },
-  { key: 'top_hip', abbrev: 'Hip', label: 'Hip', tooltip: 'Hip circumference' },
-  { key: 'top_ch', abbrev: 'CH', label: 'Chest', tooltip: 'Chest measurement' },
-];
-
-const SHIRT_FIELDS: MeasurementField[] = [
-  { key: 'shirt_fl', abbrev: 'FL', label: 'Full Length', tooltip: 'Shoulder to hem' },
-  { key: 'shirt_sh', abbrev: 'SH', label: 'Shoulder', tooltip: 'Shoulder width' },
-  { key: 'shirt_hip', abbrev: 'Hip', label: 'Hip', tooltip: 'Hip measurement' },
-  { key: 'shirt_chest', abbrev: 'Chest', label: 'Chest', tooltip: 'Chest circumference' },
-  { key: 'shirt_sl', abbrev: 'SL', label: 'Sleeve Length', tooltip: 'Shoulder to wrist' },
-  { key: 'shirt_nw', abbrev: 'NW', label: 'Narrow Width', tooltip: 'Narrow part width' },
-  { key: 'shirt_join', abbrev: 'Join', label: 'Join', tooltip: 'Armhole to waist join point' },
-  { key: 'shirt_collar', abbrev: 'Collar', label: 'Collar', tooltip: 'Neck/collar circumference' },
-];
-
-const SKIRT_FIELDS: MeasurementField[] = [
-  { key: 'skirt_fl', abbrev: 'FL', label: 'Full Length', tooltip: 'Waist to hem' },
-  { key: 'skirt_sh', abbrev: 'SH', label: 'Short', tooltip: 'Short length option' },
-  { key: 'skirt_knee', abbrev: 'Knee', label: 'Knee', tooltip: 'Knee length' },
-  { key: 'skirt_hip', abbrev: 'Hip', label: 'Hip', tooltip: 'Hip circumference' },
-  { key: 'skirt_waist', abbrev: 'Waist', label: 'Waist', tooltip: 'Waist circumference' },
-];
-
-const JACKET_FIELDS: MeasurementField[] = [
-  { key: 'jacket_sh', abbrev: 'SH', label: 'Shoulder', tooltip: 'Shoulder width' },
-  { key: 'jacket_bust', abbrev: 'Bust', label: 'Bust', tooltip: 'Bust measurement' },
-  { key: 'jacket_hip', abbrev: 'Hip', label: 'Hip', tooltip: 'Hip measurement' },
-  { key: 'jacket_sl', abbrev: 'SL', label: 'Sleeve Length', tooltip: 'Sleeve length' },
-  { key: 'jacket_join', abbrev: 'Join', label: 'Join', tooltip: 'Join point' },
-  { key: 'jacket_fl', abbrev: 'FL', label: 'Full Length', tooltip: 'Full jacket length' },
-  { key: 'jacket_ub', abbrev: 'UB', label: 'Under Bust', tooltip: 'Under bust measurement' },
-  { key: 'jacket_waist', abbrev: 'Waist', label: 'Waist', tooltip: 'Waist measurement' },
-  { key: 'jacket_slit', abbrev: 'Slit', label: 'Slit', tooltip: 'Back slit length' },
-];
-
-const GARMENT_CATEGORIES = [
-  { id: 'dress', label: 'Dress', fields: DRESS_FIELDS },
-  { id: 'trousers', label: 'Trousers', fields: TROUSERS_FIELDS },
-  { id: 'top', label: 'Top', fields: TOP_FIELDS },
-  { id: 'shirt', label: 'Shirt', fields: SHIRT_FIELDS },
-  { id: 'skirt', label: 'Skirt', fields: SKIRT_FIELDS },
-  { id: 'jacket', label: 'Jacket', fields: JACKET_FIELDS },
-];
-
 // Conversion functions
 const cmToInches = (cm: number): number => Math.round((cm / 2.54) * 100) / 100;
 const inchesToCm = (inches: number): number => Math.round((inches * 2.54) * 100) / 100;
 
-// Helper to determine default tab based on design type
-function getDefaultTab(designType?: string): string {
-  if (!designType) return 'dress';
-  const lower = designType.toLowerCase();
-  if (lower.includes('trouser') || lower.includes('pant')) return 'trousers';
-  if (lower.includes('shirt')) return 'shirt';
-  if (lower.includes('blouse') || lower.includes('top')) return 'top';
-  if (lower.includes('skirt')) return 'skirt';
-  if (lower.includes('jacket') || lower.includes('blazer') || lower.includes('suit')) return 'jacket';
-  if (lower.includes('dress') || lower.includes('gown')) return 'dress';
-  return 'dress';
+// Count filled Dodo Wear measurements
+function countFilledDodoMeasurements(measurements: Measurements): number {
+  return DODO_WEAR_MEASUREMENTS.filter(m => {
+    const val = measurements[m.key];
+    return val !== undefined && val !== null && Number(val) > 0;
+  }).length;
 }
 
-// Count filled measurements per category
-function countFilledMeasurements(measurements: Measurements, categoryId: string): number {
-  const category = GARMENT_CATEGORIES.find(c => c.id === categoryId);
-  if (!category) return 0;
-  return category.fields.filter(f => measurements[f.key] && (measurements[f.key] as number) > 0).length;
+// Check if all mandatory Dodo measurements are complete
+export function isDodoMeasurementsComplete(measurements: Measurements): boolean {
+  return countFilledDodoMeasurements(measurements) === DODO_WEAR_MEASUREMENTS.length;
 }
 
-// Get total fields for a category
-function getTotalFields(categoryId: string): number {
-  const category = GARMENT_CATEGORIES.find(c => c.id === categoryId);
-  return category?.fields.length || 0;
+// Get missing Dodo measurements
+export function getMissingDodoMeasurements(measurements: Measurements): string[] {
+  return DODO_WEAR_MEASUREMENTS
+    .filter(m => !measurements[m.key] || Number(measurements[m.key]) <= 0)
+    .map(m => m.label);
 }
 
-// Check if all measurements in active category are complete
-export function isGarmentCategoryComplete(measurements: Measurements, categoryId: string): boolean {
-  const category = GARMENT_CATEGORIES.find(c => c.id === categoryId);
-  if (!category) return false;
-  return category.fields.every(f => measurements[f.key] && (measurements[f.key] as number) > 0);
+// Legacy exports for backward compatibility
+export function isGarmentCategoryComplete(measurements: Measurements, _categoryId: string): boolean {
+  return isDodoMeasurementsComplete(measurements);
 }
 
-// Get missing measurements for a category
-export function getMissingMeasurements(measurements: Measurements, categoryId: string): string[] {
-  const category = GARMENT_CATEGORIES.find(c => c.id === categoryId);
-  if (!category) return [];
-  return category.fields
-    .filter(f => !measurements[f.key] || (measurements[f.key] as number) <= 0)
-    .map(f => f.label);
+export function getMissingMeasurements(measurements: Measurements, _categoryId: string): string[] {
+  return getMissingDodoMeasurements(measurements);
 }
 
-export function GarmentMeasurementsForm({ measurements, onChange, designType, showValidation = false }: GarmentMeasurementsFormProps) {
-  const [activeTab, setActiveTab] = useState(getDefaultTab(designType));
+export function getDefaultTab(_designType?: string): string {
+  return 'upper_body';
+}
+
+export function GarmentMeasurementsForm({ measurements, onChange, showValidation = false }: GarmentMeasurementsFormProps) {
   const [unit, setUnit] = useState<MeasurementUnit>((measurements._unit as MeasurementUnit) || 'cm');
-  const [detailedMode, setDetailedMode] = useState(true); // Default to detailed mode
-  const [highlightedNumber, setHighlightedNumber] = useState<number | null>(null);
+  const [highlightedKey, setHighlightedKey] = useState<string | null>(null);
   
-  // Track raw input values for fraction support in numbered measurements
-  const [rawNumberedInputs, setRawNumberedInputs] = useState<Record<string, string>>({});
-
-  const handleChange = (key: string, value: string) => {
-    const numValue = value === '' ? undefined : parseFloat(value);
-    // Store in cm internally, convert if needed
-    const storedValue = numValue !== undefined && unit === 'in' ? inchesToCm(numValue) : numValue;
-    onChange({ ...measurements, [key]: storedValue, _unit: unit });
-  };
-
-  const getDisplayValue = (key: string): string => {
-    const value = measurements[key] as number | undefined;
-    if (value === undefined || value === null) return '';
-    // Convert from stored cm to display unit
-    if (unit === 'in') {
-      return cmToInches(value).toString();
-    }
-    return value.toString();
-  };
+  // Track raw input values for fraction support
+  const [rawInputs, setRawInputs] = useState<Record<string, string>>({});
 
   const handleUnitToggle = (newUnit: MeasurementUnit) => {
     setUnit(newUnit);
     onChange({ ...measurements, _unit: newUnit });
   };
 
-  // Handle numbered measurement input change (store raw value for fraction support)
-  const handleNumberedInputChange = (key: string, inputValue: string) => {
-    setRawNumberedInputs(prev => ({ ...prev, [key]: inputValue }));
+  // Handle input change (store raw value for fraction support)
+  const handleInputChange = (key: string, inputValue: string) => {
+    setRawInputs(prev => ({ ...prev, [key]: inputValue }));
   };
 
-  // Handle numbered measurement blur (parse and store value)
-  const handleNumberedInputBlur = (key: string) => {
-    const rawValue = rawNumberedInputs[key];
+  // Handle blur - parse and store value
+  const handleInputBlur = (key: string) => {
+    const rawValue = rawInputs[key];
     if (rawValue !== undefined) {
       const parsedValue = parseFractionInput(rawValue);
       const storedValue = parsedValue !== undefined && unit === 'in' ? inchesToCm(parsedValue) : parsedValue;
@@ -293,18 +178,18 @@ export function GarmentMeasurementsForm({ measurements, onChange, designType, sh
       
       // Update raw input to show parsed value
       if (parsedValue !== undefined) {
-        setRawNumberedInputs(prev => ({ ...prev, [key]: formatMeasurementValue(parsedValue) }));
+        setRawInputs(prev => ({ ...prev, [key]: formatMeasurementValue(parsedValue) }));
       }
     }
+    setHighlightedKey(null);
   };
 
-  // Get display value for numbered measurement (supports fraction input)
-  const getNumberedDisplayValue = (key: string): string => {
+  // Get display value
+  const getDisplayValue = (key: string): string => {
     // If we have a raw input, show that (allows typing fractions)
-    if (rawNumberedInputs[key] !== undefined) {
-      return rawNumberedInputs[key];
+    if (rawInputs[key] !== undefined) {
+      return rawInputs[key];
     }
-    // Otherwise show stored value
     const value = measurements[key] as number | undefined;
     if (value === undefined) return '';
     const displayVal = unit === 'in' ? cmToInches(value) : value;
@@ -316,75 +201,83 @@ export function GarmentMeasurementsForm({ measurements, onChange, designType, sh
     onChange({ ...measurements, custom_measurements: customMeasurements });
   };
 
-  const activeCategory = GARMENT_CATEGORIES.find(c => c.id === activeTab);
-  const filledCount = countFilledMeasurements(measurements, activeTab);
-  const totalCount = getTotalFields(activeTab);
+  const filledCount = useMemo(() => countFilledDodoMeasurements(measurements), [measurements]);
+  const totalCount = DODO_WEAR_MEASUREMENTS.length;
   const isComplete = filledCount === totalCount;
 
-  // Count numbered measurements filled
-  const numberedFilledCount = useMemo(() => {
-    return NUMBERED_MEASUREMENTS.filter(m => 
-      measurements[m.key] !== undefined && (measurements[m.key] as number) > 0
-    ).length;
-  }, [measurements]);
+  // Get tooltip info for highlighted field
+  const highlightedField = useMemo(() => {
+    if (!highlightedKey) return null;
+    return DODO_WEAR_MEASUREMENTS.find(m => m.key === highlightedKey);
+  }, [highlightedKey]);
 
-  const numberedTotalCount = NUMBERED_MEASUREMENTS.length;
-  const numberedIsComplete = numberedFilledCount === numberedTotalCount;
-
-  // Get instruction for highlighted measurement
-  const highlightedInstruction = useMemo(() => {
-    if (!highlightedNumber) return null;
-    return getMeasurementByNumber(highlightedNumber);
-  }, [highlightedNumber]);
-
-  const handleInputFocus = (num: number) => {
-    setHighlightedNumber(num);
-  };
-
-  const handleInputBlur = (key: string, num: number) => {
-    setHighlightedNumber(null);
-    handleNumberedInputBlur(key);
-  };
-
-  const renderMeasurementField = (field: MeasurementField) => {
-    const hasValue = measurements[field.key] && (measurements[field.key] as number) > 0;
+  const renderMeasurementField = (field: DodoMeasurementField) => {
+    const hasValue = measurements[field.key] && Number(measurements[field.key]) > 0;
+    const isActive = highlightedKey === field.key;
     const showError = showValidation && !hasValue;
     
     return (
-      <div 
-        key={field.key} 
-        className="space-y-1"
+      <div
+        key={field.key}
+        className={cn(
+          "flex items-center gap-3 p-2.5 rounded-lg border transition-all duration-200",
+          isActive 
+            ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20" 
+            : "bg-card border-border hover:border-primary/20",
+          showError && "border-destructive/50"
+        )}
       >
-        <div className="flex items-center gap-1">
-          <Label htmlFor={field.key} className="text-xs text-muted-foreground flex items-center gap-1">
-            <span className={cn("font-semibold", showError ? "text-destructive" : "text-foreground")}>
-              {field.abbrev}
-            </span>
-            <span className="hidden sm:inline">- {field.label}</span>
-            {showError && <span className="text-destructive">*</span>}
-          </Label>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Info className="h-3 w-3 text-muted-foreground/50 cursor-help" />
-              </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-[200px]">
-                <p className="text-xs">{field.tooltip}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+        {/* Check/abbreviation badge */}
+        <div 
+          className={cn(
+            "w-12 h-8 rounded flex items-center justify-center text-xs font-bold transition-colors shrink-0",
+            hasValue 
+              ? "bg-emerald-600 text-white" 
+              : isActive
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground"
+          )}
+        >
+          {hasValue ? <Check className="h-4 w-4" /> : field.abbrev}
         </div>
-        <div className="relative">
+        
+        {/* Label */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1">
+            <span className={cn(
+              "text-sm truncate",
+              isActive ? "font-medium text-foreground" : "text-foreground",
+              showError && "text-destructive"
+            )}>
+              {field.label}
+            </span>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-3 w-3 text-muted-foreground/50 cursor-help shrink-0" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[200px]">
+                  <p className="text-xs">{field.tooltip}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        </div>
+        
+        {/* Input with fraction support */}
+        <div className="relative w-24 shrink-0">
           <Input
-            id={field.key}
-            type="number"
-            step={unit === 'in' ? '0.25' : '0.5'}
-            min="0"
-            placeholder={unit}
+            id={`dodo-${field.key}`}
+            type="text"
+            inputMode="decimal"
+            placeholder="e.g. 45/2"
             value={getDisplayValue(field.key)}
-            onChange={(e) => handleChange(field.key, e.target.value)}
+            onChange={(e) => handleInputChange(field.key, e.target.value)}
+            onFocus={() => setHighlightedKey(field.key)}
+            onBlur={() => handleInputBlur(field.key)}
             className={cn(
-              "h-9 text-sm pr-10",
+              "h-8 text-sm text-right pr-8",
+              isActive && "ring-2 ring-primary border-primary",
               showError && "border-destructive focus-visible:ring-destructive"
             )}
           />
@@ -399,7 +292,7 @@ export function GarmentMeasurementsForm({ measurements, onChange, designType, sh
   return (
     <TooltipProvider>
       <div className="space-y-4">
-        {/* Unit Toggle & Mode Toggle */}
+        {/* Unit Toggle & Progress */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">Unit:</span>
@@ -425,218 +318,66 @@ export function GarmentMeasurementsForm({ measurements, onChange, designType, sh
             </div>
           </div>
           
-          <div className="flex items-center gap-4">
-            {/* Mode toggle */}
-            <div className="flex items-center gap-2">
-              <Label htmlFor="detailedMode" className="text-sm text-muted-foreground flex items-center gap-1">
-                <Ruler className="h-4 w-4" />
-                <span className="hidden sm:inline">Detailed Mode</span>
-              </Label>
-              <Switch
-                id="detailedMode"
-                checked={detailedMode}
-                onCheckedChange={setDetailedMode}
-              />
-            </div>
-            
-            {/* Progress indicator */}
-            {detailedMode ? (
-              numberedIsComplete ? (
-                <Badge variant="default" className="bg-emerald-600">
-                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                  Complete
-                </Badge>
-              ) : (
-                <Badge variant="secondary">
-                  {numberedFilledCount}/{numberedTotalCount} filled
-                </Badge>
-              )
+          {/* Progress indicator */}
+          <div className="flex items-center gap-2">
+            {isComplete ? (
+              <Badge variant="default" className="bg-emerald-600">
+                <CheckCircle2 className="h-3 w-3 mr-1" />
+                Complete
+              </Badge>
             ) : (
-              isComplete ? (
-                <Badge variant="default" className="bg-emerald-600">
-                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                  Complete
-                </Badge>
-              ) : (
-                <Badge variant="secondary">
-                  {filledCount}/{totalCount} filled
-                </Badge>
-              )
+              <Badge variant="secondary">
+                {filledCount}/{totalCount} filled
+              </Badge>
             )}
           </div>
         </div>
 
-        {showValidation && !isComplete && !detailedMode && (
-          <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-md">
-            <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5" />
-            <div className="text-sm text-amber-800">
-              <p className="font-medium">Please complete all measurements</p>
-              <p className="text-xs mt-1">
-                Missing: {getMissingMeasurements(measurements, activeTab).join(', ')}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Main Content - Conditional based on mode */}
-        {detailedMode ? (
-          /* Numbered Measurement Guide - Full width grid without diagram */
-          <div className="space-y-6">
-            {/* Numbered measurements in a responsive grid */}
-            <div>
-              <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                <Ruler className="h-4 w-4" />
-                Standard Measurements
+        {/* Measurement Groups */}
+        <div className="space-y-6">
+          {MEASUREMENT_GROUPS.map((group) => (
+            <div key={group.id}>
+              <h3 className="text-sm font-semibold text-foreground mb-3 uppercase tracking-wide text-muted-foreground">
+                {group.label}
               </h3>
-              
-              <ScrollArea className="h-[360px] pr-2">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {NUMBERED_MEASUREMENTS.map((m) => {
-                    const hasValue = measurements[m.key] !== undefined && (measurements[m.key] as number) > 0;
-                    const isActive = highlightedNumber === m.number;
-                    
-                    return (
-                      <div
-                        key={m.key}
-                        className={cn(
-                          "flex items-center gap-3 p-2.5 rounded-lg border transition-all duration-200",
-                          isActive 
-                            ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20" 
-                            : "bg-card border-border hover:border-primary/20"
-                        )}
-                      >
-                        {/* Number badge */}
-                        <div 
-                          className={cn(
-                            "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors shrink-0",
-                            hasValue 
-                              ? "bg-emerald-600 text-white" 
-                              : isActive
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-muted text-muted-foreground"
-                          )}
-                        >
-                          {hasValue ? <Check className="h-3.5 w-3.5" /> : m.number}
-                        </div>
-                        
-                        {/* Label and instruction */}
-                        <div className="flex-1 min-w-0">
-                          <span className={cn(
-                            "block text-sm truncate",
-                            isActive ? "font-medium text-foreground" : "text-foreground"
-                          )}>
-                            {m.label}
-                          </span>
-                          {isActive && (
-                            <span className="block text-xs text-muted-foreground truncate mt-0.5">
-                              {m.instruction}
-                            </span>
-                          )}
-                        </div>
-                        
-                        {/* Input with fraction support */}
-                        <div className="relative w-24 shrink-0">
-                          <Input
-                            id={`numbered-${m.key}`}
-                            type="text"
-                            inputMode="decimal"
-                            placeholder="e.g. 45/2"
-                            value={getNumberedDisplayValue(m.key)}
-                            onChange={(e) => handleNumberedInputChange(m.key, e.target.value)}
-                            onFocus={() => handleInputFocus(m.number)}
-                            onBlur={() => handleInputBlur(m.key, m.number)}
-                            className={cn(
-                              "h-8 text-sm text-right pr-8",
-                              isActive && "ring-2 ring-primary border-primary"
-                            )}
-                          />
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                            {unit}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </ScrollArea>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {group.fields.map(renderMeasurementField)}
+              </div>
             </div>
+          ))}
+        </div>
 
-            {/* Highlighted instruction card */}
-            {highlightedInstruction && (
-              <Card className="p-3 bg-primary/5 border-primary/20 animate-in fade-in-50 duration-200">
-                <div className="flex items-start gap-2">
-                  <Badge variant="outline" className="shrink-0">
-                    #{highlightedInstruction.number}
-                  </Badge>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">
-                      {highlightedInstruction.label}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {highlightedInstruction.instruction}
-                    </p>
-                  </div>
-                </div>
-              </Card>
-            )}
-
-            {/* Custom measurements section */}
-            <div className="pt-2 border-t">
-              <CustomMeasurementsSection
-                customMeasurements={measurements.custom_measurements || []}
-                onChange={handleCustomMeasurementsChange}
-                unit={unit}
-              />
+        {/* Highlighted instruction card */}
+        {highlightedField && (
+          <Card className="p-3 bg-primary/5 border-primary/20 animate-in fade-in-50 duration-200">
+            <div className="flex items-start gap-2">
+              <Badge variant="outline" className="shrink-0">
+                {highlightedField.abbrev}
+              </Badge>
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  {highlightedField.label}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {highlightedField.tooltip}
+                </p>
+              </div>
             </div>
-          </div>
-        ) : (
-          /* Classic Garment Category Tabs */
-          <div className="flex-1">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="w-full grid grid-cols-6 mb-4">
-                {GARMENT_CATEGORIES.map(category => {
-                  const filled = countFilledMeasurements(measurements, category.id);
-                  const total = getTotalFields(category.id);
-                  const complete = filled === total && total > 0;
-                  return (
-                    <TabsTrigger 
-                      key={category.id} 
-                      value={category.id}
-                      className="relative text-xs sm:text-sm"
-                    >
-                      {category.label}
-                      {filled > 0 && (
-                        <Badge 
-                          variant="secondary" 
-                          className={cn(
-                            "absolute -top-1 -right-1 h-4 w-4 p-0 text-[10px] flex items-center justify-center",
-                            complete 
-                              ? "bg-emerald-600 text-white border-emerald-700" 
-                              : "bg-emerald-100 text-emerald-700 border-emerald-200"
-                          )}
-                        >
-                          {complete ? '✓' : filled}
-                        </Badge>
-                      )}
-                    </TabsTrigger>
-                  );
-                })}
-              </TabsList>
-
-              {GARMENT_CATEGORIES.map(category => (
-                <TabsContent key={category.id} value={category.id} className="mt-0">
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                    {category.fields.map(renderMeasurementField)}
-                  </div>
-                </TabsContent>
-              ))}
-            </Tabs>
-          </div>
+          </Card>
         )}
+
+        {/* Custom measurements section */}
+        <div className="pt-4 border-t">
+          <CustomMeasurementsSection
+            customMeasurements={measurements.custom_measurements || []}
+            onChange={handleCustomMeasurementsChange}
+            unit={unit}
+          />
+        </div>
       </div>
     </TooltipProvider>
   );
 }
 
 export type { Measurements as GarmentMeasurements };
-export { GARMENT_CATEGORIES, getDefaultTab };
+export { MEASUREMENT_GROUPS };
