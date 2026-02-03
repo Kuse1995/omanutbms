@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/hooks/useTenant";
@@ -139,6 +140,22 @@ export function CustomOrdersManager() {
       setLoading(false);
     }
   };
+
+  // Handle orderId from URL (deep-linking from notifications)
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  useEffect(() => {
+    const orderIdFromUrl = searchParams.get('orderId');
+    if (orderIdFromUrl && !wizardOpen) {
+      // Open the wizard for the specific order
+      setWizardContinueOrderId(orderIdFromUrl);
+      setIsOpsContinuation(false);
+      setWizardOpen(true);
+      // Clear the orderId from URL to prevent re-opening on navigation
+      searchParams.delete('orderId');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, wizardOpen, setSearchParams]);
 
   useEffect(() => {
     fetchOrders();
