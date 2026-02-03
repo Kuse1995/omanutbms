@@ -133,11 +133,15 @@ export function NotificationsCenter() {
           } else if (a.alert_type === "order_handoff") {
             notifType = "handoff";
             title = "New Order Assigned";
-            navigateTo = "/bms?tab=fashion&subtab=orders";
+            navigateTo = `/bms?tab=fashion&subtab=orders${a.related_id ? `&orderId=${a.related_id}` : ''}`;
           } else if (a.alert_type === "order_handed_back") {
             notifType = "handback";
             title = "Order Returned";
-            navigateTo = "/bms?tab=fashion&subtab=orders";
+            navigateTo = `/bms?tab=fashion&subtab=orders${a.related_id ? `&orderId=${a.related_id}` : ''}`;
+          } else if (a.alert_type === "order_ready") {
+            notifType = "alert"; // Use alert icon (amber) for ready notification
+            title = "Order Ready for Collection";
+            navigateTo = `/bms?tab=fashion&subtab=orders${a.related_id ? `&orderId=${a.related_id}` : ''}`;
           }
 
           allNotifications.push({

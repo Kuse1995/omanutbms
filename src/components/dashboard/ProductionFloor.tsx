@@ -203,6 +203,22 @@ export function ProductionFloor() {
 
       if (error) throw error;
 
+      // If order is now "ready", notify admins and managers
+      if (newStatus === 'ready') {
+        const readyOrder = orders.find(o => o.id === draggedOrder);
+        if (readyOrder && tenantId) {
+          // Create notification for admins/managers
+          await supabase.from('admin_alerts').insert({
+            tenant_id: tenantId,
+            alert_type: 'order_ready',
+            message: `Order ${readyOrder.order_number} for ${readyOrder.customer?.name || 'Customer'} is ready for collection`,
+            related_table: 'custom_orders',
+            related_id: draggedOrder,
+            target_user_id: null, // Visible to all admins/managers in tenant
+          });
+        }
+      }
+
       setOrders(prev => 
         prev.map(o => 
           o.id === draggedOrder ? { ...o, status: newStatus } : o
