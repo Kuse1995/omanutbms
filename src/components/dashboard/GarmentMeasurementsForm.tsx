@@ -220,7 +220,7 @@ export function GarmentMeasurementsForm({ measurements, onChange, showValidation
       <div
         key={field.key}
         className={cn(
-          "flex items-center gap-3 p-2.5 rounded-lg border transition-all duration-200",
+          "flex items-center gap-2 sm:gap-3 p-3 sm:p-2.5 rounded-lg border transition-all duration-200",
           isActive 
             ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20" 
             : "bg-card border-border hover:border-primary/20",
@@ -230,7 +230,7 @@ export function GarmentMeasurementsForm({ measurements, onChange, showValidation
         {/* Check/abbreviation badge */}
         <div 
           className={cn(
-            "w-12 h-8 rounded flex items-center justify-center text-xs font-bold transition-colors shrink-0",
+            "w-11 h-9 sm:w-12 sm:h-8 rounded flex items-center justify-center text-xs font-bold transition-colors shrink-0",
             hasValue 
               ? "bg-emerald-600 text-white" 
               : isActive
@@ -254,7 +254,7 @@ export function GarmentMeasurementsForm({ measurements, onChange, showValidation
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Info className="h-3 w-3 text-muted-foreground/50 cursor-help shrink-0" />
+                  <Info className="h-3 w-3 text-muted-foreground/50 cursor-help shrink-0 hidden sm:block" />
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-[200px]">
                   <p className="text-xs">{field.tooltip}</p>
@@ -265,7 +265,7 @@ export function GarmentMeasurementsForm({ measurements, onChange, showValidation
         </div>
         
         {/* Input with fraction support */}
-        <div className="relative w-24 shrink-0">
+        <div className="relative w-20 sm:w-24 shrink-0">
           <Input
             id={`dodo-${field.key}`}
             type="text"
@@ -276,7 +276,7 @@ export function GarmentMeasurementsForm({ measurements, onChange, showValidation
             onFocus={() => setHighlightedKey(field.key)}
             onBlur={() => handleInputBlur(field.key)}
             className={cn(
-              "h-8 text-sm text-right pr-8",
+              "h-10 sm:h-8 text-sm text-right pr-7 sm:pr-8",
               isActive && "ring-2 ring-primary border-primary",
               showError && "border-destructive focus-visible:ring-destructive"
             )}
@@ -292,59 +292,72 @@ export function GarmentMeasurementsForm({ measurements, onChange, showValidation
   return (
     <TooltipProvider>
       <div className="space-y-4">
-        {/* Unit Toggle & Progress */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">Unit:</span>
-            <div className="flex rounded-md border">
-              <Button
-                type="button"
-                variant={unit === 'cm' ? 'default' : 'ghost'}
-                size="sm"
-                className="rounded-r-none h-8 px-3"
-                onClick={() => handleUnitToggle('cm')}
-              >
-                cm
-              </Button>
-              <Button
-                type="button"
-                variant={unit === 'in' ? 'default' : 'ghost'}
-                size="sm"
-                className="rounded-l-none h-8 px-3"
-                onClick={() => handleUnitToggle('in')}
-              >
-                in
-              </Button>
+        {/* Unit Toggle & Progress - Sticky on mobile */}
+        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur py-2 -mx-1 px-1 sm:static sm:bg-transparent sm:backdrop-blur-none">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium hidden sm:inline">Unit:</span>
+              <div className="flex rounded-md border">
+                <Button
+                  type="button"
+                  variant={unit === 'cm' ? 'default' : 'ghost'}
+                  size="sm"
+                  className="rounded-r-none h-9 sm:h-8 px-4 sm:px-3"
+                  onClick={() => handleUnitToggle('cm')}
+                >
+                  cm
+                </Button>
+                <Button
+                  type="button"
+                  variant={unit === 'in' ? 'default' : 'ghost'}
+                  size="sm"
+                  className="rounded-l-none h-9 sm:h-8 px-4 sm:px-3"
+                  onClick={() => handleUnitToggle('in')}
+                >
+                  in
+                </Button>
+              </div>
             </div>
-          </div>
-          
-          {/* Progress indicator */}
-          <div className="flex items-center gap-2">
-            {isComplete ? (
-              <Badge variant="default" className="bg-emerald-600">
-                <CheckCircle2 className="h-3 w-3 mr-1" />
-                Complete
-              </Badge>
-            ) : (
-              <Badge variant="secondary">
-                {filledCount}/{totalCount} filled
-              </Badge>
-            )}
+            
+            {/* Progress indicator */}
+            <div className="flex items-center gap-2">
+              {isComplete ? (
+                <Badge variant="default" className="bg-emerald-600 h-7">
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  Complete
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="h-7">
+                  {filledCount}/{totalCount}
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Measurement Groups */}
-        <div className="space-y-6">
-          {MEASUREMENT_GROUPS.map((group) => (
-            <div key={group.id}>
-              <h3 className="text-sm font-semibold text-foreground mb-3 uppercase tracking-wide text-muted-foreground">
-                {group.label}
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                {group.fields.map(renderMeasurementField)}
+        <div className="space-y-5">
+          {MEASUREMENT_GROUPS.map((group) => {
+            const groupFilledCount = group.fields.filter(f => 
+              measurements[f.key] && Number(measurements[f.key]) > 0
+            ).length;
+            
+            return (
+              <div key={group.id}>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                    {group.label}
+                  </h3>
+                  <span className="text-xs text-muted-foreground">
+                    {groupFilledCount}/{group.fields.length}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {group.fields.map(renderMeasurementField)}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Highlighted instruction card */}

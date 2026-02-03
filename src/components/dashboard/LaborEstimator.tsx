@@ -171,7 +171,7 @@ export function LaborEstimator({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <Label className="text-sm font-medium">Labor Estimation</Label>
         <Button
           type="button"
@@ -179,7 +179,7 @@ export function LaborEstimator({
           size="sm"
           onClick={handleAutoEstimate}
           disabled={isEstimating}
-          className="bg-gradient-to-r from-amber-50 to-amber-100 border-amber-200 hover:from-amber-100 hover:to-amber-200"
+          className="bg-gradient-to-r from-amber-50 to-amber-100 border-amber-200 hover:from-amber-100 hover:to-amber-200 w-full sm:w-auto"
         >
           {isEstimating ? (
             <Loader2 className="h-4 w-4 mr-1 animate-spin" />
@@ -197,7 +197,7 @@ export function LaborEstimator({
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <Label htmlFor="tailor" className="text-xs text-muted-foreground">
             Assign Tailor (Optional)
@@ -206,7 +206,7 @@ export function LaborEstimator({
             value={tailorId || "none"}
             onValueChange={handleTailorSelect}
           >
-            <SelectTrigger className="h-9">
+            <SelectTrigger className="h-10 sm:h-9 mt-1">
               <SelectValue placeholder="Select tailor..." />
             </SelectTrigger>
             <SelectContent>
@@ -240,7 +240,7 @@ export function LaborEstimator({
             value={skillLevel}
             onValueChange={(v) => handleSkillLevelChange(v as SkillLevel)}
           >
-            <SelectTrigger className="h-9">
+            <SelectTrigger className="h-10 sm:h-9 mt-1">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -252,7 +252,7 @@ export function LaborEstimator({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-3">
         <div>
           <Label htmlFor="hours" className="text-xs text-muted-foreground">
             Estimated Hours
@@ -262,9 +262,10 @@ export function LaborEstimator({
             type="number"
             step="0.5"
             min="0"
+            inputMode="decimal"
             value={hours || ""}
             onChange={(e) => onHoursChange(parseFloat(e.target.value) || 0)}
-            className="h-9"
+            className="h-10 sm:h-9 mt-1"
             placeholder="0"
           />
         </div>
@@ -278,9 +279,10 @@ export function LaborEstimator({
             type="number"
             step="5"
             min="0"
+            inputMode="decimal"
             value={hourlyRate || ""}
             onChange={(e) => onHourlyRateChange(parseFloat(e.target.value) || 0)}
-            className="h-9"
+            className="h-10 sm:h-9 mt-1"
             placeholder="0"
           />
         </div>

@@ -290,7 +290,7 @@ export function MaterialSelector({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <Label className="text-sm font-medium">Materials from Warehouse</Label>
         <div className="flex items-center gap-2">
           <Button
@@ -299,7 +299,7 @@ export function MaterialSelector({
             size="sm"
             onClick={handleAIEstimate}
             disabled={loading || estimating || !designType}
-            className="text-purple-600 border-purple-200 hover:bg-purple-50"
+            className="text-purple-600 border-purple-200 hover:bg-purple-50 flex-1 sm:flex-none"
           >
             {estimating ? (
               <Loader2 className="h-4 w-4 mr-1 animate-spin" />
@@ -314,9 +314,10 @@ export function MaterialSelector({
             size="sm"
             onClick={handleAddMaterial}
             disabled={loading}
+            className="flex-1 sm:flex-none"
           >
             <Plus className="h-4 w-4 mr-1" />
-            Add Material
+            Add
           </Button>
         </div>
       </div>
@@ -332,14 +333,14 @@ export function MaterialSelector({
         <div className="space-y-3">
           {materials.map((material, index) => (
             <div key={index} className="space-y-1">
-              <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
-                <div className="flex-1">
+              <div className="flex flex-col gap-2 p-3 bg-muted/50 rounded-lg sm:flex-row sm:items-center">
+                {/* Material select - full width on mobile */}
+                <div className="w-full sm:flex-1">
                   <Select
-                    // Radix Select treats empty string as an invalid value; use undefined for "no selection".
                     value={material.inventoryId || undefined}
                     onValueChange={(v) => handleSelectMaterial(index, v)}
                   >
-                    <SelectTrigger className="h-9">
+                    <SelectTrigger className="h-10 sm:h-9">
                       <SelectValue placeholder="Select material..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -362,37 +363,41 @@ export function MaterialSelector({
                   </Select>
                 </div>
 
-                <div className="w-24">
-                  <Input
-                    type="number"
-                    step="0.5"
-                    min="0.1"
-                    value={material.quantity}
-                    onChange={(e) =>
-                      handleQuantityChange(index, parseFloat(e.target.value) || 0)
-                    }
-                    className={`h-9 text-center ${material.stockWarning?.includes('Insufficient') ? 'border-destructive' : ''}`}
-                    placeholder="Qty"
-                  />
-                </div>
+                {/* Quantity, Unit, Price, Delete - row on mobile too */}
+                <div className="flex items-center gap-2">
+                  <div className="w-20 shrink-0">
+                    <Input
+                      type="number"
+                      step="0.5"
+                      min="0.1"
+                      inputMode="decimal"
+                      value={material.quantity}
+                      onChange={(e) =>
+                        handleQuantityChange(index, parseFloat(e.target.value) || 0)
+                      }
+                      className={`h-10 sm:h-9 text-center ${material.stockWarning?.includes('Insufficient') ? 'border-destructive' : ''}`}
+                      placeholder="Qty"
+                    />
+                  </div>
 
-                <div className="w-20 text-right text-sm text-muted-foreground">
-                  {material.unitOfMeasure}
-                </div>
+                  <div className="w-16 text-center text-sm text-muted-foreground hidden sm:block">
+                    {material.unitOfMeasure}
+                  </div>
 
-                <div className="w-24 text-right font-medium">
-                  K {(material.quantity * material.unitCost).toFixed(2)}
-                </div>
+                  <div className="flex-1 text-right font-medium min-w-[80px]">
+                    K {(material.quantity * material.unitCost).toFixed(2)}
+                  </div>
 
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-destructive hover:text-destructive"
-                  onClick={() => handleRemoveMaterial(index)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10 sm:h-8 sm:w-8 text-destructive hover:text-destructive shrink-0"
+                    onClick={() => handleRemoveMaterial(index)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
               
               {/* Stock warning */}
