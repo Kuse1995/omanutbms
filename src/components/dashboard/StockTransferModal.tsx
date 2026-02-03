@@ -399,9 +399,10 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
                 </Select>
                 <Input
                   type="number"
-                  min="1"
+                  step="any"
+                  min="0.01"
                   value={itemQuantity}
-                  onChange={(e) => setItemQuantity(parseInt(e.target.value) || 1)}
+                  onChange={(e) => setItemQuantity(parseFloat(e.target.value) || 1)}
                   className="w-24"
                   placeholder="Qty"
                 />

@@ -464,9 +464,10 @@ export const PayrollRunModal = ({
                         entry.pay_type === "per_shift" ? (
                           <Input
                             type="number"
+                            step="any"
                             value={entry.shifts_worked}
                             onChange={(e) =>
-                              updateEntry(entry.employee_id, "shifts_worked", parseInt(e.target.value) || 0)
+                              updateEntry(entry.employee_id, "shifts_worked", parseFloat(e.target.value) || 0)
                             }
                             className="h-8 w-16"
                             placeholder="Shifts"

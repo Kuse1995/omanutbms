@@ -210,9 +210,10 @@ export function ReturnModal({ open, onOpenChange, onSuccess }: ReturnModalProps)
               <Input
                 id="quantity"
                 type="number"
-                min={1}
+                step="any"
+                min={0.01}
                 value={quantity}
-                onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+                onChange={(e) => setQuantity(parseFloat(e.target.value) || 1)}
               />
             </div>
             <div className="space-y-2">

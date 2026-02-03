@@ -1491,9 +1491,10 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
                 <Input
                   id="current_stock"
                   type="number"
+                  step="any"
                   min={0}
                   value={formData.current_stock}
-                  onChange={(e) => setFormData({ ...formData, current_stock: parseInt(e.target.value) || 0 })}
+                  onChange={(e) => setFormData({ ...formData, current_stock: parseFloat(e.target.value) || 0 })}
                   className="bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366]"
                 />
               </div>
@@ -1505,10 +1506,11 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
                   <Input
                     id="liters_per_unit"
                     type="number"
+                    step="any"
                     min={0}
                     placeholder={formFields.impactUnitsField.placeholder}
                     value={formData.liters_per_unit}
-                    onChange={(e) => setFormData({ ...formData, liters_per_unit: parseInt(e.target.value) || 0 })}
+                    onChange={(e) => setFormData({ ...formData, liters_per_unit: parseFloat(e.target.value) || 0 })}
                     className="bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366]"
                   />
                 </div>
@@ -1708,9 +1710,10 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
                 <Input
                   id="reorder_level"
                   type="number"
+                  step="any"
                   min={0}
                   value={formData.reorder_level}
-                  onChange={(e) => setFormData({ ...formData, reorder_level: parseInt(e.target.value) || 0 })}
+                  onChange={(e) => setFormData({ ...formData, reorder_level: parseFloat(e.target.value) || 0 })}
                   className="bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366]"
                 />
               </div>
