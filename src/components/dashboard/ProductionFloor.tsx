@@ -56,7 +56,7 @@ interface CustomOrder {
   } | null;
 }
 
-type KanbanStatus = 'pending' | 'confirmed' | 'cutting' | 'sewing' | 'fitting' | 'ready' | 'delivered';
+type KanbanStatus = 'pending' | 'confirmed' | 'cutting' | 'sewing' | 'fitting' | 'adjustments' | 'ready' | 'delivered';
 
 const KANBAN_COLUMNS: { id: KanbanStatus; label: string; icon: any; color: string; bgColor: string }[] = [
   { id: 'pending', label: 'Pending', icon: Clock, color: 'text-slate-600', bgColor: 'bg-slate-100' },
@@ -64,6 +64,7 @@ const KANBAN_COLUMNS: { id: KanbanStatus; label: string; icon: any; color: strin
   { id: 'cutting', label: 'Cutting', icon: Scissors, color: 'text-amber-600', bgColor: 'bg-amber-100' },
   { id: 'sewing', label: 'Sewing', icon: Factory, color: 'text-purple-600', bgColor: 'bg-purple-100' },
   { id: 'fitting', label: 'Fitting', icon: User, color: 'text-pink-600', bgColor: 'bg-pink-100' },
+  { id: 'adjustments', label: 'Adjustments', icon: Scissors, color: 'text-orange-600', bgColor: 'bg-orange-100' },
   { id: 'ready', label: 'Ready', icon: Package, color: 'text-emerald-600', bgColor: 'bg-emerald-100' },
   { id: 'delivered', label: 'Delivered', icon: Truck, color: 'text-green-700', bgColor: 'bg-green-100' },
 ];
@@ -158,9 +159,7 @@ export function ProductionFloor() {
       return;
     }
 
-    // QC Gate: Block any forward transition from sewing/fitting to ready/delivered without QC completion
-    const requiresQC = ['sewing', 'fitting'].includes(order.status);
-    const movingToPostQC = ['ready', 'delivered'].includes(newStatus);
+    // QC Gate: Block any forward transition from sewing to fitting without QC completion
     const qcNotCompleted = !order.qc_completed_at;
 
     // Intercept sewing → fitting transition for QC gate
@@ -171,24 +170,24 @@ export function ProductionFloor() {
       return;
     }
 
-    // Block fitting → ready/delivered if QC not completed (order was manually moved to fitting without QC)
-    if (order.status === 'fitting' && movingToPostQC && qcNotCompleted) {
+    // Block fitting → adjustments/ready/delivered if QC not completed
+    if (order.status === 'fitting' && ['adjustments', 'ready', 'delivered'].includes(newStatus) && qcNotCompleted) {
       setPendingQCOrder(order);
       setShowQCModal(true);
       setDraggedOrder(null);
       toast({
         title: "Quality Control Required",
-        description: "This order must pass QC before moving to Ready",
+        description: "This order must pass QC before moving forward",
         variant: "destructive",
       });
       return;
     }
 
-    // Block sewing → ready/delivered (skipping fitting entirely)
-    if (order.status === 'sewing' && movingToPostQC) {
+    // Block sewing → adjustments/ready/delivered (must go through fitting first)
+    if (order.status === 'sewing' && ['adjustments', 'ready', 'delivered'].includes(newStatus)) {
       toast({
         title: "Invalid Transition",
-        description: "Orders must go through Fitting and QC before Ready",
+        description: "Orders must go through Fitting and QC before Adjustments or Ready",
         variant: "destructive",
       });
       setDraggedOrder(null);
