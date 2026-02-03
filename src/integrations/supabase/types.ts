@@ -3354,6 +3354,7 @@ export type Database = {
           description: string
           id: string
           is_sourcing: boolean | null
+          item_type: string | null
           lead_time: string | null
           product_id: string | null
           quantity: number
@@ -3367,6 +3368,7 @@ export type Database = {
           description: string
           id?: string
           is_sourcing?: boolean | null
+          item_type?: string | null
           lead_time?: string | null
           product_id?: string | null
           quantity?: number
@@ -3380,6 +3382,7 @@ export type Database = {
           description?: string
           id?: string
           is_sourcing?: boolean | null
+          item_type?: string | null
           lead_time?: string | null
           product_id?: string | null
           quantity?: number
