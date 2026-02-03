@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { CustomOrderModal } from "./CustomOrderModal";
+// CustomOrderModal is no longer used - all edit/create flows use CustomDesignWizard for consistency
 import { CustomDesignWizard } from "./CustomDesignWizard";
 import { OrderToInvoiceModal } from "./OrderToInvoiceModal";
 import { ReceiptModal } from "./ReceiptModal";
@@ -85,7 +85,7 @@ export function CustomOrdersManager() {
   const [orders, setOrders] = useState<CustomOrder[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [modalOpen, setModalOpen] = useState(false);
+  // modalOpen and selectedOrder removed - all flows now use wizard
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardContinueOrderId, setWizardContinueOrderId] = useState<string | null>(null);
   const [isOpsContinuation, setIsOpsContinuation] = useState(false);
@@ -159,8 +159,10 @@ export function CustomOrdersManager() {
   }, [tenant?.id]);
 
   const handleEdit = (order: CustomOrder) => {
-    setSelectedOrder(order);
-    setModalOpen(true);
+    // Use the wizard for editing to maintain consistency with new order flow
+    setWizardContinueOrderId(order.id);
+    setIsOpsContinuation(false); // Not ops continuation, just regular edit
+    setWizardOpen(true);
   };
 
   const handleGenerateInvoice = (order: CustomOrder) => {
@@ -351,7 +353,11 @@ export function CustomOrdersManager() {
                 <Button
                   variant="outline"
                   className="mt-4"
-                  onClick={() => { setSelectedOrder(null); setModalOpen(true); }}
+                  onClick={() => { 
+                    setWizardContinueOrderId(null);
+                    setIsOpsContinuation(false);
+                    setWizardOpen(true);
+                  }}
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Create First Order
@@ -545,13 +551,7 @@ export function CustomOrdersManager() {
         </CardContent>
       </Card>
 
-      {/* Edit modal for existing orders */}
-      <CustomOrderModal
-        open={modalOpen}
-        onOpenChange={setModalOpen}
-        order={selectedOrder}
-        onSuccess={fetchOrders}
-      />
+      {/* Custom Order Wizard - used for both new orders and editing */}
 
       {/* New order wizard with sketch upload & QC */}
       <CustomDesignWizard
