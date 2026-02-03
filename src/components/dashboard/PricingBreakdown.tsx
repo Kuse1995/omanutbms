@@ -1,24 +1,38 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Calculator, Percent, Lock } from "lucide-react";
+import { Calculator, Percent, Lock, Package, Wrench, Gift } from "lucide-react";
 
 interface PricingBreakdownProps {
   materialCost: number;
   laborCost: number;
+  additionalCost?: number;
   marginPercentage: number;
   onMarginChange: (margin: number) => void;
   isLocked?: boolean;
+  showItemized?: boolean;
+  materialItems?: { name: string; quantity: number; unitCost: number; unitOfMeasure: string }[];
+  laborHours?: number;
+  hourlyRate?: number;
+  skillLevel?: string;
+  additionalItems?: { description: string; quantity: number; unitPrice: number; itemType: string }[];
 }
 
 export function PricingBreakdown({
   materialCost,
   laborCost,
+  additionalCost = 0,
   marginPercentage,
   onMarginChange,
   isLocked = false,
+  showItemized = false,
+  materialItems = [],
+  laborHours = 0,
+  hourlyRate = 0,
+  skillLevel = "Senior",
+  additionalItems = [],
 }: PricingBreakdownProps) {
-  const baseCost = materialCost + laborCost;
+  const baseCost = materialCost + laborCost + additionalCost;
   const marginAmount = baseCost * (marginPercentage / 100);
   const quotedPrice = baseCost + marginAmount;
 
@@ -30,15 +44,65 @@ export function PricingBreakdown({
       </div>
 
       <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-        <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Material Cost</span>
-          <span>K {materialCost.toFixed(2)}</span>
+        {/* Materials Section */}
+        <div className="space-y-1">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground flex items-center gap-2">
+              <Package className="h-3 w-3" />
+              Material Cost
+            </span>
+            <span>K {materialCost.toFixed(2)}</span>
+          </div>
+          {showItemized && materialItems.length > 0 && (
+            <div className="ml-5 space-y-0.5">
+              {materialItems.map((item, idx) => (
+                <div key={idx} className="flex justify-between text-xs text-muted-foreground">
+                  <span>{item.name} ({item.quantity} {item.unitOfMeasure})</span>
+                  <span>K {(item.quantity * item.unitCost).toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Labor Cost</span>
-          <span>K {laborCost.toFixed(2)}</span>
+        {/* Labor Section */}
+        <div className="space-y-1">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground flex items-center gap-2">
+              <Wrench className="h-3 w-3" />
+              Labor Cost
+            </span>
+            <span>K {laborCost.toFixed(2)}</span>
+          </div>
+          {showItemized && laborHours > 0 && (
+            <div className="ml-5 text-xs text-muted-foreground">
+              {skillLevel} Tailor × {laborHours} hrs @ K{hourlyRate}/hr
+            </div>
+          )}
         </div>
+
+        {/* Additional Costs Section */}
+        {additionalCost > 0 && (
+          <div className="space-y-1">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground flex items-center gap-2">
+                <Gift className="h-3 w-3" />
+                Additional Costs
+              </span>
+              <span>K {additionalCost.toFixed(2)}</span>
+            </div>
+            {showItemized && additionalItems.length > 0 && (
+              <div className="ml-5 space-y-0.5">
+                {additionalItems.map((item, idx) => (
+                  <div key={idx} className="flex justify-between text-xs text-muted-foreground">
+                    <span>{item.description} (×{item.quantity})</span>
+                    <span>K {(item.quantity * item.unitPrice).toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <Separator />
 
@@ -100,9 +164,10 @@ export function PricingBreakdown({
 export function calculateQuote(
   materialCost: number,
   laborCost: number,
-  marginPercentage: number
+  marginPercentage: number,
+  additionalCost: number = 0
 ) {
-  const baseCost = materialCost + laborCost;
+  const baseCost = materialCost + laborCost + additionalCost;
   const marginAmount = baseCost * (marginPercentage / 100);
   const quotedPrice = baseCost + marginAmount;
   return { baseCost, marginAmount, quotedPrice };
