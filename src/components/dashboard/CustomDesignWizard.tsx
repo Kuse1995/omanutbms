@@ -380,16 +380,46 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
         created_by: user?.id,
       };
       
-      const { error } = await supabase
+      const { data: orderData, error } = await supabase
         .from('custom_orders')
-        .insert(insertData as any);
+        .insert(insertData as any)
+        .select('id, order_number')
+        .single();
 
       if (error) throw error;
 
-      toast({
-        title: "Draft Saved",
-        description: `Draft order for ${formData.customerName} has been saved. You can continue editing it later.`,
-      });
+      // If handoff is enabled, create notification for the assigned ops manager
+      if (handoffConfig.enabled && handoffConfig.assignedUserId && orderData) {
+        // Get the officer's name for the toast
+        const { data: officerProfile } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('user_id', handoffConfig.assignedUserId)
+          .maybeSingle();
+
+        const officerName = officerProfile?.full_name || 'Operations Manager';
+
+        // Create notification for the ops manager
+        await supabase.from('admin_alerts').insert({
+          tenant_id: tenantId,
+          target_user_id: handoffConfig.assignedUserId,
+          alert_type: 'order_handoff',
+          message: `New order assigned to you: ${orderData.order_number} for ${formData.customerName}`,
+          related_table: 'custom_orders',
+          related_id: orderData.id,
+          is_read: false,
+        });
+
+        toast({
+          title: "Order Handed Off",
+          description: `Order ${orderData.order_number} assigned to ${officerName}. They'll receive a notification.`,
+        });
+      } else {
+        toast({
+          title: "Draft Saved",
+          description: `Draft order for ${formData.customerName} has been saved. You can continue editing it later.`,
+        });
+      }
 
       onSuccess?.();
       onClose();

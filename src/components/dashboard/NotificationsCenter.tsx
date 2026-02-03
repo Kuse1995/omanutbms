@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Mail, Heart, AlertTriangle } from "lucide-react";
+import { Bell, Mail, Heart, AlertTriangle, ArrowRightLeft, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -15,10 +15,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
 import { throttle } from "@/lib/performance-utils";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Notification {
   id: string;
-  type: "contact" | "community" | "donation" | "alert";
+  type: "contact" | "community" | "donation" | "alert" | "handoff" | "handback";
   title: string;
   message: string;
   created_at: string;
@@ -31,6 +32,7 @@ export function NotificationsCenter() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
+  const { user } = useAuth();
   const isMountedRef = useRef(true);
   const hasFetchedRef = useRef(false);
 
@@ -110,25 +112,43 @@ export function NotificationsCenter() {
         });
       }
 
-      // Fetch admin alerts (unread)
+      // Fetch admin alerts (unread) - now filtered by target_user_id
       const { data: alerts } = await supabase
         .from("admin_alerts")
-        .select("id, message, created_at, is_read, alert_type")
+        .select("id, message, created_at, is_read, alert_type, target_user_id")
         .eq("is_read", false)
         .order("created_at", { ascending: false })
-        .limit(10);
+        .limit(15);
 
       if (alerts) {
-        alerts.forEach((a) => {
+        alerts.forEach((a: any) => {
+          // Determine notification type based on alert_type
+          let notifType: Notification["type"] = "alert";
+          let title = "System Alert";
+          let navigateTo = "/bms?tab=dashboard";
+
+          if (a.alert_type === "low_stock") {
+            title = "Low Stock Alert";
+            navigateTo = "/bms?tab=inventory";
+          } else if (a.alert_type === "order_handoff") {
+            notifType = "handoff";
+            title = "New Order Assigned";
+            navigateTo = "/bms?tab=fashion&subtab=orders";
+          } else if (a.alert_type === "order_handed_back") {
+            notifType = "handback";
+            title = "Order Returned";
+            navigateTo = "/bms?tab=fashion&subtab=orders";
+          }
+
           allNotifications.push({
             id: a.id,
-            type: "alert",
-            title: a.alert_type === "low_stock" ? "Low Stock Alert" : "System Alert",
-            message: a.message.substring(0, 50) + (a.message.length > 50 ? "..." : ""),
+            type: notifType,
+            title,
+            message: a.message.substring(0, 60) + (a.message.length > 60 ? "..." : ""),
             created_at: a.created_at,
             is_read: a.is_read,
             source_table: "admin_alerts",
-            navigate_to: a.alert_type === "low_stock" ? "/bms?tab=inventory" : "/bms?tab=dashboard",
+            navigate_to: navigateTo,
           });
         });
       }
@@ -237,6 +257,10 @@ export function NotificationsCenter() {
         return <Heart className="w-4 h-4 text-pink-500" />;
       case "alert":
         return <AlertTriangle className="w-4 h-4 text-amber-500" />;
+      case "handoff":
+        return <ArrowRightLeft className="w-4 h-4 text-blue-600" />;
+      case "handback":
+        return <RotateCcw className="w-4 h-4 text-green-600" />;
     }
   };
 

@@ -145,6 +145,7 @@ export type Database = {
           message: string
           related_id: string | null
           related_table: string | null
+          target_user_id: string | null
           tenant_id: string | null
         }
         Insert: {
@@ -155,6 +156,7 @@ export type Database = {
           message: string
           related_id?: string | null
           related_table?: string | null
+          target_user_id?: string | null
           tenant_id?: string | null
         }
         Update: {
@@ -165,6 +167,7 @@ export type Database = {
           message?: string
           related_id?: string | null
           related_table?: string | null
+          target_user_id?: string | null
           tenant_id?: string | null
         }
         Relationships: [

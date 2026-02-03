@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Loader2, ClipboardList, ArrowRight, User, Calendar, MessageSquare } from "lucide-react";
 import { format } from "date-fns";
+import { HandoffWelcomeDialog } from "./HandoffWelcomeDialog";
 
 interface AssignedOrder {
   id: string;
@@ -50,6 +51,8 @@ export function AssignedOrdersSection({ onContinueOrder }: AssignedOrdersSection
   const { currencySymbol } = useBusinessConfig();
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<AssignedOrder[]>([]);
+  const [showWelcomeDialog, setShowWelcomeDialog] = useState(false);
+  const [pendingOrders, setPendingOrders] = useState<AssignedOrder[]>([]);
 
   useEffect(() => {
     if (tenantId && user?.id) {
@@ -105,6 +108,16 @@ export function AssignedOrdersSection({ onContinueOrder }: AssignedOrdersSection
       }));
 
       setOrders(enriched);
+
+      // Check for pending orders to show welcome dialog (first time only per session)
+      const pending = enriched.filter((o: AssignedOrder) => o.handoff_status === 'pending_handoff');
+      const sessionKey = `handoff_welcome_shown_${user?.id}`;
+      
+      if (pending.length > 0 && !sessionStorage.getItem(sessionKey)) {
+        setPendingOrders(pending);
+        setShowWelcomeDialog(true);
+        sessionStorage.setItem(sessionKey, 'true');
+      }
     } catch (error: any) {
       console.error("Error fetching assigned orders:", error);
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -130,6 +143,21 @@ export function AssignedOrdersSection({ onContinueOrder }: AssignedOrdersSection
     }
   };
 
+  const handleWelcomePickUpAll = () => {
+    setShowWelcomeDialog(false);
+    setPendingOrders([]);
+    fetchAssignedOrders();
+  };
+
+  const handleWelcomeDismiss = () => {
+    setShowWelcomeDialog(false);
+  };
+
+  const handleWelcomeContinue = (orderId: string) => {
+    setShowWelcomeDialog(false);
+    handlePickUp(orders.find(o => o.id === orderId) as AssignedOrder);
+  };
+
   if (loading) {
     return (
       <Card>
@@ -145,15 +173,27 @@ export function AssignedOrdersSection({ onContinueOrder }: AssignedOrdersSection
   }
 
   return (
-    <Card className="border-blue-200 bg-gradient-to-br from-blue-50/50 to-background">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg flex items-center gap-2">
-          <ClipboardList className="h-5 w-5 text-blue-600" />
-          My Assigned Orders
-          <Badge variant="secondary" className="ml-2">{orders.length}</Badge>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <>
+      {/* Welcome Dialog for pending assignments */}
+      {showWelcomeDialog && tenantId && (
+        <HandoffWelcomeDialog
+          orders={pendingOrders}
+          tenantId={tenantId}
+          onPickUpAll={handleWelcomePickUpAll}
+          onDismiss={handleWelcomeDismiss}
+          onContinueOrder={handleWelcomeContinue}
+        />
+      )}
+
+      <Card className="border-blue-200 bg-gradient-to-br from-blue-50/50 to-background">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <ClipboardList className="h-5 w-5 text-blue-600" />
+            My Assigned Orders
+            <Badge variant="secondary" className="ml-2">{orders.length}</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
         {orders.map((order) => {
           const startStep = (order.handoff_step || 0) + 1;
           const statusConfig = STATUS_CONFIG[order.handoff_status] || STATUS_CONFIG.pending_handoff;
@@ -218,7 +258,8 @@ export function AssignedOrdersSection({ onContinueOrder }: AssignedOrdersSection
             </div>
           );
         })}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </>
   );
 }
