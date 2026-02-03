@@ -106,9 +106,9 @@ export function AdditionalCostsSection({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <Label className="text-sm font-medium">
-          Additional Costs (Packaging, Fees, Accessories)
+          Additional Costs
         </Label>
         <div className="flex items-center gap-2">
           <Button
@@ -116,6 +116,7 @@ export function AdditionalCostsSection({
             variant="outline"
             size="sm"
             onClick={() => setShowPresets(!showPresets)}
+            className="flex-1 sm:flex-none"
           >
             <Gift className="h-4 w-4 mr-1" />
             Quick Add
@@ -125,6 +126,7 @@ export function AdditionalCostsSection({
             variant="outline"
             size="sm"
             onClick={handleAddItem}
+            className="flex-1 sm:flex-none"
           >
             <Plus className="h-4 w-4 mr-1" />
             Custom
@@ -134,7 +136,7 @@ export function AdditionalCostsSection({
 
       {/* Preset Quick Add Panel */}
       {showPresets && (
-        <div className="grid grid-cols-3 gap-2 p-3 bg-muted/50 rounded-lg border">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 bg-muted/50 rounded-lg border">
           {PRESET_ITEMS.map((preset, idx) => {
             const Icon = ITEM_TYPE_ICONS[preset.itemType];
             return (
@@ -147,7 +149,7 @@ export function AdditionalCostsSection({
                 onClick={() => handleAddPreset(preset)}
               >
                 <Icon className="h-4 w-4 mr-2 text-muted-foreground flex-shrink-0" />
-                <div className="flex flex-col">
+                <div className="flex flex-col min-w-0">
                   <span className="text-xs font-medium truncate">
                     {preset.description}
                   </span>
@@ -165,8 +167,7 @@ export function AdditionalCostsSection({
         <div className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-4 text-center">
           <Package className="h-6 w-6 mx-auto text-muted-foreground/50 mb-1" />
           <p className="text-sm text-muted-foreground">
-            No additional costs added. Use "Quick Add" for common items or
-            "Custom" for manual entry.
+            No additional costs added.
           </p>
         </div>
       ) : (
@@ -176,100 +177,120 @@ export function AdditionalCostsSection({
             return (
               <div
                 key={item.id}
-                className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg"
+                className="flex flex-col gap-2 p-3 bg-muted/50 rounded-lg sm:flex-row sm:items-center"
               >
-                <div className="w-24">
-                  <Select
-                    value={item.itemType}
-                    onValueChange={(v) =>
-                      handleUpdateItem(
-                        item.id,
-                        "itemType",
-                        v as AdditionalCostItem["itemType"]
-                      )
-                    }
+                {/* Mobile: stacked layout, Desktop: row layout */}
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="w-24 shrink-0">
+                    <Select
+                      value={item.itemType}
+                      onValueChange={(v) =>
+                        handleUpdateItem(
+                          item.id,
+                          "itemType",
+                          v as AdditionalCostItem["itemType"]
+                        )
+                      }
+                    >
+                      <SelectTrigger className="h-10 sm:h-9 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(ITEM_TYPE_LABELS).map(([key, label]) => {
+                          const TypeIcon =
+                            ITEM_TYPE_ICONS[key as keyof typeof ITEM_TYPE_ICONS];
+                          return (
+                            <SelectItem key={key} value={key}>
+                              <span className="flex items-center gap-2">
+                                <TypeIcon className="h-3 w-3" />
+                                {label}
+                              </span>
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="flex-1">
+                    <Input
+                      type="text"
+                      value={item.description}
+                      onChange={(e) =>
+                        handleUpdateItem(item.id, "description", e.target.value)
+                      }
+                      className="h-10 sm:h-9"
+                      placeholder="Description..."
+                    />
+                  </div>
+
+                  {/* Delete button - visible on mobile in this row */}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10 sm:hidden text-destructive hover:text-destructive shrink-0"
+                    onClick={() => handleRemoveItem(item.id)}
                   >
-                    <SelectTrigger className="h-9 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(ITEM_TYPE_LABELS).map(([key, label]) => {
-                        const TypeIcon =
-                          ITEM_TYPE_ICONS[key as keyof typeof ITEM_TYPE_ICONS];
-                        return (
-                          <SelectItem key={key} value={key}>
-                            <span className="flex items-center gap-2">
-                              <TypeIcon className="h-3 w-3" />
-                              {label}
-                            </span>
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
 
-                <div className="flex-1">
-                  <Input
-                    type="text"
-                    value={item.description}
-                    onChange={(e) =>
-                      handleUpdateItem(item.id, "description", e.target.value)
-                    }
-                    className="h-9"
-                    placeholder="Description..."
-                  />
-                </div>
+                {/* Qty, Price, Total row */}
+                <div className="flex items-center gap-2 sm:gap-2">
+                  <div className="w-16 sm:w-20 shrink-0">
+                    <Input
+                      type="number"
+                      step="1"
+                      min="1"
+                      inputMode="numeric"
+                      value={item.quantity}
+                      onChange={(e) =>
+                        handleUpdateItem(
+                          item.id,
+                          "quantity",
+                          parseInt(e.target.value) || 1
+                        )
+                      }
+                      className="h-10 sm:h-9 text-center"
+                      placeholder="Qty"
+                    />
+                  </div>
 
-                <div className="w-20">
-                  <Input
-                    type="number"
-                    step="1"
-                    min="1"
-                    value={item.quantity}
-                    onChange={(e) =>
-                      handleUpdateItem(
-                        item.id,
-                        "quantity",
-                        parseInt(e.target.value) || 1
-                      )
-                    }
-                    className="h-9 text-center"
-                    placeholder="Qty"
-                  />
-                </div>
+                  <div className="w-20 sm:w-24 shrink-0">
+                    <Input
+                      type="number"
+                      step="5"
+                      min="0"
+                      inputMode="decimal"
+                      value={item.unitPrice}
+                      onChange={(e) =>
+                        handleUpdateItem(
+                          item.id,
+                          "unitPrice",
+                          parseFloat(e.target.value) || 0
+                        )
+                      }
+                      className="h-10 sm:h-9 text-center"
+                      placeholder="K0"
+                    />
+                  </div>
 
-                <div className="w-24">
-                  <Input
-                    type="number"
-                    step="5"
-                    min="0"
-                    value={item.unitPrice}
-                    onChange={(e) =>
-                      handleUpdateItem(
-                        item.id,
-                        "unitPrice",
-                        parseFloat(e.target.value) || 0
-                      )
-                    }
-                    className="h-9 text-center"
-                    placeholder="K0"
-                  />
-                </div>
+                  <div className="flex-1 text-right font-medium text-sm min-w-[70px]">
+                    K {(item.quantity * item.unitPrice).toFixed(2)}
+                  </div>
 
-                <div className="w-24 text-right font-medium text-sm">
-                  K {(item.quantity * item.unitPrice).toFixed(2)}
+                  {/* Delete button - desktop only */}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 hidden sm:flex text-destructive hover:text-destructive"
+                    onClick={() => handleRemoveItem(item.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
-
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-destructive hover:text-destructive"
-                  onClick={() => handleRemoveItem(item.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
               </div>
             );
           })}

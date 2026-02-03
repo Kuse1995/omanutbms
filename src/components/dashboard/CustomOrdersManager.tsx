@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/hooks/useTenant";
 import { useAuth } from "@/hooks/useAuth";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,8 +19,9 @@ import { OrderToInvoiceModal } from "./OrderToInvoiceModal";
 import { ReceiptModal } from "./ReceiptModal";
 import { InvoiceViewModal } from "./InvoiceViewModal";
 import { AssignedOrdersSection } from "./AssignedOrdersSection";
-import { Scissors, Plus, Search, Edit, Trash2, Loader2, Calendar, User, FileText, CreditCard, Eye, Sparkles, CheckCircle, ArrowRightLeft, PlayCircle } from "lucide-react";
+import { Scissors, Plus, Search, Edit, Trash2, Loader2, Calendar, User, FileText, CreditCard, Eye, Sparkles, CheckCircle, ArrowRightLeft, PlayCircle, MoreVertical } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 import type { Measurements } from "./MeasurementsForm";
 
@@ -83,6 +85,7 @@ export function CustomOrdersManager() {
   const { tenant, tenantUser, loading: tenantLoading } = useTenant();
   const { isAdmin, canEdit: canEditRole, user, role } = useAuth();
   const { currencySymbol } = useBusinessConfig();
+  const isMobile = useIsMobile();
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<CustomOrder[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -316,36 +319,38 @@ export function CustomOrdersManager() {
         <AssignedOrdersSection onContinueOrder={handleContinueOrder} />
       )}
 
-      {/* Status Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-        {["pending", "confirmed", "cutting", "sewing", "fitting", "ready"].map((status) => (
-          <Card
-            key={status}
-            className={`cursor-pointer transition-colors ${statusFilter === status ? "ring-2 ring-primary" : ""}`}
-            onClick={() => setStatusFilter(statusFilter === status ? "all" : status)}
-          >
-            <CardContent className="p-3 text-center">
-              <p className="text-2xl font-bold">{orderCounts[status] || 0}</p>
-              <p className="text-xs text-muted-foreground capitalize">{status}</p>
-            </CardContent>
-          </Card>
-        ))}
+      {/* Status Summary Cards - Horizontal scroll on mobile */}
+      <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+        <div className="flex gap-3 sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 min-w-max sm:min-w-0">
+          {["pending", "confirmed", "cutting", "sewing", "fitting", "ready"].map((status) => (
+            <Card
+              key={status}
+              className={`cursor-pointer transition-colors shrink-0 w-24 sm:w-auto ${statusFilter === status ? "ring-2 ring-primary" : ""}`}
+              onClick={() => setStatusFilter(statusFilter === status ? "all" : status)}
+            >
+              <CardContent className="p-3 text-center">
+                <p className="text-2xl font-bold">{orderCounts[status] || 0}</p>
+                <p className="text-xs text-muted-foreground capitalize">{status}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
 
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+          <div className="flex flex-col gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search orders..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
+                className="pl-9 h-10"
               />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-full sm:w-[180px] h-10">
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent>
@@ -382,7 +387,123 @@ export function CustomOrdersManager() {
                 </Button>
               )}
             </div>
+          ) : isMobile ? (
+            // Mobile: Card-based layout
+            <div className="space-y-3">
+              {filteredOrders.map((order) => {
+                const paymentStatus = getPaymentStatus(order);
+                const quoted = order.quoted_price || order.estimated_cost || 0;
+                const canGenerateInvoice = order.status !== "pending" && order.status !== "cancelled" && !order.invoice_id && quoted > 0;
+                const hasInvoice = !!order.invoice_id;
+                const invoiceBalance = hasInvoice && order.invoices 
+                  ? order.invoices.total_amount - (order.invoices.paid_amount || 0)
+                  : 0;
+
+                return (
+                  <Card key={order.id} className="p-4">
+                    <div className="flex justify-between items-start gap-2 mb-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-sm">{order.order_number}</p>
+                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                          <User className="h-3 w-3" />
+                          <span className="truncate">{order.customers?.name || "Walk-in"}</span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <Badge variant={STATUS_CONFIG[order.status]?.variant || "outline"} className="text-xs">
+                          {STATUS_CONFIG[order.status]?.label || order.status}
+                        </Badge>
+                        {order.handoff_status && HANDOFF_STATUS_CONFIG[order.handoff_status] && (
+                          <Badge variant="outline" className={`text-xs ${HANDOFF_STATUS_CONFIG[order.handoff_status].color}`}>
+                            <ArrowRightLeft className="h-2 w-2 mr-1" />
+                            {HANDOFF_STATUS_CONFIG[order.handoff_status].label}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-between items-center text-sm mb-3">
+                      <div>
+                        <span className="capitalize">{order.design_type || "Custom"}</span>
+                        {order.fabric && <span className="text-muted-foreground ml-1">• {order.fabric}</span>}
+                      </div>
+                      <span className="font-medium">
+                        {quoted > 0 ? `${currencySymbol}${quoted.toLocaleString()}` : "-"}
+                      </span>
+                    </div>
+
+                    {(order.collection_date || order.due_date) && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground mb-3">
+                        <Calendar className="h-3 w-3" />
+                        {format(new Date(order.collection_date || order.due_date!), "MMM d, yyyy")}
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-2 border-t">
+                      {paymentStatus && (
+                        <Badge 
+                          variant={paymentStatus.variant}
+                          className={`text-xs ${paymentStatus.status === "paid" ? "bg-green-100 text-green-800" : ""}`}
+                        >
+                          {paymentStatus.status === "paid" && <CheckCircle className="h-3 w-3 mr-1" />}
+                          {paymentStatus.label}
+                        </Badge>
+                      )}
+                      
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 ml-auto">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {canEdit && (
+                            <DropdownMenuItem onClick={() => handleEdit(order)}>
+                              <Edit className="h-4 w-4 mr-2" />
+                              Edit
+                            </DropdownMenuItem>
+                          )}
+                          {canGenerateInvoice && canEdit && (
+                            <DropdownMenuItem onClick={() => handleGenerateInvoice(order)}>
+                              <FileText className="h-4 w-4 mr-2" />
+                              Generate Invoice
+                            </DropdownMenuItem>
+                          )}
+                          {hasInvoice && (
+                            <>
+                              <DropdownMenuItem onClick={() => handleViewInvoice(order)}>
+                                <Eye className="h-4 w-4 mr-2" />
+                                View Invoice
+                              </DropdownMenuItem>
+                              {invoiceBalance > 0 && canEdit && (
+                                <DropdownMenuItem onClick={() => handleRecordPayment(order)}>
+                                  <CreditCard className="h-4 w-4 mr-2" />
+                                  Record Payment
+                                </DropdownMenuItem>
+                              )}
+                            </>
+                          )}
+                          {isAdmin && (
+                            <DropdownMenuItem 
+                              onClick={() => {
+                                setOrderToDelete(order);
+                                setDeleteDialogOpen(true);
+                              }}
+                              className="text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
           ) : (
+            // Desktop: Table layout
             <div className="rounded-md border">
               <Table>
                 <TableHeader>

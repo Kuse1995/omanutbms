@@ -110,38 +110,40 @@ export function CustomMeasurementsSection({
           {customMeasurements.map((measurement) => (
             <div
               key={measurement.id}
-              className="flex items-center gap-2 p-2 bg-muted/30 rounded-md"
+              className="flex flex-col gap-2 p-3 bg-muted/30 rounded-md sm:flex-row sm:items-center sm:p-2"
             >
               <Input
                 type="text"
                 placeholder="Label (e.g., Back Hip)"
                 value={measurement.label}
                 onChange={(e) => handleLabelChange(measurement.id, e.target.value)}
-                className="flex-1 h-8 text-sm"
+                className="flex-1 h-10 sm:h-8 text-sm"
               />
-              <div className="relative w-24">
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="e.g. 45 or 22/2"
-                  value={getDisplayValue(measurement)}
-                  onChange={(e) => handleValueChange(measurement.id, e.target.value)}
-                  onBlur={() => handleValueBlur(measurement.id)}
-                  className="h-8 text-sm pr-8"
-                />
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                  {unit}
-                </span>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1 sm:w-24 sm:flex-none">
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="e.g. 45 or 22/2"
+                    value={getDisplayValue(measurement)}
+                    onChange={(e) => handleValueChange(measurement.id, e.target.value)}
+                    onBlur={() => handleValueBlur(measurement.id)}
+                    className="h-10 sm:h-8 text-sm pr-8"
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                    {unit}
+                  </span>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleRemoveMeasurement(measurement.id)}
+                  className="h-10 w-10 sm:h-8 sm:w-8 p-0 text-muted-foreground hover:text-destructive shrink-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => handleRemoveMeasurement(measurement.id)}
-                className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-              >
-                <X className="h-4 w-4" />
-              </Button>
             </div>
           ))}
         </div>

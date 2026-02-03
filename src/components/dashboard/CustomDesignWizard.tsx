@@ -894,7 +894,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
       case 0: // Client Info
         return (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="col-span-2">
                 <Label htmlFor="customerName">Customer Name *</Label>
                 <Input
@@ -1301,7 +1301,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
             {formData.generatedImages.length > 0 && (
               <div>
                 <p className="font-medium text-muted-foreground mb-2">AI Generated Preview</p>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {formData.generatedImages.map((img, index) => (
                     <div key={index} className="aspect-[3/4] rounded overflow-hidden border">
                       <img 
@@ -1321,7 +1321,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
                 <Calculator className="h-4 w-4" />
                 Payment Summary
               </div>
-              <div className="grid grid-cols-4 gap-4 text-sm">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                 <div>
                   <p className="text-muted-foreground">Materials</p>
                   <p className="font-medium">K {finalMaterialCost.toFixed(2)}</p>
@@ -1345,7 +1345,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
 
             {/* Deposit & Due Date */}
             <div className="border-t pt-4 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="depositAmount">Deposit Amount (K)</Label>
                   <Input
