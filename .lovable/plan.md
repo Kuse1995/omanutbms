@@ -1,175 +1,206 @@
 
-# Itemized Custom Order Tracking for Quotations & Invoices
 
-## Problem Summary
+# Update Mandatory Measurements Based on Dodo Wear Client Form
 
-Currently, when a custom order is created:
-1. **Materials ARE tracked** in `job_material_usage` table (linked to inventory)
-2. **Labor IS tracked** in `custom_orders` (hours, rate, skill level)
-3. **BUT quotations/invoices show only 1 summarized line item** like "Suit - CO2026-0001" for the total price
+## Overview
 
-This means the customer and business don't see the itemized breakdown of:
-- Individual materials used (fabric, buttons, lining, etc.)
-- Labor charges
-- Packaging costs
-- Company margin
+Update the `GarmentMeasurementsForm.tsx` component to use the exact measurement fields from the Dodo Wear Client Form document, making them the mandatory standard fields while keeping the custom measurements section for any additional measurements.
 
 ---
 
-## Solution Overview
+## Measurements Extracted from Dodo Wear Form
 
-Modify the quotation/invoice generation to create **multiple line items** that itemize each cost component, while keeping the single-total approach as an option for simpler orders.
+Based on the uploaded document, here are the measurements used by House of Dodo for each garment type:
 
-### What Will Be Itemized
+### DRESS MEASUREMENTS
+| Abbrev | Full Name |
+|--------|-----------|
+| FL | Full Length |
+| SH | Shoulder |
+| Hip | Hip |
+| UB | Under Bust |
+| HIP | Hip (duplicate in form) |
+| Waist | Waist |
 
-| Category | Source | Line Item Type |
-|----------|--------|----------------|
-| **Materials** | `formData.materials[]` from MaterialSelector | `product` or `item` |
-| **Labor** | Hours × Hourly Rate from LaborEstimator | `service` |
-| **Margin/Overhead** | Calculated percentage | `service` |
-| **Custom Add-ons** | New section for packaging, accessories, etc. | `product` or `service` |
+### TROUSERS MEASUREMENTS
+| Abbrev | Full Name |
+|--------|-----------|
+| Waist | Waist |
+| Wideness | Wideness/Width |
+| UB | Upper Body/Hip |
+| Crotch | Crotch/Rise |
+| FL | Full Length |
+| SH | Shoulder/Short Height |
+| In Leg | Inside Leg |
+
+### TOP MEASUREMENTS
+| Abbrev | Full Name |
+|--------|-----------|
+| FL | Full Length |
+| In Leg | Inside Leg |
+| Bust | Bust |
+| Waist | Waist |
+| SL | Sleeve Length |
+| Cuff | Cuff |
+| Join | Join/Armhole |
+
+### SKIRT MEASUREMENTS
+| Abbrev | Full Name |
+|--------|-----------|
+| FL | Full Length |
+| SH | Short/Hip |
+| Knee | Knee Length |
+| Hip | Hip |
+| ND | Knee Down |
+| NW Join | Narrow Width Join |
+
+### SHIRT MEASUREMENTS
+| Abbrev | Full Name |
+|--------|-----------|
+| CH | Chest |
+| Waist | Waist |
+| FL | Full Length |
+| SH | Shoulder |
+| Hip | Hip |
+| SL | Sleeve Length |
+| NW | Narrow Width |
+| Join | Join |
+| Collar | Collar |
+
+### JACKET MEASUREMENTS
+| Abbrev | Full Name |
+|--------|-----------|
+| SH | Shoulder |
+| Bust | Bust |
+| Hip | Hip |
+| SL | Sleeve Length |
+| Join | Join |
+| FL | Full Length |
+| UB | Under Bust |
+| Waist | Waist |
+| Slit | Slit |
+
+### QUALITY CONTROL (Universal Reference)
+These are the comprehensive measurements checked during QC:
+- SH, Bust, SL, W (Waist), Hip, Cuff, Join, ND, CH (Chest)
+- Under Bust, Thigh, Knee, Bottom, Crotch, Inleg, Neck, Arm Height
 
 ---
 
-## Implementation Plan
+## Implementation Changes
 
-### 1. Add Custom Order Add-ons Section
+### 1. Simplify to Two Modes
 
-Create a new section in the Pricing step (Step 6) for additional costs like:
-- Packaging (gift box, garment bag)
-- Accessories (extra buttons, care labels)
-- Express production fee
-- Alterations buffer
+**Standard Mode (Default)** - Dodo Wear mandatory fields only
+**Custom Mode** - Add-your-own fields for edge cases
+
+This removes the complex numbered 17-point system and the 6-tab garment categories, replacing them with a single unified form based on the Dodo Wear standard.
+
+### 2. Create Unified Dodo Wear Measurement Set
+
+Consolidate the measurements into a single comprehensive list that covers all garment types:
+
+```typescript
+const DODO_WEAR_MEASUREMENTS: MeasurementField[] = [
+  // Upper Body
+  { key: 'shoulder', abbrev: 'SH', label: 'Shoulder', tooltip: 'Shoulder width across back' },
+  { key: 'bust', abbrev: 'Bust', label: 'Bust', tooltip: 'Fullest part of bust/chest' },
+  { key: 'chest', abbrev: 'CH', label: 'Chest', tooltip: 'Chest circumference' },
+  { key: 'under_bust', abbrev: 'UB', label: 'Under Bust', tooltip: 'Measurement just below bust line' },
+  { key: 'waist', abbrev: 'Waist', label: 'Waist', tooltip: 'Natural waistline' },
+  { key: 'hip', abbrev: 'Hip', label: 'Hip', tooltip: 'Widest part of hips' },
+  
+  // Arms
+  { key: 'sleeve_length', abbrev: 'SL', label: 'Sleeve Length', tooltip: 'Shoulder to wrist' },
+  { key: 'cuff', abbrev: 'Cuff', label: 'Cuff', tooltip: 'Wrist circumference' },
+  { key: 'join', abbrev: 'Join', label: 'Join', tooltip: 'Armhole to waist join point' },
+  { key: 'arm_height', abbrev: 'Arm H', label: 'Arm Height', tooltip: 'Armhole depth' },
+  
+  // Collar/Neck
+  { key: 'collar', abbrev: 'Collar', label: 'Collar', tooltip: 'Neck/collar circumference' },
+  { key: 'neck', abbrev: 'Neck', label: 'Neck', tooltip: 'Neck circumference' },
+  
+  // Lengths
+  { key: 'full_length', abbrev: 'FL', label: 'Full Length', tooltip: 'Top to hem length' },
+  { key: 'knee_down', abbrev: 'ND', label: 'Knee Down', tooltip: 'Knee to ankle length' },
+  { key: 'knee', abbrev: 'Knee', label: 'Knee', tooltip: 'Knee circumference' },
+  
+  // Lower Body
+  { key: 'wideness', abbrev: 'Wide', label: 'Wideness', tooltip: 'Thigh width preference' },
+  { key: 'crotch', abbrev: 'Crotch', label: 'Crotch', tooltip: 'Crotch depth/rise' },
+  { key: 'in_leg', abbrev: 'In Leg', label: 'In Leg', tooltip: 'Inside leg measurement' },
+  { key: 'thigh', abbrev: 'Thigh', label: 'Thigh', tooltip: 'Thigh circumference' },
+  { key: 'bottom', abbrev: 'Bottom', label: 'Bottom', tooltip: 'Trouser leg opening' },
+  
+  // Jacket Specific
+  { key: 'slit', abbrev: 'Slit', label: 'Slit', tooltip: 'Back slit length' },
+  { key: 'narrow_width', abbrev: 'NW', label: 'Narrow Width', tooltip: 'Narrow part width' },
+];
+```
+
+### 3. Update Form Layout
+
+Replace the complex tabbed interface with a clean, full-width grid showing all Dodo Wear measurements in logical groups:
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│  MATERIALS FROM WAREHOUSE              [AI Estimate] [+ Add]│
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ Italian Wool Fabric    2.5m @ K150/m         = K375.00 │ │
-│  │ Silk Lining            1.8m @ K45/m          = K81.00  │ │
-│  │ Buttons (Pearl)        6 pcs @ K25/pc        = K150.00 │ │
-│  └────────────────────────────────────────────────────────┘ │
-│                                    Material Total: K606.00  │
-│                                                             │
-│  LABOR ESTIMATION                                           │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ Senior Tailor × 12 hours @ K75/hr            = K900.00 │ │
-│  └────────────────────────────────────────────────────────┘ │
-│                                                             │
-│  ADDITIONAL COSTS (Packaging, Accessories, etc.)   [+ Add] │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ [Garment Bag - Premium      ]     1 × K50    = K50.00  │ │
-│  │ [Express Production Fee     ]     1 × K200   = K200.00 │ │
-│  └────────────────────────────────────────────────────────┘ │
-│                                                             │
-│  PRICE BREAKDOWN                                            │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ Materials:         K606.00                             │ │
-│  │ Labor:            K900.00                              │ │
-│  │ Additional:       K250.00                              │ │
-│  │ Base Cost:      K1,756.00                              │ │
-│  │ Margin (30%):    +K526.80                              │ │
-│  │ ─────────────────────────────────                      │ │
-│  │ QUOTED PRICE:  K2,282.80                               │ │
-│  └────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### 2. Update Quotation Generation Logic
-
-Modify `CustomDesignWizard.tsx` to create itemized line items instead of a single summarized line:
-
-**Current (Single Line):**
-```typescript
-await supabase.from('quotation_items').insert({
-  description: "Suit - CO2026-0001",
-  quantity: 1,
-  unit_price: 2282.80,
-  amount: 2282.80,
-});
-```
-
-**New (Multiple Lines):**
-```typescript
-const quotationItems = [];
-
-// 1. Material line items
-for (const material of formData.materials) {
-  quotationItems.push({
-    quotation_id: quotation.id,
-    tenant_id: tenantId,
-    description: material.name,
-    quantity: material.quantity,
-    unit_price: material.unitCost,
-    amount: material.quantity * material.unitCost,
-    product_id: material.inventoryId, // Link to inventory
-  });
-}
-
-// 2. Labor line item
-if (formData.laborHours > 0) {
-  quotationItems.push({
-    quotation_id: quotation.id,
-    tenant_id: tenantId,
-    description: `Tailoring Labor (${formData.skillLevel} Tailor × ${formData.laborHours}hrs)`,
-    quantity: formData.laborHours,
-    unit_price: formData.hourlyRate,
-    amount: formData.laborHours * formData.hourlyRate,
-  });
-}
-
-// 3. Additional costs (packaging, express fee, etc.)
-for (const addon of formData.additionalCosts) {
-  quotationItems.push({
-    quotation_id: quotation.id,
-    tenant_id: tenantId,
-    description: addon.description,
-    quantity: addon.quantity,
-    unit_price: addon.unitPrice,
-    amount: addon.quantity * addon.unitPrice,
-  });
-}
-
-// 4. Margin as a separate line (optional - or can be hidden)
-if (marginAmount > 0) {
-  quotationItems.push({
-    quotation_id: quotation.id,
-    tenant_id: tenantId,
-    description: "Service & Overhead",
-    quantity: 1,
-    unit_price: marginAmount,
-    amount: marginAmount,
-  });
-}
-
-await supabase.from('quotation_items').insert(quotationItems);
-```
-
-### 3. Update Invoice Generation Logic
-
-Apply the same itemization to `OrderToInvoiceModal.tsx`:
-
-- Fetch stored materials from `job_material_usage` (already linked to inventory)
-- Fetch labor from `custom_orders` (hours, rate)
-- Create individual `invoice_items` for each component
-
-### 4. Store Additional Costs in custom_order_items
-
-The existing `custom_order_items` table is perfect for storing the additional costs. Currently unused, we'll populate it with:
-- Packaging items
-- Express fees
-- Accessories
-- Any custom add-ons
-
-This creates a complete audit trail for every component of the order.
-
-### 5. Add "item_type" Column to quotation_items
-
-Add an `item_type` column to distinguish between materials, labor, and fees:
-
-```sql
-ALTER TABLE quotation_items 
-ADD COLUMN IF NOT EXISTS item_type TEXT DEFAULT 'product';
+┌─────────────────────────────────────────────────────────────────────────┐
+│  Unit: [cm] [in]                               [22/22 filled] ✓ Complete│
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  UPPER BODY                                                             │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐│
+│  │ SH           │  │ Bust         │  │ CH           │  │ UB           ││
+│  │ Shoulder     │  │              │  │ Chest        │  │ Under Bust   ││
+│  │ [45.5    ]cm │  │ [92      ]cm │  │ [88      ]cm │  │ [78      ]cm ││
+│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘│
+│                                                                         │
+│  ┌──────────────┐  ┌──────────────┐                                    │
+│  │ Waist        │  │ Hip          │                                    │
+│  │              │  │              │                                    │
+│  │ [68      ]cm │  │ [96      ]cm │                                    │
+│  └──────────────┘  └──────────────┘                                    │
+│                                                                         │
+│  ARMS & COLLAR                                                          │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐│
+│  │ SL           │  │ Cuff         │  │ Join         │  │ Arm H        ││
+│  │ Sleeve Length│  │              │  │              │  │ Arm Height   ││
+│  │ [60      ]cm │  │ [18      ]cm │  │ [42      ]cm │  │ [24      ]cm ││
+│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘│
+│                                                                         │
+│  ┌──────────────┐  ┌──────────────┐                                    │
+│  │ Collar       │  │ Neck         │                                    │
+│  │              │  │              │                                    │
+│  │ [38      ]cm │  │ [36      ]cm │                                    │
+│  └──────────────┘  └──────────────┘                                    │
+│                                                                         │
+│  LENGTHS                                                                │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                  │
+│  │ FL           │  │ ND           │  │ Knee         │                  │
+│  │ Full Length  │  │ Knee Down    │  │              │                  │
+│  │ [115     ]cm │  │ [52      ]cm │  │ [38      ]cm │                  │
+│  └──────────────┘  └──────────────┘  └──────────────┘                  │
+│                                                                         │
+│  LOWER BODY                                                             │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐│
+│  │ Wide         │  │ Crotch       │  │ In Leg       │  │ Thigh        ││
+│  │ Wideness     │  │              │  │              │  │              ││
+│  │ [24      ]cm │  │ [28      ]cm │  │ [82      ]cm │  │ [56      ]cm ││
+│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘│
+│                                                                         │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                  │
+│  │ Bottom       │  │ Slit         │  │ NW           │                  │
+│  │              │  │              │  │ Narrow Width │                  │
+│  │ [20      ]cm │  │ [15      ]cm │  │ [18      ]cm │                  │
+│  └──────────────┘  └──────────────┘  └──────────────┘                  │
+│                                                                         │
+├─────────────────────────────────────────────────────────────────────────┤
+│  CUSTOM MEASUREMENTS                                           [+ Add] │
+│  ┌─────────────────────────────────────────────────────────────────────┐│
+│  │ (Add any additional measurements not listed above)                  ││
+│  │ [Back Hip          ] [45.5    ]cm  [×]                             ││
+│  │ [Front Rise        ] [28      ]cm  [×]                             ││
+│  └─────────────────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -180,74 +211,92 @@ ADD COLUMN IF NOT EXISTS item_type TEXT DEFAULT 'product';
 
 | File | Changes |
 |------|---------|
-| `src/components/dashboard/CustomDesignWizard.tsx` | Add additionalCosts state, update quotation generation to create itemized lines |
-| `src/components/dashboard/OrderToInvoiceModal.tsx` | Fetch materials from `job_material_usage`, create itemized invoice lines |
-| `src/components/dashboard/PricingBreakdown.tsx` | Update to show additional costs section |
-| **NEW** `src/components/dashboard/AdditionalCostsSection.tsx` | New component for packaging, fees, accessories |
+| `src/components/dashboard/GarmentMeasurementsForm.tsx` | Replace NUMBERED_MEASUREMENTS with DODO_WEAR_MEASUREMENTS, reorganize into logical groups, simplify UI |
+| `src/lib/numbered-measurements.ts` | Rename to `dodo-wear-measurements.ts` and update exports |
 
-### Database Migration
-
-Add `item_type` column to `quotation_items` for categorization:
-
-```sql
-ALTER TABLE quotation_items 
-ADD COLUMN IF NOT EXISTS item_type TEXT DEFAULT 'product';
-
-COMMENT ON COLUMN quotation_items.item_type IS 
-  'Categorizes line items: product, service, material, labor, fee';
-```
-
-### Form State Changes
-
-Add to `formData` in CustomDesignWizard:
+### New Measurement Interface
 
 ```typescript
-additionalCosts: [] as { 
-  id: string; 
-  description: string; 
-  quantity: number; 
-  unitPrice: number;
-  itemType: 'packaging' | 'fee' | 'accessory' | 'other';
-}[]
+interface Measurements {
+  // Upper Body
+  shoulder?: number;
+  bust?: number;
+  chest?: number;
+  under_bust?: number;
+  waist?: number;
+  hip?: number;
+  
+  // Arms & Collar
+  sleeve_length?: number;
+  cuff?: number;
+  join?: number;
+  arm_height?: number;
+  collar?: number;
+  neck?: number;
+  
+  // Lengths
+  full_length?: number;
+  knee_down?: number;
+  knee?: number;
+  
+  // Lower Body
+  wideness?: number;
+  crotch?: number;
+  in_leg?: number;
+  thigh?: number;
+  bottom?: number;
+  
+  // Jacket Specific
+  slit?: number;
+  narrow_width?: number;
+  
+  // Metadata
+  _unit?: 'cm' | 'in';
+  custom_measurements?: CustomMeasurement[];
+}
+```
+
+### Measurement Groups for UI Organization
+
+```typescript
+const MEASUREMENT_GROUPS = [
+  {
+    id: 'upper_body',
+    label: 'Upper Body',
+    fields: ['shoulder', 'bust', 'chest', 'under_bust', 'waist', 'hip']
+  },
+  {
+    id: 'arms_collar',
+    label: 'Arms & Collar',
+    fields: ['sleeve_length', 'cuff', 'join', 'arm_height', 'collar', 'neck']
+  },
+  {
+    id: 'lengths',
+    label: 'Lengths',
+    fields: ['full_length', 'knee_down', 'knee']
+  },
+  {
+    id: 'lower_body',
+    label: 'Lower Body',
+    fields: ['wideness', 'crotch', 'in_leg', 'thigh', 'bottom', 'slit', 'narrow_width']
+  }
+];
 ```
 
 ---
 
 ## Benefits
 
-1. **Full Transparency** - Customers see exactly what they're paying for
-2. **Accurate Costing** - Business can track material usage per order
-3. **Inventory Linkage** - Materials deducted from correct inventory items
-4. **Audit Trail** - Complete breakdown stored in `custom_order_items` and `job_material_usage`
-5. **Flexible Pricing** - Easy to add packaging, express fees, or accessories
-6. **Professional Quotes** - Itemized quotations look more professional
+1. **Matches Existing Workflow** - Uses the exact same measurements from the physical Dodo Wear client form
+2. **Simpler UI** - Removes complex tabbed interface and 17-point numbered system
+3. **Grouped Logically** - Organized by body section for intuitive data entry
+4. **Still Flexible** - Custom measurements section preserved for edge cases
+5. **Fraction Support** - Keeps the existing fraction input (e.g., "45/2")
+6. **Unit Toggle** - Preserves cm/in toggle for international clients
 
 ---
 
-## Quotation/Invoice Preview
+## Migration Considerations
 
-After implementation, a generated quotation will show:
+The existing measurement keys in the database will be preserved where they overlap. New keys will be added. Old garment-specific prefixed keys (like `dress_fl`, `trousers_waist`) can remain supported for backward compatibility with existing orders.
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│  QUOTATION #Q2026-0042                                      │
-│  Customer: John Banda                                       │
-│  Order: CO2026-0008 (Suit - 2 Piece)                       │
-├─────────────────────────────────────────────────────────────┤
-│  DESCRIPTION                    QTY    UNIT     AMOUNT     │
-│  ─────────────────────────────────────────────────────────  │
-│  Italian Wool Fabric (Black)    2.5m   K150.00   K375.00   │
-│  Silk Lining                    1.8m   K45.00    K81.00    │
-│  Pearl Buttons                  6 pcs  K25.00    K150.00   │
-│  Tailoring Labor (Senior)       12 hrs K75.00    K900.00   │
-│  Premium Garment Bag            1      K50.00    K50.00    │
-│  Express Production Fee         1      K200.00   K200.00   │
-│  Service & Overhead             1      K526.80   K526.80   │
-│  ─────────────────────────────────────────────────────────  │
-│                               SUBTOTAL:        K2,282.80   │
-│                               TAX (0%):            K0.00   │
-│                               TOTAL:           K2,282.80   │
-│                               DEPOSIT PAID:    (K500.00)   │
-│                               BALANCE DUE:     K1,782.80   │
-└─────────────────────────────────────────────────────────────┘
-```
