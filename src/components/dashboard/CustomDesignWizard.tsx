@@ -552,6 +552,57 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
         if (error) throw error;
         savedOrder = data;
 
+        // Create a linked quotation record for drafts with quoted price
+        const materialCostForQuote = formData.materials.reduce(
+          (sum, m) => sum + m.quantity * m.unitCost, 0
+        );
+        const laborCostForQuote = formData.laborHours * formData.hourlyRate;
+        const { quotedPrice: draftQuotePrice } = calculateQuote(materialCostForQuote, laborCostForQuote, formData.marginPercentage);
+
+        if (savedOrder && draftQuotePrice > 0 && !existingOrderData?.quotation_id) {
+          const validUntil = formData.collectionDate 
+            ? formData.collectionDate 
+            : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+          const { data: quotation, error: quotationError } = await (supabase
+            .from('quotations') as any)
+            .insert({
+              tenant_id: tenantId,
+              client_name: formData.customerName,
+              client_email: formData.customerEmail || null,
+              client_phone: formData.customerPhone || null,
+              quotation_date: new Date().toISOString().split('T')[0],
+              valid_until: validUntil,
+              status: 'draft',
+              subtotal: draftQuotePrice,
+              tax_rate: 0,
+              tax_amount: 0,
+              total_amount: draftQuotePrice,
+              notes: `Draft Custom Order: ${savedOrder.order_number} - ${formData.designType || 'Custom Design'}${formData.fabric ? ` (${formData.fabric})` : ''}`,
+              created_by: user?.id || null,
+            })
+            .select('id')
+            .single();
+
+          if (!quotationError && quotation) {
+            await (supabase
+              .from('custom_orders') as any)
+              .update({ quotation_id: quotation.id })
+              .eq('id', savedOrder.id);
+
+            await (supabase
+              .from('quotation_items') as any)
+              .insert({
+                quotation_id: quotation.id,
+                tenant_id: tenantId,
+                description: `${formData.designType || 'Custom Design'} - ${savedOrder.order_number}${formData.fabric ? ` (${formData.fabric})` : ''}`,
+                quantity: 1,
+                unit_price: draftQuotePrice,
+                amount: draftQuotePrice,
+              });
+          }
+        }
+
         // If handoff is enabled, create notification for the assigned ops manager
         if (handoffConfig.enabled && handoffConfig.assignedUserId && savedOrder) {
           const { data: officerProfile } = await supabase
@@ -702,10 +753,58 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
       const { data: orderData, error } = await supabase
         .from('custom_orders')
         .insert(insertData as any)
-        .select('id')
+        .select('id, order_number')
         .single();
 
       if (error) throw error;
+
+      // Create a linked quotation record so it appears in Quotations section
+      if (orderData && quotedPrice > 0) {
+        // Calculate valid_until as 30 days from now or collection date
+        const validUntil = formData.collectionDate 
+          ? formData.collectionDate 
+          : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+        const { data: quotation, error: quotationError } = await (supabase
+          .from('quotations') as any)
+          .insert({
+            tenant_id: tenantId,
+            client_name: formData.customerName,
+            client_email: formData.customerEmail || null,
+            client_phone: formData.customerPhone || null,
+            quotation_date: new Date().toISOString().split('T')[0],
+            valid_until: validUntil,
+            status: 'sent',
+            subtotal: quotedPrice,
+            tax_rate: 0,
+            tax_amount: 0,
+            total_amount: quotedPrice,
+            notes: `Custom Order: ${orderData.order_number} - ${formData.designType}${formData.fabric ? ` (${formData.fabric})` : ''}`,
+            created_by: user?.id || null,
+          })
+          .select('id')
+          .single();
+
+        if (!quotationError && quotation) {
+          // Link quotation to custom order
+          await (supabase
+            .from('custom_orders') as any)
+            .update({ quotation_id: quotation.id })
+            .eq('id', orderData.id);
+
+          // Create quotation item
+          await (supabase
+            .from('quotation_items') as any)
+            .insert({
+              quotation_id: quotation.id,
+              tenant_id: tenantId,
+              description: `${formData.designType} - ${orderData.order_number}${formData.fabric ? ` (${formData.fabric})` : ''}`,
+              quantity: 1,
+              unit_price: quotedPrice,
+              amount: quotedPrice,
+            });
+        }
+      }
 
       // Save material usage records
       if (orderData && formData.materials.length > 0) {
