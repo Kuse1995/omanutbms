@@ -99,7 +99,7 @@ export function CustomersManager() {
   };
 
   const countMeasurements = (measurements: Measurements): number => {
-    return Object.values(measurements).filter(v => v !== undefined && v !== null && v > 0).length;
+    return Object.values(measurements).filter(v => typeof v === 'number' && v > 0).length;
   };
 
   const filteredCustomers = customers.filter(
