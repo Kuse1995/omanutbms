@@ -1,228 +1,177 @@
 
-# Enhanced Measurement Mannequin & Custom Order UX Improvements
+
+# Simplify Detailed Measurements: Remove Diagram & Add Custom Inputs
 
 ## Overview
 
-Based on your reference image and feedback, I'll implement two major improvements:
-
-1. **Redesigned Measurement Mannequin**: Transform the current abstract SVG regions into a numbered reference diagram matching your vision - with clear numbered points on the body figure that correspond to a numbered list of measurements
-2. **Fixed Scrolling Issue**: Prevent the background from scrolling when the modal content is scrolled
-
----
-
-## Current Issues
-
-### Issue 1: Mannequin Design
-The current SVGs use abstract ellipse regions that highlight on hover. Your reference image shows a cleaner approach:
-- A full-body fashion illustration with clean lines
-- Numbered measurement points (1-17) on the figure
-- A corresponding numbered list on the left side
-- Front and back view to show all measurement locations
-
-### Issue 2: Background Scrolling
-The `CustomDesignWizard` uses a fixed overlay with `overflow-y-auto` on the content area. However, scroll events may be propagating to the body, causing the background page to scroll when the user scrolls within the modal.
+Based on your feedback, I'll:
+1. **Remove the mannequin diagram** from detailed measurements mode (it's not feasible right now)
+2. **Add fraction/slash input support** - allow entering values like "45/2" or "22.5" 
+3. **Add custom measurement inputs** - allow users to add their own measurement fields
 
 ---
 
-## Solution Design
+## Current State
 
-### Part 1: Redesigned Mannequin SVGs
+The `GarmentMeasurementsForm.tsx` currently shows:
+- Left side: Numbered measurement list with inputs (1-17)
+- Right side: Two mannequin SVG diagrams (front/back view) with interactive highlighting
 
-Create a new mannequin design that matches your reference:
+The mannequin takes up roughly half the screen and requires the `NumberedBodySVG` component and related logic.
 
-```text
-┌─────────────────────────────────────────────────────┐
-│                                                     │
-│   1. Neck         ───────     ┌─○─┐                │
-│   2. Across Front ─────────   │ 1 │                │
-│   3. Bust         ─────────   ├─2─┼──3──┐          │
-│   4. Under Bust   ─────────   │ 4 │     │          │
-│   5. Waist Circ.  ─────────   ├───┤  [Front View]  │
-│   6. Hip Circ.    ─────────   │ 5 │                │
-│   7. Thigh Circ.  ─────────   ├─6─┤                │
-│   8. Upper Arm    ─────────   │ 7 │                │
-│   9. Elbow Circ.  ─────────   │   │                │
-│  10. Wrist Circ.  ─────────   │ 8 │                │
-│  11. Shoulder to Waist ────   │   │                │
-│  12. Shoulder to Floor ────   │   │                │
-│  ...                          └───┘                │
-│                                                     │
-└─────────────────────────────────────────────────────┘
-```
+---
 
-**Design Specifications:**
-- Clean line-art figure (front + back view side by side)
-- Numbered indicators at each measurement point
-- Leader lines connecting numbers to body locations
-- Pink/primary color highlights for active measurements
-- Measurement list on the left with corresponding numbers
+## Planned Changes
 
-### Part 2: Fix Modal Scroll Containment
+### 1. Remove Mannequin Diagram Section
 
-Add CSS properties to prevent scroll propagation:
+Remove the right-side panel containing:
+- The `NumberedBodySVG` components (front/back views)
+- The mobile collapsible diagram
+- The instruction card that appears when hovering
 
-```css
-/* On the modal overlay */
-.modal-overlay {
-  overscroll-behavior: contain;
-  touch-action: none;
-}
+**Keep:**
+- The numbered measurement list (cleaner, full-width layout)
+- The instruction text (show inline with each field or as a tooltip)
 
-/* On the scrollable content */
-.modal-content {
-  overscroll-behavior: contain;
-}
-```
+### 2. Add Fraction/Slash Input Support
 
-Also add `body` scroll lock when modal is open:
+Allow users to enter measurements using fractions:
+- Input "45/2" → automatically converts to 22.5
+- Input "22 1/2" → automatically converts to 22.5
+- Input "22.5" → works as normal
+
 ```typescript
-useEffect(() => {
-  if (open) {
-    document.body.style.overflow = 'hidden';
+// Parse fraction input
+function parseFractionInput(value: string): number | undefined {
+  if (!value.trim()) return undefined;
+  
+  // Handle "22 1/2" format (mixed number)
+  const mixedMatch = value.match(/^(\d+)\s+(\d+)\/(\d+)$/);
+  if (mixedMatch) {
+    const whole = parseInt(mixedMatch[1]);
+    const num = parseInt(mixedMatch[2]);
+    const denom = parseInt(mixedMatch[3]);
+    return whole + (num / denom);
   }
-  return () => {
-    document.body.style.overflow = '';
-  };
-}, [open]);
+  
+  // Handle "45/2" format (simple fraction)
+  const fractionMatch = value.match(/^(\d+)\/(\d+)$/);
+  if (fractionMatch) {
+    return parseInt(fractionMatch[1]) / parseInt(fractionMatch[2]);
+  }
+  
+  // Handle decimal
+  const num = parseFloat(value);
+  return isNaN(num) ? undefined : num;
+}
 ```
 
----
+### 3. Add Custom Measurement Fields
 
-## Implementation Details
-
-### Phase 1: New Measurement Diagram Component
-
-Create a new `NumberedMannequin` component with:
-
-| Feature | Description |
-|---------|-------------|
-| Front/Back Views | Show both front and back body views side by side |
-| Numbered Points | 1-17 (or more) numbered measurement locations |
-| Active Highlighting | When user focuses an input, highlight that number |
-| Measurement List | Numbered list synced with diagram |
-| Leader Lines | Connect numbers to body points |
-
-**Measurement Points (matching your reference):**
-1. Neck
-2. Across Front
-3. Bust (Fullest part)
-4. Under Bust
-5. Waist Circumference
-6. Hip Circumference (Fullest part)
-7. Thigh Circumference (Fullest part)
-8. Upper Arm Circumference (Fullest part)
-9. Elbow Circumference
-10. Wrist Circumference
-11. Shoulder to Waist
-12. Shoulder to Floor
-13. Shoulder to Shoulder
-14. Back Neck to Waist
-15. Across Back
-16. Inner Arm Length (Armhole to wrist)
-17. Ankle
-
-### Phase 2: Update Measurement Form Layout
-
-Redesign `GarmentMeasurementsForm.tsx`:
+Add a section at the bottom for custom measurements:
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│  [Basic/Detailed Toggle]              [Unit: cm | in]       │
-├─────────────────────────────────────────────────────────────┤
+│  STANDARD MEASUREMENTS                                       │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │ 1. Neck                    [    45    ] cm            │ │
+│  │ 2. Across Front            [    38    ] cm            │ │
+│  │ 3. Bust                    [   92.5   ] cm            │ │
+│  │ ...                                                    │ │
+│  └────────────────────────────────────────────────────────┘ │
 │                                                             │
-│  ┌─────────────────────┐  ┌───────────────────────────────┐ │
-│  │   MEASUREMENT       │  │                               │ │
-│  │   LIST              │  │   [MANNEQUIN FIGURES]         │ │
-│  │                     │  │                               │ │
-│  │   1. Neck    [  ]   │  │    ┌─○─┐      ┌─○─┐          │ │
-│  │   2. Bust    [  ]   │  │    │   │      │   │          │ │
-│  │   3. Waist   [  ]   │  │    │   │      │   │          │ │
-│  │   4. Hip     [  ]   │  │   Front      Back            │ │
-│  │   ...               │  │                               │ │
-│  │                     │  │   "Measure around the         │ │
-│  │                     │  │    fullest part of bust"      │ │
-│  └─────────────────────┘  └───────────────────────────────┘ │
-│                                                             │
+│  CUSTOM MEASUREMENTS                          [+ Add More]  │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │ Label: [  Back Hip  ]      Value: [  45/2  ] cm       │ │
+│  │ Label: [  Collar    ]      Value: [   16   ] cm    [×]│ │
+│  └────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Phase 3: Fix Scroll Containment
-
-Update `CustomDesignWizard.tsx`:
-
-```typescript
-// Add scroll lock effect
-useEffect(() => {
-  if (open) {
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = originalOverflow;
-    };
-  }
-}, [open]);
-
-// Update the overlay div
-<div 
-  className="fixed inset-0 z-50 ... overflow-hidden"
-  style={{ overscrollBehavior: 'contain' }}
->
-  <motion.div className="... overflow-hidden">
-    {/* Content area with isolated scroll */}
-    <div 
-      className="flex-1 overflow-y-auto"
-      style={{ overscrollBehavior: 'contain' }}
-    >
-      {/* Step content */}
-    </div>
-  </motion.div>
-</div>
-```
+**Features:**
+- Click "+ Add More" to add a new custom measurement row
+- Each row has: Label input + Value input + Delete button
+- Custom measurements stored in a special `custom_measurements` array in the form data
 
 ---
 
-## Files to Create/Modify
+## Technical Implementation
+
+### File Changes
 
 | File | Changes |
 |------|---------|
-| `src/components/dashboard/mannequin/NumberedBodySVG.tsx` | **New** - Numbered mannequin with front/back views |
-| `src/components/dashboard/mannequin/UpperBodySVG.tsx` | Update with numbered points |
-| `src/components/dashboard/mannequin/LowerBodySVG.tsx` | Update with numbered points |
-| `src/components/dashboard/mannequin/FullBodySVG.tsx` | Update with numbered points |
-| `src/components/dashboard/MeasurementMannequin.tsx` | Integrate new numbered diagram layout |
-| `src/components/dashboard/GarmentMeasurementsForm.tsx` | Redesign layout with list + diagram side by side |
-| `src/components/dashboard/CustomDesignWizard.tsx` | Fix scroll containment issue |
-| `src/lib/measurement-areas.ts` | Add numbered mapping for all measurements |
+| `src/components/dashboard/GarmentMeasurementsForm.tsx` | Remove diagram, add fraction parsing, add custom inputs section |
+| `src/lib/numbered-measurements.ts` | Remove SVG point coordinates (no longer needed), add fraction parser utility |
+
+### Updated Measurements Interface
+
+```typescript
+interface Measurements {
+  // ... existing fields ...
+  
+  // Custom measurements array
+  custom_measurements?: CustomMeasurement[];
+}
+
+interface CustomMeasurement {
+  id: string;
+  label: string;
+  value: number;
+}
+```
+
+### Input Handling for Fractions
+
+Change the input type from `number` to `text` to allow "/" characters:
+
+```typescript
+<Input
+  type="text"
+  inputMode="decimal"  // Mobile: show numeric keyboard
+  pattern="[\d\s\/\.]+" // Allow digits, spaces, slash, dot
+  placeholder="e.g. 45 or 22/2"
+  value={displayValue}
+  onChange={(e) => handleFractionInput(e.target.value)}
+/>
+```
+
+### Layout Changes
+
+**Before (with diagram):**
+```text
+┌──────────────────────────────────────────────┐
+│  [List w/ 17 items]   |   [Mannequin SVGs]   │
+│         50%           |         50%          │
+└──────────────────────────────────────────────┘
+```
+
+**After (no diagram):**
+```text
+┌──────────────────────────────────────────────┐
+│  [Standard Measurements - Full Width Grid]   │
+│  [2-3 columns on desktop, 1 on mobile]       │
+│                                              │
+│  [+ Add Custom Measurement Section]          │
+└──────────────────────────────────────────────┘
+```
 
 ---
 
-## Technical Details
+## Cleanup
 
-### Numbered Measurement Map
-
-```typescript
-const NUMBERED_MEASUREMENTS = [
-  { number: 1, key: 'neck', label: 'Neck', instruction: 'Measure around the base of the neck' },
-  { number: 2, key: 'across_front', label: 'Across Front', instruction: 'Measure across chest at armpit level' },
-  { number: 3, key: 'bust', label: 'Bust (Fullest part)', instruction: 'Measure around the fullest part' },
-  // ... 17 total measurements
-];
-```
-
-### Interactive Highlighting
-
-When user hovers/focuses measurement #3 (Bust):
-- The number "3" on the mannequin highlights in pink
-- The leader line becomes prominent
-- An instruction tooltip appears below the figure
-- The input field gets a matching highlight border
+After implementing the changes, these can be removed (optional, for cleanup):
+- `src/components/dashboard/mannequin/NumberedBodySVG.tsx` (no longer used in detailed mode)
+- SVG coordinate data from `numbered-measurements.ts` (`frontPoint`, `backPoint` properties)
 
 ---
 
 ## Expected Outcome
 
-1. **Professional measurement guide** matching industry standard body measurement charts
-2. **Clear visual reference** with numbered points like your example image
-3. **No background scrolling** - modal content scrolls independently
-4. **Improved UX** - users always know exactly where to measure
-5. **Mobile friendly** - responsive layout with collapsible diagram on small screens
+1. **Cleaner UI** - No complex diagram that's hard to maintain
+2. **Better input flexibility** - Support for fractions like "45/2" or "22 1/2"
+3. **Custom measurements** - Users can add any additional measurements they need
+4. **Full-width layout** - More space for measurement inputs
+5. **Simpler codebase** - Less SVG rendering logic to maintain
+
