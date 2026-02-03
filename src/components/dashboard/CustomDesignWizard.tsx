@@ -1,5 +1,28 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+
+// Scroll lock hook
+function useScrollLock(lock: boolean) {
+  useEffect(() => {
+    if (lock) {
+      const originalOverflow = document.body.style.overflow;
+      const originalPaddingRight = document.body.style.paddingRight;
+      
+      // Get scrollbar width to prevent layout shift
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+      
+      document.body.style.overflow = 'hidden';
+      if (scrollbarWidth > 0) {
+        document.body.style.paddingRight = `${scrollbarWidth}px`;
+      }
+      
+      return () => {
+        document.body.style.overflow = originalOverflow;
+        document.body.style.paddingRight = originalPaddingRight;
+      };
+    }
+  }, [lock]);
+}
 import { 
   User, 
   Ruler, 
@@ -1347,8 +1370,14 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
     }
   };
 
+  // Apply scroll lock when modal is open
+  useScrollLock(open);
+
   return (
-    <div className="fixed inset-0 bg-gradient-to-br from-slate-900/80 via-slate-800/70 to-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
+    <div 
+      className="fixed inset-0 bg-gradient-to-br from-slate-900/80 via-slate-800/70 to-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4 overflow-hidden"
+      style={{ overscrollBehavior: 'contain', touchAction: 'none' }}
+    >
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -1474,7 +1503,10 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 bg-gradient-to-b from-background to-muted/20">
+        <div 
+          className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 bg-gradient-to-b from-background to-muted/20"
+          style={{ overscrollBehavior: 'contain' }}
+        >
           {isLoadingOrder ? (
             <div className="flex flex-col items-center justify-center h-64 gap-4">
               <motion.div

@@ -7,9 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Info, AlertCircle, CheckCircle2, Eye, ChevronDown, Ruler } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Info, AlertCircle, CheckCircle2, ChevronDown, Ruler, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { MeasurementMannequin, getMannequinTypeForCategory } from "./MeasurementMannequin";
+import { NumberedBodySVG } from "./mannequin/NumberedBodySVG";
+import { NUMBERED_MEASUREMENTS, getMeasurementByNumber } from "@/lib/numbered-measurements";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 type MeasurementUnit = 'cm' | 'in';
@@ -71,6 +74,25 @@ interface Measurements {
   jacket_ub?: number;       // Under Bust
   jacket_waist?: number;    // Waist
   jacket_slit?: number;     // Slit
+  
+  // Standard numbered measurements
+  neck?: number;
+  across_front?: number;
+  bust?: number;
+  under_bust?: number;
+  waist?: number;
+  hip?: number;
+  thigh?: number;
+  upper_arm?: number;
+  elbow?: number;
+  wrist?: number;
+  shoulder_to_waist?: number;
+  shoulder_to_floor?: number;
+  shoulder?: number;
+  back_neck_to_waist?: number;
+  across_back?: number;
+  arm_length?: number;
+  ankle?: number;
   
   // Store the unit used for input
   _unit?: MeasurementUnit;
@@ -213,14 +235,10 @@ export function getMissingMeasurements(measurements: Measurements, categoryId: s
 export function GarmentMeasurementsForm({ measurements, onChange, designType, showValidation = false }: GarmentMeasurementsFormProps) {
   const [activeTab, setActiveTab] = useState(getDefaultTab(designType));
   const [unit, setUnit] = useState<MeasurementUnit>((measurements._unit as MeasurementUnit) || 'cm');
-  const [detailedMode, setDetailedMode] = useState(false);
-  const [highlightedMeasurement, setHighlightedMeasurement] = useState<string | null>(null);
+  const [detailedMode, setDetailedMode] = useState(true); // Default to detailed mode with visual guide
+  const [highlightedNumber, setHighlightedNumber] = useState<number | null>(null);
   const [mobileGuideOpen, setMobileGuideOpen] = useState(false);
   const isMobile = useIsMobile();
-
-  const mannequinType = useMemo(() => {
-    return getMannequinTypeForCategory(activeTab);
-  }, [activeTab]);
 
   const handleChange = (key: string, value: string) => {
     const numValue = value === '' ? undefined : parseFloat(value);
@@ -244,10 +262,48 @@ export function GarmentMeasurementsForm({ measurements, onChange, designType, sh
     onChange({ ...measurements, _unit: newUnit });
   };
 
+  // Handle numbered measurement changes
+  const handleNumberedMeasurementChange = (key: string, value: number | undefined) => {
+    const storedValue = value !== undefined && unit === 'in' ? inchesToCm(value) : value;
+    onChange({ ...measurements, [key]: storedValue, _unit: unit });
+  };
+
   const activeCategory = GARMENT_CATEGORIES.find(c => c.id === activeTab);
   const filledCount = countFilledMeasurements(measurements, activeTab);
   const totalCount = getTotalFields(activeTab);
   const isComplete = filledCount === totalCount;
+
+  // Count numbered measurements filled
+  const numberedFilledCount = useMemo(() => {
+    return NUMBERED_MEASUREMENTS.filter(m => 
+      measurements[m.key] !== undefined && (measurements[m.key] as number) > 0
+    ).length;
+  }, [measurements]);
+
+  const numberedTotalCount = NUMBERED_MEASUREMENTS.length;
+  const numberedIsComplete = numberedFilledCount === numberedTotalCount;
+
+  // Get instruction for highlighted measurement
+  const highlightedInstruction = useMemo(() => {
+    if (!highlightedNumber) return null;
+    return getMeasurementByNumber(highlightedNumber);
+  }, [highlightedNumber]);
+
+  const handleNumberClick = (num: number) => {
+    const measurement = getMeasurementByNumber(num);
+    if (measurement) {
+      const input = document.getElementById(`numbered-${measurement.key}`);
+      input?.focus();
+    }
+  };
+
+  const handleInputFocus = (num: number) => {
+    setHighlightedNumber(num);
+  };
+
+  const handleInputBlur = () => {
+    setHighlightedNumber(null);
+  };
 
   const renderMeasurementField = (field: MeasurementField) => {
     const hasValue = measurements[field.key] && (measurements[field.key] as number) > 0;
@@ -257,9 +313,6 @@ export function GarmentMeasurementsForm({ measurements, onChange, designType, sh
       <div 
         key={field.key} 
         className="space-y-1"
-        onMouseEnter={() => detailedMode && setHighlightedMeasurement(field.key)}
-        onMouseLeave={() => detailedMode && setHighlightedMeasurement(null)}
-        onFocus={() => detailedMode && setHighlightedMeasurement(field.key)}
       >
         <div className="flex items-center gap-1">
           <Label htmlFor={field.key} className="text-xs text-muted-foreground flex items-center gap-1">
@@ -317,7 +370,7 @@ export function GarmentMeasurementsForm({ measurements, onChange, designType, sh
                 className="rounded-r-none h-8 px-3"
                 onClick={() => handleUnitToggle('cm')}
               >
-                Centimeters (cm)
+                cm
               </Button>
               <Button
                 type="button"
@@ -326,13 +379,13 @@ export function GarmentMeasurementsForm({ measurements, onChange, designType, sh
                 className="rounded-l-none h-8 px-3"
                 onClick={() => handleUnitToggle('in')}
               >
-                Inches (in)
+                in
               </Button>
             </div>
           </div>
           
           <div className="flex items-center gap-4">
-            {/* Detailed Mode Toggle */}
+            {/* Mode toggle */}
             <div className="flex items-center gap-2">
               <Label htmlFor="detailedMode" className="text-sm text-muted-foreground flex items-center gap-1">
                 <Ruler className="h-4 w-4" />
@@ -346,20 +399,33 @@ export function GarmentMeasurementsForm({ measurements, onChange, designType, sh
             </div>
             
             {/* Progress indicator */}
-            {isComplete ? (
-              <Badge variant="default" className="bg-emerald-600">
-                <CheckCircle2 className="h-3 w-3 mr-1" />
-                Complete
-              </Badge>
+            {detailedMode ? (
+              numberedIsComplete ? (
+                <Badge variant="default" className="bg-emerald-600">
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  Complete
+                </Badge>
+              ) : (
+                <Badge variant="secondary">
+                  {numberedFilledCount}/{numberedTotalCount} filled
+                </Badge>
+              )
             ) : (
-              <Badge variant="secondary">
-                {filledCount}/{totalCount} filled
-              </Badge>
+              isComplete ? (
+                <Badge variant="default" className="bg-emerald-600">
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  Complete
+                </Badge>
+              ) : (
+                <Badge variant="secondary">
+                  {filledCount}/{totalCount} filled
+                </Badge>
+              )
             )}
           </div>
         </div>
 
-        {showValidation && !isComplete && (
+        {showValidation && !isComplete && !detailedMode && (
           <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-md">
             <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5" />
             <div className="text-sm text-amber-800">
@@ -371,73 +437,175 @@ export function GarmentMeasurementsForm({ measurements, onChange, designType, sh
           </div>
         )}
 
-        {/* Main content grid with mannequin */}
-        <div className={cn(
-          "grid gap-6",
-          detailedMode ? "lg:grid-cols-[180px_1fr]" : "grid-cols-1"
-        )}>
-          {/* Mannequin Guide - Desktop (sidebar) */}
-          {detailedMode && (
-            <>
-              {/* Mobile: Collapsible panel */}
-              <div className="lg:hidden">
-                <Collapsible open={mobileGuideOpen} onOpenChange={setMobileGuideOpen}>
-                  <CollapsibleTrigger className="w-full">
-                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted/70 transition-colors">
-                      <span className="text-sm font-medium flex items-center gap-2">
-                        <Eye className="h-4 w-4" />
-                        View Measurement Guide
-                      </span>
-                      <ChevronDown className={cn(
-                        "h-4 w-4 transition-transform duration-200",
-                        mobileGuideOpen && "rotate-180"
-                      )} />
-                    </div>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="pt-4">
-                    <div className="flex justify-center">
-                      <MeasurementMannequin
-                        type={mannequinType}
-                        highlightedMeasurement={highlightedMeasurement}
-                        onAreaClick={(area) => {
-                          // Find first field matching this area and focus it
-                          const category = GARMENT_CATEGORIES.find(c => c.id === activeTab);
-                          const fieldToFocus = category?.fields.find(f => 
-                            f.key.includes(area.replace('-', '_'))
-                          );
-                          if (fieldToFocus) {
-                            const input = document.getElementById(fieldToFocus.key);
-                            input?.focus();
-                          }
-                        }}
+        {/* Main Content - Conditional based on mode */}
+        {detailedMode ? (
+          /* Numbered Measurement Guide with Visual */
+          <div className="flex flex-col lg:flex-row gap-6">
+            {/* Left side: Numbered list with inputs */}
+            <div className="flex-1 lg:max-w-md">
+              <ScrollArea className="h-[380px] pr-4">
+                <div className="space-y-1.5">
+                  {NUMBERED_MEASUREMENTS.map((m) => {
+                    const value = measurements[m.key] as number | undefined;
+                    const displayValue = value !== undefined ? (unit === 'in' ? cmToInches(value) : value) : undefined;
+                    const hasValue = value !== undefined && value > 0;
+                    const isActive = highlightedNumber === m.number;
+                    
+                    return (
+                      <div
+                        key={m.key}
+                        className={cn(
+                          "flex items-center gap-3 p-2 rounded-lg transition-all duration-200",
+                          isActive && "bg-primary/10 ring-1 ring-primary/30"
+                        )}
+                      >
+                        {/* Number badge */}
+                        <div 
+                          className={cn(
+                            "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors shrink-0",
+                            hasValue 
+                              ? "bg-emerald-600 text-white" 
+                              : isActive
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-muted text-muted-foreground"
+                          )}
+                        >
+                          {hasValue ? <Check className="h-3.5 w-3.5" /> : m.number}
+                        </div>
+                        
+                        {/* Label */}
+                        <span className={cn(
+                          "flex-1 text-sm truncate",
+                          isActive ? "font-medium text-foreground" : "text-muted-foreground"
+                        )}>
+                          {m.label}
+                        </span>
+                        
+                        {/* Input */}
+                        <div className="relative w-20">
+                          <Input
+                            id={`numbered-${m.key}`}
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            placeholder="—"
+                            value={displayValue ?? ''}
+                            onChange={(e) => {
+                              const numValue = e.target.value === '' ? undefined : parseFloat(e.target.value);
+                              handleNumberedMeasurementChange(m.key, numValue);
+                            }}
+                            onFocus={() => handleInputFocus(m.number)}
+                            onBlur={handleInputBlur}
+                            className={cn(
+                              "h-8 text-sm text-right pr-8",
+                              isActive && "ring-2 ring-primary"
+                            )}
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                            {unit}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            </div>
+
+            {/* Right side: Mannequin diagrams */}
+            <div className="flex-1">
+              <div className="sticky top-4">
+                {/* Mobile: Collapsible */}
+                <div className="lg:hidden mb-4">
+                  <Collapsible open={mobileGuideOpen} onOpenChange={setMobileGuideOpen}>
+                    <CollapsibleTrigger className="w-full">
+                      <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted/70 transition-colors">
+                        <span className="text-sm font-medium flex items-center gap-2">
+                          <Ruler className="h-4 w-4" />
+                          View Body Diagram
+                        </span>
+                        <ChevronDown className={cn(
+                          "h-4 w-4 transition-transform duration-200",
+                          mobileGuideOpen && "rotate-180"
+                        )} />
+                      </div>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pt-4">
+                      <div className="flex gap-2 justify-center">
+                        <div className="w-[130px]">
+                          <NumberedBodySVG 
+                            view="front"
+                            highlightedNumber={highlightedNumber}
+                            onNumberClick={handleNumberClick}
+                          />
+                        </div>
+                        <div className="w-[130px]">
+                          <NumberedBodySVG 
+                            view="back"
+                            highlightedNumber={highlightedNumber}
+                            onNumberClick={handleNumberClick}
+                          />
+                        </div>
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </div>
+                
+                {/* Desktop: Always visible */}
+                <div className="hidden lg:block">
+                  <h3 className="text-sm font-semibold text-foreground text-center mb-3">
+                    Measurement Guide
+                  </h3>
+                  
+                  {/* Dual view: Front and Back */}
+                  <div className="flex gap-2 justify-center">
+                    <div className="w-[130px]">
+                      <NumberedBodySVG 
+                        view="front"
+                        highlightedNumber={highlightedNumber}
+                        onNumberClick={handleNumberClick}
                       />
                     </div>
-                  </CollapsibleContent>
-                </Collapsible>
-              </div>
-              
-              {/* Desktop: Sidebar */}
-              <div className="hidden lg:block sticky top-4 self-start">
-                <MeasurementMannequin
-                  type={mannequinType}
-                  highlightedMeasurement={highlightedMeasurement}
-                  onAreaClick={(area) => {
-                    // Find first field matching this area and focus it
-                    const category = GARMENT_CATEGORIES.find(c => c.id === activeTab);
-                    const fieldToFocus = category?.fields.find(f => 
-                      f.key.includes(area.replace('-', '_'))
-                    );
-                    if (fieldToFocus) {
-                      const input = document.getElementById(fieldToFocus.key);
-                      input?.focus();
-                    }
-                  }}
-                />
-              </div>
-            </>
-          )}
+                    <div className="w-[130px]">
+                      <NumberedBodySVG 
+                        view="back"
+                        highlightedNumber={highlightedNumber}
+                        onNumberClick={handleNumberClick}
+                      />
+                    </div>
+                  </div>
+                </div>
 
-          {/* Measurement Fields */}
+                {/* Instruction card */}
+                {highlightedInstruction ? (
+                  <Card className="mt-4 p-3 bg-primary/5 border-primary/20 animate-in fade-in-50 duration-200">
+                    <div className="flex items-start gap-2">
+                      <Badge variant="outline" className="shrink-0">
+                        #{highlightedInstruction.number}
+                      </Badge>
+                      <div>
+                        <p className="text-sm font-medium text-foreground">
+                          {highlightedInstruction.label}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {highlightedInstruction.instruction}
+                        </p>
+                      </div>
+                    </div>
+                  </Card>
+                ) : (
+                  <Card className="mt-4 p-3 bg-muted/30 border-muted hidden lg:block">
+                    <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-2">
+                      <AlertCircle className="h-3.5 w-3.5" />
+                      Click a number or focus an input to see instructions
+                    </p>
+                  </Card>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Classic Garment Category Tabs */
           <div className="flex-1">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="w-full grid grid-cols-6 mb-4">
@@ -479,7 +647,7 @@ export function GarmentMeasurementsForm({ measurements, onChange, designType, sh
               ))}
             </Tabs>
           </div>
-        </div>
+        )}
       </div>
     </TooltipProvider>
   );
