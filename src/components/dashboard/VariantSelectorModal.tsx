@@ -256,12 +256,13 @@ export function VariantSelectorModal({
                 </Button>
                 <Input
                   type="number"
-                  min={1}
+                  step="any"
+                  min={0.01}
                   max={availableStock}
                   value={quantity}
                   onChange={(e) => {
-                    const val = parseInt(e.target.value) || 1;
-                    setQuantity(Math.min(Math.max(1, val), availableStock));
+                    const val = parseFloat(e.target.value) || 1;
+                    setQuantity(Math.min(Math.max(0.01, val), availableStock));
                   }}
                   className="w-16 text-center h-8"
                 />

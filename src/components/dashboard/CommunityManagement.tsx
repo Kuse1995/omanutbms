@@ -127,7 +127,7 @@ export function CommunityManagement() {
     const { error } = await supabase.from("wash_forums").insert({
       name: newCommunity.name,
       province: newCommunity.province,
-      community_size: parseInt(newCommunity.community_size) || 0,
+      community_size: parseFloat(newCommunity.community_size) || 0,
       description: newCommunity.description,
       products_needed: newCommunity.products_needed,
       priority: newCommunity.priority,

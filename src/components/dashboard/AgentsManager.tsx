@@ -756,10 +756,11 @@ export function AgentsManager() {
                       </Select>
                       <Input
                         type="number"
+                        step="any"
                         placeholder="Quantity"
                         value={newInventoryItem.quantity || ""}
                         onChange={(e) =>
-                          setNewInventoryItem({ ...newInventoryItem, quantity: parseInt(e.target.value) || 0 })
+                          setNewInventoryItem({ ...newInventoryItem, quantity: parseFloat(e.target.value) || 0 })
                         }
                         className="bg-background border-border"
                       />

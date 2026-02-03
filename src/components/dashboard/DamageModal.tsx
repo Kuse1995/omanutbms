@@ -227,9 +227,10 @@ export function DamageModal({ open, onOpenChange, onSuccess }: DamageModalProps)
               <Input
                 id="quantity"
                 type="number"
-                min={1}
+                step="any"
+                min={0.01}
                 value={quantity}
-                onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+                onChange={(e) => setQuantity(parseFloat(e.target.value) || 1)}
               />
             </div>
           </div>

@@ -249,9 +249,10 @@ export function ProductVariantsModal({ open, onOpenChange, product, onSuccess }:
                     <Label className="text-xs text-purple-700">Stock</Label>
                     <Input
                       type="number"
+                      step="any"
                       min={0}
                       value={newColor.stock}
-                      onChange={(e) => setNewColor({ ...newColor, stock: parseInt(e.target.value) || 0 })}
+                      onChange={(e) => setNewColor({ ...newColor, stock: parseFloat(e.target.value) || 0 })}
                       className="bg-white border-purple-200"
                     />
                   </div>
@@ -344,9 +345,10 @@ export function ProductVariantsModal({ open, onOpenChange, product, onSuccess }:
                     <Label className="text-xs text-blue-700">Stock</Label>
                     <Input
                       type="number"
+                      step="any"
                       min={0}
                       value={newSize.stock}
-                      onChange={(e) => setNewSize({ ...newSize, stock: parseInt(e.target.value) || 0 })}
+                      onChange={(e) => setNewSize({ ...newSize, stock: parseFloat(e.target.value) || 0 })}
                       className="bg-white border-blue-200"
                     />
                   </div>

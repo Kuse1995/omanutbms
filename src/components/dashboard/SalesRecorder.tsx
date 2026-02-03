@@ -892,10 +892,11 @@ export function SalesRecorder() {
                   <Label className="text-[#003366]">Quantity *</Label>
                   <Input
                     type="number"
-                    min={1}
+                    step="any"
+                    min={0.01}
                     max={selectedInventoryItem?.current_stock || 999}
                     value={quantity}
-                    onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+                    onChange={(e) => setQuantity(parseFloat(e.target.value) || 1)}
                     className="bg-[#f0f7fa] border-[#004B8D]/20 text-[#003366]"
                   />
                 </div>
@@ -948,9 +949,10 @@ export function SalesRecorder() {
                     <Label className="text-amber-700">Quantity</Label>
                     <Input
                       type="number"
-                      min={1}
+                      step="any"
+                      min={0.01}
                       value={quantity}
-                      onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+                      onChange={(e) => setQuantity(parseFloat(e.target.value) || 1)}
                       className="bg-white border-amber-200 text-[#003366]"
                     />
                   </div>
