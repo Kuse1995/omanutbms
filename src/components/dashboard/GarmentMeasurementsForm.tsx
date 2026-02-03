@@ -1,12 +1,16 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Info, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Info, AlertCircle, CheckCircle2, Eye, ChevronDown, Ruler } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MeasurementMannequin, getMannequinTypeForCategory } from "./MeasurementMannequin";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 type MeasurementUnit = 'cm' | 'in';
 
@@ -209,6 +213,14 @@ export function getMissingMeasurements(measurements: Measurements, categoryId: s
 export function GarmentMeasurementsForm({ measurements, onChange, designType, showValidation = false }: GarmentMeasurementsFormProps) {
   const [activeTab, setActiveTab] = useState(getDefaultTab(designType));
   const [unit, setUnit] = useState<MeasurementUnit>((measurements._unit as MeasurementUnit) || 'cm');
+  const [detailedMode, setDetailedMode] = useState(false);
+  const [highlightedMeasurement, setHighlightedMeasurement] = useState<string | null>(null);
+  const [mobileGuideOpen, setMobileGuideOpen] = useState(false);
+  const isMobile = useIsMobile();
+
+  const mannequinType = useMemo(() => {
+    return getMannequinTypeForCategory(activeTab);
+  }, [activeTab]);
 
   const handleChange = (key: string, value: string) => {
     const numValue = value === '' ? undefined : parseFloat(value);
@@ -242,7 +254,13 @@ export function GarmentMeasurementsForm({ measurements, onChange, designType, sh
     const showError = showValidation && !hasValue;
     
     return (
-      <div key={field.key} className="space-y-1">
+      <div 
+        key={field.key} 
+        className="space-y-1"
+        onMouseEnter={() => detailedMode && setHighlightedMeasurement(field.key)}
+        onMouseLeave={() => detailedMode && setHighlightedMeasurement(null)}
+        onFocus={() => detailedMode && setHighlightedMeasurement(field.key)}
+      >
         <div className="flex items-center gap-1">
           <Label htmlFor={field.key} className="text-xs text-muted-foreground flex items-center gap-1">
             <span className={cn("font-semibold", showError ? "text-destructive" : "text-foreground")}>
@@ -287,8 +305,8 @@ export function GarmentMeasurementsForm({ measurements, onChange, designType, sh
   return (
     <TooltipProvider>
       <div className="space-y-4">
-        {/* Unit Toggle */}
-        <div className="flex items-center justify-between">
+        {/* Unit Toggle & Mode Toggle */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">Unit:</span>
             <div className="flex rounded-md border">
@@ -313,8 +331,21 @@ export function GarmentMeasurementsForm({ measurements, onChange, designType, sh
             </div>
           </div>
           
-          {/* Progress indicator */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
+            {/* Detailed Mode Toggle */}
+            <div className="flex items-center gap-2">
+              <Label htmlFor="detailedMode" className="text-sm text-muted-foreground flex items-center gap-1">
+                <Ruler className="h-4 w-4" />
+                <span className="hidden sm:inline">Visual Guide</span>
+              </Label>
+              <Switch
+                id="detailedMode"
+                checked={detailedMode}
+                onCheckedChange={setDetailedMode}
+              />
+            </div>
+            
+            {/* Progress indicator */}
             {isComplete ? (
               <Badge variant="default" className="bg-emerald-600">
                 <CheckCircle2 className="h-3 w-3 mr-1" />
@@ -340,45 +371,115 @@ export function GarmentMeasurementsForm({ measurements, onChange, designType, sh
           </div>
         )}
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="w-full grid grid-cols-6 mb-4">
-            {GARMENT_CATEGORIES.map(category => {
-              const filled = countFilledMeasurements(measurements, category.id);
-              const total = getTotalFields(category.id);
-              const complete = filled === total && total > 0;
-              return (
-                <TabsTrigger 
-                  key={category.id} 
-                  value={category.id}
-                  className="relative text-xs sm:text-sm"
-                >
-                  {category.label}
-                  {filled > 0 && (
-                    <Badge 
-                      variant="secondary" 
-                      className={cn(
-                        "absolute -top-1 -right-1 h-4 w-4 p-0 text-[10px] flex items-center justify-center",
-                        complete 
-                          ? "bg-emerald-600 text-white border-emerald-700" 
-                          : "bg-emerald-100 text-emerald-700 border-emerald-200"
-                      )}
-                    >
-                      {complete ? '✓' : filled}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-              );
-            })}
-          </TabsList>
-
-          {GARMENT_CATEGORIES.map(category => (
-            <TabsContent key={category.id} value={category.id} className="mt-0">
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                {category.fields.map(renderMeasurementField)}
+        {/* Main content grid with mannequin */}
+        <div className={cn(
+          "grid gap-6",
+          detailedMode ? "lg:grid-cols-[180px_1fr]" : "grid-cols-1"
+        )}>
+          {/* Mannequin Guide - Desktop (sidebar) */}
+          {detailedMode && (
+            <>
+              {/* Mobile: Collapsible panel */}
+              <div className="lg:hidden">
+                <Collapsible open={mobileGuideOpen} onOpenChange={setMobileGuideOpen}>
+                  <CollapsibleTrigger className="w-full">
+                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted/70 transition-colors">
+                      <span className="text-sm font-medium flex items-center gap-2">
+                        <Eye className="h-4 w-4" />
+                        View Measurement Guide
+                      </span>
+                      <ChevronDown className={cn(
+                        "h-4 w-4 transition-transform duration-200",
+                        mobileGuideOpen && "rotate-180"
+                      )} />
+                    </div>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pt-4">
+                    <div className="flex justify-center">
+                      <MeasurementMannequin
+                        type={mannequinType}
+                        highlightedMeasurement={highlightedMeasurement}
+                        onAreaClick={(area) => {
+                          // Find first field matching this area and focus it
+                          const category = GARMENT_CATEGORIES.find(c => c.id === activeTab);
+                          const fieldToFocus = category?.fields.find(f => 
+                            f.key.includes(area.replace('-', '_'))
+                          );
+                          if (fieldToFocus) {
+                            const input = document.getElementById(fieldToFocus.key);
+                            input?.focus();
+                          }
+                        }}
+                      />
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
-            </TabsContent>
-          ))}
-        </Tabs>
+              
+              {/* Desktop: Sidebar */}
+              <div className="hidden lg:block sticky top-4 self-start">
+                <MeasurementMannequin
+                  type={mannequinType}
+                  highlightedMeasurement={highlightedMeasurement}
+                  onAreaClick={(area) => {
+                    // Find first field matching this area and focus it
+                    const category = GARMENT_CATEGORIES.find(c => c.id === activeTab);
+                    const fieldToFocus = category?.fields.find(f => 
+                      f.key.includes(area.replace('-', '_'))
+                    );
+                    if (fieldToFocus) {
+                      const input = document.getElementById(fieldToFocus.key);
+                      input?.focus();
+                    }
+                  }}
+                />
+              </div>
+            </>
+          )}
+
+          {/* Measurement Fields */}
+          <div className="flex-1">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="w-full grid grid-cols-6 mb-4">
+                {GARMENT_CATEGORIES.map(category => {
+                  const filled = countFilledMeasurements(measurements, category.id);
+                  const total = getTotalFields(category.id);
+                  const complete = filled === total && total > 0;
+                  return (
+                    <TabsTrigger 
+                      key={category.id} 
+                      value={category.id}
+                      className="relative text-xs sm:text-sm"
+                    >
+                      {category.label}
+                      {filled > 0 && (
+                        <Badge 
+                          variant="secondary" 
+                          className={cn(
+                            "absolute -top-1 -right-1 h-4 w-4 p-0 text-[10px] flex items-center justify-center",
+                            complete 
+                              ? "bg-emerald-600 text-white border-emerald-700" 
+                              : "bg-emerald-100 text-emerald-700 border-emerald-200"
+                          )}
+                        >
+                          {complete ? '✓' : filled}
+                        </Badge>
+                      )}
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+
+              {GARMENT_CATEGORIES.map(category => (
+                <TabsContent key={category.id} value={category.id} className="mt-0">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {category.fields.map(renderMeasurementField)}
+                  </div>
+                </TabsContent>
+              ))}
+            </Tabs>
+          </div>
+        </div>
       </div>
     </TooltipProvider>
   );
