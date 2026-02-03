@@ -504,6 +504,39 @@ export function SystemResetManager() {
       await safeNullify("sales_transactions", "product_id");
     }
 
+    // NEW FK CONSTRAINT HANDLING
+
+    // Handle custom_orders FK constraints - delete children first
+    if (selectedTableNames.includes("custom_orders")) {
+      await safeDeleteChildren("custom_order_adjustments");
+      await safeDeleteChildren("custom_order_items");
+    }
+
+    // Handle job_cards FK constraints - delete children first
+    if (selectedTableNames.includes("job_cards")) {
+      await safeDeleteChildren("job_material_usage");
+    }
+
+    // Handle assets FK constraints - delete logs first
+    if (selectedTableNames.includes("assets")) {
+      await safeDeleteChildren("asset_logs");
+    }
+
+    // Handle customers FK constraints - nullify references before deleting
+    if (selectedTableNames.includes("customers")) {
+      await safeNullify("invoices", "customer_id");
+      await safeNullify("quotations", "customer_id");
+      await safeNullify("custom_orders", "customer_id");
+      await safeNullify("sales_transactions", "customer_id");
+      await safeNullify("job_cards", "customer_id");
+    }
+
+    // Handle vendors FK constraints - nullify references before deleting
+    if (selectedTableNames.includes("vendors")) {
+      await safeNullify("expenses", "vendor_id");
+      await safeNullify("accounts_payable", "vendor_id");
+    }
+
     // Now delete the selected tables in order
     for (const category of selectedCategories) {
       for (const table of category.tables) {
