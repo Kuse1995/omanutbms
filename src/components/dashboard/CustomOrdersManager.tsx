@@ -71,6 +71,7 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secon
   cutting: { label: "Cutting", variant: "default" },
   sewing: { label: "Sewing", variant: "default" },
   fitting: { label: "Fitting", variant: "default" },
+  adjustments: { label: "Adjustments", variant: "default" },
   finishing: { label: "Finishing", variant: "default" },
   ready: { label: "Ready", variant: "secondary" },
   delivered: { label: "Delivered", variant: "secondary" },
