@@ -3869,6 +3869,96 @@ export type Database = {
           },
         ]
       }
+      stock_movements: {
+        Row: {
+          branch_id: string | null
+          created_at: string | null
+          created_by: string | null
+          from_branch_id: string | null
+          id: string
+          inventory_id: string
+          movement_type: string
+          notes: string | null
+          quantity: number
+          quantity_after: number | null
+          quantity_before: number | null
+          reference_id: string | null
+          reference_type: string | null
+          tenant_id: string
+          to_branch_id: string | null
+        }
+        Insert: {
+          branch_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          from_branch_id?: string | null
+          id?: string
+          inventory_id: string
+          movement_type: string
+          notes?: string | null
+          quantity: number
+          quantity_after?: number | null
+          quantity_before?: number | null
+          reference_id?: string | null
+          reference_type?: string | null
+          tenant_id: string
+          to_branch_id?: string | null
+        }
+        Update: {
+          branch_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          from_branch_id?: string | null
+          id?: string
+          inventory_id?: string
+          movement_type?: string
+          notes?: string | null
+          quantity?: number
+          quantity_after?: number | null
+          quantity_before?: number | null
+          reference_id?: string | null
+          reference_type?: string | null
+          tenant_id?: string
+          to_branch_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_movements_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_from_branch_id_fkey"
+            columns: ["from_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_inventory_id_fkey"
+            columns: ["inventory_id"]
+            isOneToOne: false
+            referencedRelation: "inventory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_to_branch_id_fkey"
+            columns: ["to_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stock_transfers: {
         Row: {
           approved_at: string | null

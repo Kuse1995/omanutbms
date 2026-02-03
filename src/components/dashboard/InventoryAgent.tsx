@@ -36,14 +36,16 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Package, AlertTriangle, RefreshCw, Mail, Loader2, Plus, Pencil, FileUp, Download, Palette, Ruler, ImageIcon, Building2, PackagePlus, Archive, ArchiveRestore, Eye, EyeOff, ChevronDown, Trash2, MapPin, Search, X } from "lucide-react";
+import { Package, AlertTriangle, RefreshCw, Mail, Loader2, Plus, Pencil, FileUp, Download, Palette, Ruler, ImageIcon, Building2, PackagePlus, Archive, ArchiveRestore, Eye, EyeOff, ChevronDown, Trash2, MapPin, Search, X, History } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { ProductModal } from "./ProductModal";
 import { InventoryImportModal } from "./InventoryImportModal";
 import { ProductVariantsModal } from "./ProductVariantsModal";
 import { RestockModal } from "./RestockModal";
+import { StockMovementsViewer } from "./StockMovementsViewer";
 import { FeatureGuard } from "./FeatureGuard";
 import { useTenant } from "@/hooks/useTenant";
 import { useBranch } from "@/hooks/useBranch";
@@ -117,6 +119,8 @@ export function InventoryAgent() {
   const [bulkMoveDialogOpen, setBulkMoveDialogOpen] = useState(false);
   const [targetBranchId, setTargetBranchId] = useState<string | null>(null);
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+  // Tab state for inventory vs movements view
+  const [activeTab, setActiveTab] = useState<"inventory" | "movements">("inventory");
   const { toast } = useToast();
   const { tenantId } = useTenant();
   const { currentBranch, isMultiBranchEnabled, branches } = useBranch();
@@ -487,6 +491,18 @@ export function InventoryAgent() {
               Track and manage {terminology.productsLabel.toLowerCase()} and stock levels
             </p>
           </div>
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "inventory" | "movements")} className="mr-auto ml-8">
+            <TabsList>
+              <TabsTrigger value="inventory" className="gap-2">
+                <Package className="w-4 h-4" />
+                Inventory
+              </TabsTrigger>
+              <TabsTrigger value="movements" className="gap-2">
+                <History className="w-4 h-4" />
+                Movement History
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
           <div className="flex gap-2">
             <div className="flex items-center gap-2 mr-2">
               <Switch
@@ -537,41 +553,49 @@ export function InventoryAgent() {
           </div>
         </div>
 
-        {/* Low Stock Alerts - Collapsible */}
-        {lowStockItems.length > 0 && (
-          <Collapsible>
-            <CollapsibleTrigger asChild>
-              <Button 
-                variant="ghost" 
-                className="w-full justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100"
-              >
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-600" />
-                  <span className="text-amber-700 text-sm font-medium">Low Stock Alerts</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="destructive" className="text-xs">
-                    {lowStockItems.length}
-                  </Badge>
-                  <ChevronDown className="w-4 h-4 text-amber-600" />
-                </div>
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="mt-2">
-              <Card className="bg-amber-50/50 border-amber-200">
-                <CardContent className="pt-4">
-                  <div className="flex flex-wrap gap-2">
-                    {lowStockItems.map((item) => (
-                      <Badge key={item.id} variant="outline" className="border-amber-500/50 text-amber-700">
-                        {item.name}: {item.current_stock} left
-                      </Badge>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </CollapsibleContent>
-          </Collapsible>
+        {/* Movement History Tab */}
+        {activeTab === "movements" && (
+          <StockMovementsViewer branchId={currentBranch?.id} />
         )}
+
+        {/* Inventory Tab Content */}
+        {activeTab === "inventory" && (
+          <>
+            {/* Low Stock Alerts - Collapsible */}
+            {lowStockItems.length > 0 && (
+              <Collapsible>
+                <CollapsibleTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    className="w-full justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100"
+                  >
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-600" />
+                      <span className="text-amber-700 text-sm font-medium">Low Stock Alerts</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="destructive" className="text-xs">
+                        {lowStockItems.length}
+                      </Badge>
+                      <ChevronDown className="w-4 h-4 text-amber-600" />
+                    </div>
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-2">
+                  <Card className="bg-amber-50/50 border-amber-200">
+                    <CardContent className="pt-4">
+                      <div className="flex flex-wrap gap-2">
+                        {lowStockItems.map((item) => (
+                          <Badge key={item.id} variant="outline" className="border-amber-500/50 text-amber-700">
+                            {item.name}: {item.current_stock} left
+                          </Badge>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </CollapsibleContent>
+              </Collapsible>
+            )}
 
         {/* Search Bar */}
         <div className="relative">
@@ -1068,6 +1092,8 @@ export function InventoryAgent() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+          </>
+        )}
       </motion.div>
     </FeatureGuard>
   );
