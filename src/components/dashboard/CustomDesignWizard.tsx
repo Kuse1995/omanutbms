@@ -389,7 +389,10 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
       (sum, m) => sum + m.quantity * m.unitCost, 0
     );
     const laborCost = formData.laborHours * formData.hourlyRate;
-    const { quotedPrice } = calculateQuote(materialCost, laborCost, formData.marginPercentage);
+    const additionalCost = formData.additionalCosts.reduce(
+      (sum, c) => sum + c.quantity * c.unitPrice, 0
+    );
+    const { quotedPrice } = calculateQuote(materialCost, laborCost, formData.marginPercentage, additionalCost);
     return quotedPrice - (formData.depositAmount || 0);
   };
 
