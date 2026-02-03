@@ -878,6 +878,9 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
     }
   };
 
+  // Apply scroll lock when modal is open (must be called before any early returns)
+  useScrollLock(open);
+
   if (!open) return null;
 
   const renderStepContent = () => {
@@ -1369,9 +1372,6 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
         return null;
     }
   };
-
-  // Apply scroll lock when modal is open
-  useScrollLock(open);
 
   return (
     <div 
