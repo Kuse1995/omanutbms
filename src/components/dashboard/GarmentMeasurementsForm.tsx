@@ -6,14 +6,13 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Info, AlertCircle, CheckCircle2, ChevronDown, Ruler, Check } from "lucide-react";
+import { Info, AlertCircle, CheckCircle2, Ruler, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { NumberedBodySVG } from "./mannequin/NumberedBodySVG";
 import { NUMBERED_MEASUREMENTS, getMeasurementByNumber } from "@/lib/numbered-measurements";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { parseFractionInput, formatMeasurementValue } from "@/lib/fraction-parser";
+import { CustomMeasurementsSection, CustomMeasurement } from "./CustomMeasurementsSection";
 
 type MeasurementUnit = 'cm' | 'in';
 
@@ -97,7 +96,23 @@ interface Measurements {
   // Store the unit used for input
   _unit?: MeasurementUnit;
   
-  [key: string]: number | MeasurementUnit | undefined;
+  // Custom measurements array (stored as array of objects)
+  custom_measurements?: CustomMeasurement[];
+  
+  [key: string]: number | string | MeasurementUnit | CustomMeasurement[] | undefined;
+}
+
+// Helper to serialize measurements for database storage (converts to JSON-compatible format)
+export function serializeMeasurementsForStorage(measurements: Measurements): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  
+  for (const [key, value] of Object.entries(measurements)) {
+    if (value !== undefined) {
+      result[key] = value;
+    }
+  }
+  
+  return result;
 }
 
 interface GarmentMeasurementsFormProps {
@@ -235,10 +250,11 @@ export function getMissingMeasurements(measurements: Measurements, categoryId: s
 export function GarmentMeasurementsForm({ measurements, onChange, designType, showValidation = false }: GarmentMeasurementsFormProps) {
   const [activeTab, setActiveTab] = useState(getDefaultTab(designType));
   const [unit, setUnit] = useState<MeasurementUnit>((measurements._unit as MeasurementUnit) || 'cm');
-  const [detailedMode, setDetailedMode] = useState(true); // Default to detailed mode with visual guide
+  const [detailedMode, setDetailedMode] = useState(true); // Default to detailed mode
   const [highlightedNumber, setHighlightedNumber] = useState<number | null>(null);
-  const [mobileGuideOpen, setMobileGuideOpen] = useState(false);
-  const isMobile = useIsMobile();
+  
+  // Track raw input values for fraction support in numbered measurements
+  const [rawNumberedInputs, setRawNumberedInputs] = useState<Record<string, string>>({});
 
   const handleChange = (key: string, value: string) => {
     const numValue = value === '' ? undefined : parseFloat(value);
@@ -262,10 +278,42 @@ export function GarmentMeasurementsForm({ measurements, onChange, designType, sh
     onChange({ ...measurements, _unit: newUnit });
   };
 
-  // Handle numbered measurement changes
-  const handleNumberedMeasurementChange = (key: string, value: number | undefined) => {
-    const storedValue = value !== undefined && unit === 'in' ? inchesToCm(value) : value;
-    onChange({ ...measurements, [key]: storedValue, _unit: unit });
+  // Handle numbered measurement input change (store raw value for fraction support)
+  const handleNumberedInputChange = (key: string, inputValue: string) => {
+    setRawNumberedInputs(prev => ({ ...prev, [key]: inputValue }));
+  };
+
+  // Handle numbered measurement blur (parse and store value)
+  const handleNumberedInputBlur = (key: string) => {
+    const rawValue = rawNumberedInputs[key];
+    if (rawValue !== undefined) {
+      const parsedValue = parseFractionInput(rawValue);
+      const storedValue = parsedValue !== undefined && unit === 'in' ? inchesToCm(parsedValue) : parsedValue;
+      onChange({ ...measurements, [key]: storedValue, _unit: unit });
+      
+      // Update raw input to show parsed value
+      if (parsedValue !== undefined) {
+        setRawNumberedInputs(prev => ({ ...prev, [key]: formatMeasurementValue(parsedValue) }));
+      }
+    }
+  };
+
+  // Get display value for numbered measurement (supports fraction input)
+  const getNumberedDisplayValue = (key: string): string => {
+    // If we have a raw input, show that (allows typing fractions)
+    if (rawNumberedInputs[key] !== undefined) {
+      return rawNumberedInputs[key];
+    }
+    // Otherwise show stored value
+    const value = measurements[key] as number | undefined;
+    if (value === undefined) return '';
+    const displayVal = unit === 'in' ? cmToInches(value) : value;
+    return formatMeasurementValue(displayVal);
+  };
+
+  // Handle custom measurements change
+  const handleCustomMeasurementsChange = (customMeasurements: CustomMeasurement[]) => {
+    onChange({ ...measurements, custom_measurements: customMeasurements });
   };
 
   const activeCategory = GARMENT_CATEGORIES.find(c => c.id === activeTab);
@@ -289,20 +337,13 @@ export function GarmentMeasurementsForm({ measurements, onChange, designType, sh
     return getMeasurementByNumber(highlightedNumber);
   }, [highlightedNumber]);
 
-  const handleNumberClick = (num: number) => {
-    const measurement = getMeasurementByNumber(num);
-    if (measurement) {
-      const input = document.getElementById(`numbered-${measurement.key}`);
-      input?.focus();
-    }
-  };
-
   const handleInputFocus = (num: number) => {
     setHighlightedNumber(num);
   };
 
-  const handleInputBlur = () => {
+  const handleInputBlur = (key: string, num: number) => {
     setHighlightedNumber(null);
+    handleNumberedInputBlur(key);
   };
 
   const renderMeasurementField = (field: MeasurementField) => {
@@ -389,7 +430,7 @@ export function GarmentMeasurementsForm({ measurements, onChange, designType, sh
             <div className="flex items-center gap-2">
               <Label htmlFor="detailedMode" className="text-sm text-muted-foreground flex items-center gap-1">
                 <Ruler className="h-4 w-4" />
-                <span className="hidden sm:inline">Visual Guide</span>
+                <span className="hidden sm:inline">Detailed Mode</span>
               </Label>
               <Switch
                 id="detailedMode"
@@ -439,24 +480,29 @@ export function GarmentMeasurementsForm({ measurements, onChange, designType, sh
 
         {/* Main Content - Conditional based on mode */}
         {detailedMode ? (
-          /* Numbered Measurement Guide with Visual */
-          <div className="flex flex-col lg:flex-row gap-6">
-            {/* Left side: Numbered list with inputs */}
-            <div className="flex-1 lg:max-w-md">
-              <ScrollArea className="h-[380px] pr-4">
-                <div className="space-y-1.5">
+          /* Numbered Measurement Guide - Full width grid without diagram */
+          <div className="space-y-6">
+            {/* Numbered measurements in a responsive grid */}
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                <Ruler className="h-4 w-4" />
+                Standard Measurements
+              </h3>
+              
+              <ScrollArea className="h-[360px] pr-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   {NUMBERED_MEASUREMENTS.map((m) => {
-                    const value = measurements[m.key] as number | undefined;
-                    const displayValue = value !== undefined ? (unit === 'in' ? cmToInches(value) : value) : undefined;
-                    const hasValue = value !== undefined && value > 0;
+                    const hasValue = measurements[m.key] !== undefined && (measurements[m.key] as number) > 0;
                     const isActive = highlightedNumber === m.number;
                     
                     return (
                       <div
                         key={m.key}
                         className={cn(
-                          "flex items-center gap-3 p-2 rounded-lg transition-all duration-200",
-                          isActive && "bg-primary/10 ring-1 ring-primary/30"
+                          "flex items-center gap-3 p-2.5 rounded-lg border transition-all duration-200",
+                          isActive 
+                            ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20" 
+                            : "bg-card border-border hover:border-primary/20"
                         )}
                       >
                         {/* Number badge */}
@@ -473,32 +519,35 @@ export function GarmentMeasurementsForm({ measurements, onChange, designType, sh
                           {hasValue ? <Check className="h-3.5 w-3.5" /> : m.number}
                         </div>
                         
-                        {/* Label */}
-                        <span className={cn(
-                          "flex-1 text-sm truncate",
-                          isActive ? "font-medium text-foreground" : "text-muted-foreground"
-                        )}>
-                          {m.label}
-                        </span>
+                        {/* Label and instruction */}
+                        <div className="flex-1 min-w-0">
+                          <span className={cn(
+                            "block text-sm truncate",
+                            isActive ? "font-medium text-foreground" : "text-foreground"
+                          )}>
+                            {m.label}
+                          </span>
+                          {isActive && (
+                            <span className="block text-xs text-muted-foreground truncate mt-0.5">
+                              {m.instruction}
+                            </span>
+                          )}
+                        </div>
                         
-                        {/* Input */}
-                        <div className="relative w-20">
+                        {/* Input with fraction support */}
+                        <div className="relative w-24 shrink-0">
                           <Input
                             id={`numbered-${m.key}`}
-                            type="number"
-                            step="0.5"
-                            min="0"
-                            placeholder="—"
-                            value={displayValue ?? ''}
-                            onChange={(e) => {
-                              const numValue = e.target.value === '' ? undefined : parseFloat(e.target.value);
-                              handleNumberedMeasurementChange(m.key, numValue);
-                            }}
+                            type="text"
+                            inputMode="decimal"
+                            placeholder="e.g. 45/2"
+                            value={getNumberedDisplayValue(m.key)}
+                            onChange={(e) => handleNumberedInputChange(m.key, e.target.value)}
                             onFocus={() => handleInputFocus(m.number)}
-                            onBlur={handleInputBlur}
+                            onBlur={() => handleInputBlur(m.key, m.number)}
                             className={cn(
                               "h-8 text-sm text-right pr-8",
-                              isActive && "ring-2 ring-primary"
+                              isActive && "ring-2 ring-primary border-primary"
                             )}
                           />
                           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
@@ -512,96 +561,32 @@ export function GarmentMeasurementsForm({ measurements, onChange, designType, sh
               </ScrollArea>
             </div>
 
-            {/* Right side: Mannequin diagrams */}
-            <div className="flex-1">
-              <div className="sticky top-4">
-                {/* Mobile: Collapsible */}
-                <div className="lg:hidden mb-4">
-                  <Collapsible open={mobileGuideOpen} onOpenChange={setMobileGuideOpen}>
-                    <CollapsibleTrigger className="w-full">
-                      <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted/70 transition-colors">
-                        <span className="text-sm font-medium flex items-center gap-2">
-                          <Ruler className="h-4 w-4" />
-                          View Body Diagram
-                        </span>
-                        <ChevronDown className={cn(
-                          "h-4 w-4 transition-transform duration-200",
-                          mobileGuideOpen && "rotate-180"
-                        )} />
-                      </div>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="pt-4">
-                      <div className="flex gap-2 justify-center">
-                        <div className="w-[130px]">
-                          <NumberedBodySVG 
-                            view="front"
-                            highlightedNumber={highlightedNumber}
-                            onNumberClick={handleNumberClick}
-                          />
-                        </div>
-                        <div className="w-[130px]">
-                          <NumberedBodySVG 
-                            view="back"
-                            highlightedNumber={highlightedNumber}
-                            onNumberClick={handleNumberClick}
-                          />
-                        </div>
-                      </div>
-                    </CollapsibleContent>
-                  </Collapsible>
-                </div>
-                
-                {/* Desktop: Always visible */}
-                <div className="hidden lg:block">
-                  <h3 className="text-sm font-semibold text-foreground text-center mb-3">
-                    Measurement Guide
-                  </h3>
-                  
-                  {/* Dual view: Front and Back */}
-                  <div className="flex gap-2 justify-center">
-                    <div className="w-[130px]">
-                      <NumberedBodySVG 
-                        view="front"
-                        highlightedNumber={highlightedNumber}
-                        onNumberClick={handleNumberClick}
-                      />
-                    </div>
-                    <div className="w-[130px]">
-                      <NumberedBodySVG 
-                        view="back"
-                        highlightedNumber={highlightedNumber}
-                        onNumberClick={handleNumberClick}
-                      />
-                    </div>
+            {/* Highlighted instruction card */}
+            {highlightedInstruction && (
+              <Card className="p-3 bg-primary/5 border-primary/20 animate-in fade-in-50 duration-200">
+                <div className="flex items-start gap-2">
+                  <Badge variant="outline" className="shrink-0">
+                    #{highlightedInstruction.number}
+                  </Badge>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      {highlightedInstruction.label}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {highlightedInstruction.instruction}
+                    </p>
                   </div>
                 </div>
+              </Card>
+            )}
 
-                {/* Instruction card */}
-                {highlightedInstruction ? (
-                  <Card className="mt-4 p-3 bg-primary/5 border-primary/20 animate-in fade-in-50 duration-200">
-                    <div className="flex items-start gap-2">
-                      <Badge variant="outline" className="shrink-0">
-                        #{highlightedInstruction.number}
-                      </Badge>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">
-                          {highlightedInstruction.label}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {highlightedInstruction.instruction}
-                        </p>
-                      </div>
-                    </div>
-                  </Card>
-                ) : (
-                  <Card className="mt-4 p-3 bg-muted/30 border-muted hidden lg:block">
-                    <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-2">
-                      <AlertCircle className="h-3.5 w-3.5" />
-                      Click a number or focus an input to see instructions
-                    </p>
-                  </Card>
-                )}
-              </div>
+            {/* Custom measurements section */}
+            <div className="pt-2 border-t">
+              <CustomMeasurementsSection
+                customMeasurements={measurements.custom_measurements || []}
+                onChange={handleCustomMeasurementsChange}
+                unit={unit}
+              />
             </div>
           </div>
         ) : (
