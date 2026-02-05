@@ -1052,8 +1052,14 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
             <SketchUploader
               sketchUrls={formData.sketchUrls}
               referenceNotes={formData.referenceNotes}
+              generatedImages={formData.generatedImages}
+              designType={formData.designType}
+              fabric={formData.fabric || ''}
+              color={formData.color || ''}
+              styleNotes={formData.styleNotes}
               onSketchUrlsChange={(urls) => updateFormData('sketchUrls', urls)}
               onReferenceNotesChange={(notes) => updateFormData('referenceNotes', notes)}
+              onGeneratedImagesChange={(images) => updateFormData('generatedImages', images)}
             />
           </div>
         );
