@@ -19,7 +19,7 @@ import { OrderToInvoiceModal } from "./OrderToInvoiceModal";
 import { ReceiptModal } from "./ReceiptModal";
 import { InvoiceViewModal } from "./InvoiceViewModal";
 import { AssignedOrdersSection } from "./AssignedOrdersSection";
-import { Scissors, Plus, Search, Edit, Trash2, Loader2, Calendar, User, FileText, CreditCard, Eye, Sparkles, CheckCircle, ArrowRightLeft, PlayCircle, MoreVertical } from "lucide-react";
+import { Scissors, Plus, Search, Edit, Trash2, Loader2, Calendar, User, FileText, CreditCard, Eye, Sparkles, CheckCircle, ArrowRightLeft, PlayCircle, MoreVertical, Wrench } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
@@ -44,11 +44,15 @@ interface CustomOrder {
   assigned_to: string | null;
   invoice_id: string | null;
   created_at: string;
+  // Order type
+  order_type: string | null;
   // Handoff fields
   handoff_step: number | null;
   handoff_status: string | null;
   assigned_operations_user_id: string | null;
   handoff_notes: string | null;
+  // Alteration fields
+  alteration_items: any;
   customers?: { name: string; email: string | null; phone: string | null } | null;
   employees?: { full_name: string } | null;
   invoices?: { 
@@ -59,6 +63,11 @@ interface CustomOrder {
     status: string;
   } | null;
 }
+
+const ORDER_TYPE_CONFIG: Record<string, { label: string; icon: typeof Scissors; color: string }> = {
+  custom: { label: "Custom", icon: Scissors, color: "bg-amber-100 text-amber-700 border-amber-200" },
+  alteration: { label: "Alteration", icon: Wrench, color: "bg-purple-100 text-purple-700 border-purple-200" },
+};
 
 const HANDOFF_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   pending_handoff: { label: "Pending Handoff", color: "bg-amber-100 text-amber-700 border-amber-200" },
