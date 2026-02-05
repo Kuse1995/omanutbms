@@ -277,7 +277,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
           // Alteration-specific fields
           garmentSource: (order.garment_source as 'shop_made' | 'external') || 'external',
           originalOrderId: order.original_order_id || null,
-          alterationItems: (Array.isArray(order.alteration_items) ? order.alteration_items : []) as AlterationItem[],
+          alterationItems: (Array.isArray(order.alteration_items) ? order.alteration_items as unknown as AlterationItem[] : []),
           garmentCondition: order.garment_condition || 'good',
           bringInDate: order.bring_in_date || new Date().toISOString().split('T')[0],
         });
