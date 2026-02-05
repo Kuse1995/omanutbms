@@ -52,7 +52,7 @@ interface CustomOrder {
   assigned_operations_user_id: string | null;
   handoff_notes: string | null;
   // Alteration fields
-  alteration_items: any[] | null;
+  alteration_items: any;
   customers?: { name: string; email: string | null; phone: string | null } | null;
   employees?: { full_name: string } | null;
   invoices?: { 
