@@ -318,6 +318,33 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
   const validateStep = (stepIndex: number): { valid: boolean; errors: string[] } => {
     const errors: string[] = [];
 
+    // Alteration flow validation
+    if (orderType === 'alteration') {
+      switch (stepIndex) {
+        case 0: // Client Info
+          if (!formData.customerName.trim()) errors.push("Customer name is required");
+          if (!formData.customerPhone.trim()) errors.push("Phone number is required");
+          break;
+        
+        case 1: // Alteration Details
+          if (!formData.designType) errors.push("Please select a garment type");
+          if (formData.alterationItems.length === 0) errors.push("Please select at least one alteration");
+          break;
+        
+        case 2: // Measurements - optional for alterations
+          break;
+        
+        case 3: // Photos & Notes - optional
+          break;
+        
+        case 4: // Review & Sign
+          if (!formData.customerSignature) errors.push("Customer signature is required to approve the alterations");
+          break;
+      }
+      return { valid: errors.length === 0, errors };
+    }
+
+    // Custom order flow validation
     switch (stepIndex) {
       case 0: // Client Info
         if (!formData.customerName.trim()) errors.push("Customer name is required");
@@ -369,16 +396,16 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
 
   // Calculate step completion percentage
   const stepCompletionStatus = useMemo(() => {
-    return WIZARD_STEPS.map((_, index) => {
+    return ACTIVE_WIZARD_STEPS.map((_, index) => {
       const { valid } = validateStep(index);
       return valid;
     });
-  }, [formData]);
+  }, [formData, orderType]);
 
   const overallProgress = useMemo(() => {
     const completedSteps = stepCompletionStatus.filter(Boolean).length;
-    return Math.round((completedSteps / WIZARD_STEPS.length) * 100);
-  }, [stepCompletionStatus]);
+    return Math.round((completedSteps / ACTIVE_WIZARD_STEPS.length) * 100);
+  }, [stepCompletionStatus, ACTIVE_WIZARD_STEPS.length]);
 
   // Determine if a step should be read-only (for handoff continuation)
   const isStepReadOnly = (stepIndex: number): boolean => {
@@ -413,7 +440,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
     }
 
     setValidationErrors([]);
-    if (currentStep < WIZARD_STEPS.length - 1) {
+    if (currentStep < ACTIVE_WIZARD_STEPS.length - 1) {
       setCurrentStep(prev => prev + 1);
     }
   };
