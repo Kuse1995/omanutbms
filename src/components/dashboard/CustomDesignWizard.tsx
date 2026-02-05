@@ -274,7 +274,18 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
           depositAmount: order.deposit_paid || 0,
           dueDate: order.due_date || '',
           customerSignature: order.collection_signature_url || null,
+          // Alteration-specific fields
+          garmentSource: (order.garment_source as 'shop_made' | 'external') || 'external',
+          originalOrderId: order.original_order_id || null,
+          alterationItems: (order.alteration_items as AlterationItem[]) || [],
+          garmentCondition: order.garment_condition || 'good',
+          bringInDate: order.bring_in_date || new Date().toISOString().split('T')[0],
         });
+        
+        // Set order type based on existing order
+        if (order.order_type) {
+          setOrderType(order.order_type as 'custom' | 'alteration');
+        }
 
         // If this is an operations continuation, set handoff config from order
         if (isOperationsContinuation && order.handoff_step !== null) {
