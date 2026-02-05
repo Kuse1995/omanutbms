@@ -1392,11 +1392,13 @@ export type Database = {
       custom_orders: {
         Row: {
           actual_collection_date: string | null
+          alteration_items: Json | null
           appointment_date: string | null
           assigned_operations_user_id: string | null
           assigned_tailor_id: string | null
           assigned_to: string | null
           branch_id: string | null
+          bring_in_date: string | null
           client_called: boolean | null
           client_called_at: string | null
           collection_date: string | null
@@ -1417,6 +1419,8 @@ export type Database = {
           fabric: string | null
           final_cost: number | null
           fitting_date: string | null
+          garment_condition: string | null
+          garment_source: string | null
           generated_images: Json | null
           handed_back_at: string | null
           handed_off_at: string | null
@@ -1431,6 +1435,8 @@ export type Database = {
           measurements: Json | null
           order_date: string | null
           order_number: string
+          order_type: string | null
+          original_order_id: string | null
           price_locked: boolean | null
           price_locked_at: string | null
           production_type: string | null
@@ -1452,11 +1458,13 @@ export type Database = {
         }
         Insert: {
           actual_collection_date?: string | null
+          alteration_items?: Json | null
           appointment_date?: string | null
           assigned_operations_user_id?: string | null
           assigned_tailor_id?: string | null
           assigned_to?: string | null
           branch_id?: string | null
+          bring_in_date?: string | null
           client_called?: boolean | null
           client_called_at?: string | null
           collection_date?: string | null
@@ -1477,6 +1485,8 @@ export type Database = {
           fabric?: string | null
           final_cost?: number | null
           fitting_date?: string | null
+          garment_condition?: string | null
+          garment_source?: string | null
           generated_images?: Json | null
           handed_back_at?: string | null
           handed_off_at?: string | null
@@ -1491,6 +1501,8 @@ export type Database = {
           measurements?: Json | null
           order_date?: string | null
           order_number: string
+          order_type?: string | null
+          original_order_id?: string | null
           price_locked?: boolean | null
           price_locked_at?: string | null
           production_type?: string | null
@@ -1512,11 +1524,13 @@ export type Database = {
         }
         Update: {
           actual_collection_date?: string | null
+          alteration_items?: Json | null
           appointment_date?: string | null
           assigned_operations_user_id?: string | null
           assigned_tailor_id?: string | null
           assigned_to?: string | null
           branch_id?: string | null
+          bring_in_date?: string | null
           client_called?: boolean | null
           client_called_at?: string | null
           collection_date?: string | null
@@ -1537,6 +1551,8 @@ export type Database = {
           fabric?: string | null
           final_cost?: number | null
           fitting_date?: string | null
+          garment_condition?: string | null
+          garment_source?: string | null
           generated_images?: Json | null
           handed_back_at?: string | null
           handed_off_at?: string | null
@@ -1551,6 +1567,8 @@ export type Database = {
           measurements?: Json | null
           order_date?: string | null
           order_number?: string
+          order_type?: string | null
+          original_order_id?: string | null
           price_locked?: boolean | null
           price_locked_at?: string | null
           production_type?: string | null
@@ -1604,6 +1622,13 @@ export type Database = {
             columns: ["invoice_id"]
             isOneToOne: false
             referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custom_orders_original_order_id_fkey"
+            columns: ["original_order_id"]
+            isOneToOne: false
+            referencedRelation: "custom_orders"
             referencedColumns: ["id"]
           },
           {

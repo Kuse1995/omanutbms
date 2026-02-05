@@ -18,7 +18,9 @@ import {
   Calendar,
   Save,
   ArrowRightLeft,
-  RotateCcw
+  RotateCcw,
+  Scissors,
+  Wrench
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,8 +40,10 @@ import { AdditionalCostsSection, type AdditionalCostItem } from "./AdditionalCos
 import { SketchUploader } from "./SketchUploader";
 import { CustomerSignaturePad } from "./CustomerSignaturePad";
 import { HandoffConfigPanel, type HandoffConfig } from "./HandoffConfigPanel";
+import { AlterationDetailsStep } from "./AlterationDetailsStep";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { type AlterationItem } from "@/lib/alteration-types";
 
 // Scroll lock hook - prevents background scrolling when modal is open
 function useScrollLock(lock: boolean) {
@@ -72,7 +76,8 @@ interface CustomDesignWizardProps {
   isOperationsContinuation?: boolean; // If Ops is picking up a handoff
 }
 
-const WIZARD_STEPS = [
+// Steps for custom (new design) orders
+const CUSTOM_WIZARD_STEPS = [
   { id: 'client', label: 'Client Info', icon: User },
   { id: 'work', label: 'Work Details', icon: Briefcase },
   { id: 'design', label: 'Design Details', icon: Palette },
@@ -81,6 +86,18 @@ const WIZARD_STEPS = [
   { id: 'pricing', label: 'Smart Pricing', icon: Calculator },
   { id: 'review', label: 'Review & Sign', icon: FileText },
 ];
+
+// Steps for alteration orders (simplified flow)
+const ALTERATION_WIZARD_STEPS = [
+  { id: 'client', label: 'Client Info', icon: User },
+  { id: 'alteration', label: 'Alteration Details', icon: Scissors },
+  { id: 'measurements', label: 'Measurements', icon: Ruler },
+  { id: 'photos', label: 'Photos & Notes', icon: Camera },
+  { id: 'review', label: 'Review & Sign', icon: FileText },
+];
+
+// Legacy reference for backwards compatibility
+const WIZARD_STEPS = CUSTOM_WIZARD_STEPS;
 
 const DESIGN_TYPES = [
   'Suit - 2 Piece',
@@ -118,6 +135,12 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [existingOrderData, setExistingOrderData] = useState<any>(null);
   const [isLoadingOrder, setIsLoadingOrder] = useState(false);
+  
+  // Order type: 'custom' for new designs, 'alteration' for modifying existing garments
+  const [orderType, setOrderType] = useState<'custom' | 'alteration' | null>(null);
+  
+  // Get the correct wizard steps based on order type
+  const ACTIVE_WIZARD_STEPS = orderType === 'alteration' ? ALTERATION_WIZARD_STEPS : CUSTOM_WIZARD_STEPS;
 
   // Handoff configuration
   const [handoffConfig, setHandoffConfig] = useState<HandoffConfig>({
@@ -132,6 +155,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
   const canConfigureHandoff = effectiveRole === 'admin' || effectiveRole === 'manager';
   // Check operations role from both tenantUser and useAuth role for reliability
   const isOperationsRole = effectiveRole === 'operations_manager';
+  
   // Form state - Updated with Dodo Wear form fields
   const [formData, setFormData] = useState({
     // Client Info (Step 1)
@@ -177,6 +201,13 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
     depositAmount: 0,
     dueDate: '',
     customerSignature: null as string | null,
+    
+    // Alteration-specific fields
+    garmentSource: 'external' as 'shop_made' | 'external',
+    originalOrderId: null as string | null,
+    alterationItems: [] as AlterationItem[],
+    garmentCondition: 'good' as string,
+    bringInDate: new Date().toISOString().split('T')[0],
   });
 
   const updateFormData = (field: string, value: any) => {
@@ -243,7 +274,18 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
           depositAmount: order.deposit_paid || 0,
           dueDate: order.due_date || '',
           customerSignature: order.collection_signature_url || null,
+          // Alteration-specific fields
+          garmentSource: (order.garment_source as 'shop_made' | 'external') || 'external',
+          originalOrderId: order.original_order_id || null,
+          alterationItems: (Array.isArray(order.alteration_items) ? order.alteration_items as unknown as AlterationItem[] : []),
+          garmentCondition: order.garment_condition || 'good',
+          bringInDate: order.bring_in_date || new Date().toISOString().split('T')[0],
         });
+        
+        // Set order type based on existing order
+        if (order.order_type) {
+          setOrderType(order.order_type as 'custom' | 'alteration');
+        }
 
         // If this is an operations continuation, set handoff config from order
         if (isOperationsContinuation && order.handoff_step !== null) {
