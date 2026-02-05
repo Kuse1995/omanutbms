@@ -141,6 +141,9 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
   
   // Get the correct wizard steps based on order type
   const ACTIVE_WIZARD_STEPS = orderType === 'alteration' ? ALTERATION_WIZARD_STEPS : CUSTOM_WIZARD_STEPS;
+
+  // Handoff configuration
+  const [handoffConfig, setHandoffConfig] = useState<HandoffConfig>({
     enabled: false,
     handoffStep: 2, // Default: after Design Details
     assignedUserId: null,
@@ -152,6 +155,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
   const canConfigureHandoff = effectiveRole === 'admin' || effectiveRole === 'manager';
   // Check operations role from both tenantUser and useAuth role for reliability
   const isOperationsRole = effectiveRole === 'operations_manager';
+  
   // Form state - Updated with Dodo Wear form fields
   const [formData, setFormData] = useState({
     // Client Info (Step 1)
@@ -197,6 +201,13 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
     depositAmount: 0,
     dueDate: '',
     customerSignature: null as string | null,
+    
+    // Alteration-specific fields
+    garmentSource: 'external' as 'shop_made' | 'external',
+    originalOrderId: null as string | null,
+    alterationItems: [] as AlterationItem[],
+    garmentCondition: 'good' as string,
+    bringInDate: new Date().toISOString().split('T')[0],
   });
 
   const updateFormData = (field: string, value: any) => {
