@@ -44,11 +44,15 @@ interface CustomOrder {
   assigned_to: string | null;
   invoice_id: string | null;
   created_at: string;
+  // Order type
+  order_type: 'custom' | 'alteration' | null;
   // Handoff fields
   handoff_step: number | null;
   handoff_status: string | null;
   assigned_operations_user_id: string | null;
   handoff_notes: string | null;
+  // Alteration fields
+  alteration_items: any[] | null;
   customers?: { name: string; email: string | null; phone: string | null } | null;
   employees?: { full_name: string } | null;
   invoices?: { 
@@ -59,6 +63,11 @@ interface CustomOrder {
     status: string;
   } | null;
 }
+
+const ORDER_TYPE_CONFIG: Record<string, { label: string; icon: typeof Scissors; color: string }> = {
+  custom: { label: "Custom", icon: Scissors, color: "bg-amber-100 text-amber-700 border-amber-200" },
+  alteration: { label: "Alteration", icon: Wrench, color: "bg-purple-100 text-purple-700 border-purple-200" },
+};
 
 const HANDOFF_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   pending_handoff: { label: "Pending Handoff", color: "bg-amber-100 text-amber-700 border-amber-200" },
