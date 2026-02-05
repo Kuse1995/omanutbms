@@ -19,7 +19,7 @@ import { OrderToInvoiceModal } from "./OrderToInvoiceModal";
 import { ReceiptModal } from "./ReceiptModal";
 import { InvoiceViewModal } from "./InvoiceViewModal";
 import { AssignedOrdersSection } from "./AssignedOrdersSection";
-import { Scissors, Plus, Search, Edit, Trash2, Loader2, Calendar, User, FileText, CreditCard, Eye, Sparkles, CheckCircle, ArrowRightLeft, PlayCircle, MoreVertical } from "lucide-react";
+import { Scissors, Plus, Search, Edit, Trash2, Loader2, Calendar, User, FileText, CreditCard, Eye, Sparkles, CheckCircle, ArrowRightLeft, PlayCircle, MoreVertical, Wrench } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
