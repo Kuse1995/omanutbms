@@ -958,7 +958,209 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
 
   if (!open) return null;
 
+  // Render alteration-specific steps
+  const renderAlterationStepContent = () => {
+    switch (currentStep) {
+      case 0: // Client Info - same as custom
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <Label htmlFor="customerName">Customer Name *</Label>
+                <Input
+                  id="customerName"
+                  value={formData.customerName}
+                  onChange={(e) => updateFormData('customerName', e.target.value)}
+                  placeholder="Enter customer full name"
+                  className={validationErrors.some(e => e.includes('name')) ? 'border-destructive' : ''}
+                />
+              </div>
+              <div>
+                <Label htmlFor="customerPhone">Phone Number *</Label>
+                <Input
+                  id="customerPhone"
+                  value={formData.customerPhone}
+                  onChange={(e) => updateFormData('customerPhone', e.target.value)}
+                  placeholder="+260 97X XXX XXX"
+                  className={validationErrors.some(e => e.includes('Phone')) ? 'border-destructive' : ''}
+                />
+              </div>
+              <div>
+                <Label htmlFor="customerWhatsApp">WhatsApp Number</Label>
+                <Input
+                  id="customerWhatsApp"
+                  value={formData.customerWhatsApp}
+                  onChange={(e) => updateFormData('customerWhatsApp', e.target.value)}
+                  placeholder="+260 97X XXX XXX"
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="customerEmail">Email (Optional)</Label>
+              <Input
+                id="customerEmail"
+                type="email"
+                value={formData.customerEmail}
+                onChange={(e) => updateFormData('customerEmail', e.target.value)}
+                placeholder="customer@email.com"
+              />
+            </div>
+          </div>
+        );
+
+      case 1: // Alteration Details
+        return (
+          <AlterationDetailsStep
+            selectedAlterations={formData.alterationItems}
+            onAlterationsChange={(items) => updateFormData('alterationItems', items)}
+            garmentType={formData.designType}
+            onGarmentTypeChange={(type) => updateFormData('designType', type)}
+            garmentSource={formData.garmentSource}
+            onGarmentSourceChange={(source) => updateFormData('garmentSource', source)}
+            garmentCondition={formData.garmentCondition}
+            onGarmentConditionChange={(condition) => updateFormData('garmentCondition', condition)}
+            originalOrderId={formData.originalOrderId}
+            onOriginalOrderChange={(id) => updateFormData('originalOrderId', id)}
+            customNotes={formData.styleNotes}
+            onNotesChange={(notes) => updateFormData('styleNotes', notes)}
+            hourlyRate={formData.hourlyRate}
+            bringInDate={formData.bringInDate}
+            onBringInDateChange={(date) => updateFormData('bringInDate', date)}
+          />
+        );
+
+      case 2: // Measurements (optional for alterations)
+        return (
+          <div className="space-y-4">
+            <div className="p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground mb-4">
+              <p>Measurements are optional for alterations. Only record if needed for the specific work.</p>
+            </div>
+            <GarmentMeasurementsForm
+              measurements={formData.measurements}
+              onChange={(m) => updateFormData('measurements', m)}
+              designType={formData.designType}
+            />
+          </div>
+        );
+
+      case 3: // Photos & Notes
+        return (
+          <div className="space-y-4">
+            <SketchUploader
+              sketches={formData.sketchUrls}
+              onSketchesChange={(urls) => updateFormData('sketchUrls', urls)}
+              label="Garment Photos"
+              description="Upload photos of the garment showing areas that need alteration"
+            />
+            <div className="mt-4">
+              <Label htmlFor="referenceNotes">Additional Notes</Label>
+              <Textarea
+                id="referenceNotes"
+                value={formData.referenceNotes}
+                onChange={(e) => updateFormData('referenceNotes', e.target.value)}
+                placeholder="Any additional notes about the alterations needed..."
+                rows={3}
+              />
+            </div>
+          </div>
+        );
+
+      case 4: // Review & Sign
+        const alterationTotal = formData.alterationItems.reduce((sum, item) => sum + item.price, 0);
+        const totalHours = formData.alterationItems.reduce((sum, item) => sum + item.estimatedHours, 0);
+        
+        return (
+          <div className="space-y-6">
+            {/* Order Summary */}
+            <div className="p-4 rounded-lg bg-muted/30 space-y-3">
+              <h4 className="font-medium">Alteration Summary</h4>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Customer</span>
+                  <span className="font-medium">{formData.customerName}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Garment</span>
+                  <span className="font-medium">{formData.designType || 'Not specified'}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Condition</span>
+                  <Badge variant="outline" className="capitalize">{formData.garmentCondition}</Badge>
+                </div>
+              </div>
+              
+              <div className="border-t pt-3 mt-3">
+                <h5 className="text-sm font-medium mb-2">Alterations ({formData.alterationItems.length})</h5>
+                <div className="space-y-1">
+                  {formData.alterationItems.map((item, idx) => (
+                    <div key={idx} className="flex justify-between text-sm">
+                      <span>{item.label}</span>
+                      <span className="font-medium">K {item.price.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="border-t pt-3 mt-3 flex justify-between font-semibold">
+                <span>Total Estimate</span>
+                <span className="text-lg">K {alterationTotal.toLocaleString()}</span>
+              </div>
+              <p className="text-xs text-muted-foreground">Est. {totalHours.toFixed(1)} hours of work</p>
+            </div>
+
+            {/* Deposit */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="depositAmount">Deposit Paid</Label>
+                <Input
+                  id="depositAmount"
+                  type="number"
+                  step="any"
+                  value={formData.depositAmount || ''}
+                  onChange={(e) => updateFormData('depositAmount', parseFloat(e.target.value) || 0)}
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <Label htmlFor="collectionDate">Collection Date</Label>
+                <Input
+                  id="collectionDate"
+                  type="date"
+                  value={formData.collectionDate}
+                  onChange={(e) => updateFormData('collectionDate', e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Customer Signature */}
+            <div className="border-t pt-4">
+              <Label className="mb-2 block">Customer Approval Signature *</Label>
+              <CustomerSignaturePad
+                signature={formData.customerSignature}
+                onSignatureChange={(sig) => updateFormData('customerSignature', sig)}
+              />
+              {validationErrors.some(e => e.includes('signature')) && (
+                <p className="text-sm text-destructive flex items-center gap-1 mt-2">
+                  <AlertCircle className="h-4 w-4" />
+                  Customer signature is required to confirm the alterations
+                </p>
+              )}
+            </div>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
   const renderStepContent = () => {
+    // Handle alteration-specific flow
+    if (orderType === 'alteration') {
+      return renderAlterationStepContent();
+    }
+    
+    // Custom order flow
     switch (currentStep) {
       case 0: // Client Info
         return (
