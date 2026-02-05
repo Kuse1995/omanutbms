@@ -1432,6 +1432,70 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
     }
   };
 
+  // Order type selection screen
+  const renderOrderTypeSelection = () => (
+    <div className="space-y-8">
+      <div className="text-center space-y-2">
+        <h2 className="text-2xl font-bold text-foreground">What type of order is this?</h2>
+        <p className="text-muted-foreground">Choose the workflow that best fits your client's needs</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* New Custom Design Option */}
+        <button
+          onClick={() => setOrderType('custom')}
+          className="group relative p-6 rounded-xl border-2 border-border hover:border-amber-400 bg-card hover:bg-amber-50/50 dark:hover:bg-amber-950/20 transition-all text-left"
+        >
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+              <Scissors className="h-6 w-6" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-lg text-foreground mb-1">New Custom Design</h3>
+              <p className="text-sm text-muted-foreground">
+                Create a garment from scratch with custom measurements, fabric selection, and full design specifications.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Badge variant="secondary" className="text-xs">Full Measurements</Badge>
+                <Badge variant="secondary" className="text-xs">Material Selection</Badge>
+                <Badge variant="secondary" className="text-xs">Design Sketches</Badge>
+              </div>
+            </div>
+          </div>
+        </button>
+
+        {/* Alteration Only Option */}
+        <button
+          onClick={() => setOrderType('alteration')}
+          className="group relative p-6 rounded-xl border-2 border-border hover:border-purple-400 bg-card hover:bg-purple-50/50 dark:hover:bg-purple-950/20 transition-all text-left"
+        >
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+              <Wrench className="h-6 w-6" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-lg text-foreground mb-1">Alteration Only</h3>
+              <p className="text-sm text-muted-foreground">
+                Modify an existing garment – sizing adjustments, repairs, hemming, and other alterations.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Badge variant="secondary" className="text-xs">Quick Intake</Badge>
+                <Badge variant="secondary" className="text-xs">Preset Alterations</Badge>
+                <Badge variant="secondary" className="text-xs">Auto Pricing</Badge>
+              </div>
+            </div>
+          </div>
+        </button>
+      </div>
+
+      <div className="flex justify-center pt-4">
+        <Button variant="ghost" onClick={onClose} className="text-muted-foreground">
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+
   return (
     <div 
       className="fixed inset-0 bg-gradient-to-br from-slate-900/80 via-slate-800/70 to-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4 overflow-hidden"
@@ -1445,16 +1509,24 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
         className="bg-background backdrop-blur-xl rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] sm:max-h-[90vh] flex flex-col border border-border/50 overflow-hidden"
       >
         {/* Header with gradient */}
-        <div className="relative bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 px-4 sm:px-6 py-4 flex-shrink-0">
+        <div className={`relative ${orderType === 'alteration' ? 'bg-gradient-to-r from-purple-500 via-purple-600 to-violet-500' : 'bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500'} px-4 sm:px-6 py-4 flex-shrink-0`}>
           <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyek0zNiAzMHYySDI0di0yaDF6Ii8+PC9nPjwvZz48L3N2Zz4=')] opacity-30" />
           <div className="relative flex items-center justify-between">
             <div className="flex items-center gap-3 sm:gap-4">
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center">
-                <Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+                {orderType === 'alteration' ? (
+                  <Wrench className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+                ) : (
+                  <Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+                )}
               </div>
               <div>
-                <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">Dodo Wear Custom Order</h2>
-                <p className="text-amber-100/80 text-xs sm:text-sm hidden sm:block">Create bespoke orders with precision</p>
+                <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">
+                  {!orderType ? 'New Order' : orderType === 'alteration' ? 'Alteration Order' : 'Dodo Wear Custom Order'}
+                </h2>
+                <p className="text-white/80 text-xs sm:text-sm hidden sm:block">
+                  {!orderType ? 'Select order type to continue' : orderType === 'alteration' ? 'Modify existing garments' : 'Create bespoke orders with precision'}
+                </p>
               </div>
             </div>
             <Button 
@@ -1469,104 +1541,115 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
             </Button>
           </div>
           
-          {/* Progress indicator */}
-          <div className="relative mt-5">
-            <div className="flex items-center justify-between text-xs text-white/80 mb-2">
-              <span className="font-medium">Step {currentStep + 1} of {WIZARD_STEPS.length}</span>
-              <span className="font-semibold">{overallProgress}% Complete</span>
+          {/* Progress indicator - only show when order type is selected */}
+          {orderType && (
+            <div className="relative mt-5">
+              <div className="flex items-center justify-between text-xs text-white/80 mb-2">
+                <span className="font-medium">Step {currentStep + 1} of {ACTIVE_WIZARD_STEPS.length}</span>
+                <span className="font-semibold">{overallProgress}% Complete</span>
+              </div>
+              <div className="h-2 bg-white/20 rounded-full overflow-hidden backdrop-blur">
+                <motion.div 
+                  className="h-full bg-gradient-to-r from-white via-amber-100 to-white rounded-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${overallProgress}%` }}
+                  transition={{ duration: 0.5, ease: "easeOut" }}
+                />
+              </div>
             </div>
-            <div className="h-2 bg-white/20 rounded-full overflow-hidden backdrop-blur">
-              <motion.div 
-                className="h-full bg-gradient-to-r from-white via-amber-100 to-white rounded-full"
-                initial={{ width: 0 }}
-                animate={{ width: `${overallProgress}%` }}
-                transition={{ duration: 0.5, ease: "easeOut" }}
-              />
-            </div>
-          </div>
+          )}
         </div>
 
-        {/* Step Navigation */}
-        <div className="px-3 sm:px-6 py-3 sm:py-4 border-b bg-gradient-to-b from-muted/50 to-background flex-shrink-0">
-          <div className="flex items-center justify-between gap-0.5 overflow-x-auto">
-            {WIZARD_STEPS.map((step, index) => {
-              const StepIcon = step.icon;
-              const isActive = index === currentStep;
-              const isComplete = stepCompletionStatus[index] && index < currentStep;
-              const isAccessible = index <= currentStep || stepCompletionStatus.slice(0, index).every(Boolean);
-              
-              return (
-                <div key={step.id} className="flex items-center flex-1 last:flex-none">
-                  <button
-                    onClick={() => {
-                      if (isAccessible && index < currentStep) {
-                        setCurrentStep(index);
-                        setValidationErrors([]);
-                      }
-                    }}
-                    disabled={!isAccessible || index > currentStep}
-                    className={`group flex flex-col items-center gap-1 transition-all ${
-                      !isAccessible ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
-                    }`}
-                  >
-                    <motion.div 
-                      className={`relative w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-all shadow-sm ${
-                        isActive 
-                          ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-amber-500/30 shadow-lg' 
-                          : isComplete 
-                            ? 'bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-emerald-500/20' 
-                            : 'bg-muted text-muted-foreground group-hover:bg-muted/80'
+        {/* Step Navigation - only show when order type is selected */}
+        {orderType && (
+          <div className="px-3 sm:px-6 py-3 sm:py-4 border-b bg-gradient-to-b from-muted/50 to-background flex-shrink-0">
+            <div className="flex items-center justify-between gap-0.5 overflow-x-auto">
+              {ACTIVE_WIZARD_STEPS.map((step, index) => {
+                const StepIcon = step.icon;
+                const isActive = index === currentStep;
+                const isComplete = stepCompletionStatus[index] && index < currentStep;
+                const isAccessible = index <= currentStep || stepCompletionStatus.slice(0, index).every(Boolean);
+                
+                return (
+                  <div key={step.id} className="flex items-center flex-1 last:flex-none">
+                    <button
+                      onClick={() => {
+                        if (isAccessible && index < currentStep) {
+                          setCurrentStep(index);
+                          setValidationErrors([]);
+                        }
+                      }}
+                      disabled={!isAccessible || index > currentStep}
+                      className={`group flex flex-col items-center gap-1 transition-all ${
+                        !isAccessible ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
                       }`}
-                      animate={isActive ? { scale: [1, 1.05, 1] } : {}}
-                      transition={{ duration: 0.3 }}
                     >
-                      {isComplete ? (
-                        <motion.div
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          transition={{ type: "spring", damping: 10 }}
-                        >
-                          <Check className="h-4 w-4 sm:h-5 sm:w-5" />
-                        </motion.div>
-                      ) : (
-                        <StepIcon className="h-4 w-4 sm:h-5 sm:w-5" />
-                      )}
-                      {isActive && (
-                        <div className="absolute inset-0 rounded-xl ring-2 ring-amber-400/50 animate-pulse" />
-                      )}
-                    </motion.div>
-                    <span className={`text-[9px] sm:text-[10px] font-medium text-center leading-tight hidden sm:block ${
-                      isActive ? 'text-amber-600' : isComplete ? 'text-emerald-600' : 'text-muted-foreground'
-                    }`}>
-                      {step.label}
-                    </span>
-                  </button>
-                  {index < WIZARD_STEPS.length - 1 && (
-                    <div className="flex-1 h-0.5 mx-0.5 sm:mx-1 rounded-full overflow-hidden bg-muted">
                       <motion.div 
-                        className={`h-full rounded-full ${
-                          stepCompletionStatus[index] && index < currentStep 
-                            ? 'bg-gradient-to-r from-emerald-500 to-emerald-400' 
-                            : 'bg-transparent'
+                        className={`relative w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-all shadow-sm ${
+                          isActive 
+                            ? orderType === 'alteration'
+                              ? 'bg-gradient-to-br from-purple-400 to-purple-600 text-white shadow-purple-500/30 shadow-lg'
+                              : 'bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-amber-500/30 shadow-lg' 
+                            : isComplete 
+                              ? 'bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-emerald-500/20' 
+                              : 'bg-muted text-muted-foreground group-hover:bg-muted/80'
                         }`}
-                        initial={{ width: 0 }}
-                        animate={{ width: stepCompletionStatus[index] && index < currentStep ? '100%' : '0%' }}
+                        animate={isActive ? { scale: [1, 1.05, 1] } : {}}
                         transition={{ duration: 0.3 }}
-                      />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                      >
+                        {isComplete ? (
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ type: "spring", damping: 10 }}
+                          >
+                            <Check className="h-4 w-4 sm:h-5 sm:w-5" />
+                          </motion.div>
+                        ) : (
+                          <StepIcon className="h-4 w-4 sm:h-5 sm:w-5" />
+                        )}
+                        {isActive && (
+                          <div className={`absolute inset-0 rounded-xl ring-2 ${orderType === 'alteration' ? 'ring-purple-400/50' : 'ring-amber-400/50'} animate-pulse`} />
+                        )}
+                      </motion.div>
+                      <span className={`text-[9px] sm:text-[10px] font-medium text-center leading-tight hidden sm:block ${
+                        isActive 
+                          ? orderType === 'alteration' ? 'text-purple-600' : 'text-amber-600' 
+                          : isComplete ? 'text-emerald-600' : 'text-muted-foreground'
+                      }`}>
+                        {step.label}
+                      </span>
+                    </button>
+                    {index < ACTIVE_WIZARD_STEPS.length - 1 && (
+                      <div className="flex-1 h-0.5 mx-0.5 sm:mx-1 rounded-full overflow-hidden bg-muted">
+                        <motion.div 
+                          className={`h-full rounded-full ${
+                            stepCompletionStatus[index] && index < currentStep 
+                              ? 'bg-gradient-to-r from-emerald-500 to-emerald-400' 
+                              : 'bg-transparent'
+                          }`}
+                          initial={{ width: 0 }}
+                          animate={{ width: stepCompletionStatus[index] && index < currentStep ? '100%' : '0%' }}
+                          transition={{ duration: 0.3 }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Content Area */}
         <div 
           className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 bg-gradient-to-b from-background to-muted/20"
           style={{ overscrollBehavior: 'contain' }}
         >
-          {isLoadingOrder ? (
+          {!orderType && !editOrderId ? (
+            // Show order type selection if not editing and type not selected
+            renderOrderTypeSelection()
+          ) : isLoadingOrder ? (
             <div className="flex flex-col items-center justify-center h-64 gap-4">
               <motion.div
                 animate={{ rotate: 360 }}
@@ -1587,24 +1670,38 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
               >
                 <div className="flex items-center gap-3 mb-4">
                   <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center ${
-                    currentStep === WIZARD_STEPS.length - 1 
+                    currentStep === ACTIVE_WIZARD_STEPS.length - 1 
                       ? 'bg-emerald-100 text-emerald-600' 
-                      : 'bg-amber-100 text-amber-600'
+                      : orderType === 'alteration'
+                        ? 'bg-purple-100 text-purple-600'
+                        : 'bg-amber-100 text-amber-600'
                   }`}>
-                    {React.createElement(WIZARD_STEPS[currentStep].icon, { className: "h-4 w-4 sm:h-5 sm:w-5" })}
+                    {React.createElement(ACTIVE_WIZARD_STEPS[currentStep].icon, { className: "h-4 w-4 sm:h-5 sm:w-5" })}
                   </div>
                   <div>
                     <h3 className="font-semibold text-base sm:text-lg text-foreground">
-                      {WIZARD_STEPS[currentStep].label}
+                      {ACTIVE_WIZARD_STEPS[currentStep].label}
                     </h3>
                     <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
-                      {currentStep === 0 && "Enter customer contact details"}
-                      {currentStep === 1 && "Set production timeline and scheduling"}
-                      {currentStep === 2 && "Specify design and fabric requirements"}
-                      {currentStep === 3 && "Record body measurements by garment type"}
-                      {currentStep === 4 && "Upload references and generate previews"}
-                      {currentStep === 5 && "Calculate materials and labor costs"}
-                      {currentStep === 6 && "Review order and get customer signature"}
+                      {orderType === 'alteration' ? (
+                        <>
+                          {currentStep === 0 && "Enter customer contact details"}
+                          {currentStep === 1 && "Select alterations needed for the garment"}
+                          {currentStep === 2 && "Record measurements for alterations"}
+                          {currentStep === 3 && "Upload photos of the garment"}
+                          {currentStep === 4 && "Review and get customer signature"}
+                        </>
+                      ) : (
+                        <>
+                          {currentStep === 0 && "Enter customer contact details"}
+                          {currentStep === 1 && "Set production timeline and scheduling"}
+                          {currentStep === 2 && "Specify design and fabric requirements"}
+                          {currentStep === 3 && "Record body measurements by garment type"}
+                          {currentStep === 4 && "Upload references and generate previews"}
+                          {currentStep === 5 && "Calculate materials and labor costs"}
+                          {currentStep === 6 && "Review order and get customer signature"}
+                        </>
+                      )}
                     </p>
                   </div>
                   {/* Show read-only badge if step is locked */}
@@ -1621,87 +1718,99 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-3 sm:px-6 py-3 sm:py-4 border-t bg-muted/30 backdrop-blur flex items-center justify-between gap-2 flex-shrink-0">
-          <div className="flex items-center gap-1 sm:gap-2">
-            <Button
-              variant="outline"
-              onClick={handleBack}
-              disabled={currentStep === 0}
-              className="gap-1 sm:gap-2 text-xs sm:text-sm"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              <span className="hidden sm:inline">Back</span>
-            </Button>
-
-            {/* Save as Draft button - always visible */}
-            <Button
-              variant="ghost"
-              onClick={handleSaveDraft}
-              disabled={isSavingDraft || isSubmitting}
-              className="gap-1 sm:gap-2 text-muted-foreground hover:text-foreground text-xs sm:text-sm"
-            >
-              {isSavingDraft ? (
-                <>
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                  >
-                    <Save className="h-4 w-4" />
-                  </motion.div>
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4" />
-                  <span className="hidden sm:inline">Save Draft</span>
-                </>
-              )}
-            </Button>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {validationErrors.length > 0 && (
-              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive text-xs font-medium">
-                <AlertCircle className="h-3.5 w-3.5" />
-                {validationErrors.length} issue{validationErrors.length > 1 ? 's' : ''} to fix
-              </div>
-            )}
-            
-            {currentStep < WIZARD_STEPS.length - 1 ? (
-              <Button 
-                onClick={handleNext} 
-                className="gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 shadow-lg shadow-amber-500/25"
+        {/* Footer - only show when order type is selected */}
+        {orderType && (
+          <div className="px-3 sm:px-6 py-3 sm:py-4 border-t bg-muted/30 backdrop-blur flex items-center justify-between gap-2 flex-shrink-0">
+            <div className="flex items-center gap-1 sm:gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (currentStep === 0 && !editOrderId) {
+                    // Go back to order type selection
+                    setOrderType(null);
+                  } else {
+                    handleBack();
+                  }
+                }}
+                className="gap-1 sm:gap-2 text-xs sm:text-sm"
               >
-                Continue
-                <ChevronRight className="h-4 w-4" />
+                <ChevronLeft className="h-4 w-4" />
+                <span className="hidden sm:inline">Back</span>
               </Button>
-            ) : (
-              <Button 
-                onClick={handleSubmit} 
-                disabled={isSubmitting || !formData.customerSignature}
-                className="gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-lg shadow-emerald-500/25"
+
+              {/* Save as Draft button - always visible */}
+              <Button
+                variant="ghost"
+                onClick={handleSaveDraft}
+                disabled={isSavingDraft || isSubmitting}
+                className="gap-1 sm:gap-2 text-muted-foreground hover:text-foreground text-xs sm:text-sm"
               >
-                {isSubmitting ? (
+                {isSavingDraft ? (
                   <>
                     <motion.div
                       animate={{ rotate: 360 }}
                       transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
                     >
-                      <Sparkles className="h-4 w-4" />
+                      <Save className="h-4 w-4" />
                     </motion.div>
-                    Creating...
+                    Saving...
                   </>
                 ) : (
                   <>
-                    Create Order
-                    <Check className="h-4 w-4" />
+                    <Save className="h-4 w-4" />
+                    <span className="hidden sm:inline">Save Draft</span>
                   </>
                 )}
               </Button>
-            )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              {validationErrors.length > 0 && (
+                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive text-xs font-medium">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  {validationErrors.length} issue{validationErrors.length > 1 ? 's' : ''} to fix
+                </div>
+              )}
+              
+              {currentStep < ACTIVE_WIZARD_STEPS.length - 1 ? (
+                <Button 
+                  onClick={handleNext} 
+                  className={`gap-2 shadow-lg ${
+                    orderType === 'alteration'
+                      ? 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 shadow-purple-500/25'
+                      : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 shadow-amber-500/25'
+                  }`}
+                >
+                  Continue
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button 
+                  onClick={handleSubmit} 
+                  disabled={isSubmitting || !formData.customerSignature}
+                  className="gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-lg shadow-emerald-500/25"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      >
+                        <Sparkles className="h-4 w-4" />
+                      </motion.div>
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      Create Order
+                      <Check className="h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </motion.div>
     </div>
   );
