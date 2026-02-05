@@ -18,7 +18,9 @@ import {
   Calendar,
   Save,
   ArrowRightLeft,
-  RotateCcw
+  RotateCcw,
+  Scissors,
+  Wrench
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,8 +40,10 @@ import { AdditionalCostsSection, type AdditionalCostItem } from "./AdditionalCos
 import { SketchUploader } from "./SketchUploader";
 import { CustomerSignaturePad } from "./CustomerSignaturePad";
 import { HandoffConfigPanel, type HandoffConfig } from "./HandoffConfigPanel";
+import { AlterationDetailsStep } from "./AlterationDetailsStep";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { type AlterationItem } from "@/lib/alteration-types";
 
 // Scroll lock hook - prevents background scrolling when modal is open
 function useScrollLock(lock: boolean) {
