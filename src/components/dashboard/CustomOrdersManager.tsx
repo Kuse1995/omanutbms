@@ -45,7 +45,7 @@ interface CustomOrder {
   invoice_id: string | null;
   created_at: string;
   // Order type
-  order_type: 'custom' | 'alteration' | null;
+  order_type: string | null;
   // Handoff fields
   handoff_step: number | null;
   handoff_status: string | null;
