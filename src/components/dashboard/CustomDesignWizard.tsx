@@ -1046,22 +1046,15 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
       case 3: // Photos & Notes
         return (
           <div className="space-y-4">
+            <p className="text-sm text-muted-foreground mb-4">
+              Upload photos of the garment showing areas that need alteration
+            </p>
             <SketchUploader
-              sketches={formData.sketchUrls}
-              onSketchesChange={(urls) => updateFormData('sketchUrls', urls)}
-              label="Garment Photos"
-              description="Upload photos of the garment showing areas that need alteration"
+              sketchUrls={formData.sketchUrls}
+              referenceNotes={formData.referenceNotes}
+              onSketchUrlsChange={(urls) => updateFormData('sketchUrls', urls)}
+              onReferenceNotesChange={(notes) => updateFormData('referenceNotes', notes)}
             />
-            <div className="mt-4">
-              <Label htmlFor="referenceNotes">Additional Notes</Label>
-              <Textarea
-                id="referenceNotes"
-                value={formData.referenceNotes}
-                onChange={(e) => updateFormData('referenceNotes', e.target.value)}
-                placeholder="Any additional notes about the alterations needed..."
-                rows={3}
-              />
-            </div>
           </div>
         );
 
