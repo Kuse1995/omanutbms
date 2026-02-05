@@ -135,9 +135,12 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [existingOrderData, setExistingOrderData] = useState<any>(null);
   const [isLoadingOrder, setIsLoadingOrder] = useState(false);
-
-  // Handoff configuration
-  const [handoffConfig, setHandoffConfig] = useState<HandoffConfig>({
+  
+  // Order type: 'custom' for new designs, 'alteration' for modifying existing garments
+  const [orderType, setOrderType] = useState<'custom' | 'alteration' | null>(null);
+  
+  // Get the correct wizard steps based on order type
+  const ACTIVE_WIZARD_STEPS = orderType === 'alteration' ? ALTERATION_WIZARD_STEPS : CUSTOM_WIZARD_STEPS;
     enabled: false,
     handoffStep: 2, // Default: after Design Details
     assignedUserId: null,
