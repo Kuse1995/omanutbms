@@ -76,7 +76,8 @@ interface CustomDesignWizardProps {
   isOperationsContinuation?: boolean; // If Ops is picking up a handoff
 }
 
-const WIZARD_STEPS = [
+// Steps for custom (new design) orders
+const CUSTOM_WIZARD_STEPS = [
   { id: 'client', label: 'Client Info', icon: User },
   { id: 'work', label: 'Work Details', icon: Briefcase },
   { id: 'design', label: 'Design Details', icon: Palette },
@@ -85,6 +86,18 @@ const WIZARD_STEPS = [
   { id: 'pricing', label: 'Smart Pricing', icon: Calculator },
   { id: 'review', label: 'Review & Sign', icon: FileText },
 ];
+
+// Steps for alteration orders (simplified flow)
+const ALTERATION_WIZARD_STEPS = [
+  { id: 'client', label: 'Client Info', icon: User },
+  { id: 'alteration', label: 'Alteration Details', icon: Scissors },
+  { id: 'measurements', label: 'Measurements', icon: Ruler },
+  { id: 'photos', label: 'Photos & Notes', icon: Camera },
+  { id: 'review', label: 'Review & Sign', icon: FileText },
+];
+
+// Legacy reference for backwards compatibility
+const WIZARD_STEPS = CUSTOM_WIZARD_STEPS;
 
 const DESIGN_TYPES = [
   'Suit - 2 Piece',
