@@ -215,7 +215,7 @@ export function PricingSection() {
                     asChild
                   >
                     <Link to={user ? `/pay?plan=${planKey}` : `/auth?plan=${planKey}`}>
-                      Start Free Trial
+                      Get Started
                       <ArrowRight className="w-4 h-4" />
                     </Link>
                   </Button>
