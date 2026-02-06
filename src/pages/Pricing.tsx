@@ -27,8 +27,8 @@ const Pricing = () => {
                 Choose your plan
               </h1>
               <p className="text-xl text-slate-300 max-w-2xl mx-auto">
-                Start free, scale as you grow. All plans include our core business 
-                management features with no hidden fees.
+                Simple plans that grow with your business. All plans include our core 
+                business management features with no hidden fees.
               </p>
             </motion.div>
 
