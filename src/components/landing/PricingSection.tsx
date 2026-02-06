@@ -71,8 +71,7 @@ export function PricingSection() {
             Simple, transparent pricing
           </h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Start with a 7-day free trial. No credit card required. 
-            Choose the plan that fits your business.
+            Choose the plan that fits your business. Start today.
           </p>
         </motion.div>
 
@@ -216,7 +215,7 @@ export function PricingSection() {
                     asChild
                   >
                     <Link to={user ? `/pay?plan=${planKey}` : `/auth?plan=${planKey}`}>
-                      Start Free Trial
+                      Get Started
                       <ArrowRight className="w-4 h-4" />
                     </Link>
                   </Button>
@@ -239,7 +238,7 @@ export function PricingSection() {
 
                 {/* Trial Note */}
                 <p className="text-xs text-muted-foreground text-center mt-6 pt-6 border-t">
-                  {planData.trialDays}-day free trial • No credit card required
+                  No setup fees • Cancel anytime
                 </p>
               </motion.div>
             );

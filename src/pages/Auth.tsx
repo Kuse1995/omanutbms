@@ -323,7 +323,7 @@ const Auth = () => {
         } else {
           toast({
             title: "Welcome! 🎉",
-            description: `Your ${BILLING_PLANS[selectedPlan].trialDays}-day free trial has started.`,
+            description: "Account created! Choose a plan to get started.",
           });
         }
       } else {

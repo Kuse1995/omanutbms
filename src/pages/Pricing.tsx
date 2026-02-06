@@ -5,7 +5,7 @@ import { PricingFAQ } from "@/components/landing/PricingFAQ";
 import { SaaSFooter } from "@/components/landing/SaaSFooter";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Clock, Users } from "lucide-react";
+import { Shield, Users } from "lucide-react";
 
 const Pricing = () => {
   return (
@@ -27,8 +27,8 @@ const Pricing = () => {
                 Choose your plan
               </h1>
               <p className="text-xl text-slate-300 max-w-2xl mx-auto">
-                Start free, scale as you grow. All plans include our core business 
-                management features with no hidden fees.
+                Simple plans that grow with your business. All plans include our core 
+                business management features with no hidden fees.
               </p>
             </motion.div>
 
@@ -40,12 +40,12 @@ const Pricing = () => {
               className="flex flex-wrap justify-center gap-8 mt-12 text-slate-400"
             >
               <div className="flex items-center gap-2">
-                <Clock className="w-5 h-5" />
-                <span>14-day free trial</span>
+                <Shield className="w-5 h-5" />
+                <span>No setup fees</span>
               </div>
               <div className="flex items-center gap-2">
                 <Shield className="w-5 h-5" />
-                <span>No credit card required</span>
+                <span>Secure payments</span>
               </div>
               <div className="flex items-center gap-2">
                 <Users className="w-5 h-5" />

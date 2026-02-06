@@ -34,6 +34,7 @@ import { ProductionFloor } from "@/components/dashboard/ProductionFloor";
 import { AssetsManager } from "@/components/dashboard/AssetsManager";
 import { JobCardsManager } from "@/components/dashboard/JobCardsManager";
 import { BusinessTypeSetupWizard } from "@/components/dashboard/BusinessTypeSetupWizard";
+import { SubscriptionActivationGate } from "@/components/dashboard/SubscriptionActivationGate";
 import { useOnboardingTour } from "@/hooks/useOnboardingTour";
 import { useFeatures } from "@/hooks/useFeatures";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
@@ -279,6 +280,13 @@ const Dashboard = () => {
           {/* Business Type Setup Wizard - shows for new tenants (owner only) */}
           {!businessProfile?.onboarding_completed && tenantUser?.is_owner === true && (
             <BusinessTypeSetupWizard onComplete={refetchTenant} />
+          )}
+          
+          {/* Subscription Activation Gate - shows after onboarding for inactive billing */}
+          {businessProfile?.onboarding_completed && 
+           businessProfile?.billing_status === 'inactive' && 
+           tenantUser?.is_owner === true && (
+            <SubscriptionActivationGate />
           )}
           
           {/* Welcome Video Modal - shows first for new users after business type is set */}
