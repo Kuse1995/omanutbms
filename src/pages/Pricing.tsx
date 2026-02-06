@@ -5,7 +5,7 @@ import { PricingFAQ } from "@/components/landing/PricingFAQ";
 import { SaaSFooter } from "@/components/landing/SaaSFooter";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Clock, Users } from "lucide-react";
+import { Shield, Users } from "lucide-react";
 
 const Pricing = () => {
   return (

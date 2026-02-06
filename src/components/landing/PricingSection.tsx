@@ -238,7 +238,7 @@ export function PricingSection() {
 
                 {/* Trial Note */}
                 <p className="text-xs text-muted-foreground text-center mt-6 pt-6 border-t">
-                  {planData.trialDays}-day free trial • No credit card required
+                  No setup fees • Cancel anytime
                 </p>
               </motion.div>
             );

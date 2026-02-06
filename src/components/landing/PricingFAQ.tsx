@@ -9,8 +9,8 @@ import { Badge } from "@/components/ui/badge";
 
 const faqs = [
   {
-    question: "How does the free trial work?",
-    answer: "Start with a 14-day free trial (30 days for Enterprise). You get full access to all features in your selected plan. No credit card required to start. At the end of your trial, you can upgrade to continue using the service.",
+    question: "How do I get started?",
+    answer: "Create your account, complete a quick business setup wizard, then choose a plan and subscribe via Mobile Money. You'll have full access immediately after payment.",
   },
   {
     question: "Can I change plans later?",
@@ -18,19 +18,15 @@ const faqs = [
   },
   {
     question: "What payment methods do you accept?",
-    answer: "We currently process payments manually via bank transfer or mobile money. We're working on adding automated payment options. Contact us for payment details.",
-  },
-  {
-    question: "What happens when my trial expires?",
-    answer: "When your trial ends, you'll be prompted to upgrade to continue using the platform. Your data remains safe - you just won't be able to access it until you subscribe.",
+    answer: "We accept Mobile Money payments (MTN and Airtel). Bank transfer and card payments are coming soon. All payments are in Zambian Kwacha (ZMW).",
   },
   {
     question: "Is there a setup fee?",
-    answer: "No setup fees for Starter and Growth plans. Enterprise plans may include customization and onboarding services - contact us for details.",
+    answer: "No setup fees for Starter and Pro plans. Enterprise plans may include customization and onboarding services — contact us for details.",
   },
   {
     question: "Can I get a refund?",
-    answer: "We offer a 14-day money-back guarantee for annual subscriptions. If you're not satisfied, contact us within the first 14 days of your paid subscription for a full refund.",
+    answer: "All subscription payments are non-refundable. We recommend reviewing the plan features carefully before subscribing. Contact us if you have questions before purchasing.",
   },
   {
     question: "Do you offer discounts for NGOs or educational institutions?",
@@ -39,6 +35,10 @@ const faqs = [
   {
     question: "What's included in Enterprise support?",
     answer: "Enterprise customers get a dedicated account manager, priority support with guaranteed response times, custom onboarding, and SLA guarantees. White-label options are also available.",
+  },
+  {
+    question: "What happens if my subscription lapses?",
+    answer: "Your data remains safe — you just won't be able to access the platform until you resubscribe. No data is ever deleted due to billing status.",
   },
 ];
 
