@@ -40,12 +40,12 @@ const Pricing = () => {
               className="flex flex-wrap justify-center gap-8 mt-12 text-slate-400"
             >
               <div className="flex items-center gap-2">
-                <Clock className="w-5 h-5" />
-                <span>14-day free trial</span>
+                <Shield className="w-5 h-5" />
+                <span>No setup fees</span>
               </div>
               <div className="flex items-center gap-2">
                 <Shield className="w-5 h-5" />
-                <span>No credit card required</span>
+                <span>Secure payments</span>
               </div>
               <div className="flex items-center gap-2">
                 <Users className="w-5 h-5" />
