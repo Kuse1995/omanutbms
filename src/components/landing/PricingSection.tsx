@@ -71,8 +71,7 @@ export function PricingSection() {
             Simple, transparent pricing
           </h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Start with a 7-day free trial. No credit card required. 
-            Choose the plan that fits your business.
+            Choose the plan that fits your business. Start today.
           </p>
         </motion.div>
 
