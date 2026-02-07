@@ -1,129 +1,140 @@
 
-# Update Pricing, Remove Trial for New Users, Preserve Existing Trials
+# Transform School Business Type into a Student Management System
 
 ## Overview
 
-Update the code-level pricing defaults to match the database (K299/K799/K1,999), remove the free trial for **new signups only**, and add a payment gate after onboarding. **All 12 existing trial users keep their trial until expiration.**
-
----
-
-## Current State
-
-- **Database pricing** already correct: K299, K799, K1,999 (ZMW)
-- **Code defaults** still show USD: $9, $29, $79 (these are fallbacks overridden by DB, but should match)
-- **12 users on trial** with valid `trial_expires_at` dates -- these must be preserved
-- **12 users active** -- unaffected
-- Trial references appear in: Auth page, Pricing page, PricingSection, PricingFAQ, billing-plans.ts
+Currently, the "School" business type is just a terminology overlay on the retail engine. This plan transforms it into a purpose-built **Student Information & Fee Management System** with dedicated modules for student profiles, fee tracking, balance management, and academic records.
 
 ---
 
 ## What Changes
 
-### 1. Update Code Defaults (billing-plans.ts)
-- Starter: K299/mo, K2,870/yr (ZMW)
-- Pro: K799/mo, K7,670/yr (ZMW)
-- Enterprise: K1,999/mo, K19,190/yr (ZMW)
-- Set `trialDays: 0` for all plans
-- Keep `"trial"` in `BillingStatus` type (existing users still use it)
-- `isStatusActive()` continues to return `true` for `"trial"` (preserves existing trial access)
+### 1. Student Profiles (Replace Measurements with Academic Info)
 
-### 2. Database Migration
-- Update `handle_new_user()` trigger: new signups get `billing_status = 'inactive'` and `trial_expires_at = NULL`
-- Set `trial_days = 0` in `billing_plan_configs`
-- **DO NOT** touch existing `business_profiles` rows -- all 12 trial users keep their status and expiry dates
+When `businessType === 'school'`, the `CustomerModal` will replace the "Measurements" tab with an **"Academic & Guardian"** tab containing:
 
-### 3. Subscription Activation Gate (new component)
-After onboarding completes, if `billing_status` is `'inactive'`, show a full-screen overlay prompting the user to subscribe. This replaces the trial experience for new users.
+| Field | Storage | Description |
+|-------|---------|-------------|
+| Grade / Level | `measurements.grade` | e.g., Grade 1-12 |
+| Class / Section | `measurements.section` | e.g., 1A, 2B |
+| Student ID Number | `measurements.student_id` | School-issued ID |
+| Guardian Name | `measurements.guardian_name` | Parent/guardian |
+| Guardian Phone | `measurements.guardian_phone` | Contact number |
+| Guardian Relationship | `measurements.guardian_relationship` | Father, Mother, etc. |
+| Enrollment Status | `measurements.enrollment_status` | Enrolled, Suspended, Graduated |
+| Enrollment Date | `measurements.enrollment_date` | When student joined |
 
-- Shows the 3 plans with pricing
-- "Subscribe Now" button goes to `/pay`
-- Cannot be dismissed (must pay to proceed)
+All stored in the existing `measurements` JSONB column -- no database migration needed.
 
-### 4. Dashboard Integration
-Add the gate between onboarding wizard and dashboard content:
+### 2. Student List View (Replace Measurements Column)
 
-```
-Onboarding Wizard (if !onboarding_completed)
-  --> Subscription Gate (if onboarding_completed && billing_status === 'inactive')
-    --> Dashboard (if active or trial)
-```
+The `CustomersManager` table columns will change for schools:
 
-### 5. Auth Page Updates
-- Change "Your 7-day free trial has started" toast to "Account created! Choose a plan to get started."
-- Remove trial days reference from success message
+| Current (All Types) | School Version |
+|---------------------|----------------|
+| Name | Student Name |
+| Contact | Guardian Contact |
+| Measurements (X recorded) | Grade / Class |
+| Actions | Actions |
 
-### 6. Landing/Pricing Page Updates
-- PricingSection: Change "Start with a 7-day free trial" to "Choose the plan that fits your business"
-- PricingSection: Change CTA buttons from "Start Free Trial" to "Get Started"
-- PricingSection: Remove "{trialDays}-day free trial" footer note
-- Pricing page: Remove "14-day free trial" badge, change to "No setup fees"
-- Pricing page: Change "Start free, scale as you grow" to "Simple plans that grow with your business"
-- PricingFAQ: Rewrite trial-related FAQ answers
+The subtitle will change from "Manage customer profiles and body measurements" to "Manage student enrollment and academic records."
 
-### 7. SidebarUpgradeCTA & TrialBanner
-- These naturally handle both states already
-- Trial users see trial countdown (existing behavior preserved)
-- Inactive users see "Activate Subscription" (existing behavior)
-- No code changes needed
+### 3. Fee Management Tab (New Component)
 
----
+Create a dedicated **Student Fees Manager** (`StudentFeesManager.tsx`) that replaces the generic inventory tab for schools. This provides:
 
-## Existing Trial Users -- Preserved
+- **Fee Structure Setup**: Define fee types (Tuition, Exam, Uniform, Transport, Boarding) with amounts per term/grade
+- **Fee Allocation**: Assign fees to individual students or bulk-assign by grade
+- **Balance Tracking**: Real-time view of each student's total fees, payments made, and outstanding balance
+- **Payment Recording**: Quick fee collection linked to the student
+- **Fee Statements**: Generate per-student statements showing all charges and payments
 
-The 12 users currently on trial will:
-- Keep `billing_status = 'trial'` in their `business_profiles`
-- Keep their `trial_expires_at` dates unchanged
-- Continue seeing the TrialBanner with days remaining
-- Continue having full feature access via `isStatusActive('trial') === true`
-- When their trial expires, the existing expiry logic kicks in (shows upgrade prompt)
+Data model uses existing tables:
+- `inventory` table stores fee types (Tuition K5,000, Exam Fee K200, etc.) with `hideStock: true`
+- `invoices` table tracks fee statements per student (linked via `client_name`)
+- `payment_receipts` tracks payments against fee statements
 
----
+### 4. Student Dashboard Tab (New Component)
 
-## Files to Change
+Create `StudentDashboard.tsx` to replace the `communities` tab for schools, providing:
 
-| File | Change |
-|------|--------|
-| `src/lib/billing-plans.ts` | Update prices to ZMW, set trialDays to 0 |
-| `src/pages/Dashboard.tsx` | Add SubscriptionActivationGate between onboarding and content |
-| `src/components/dashboard/SubscriptionActivationGate.tsx` | New component -- payment gate overlay |
-| `src/pages/Auth.tsx` | Remove trial reference in success toast |
-| `src/components/landing/PricingSection.tsx` | Remove trial text, update CTAs |
-| `src/pages/Pricing.tsx` | Remove trial badges, update copy |
-| `src/components/landing/PricingFAQ.tsx` | Rewrite trial FAQ |
-| Database migration | Update trigger for new signups, set trial_days=0 in configs |
+- **Enrollment Summary**: Total students by grade, new enrollments this term
+- **Fee Collection Overview**: Total expected vs. collected, collection rate percentage
+- **Outstanding Balances**: Top students with highest balances, overdue fees
+- **Quick Actions**: Collect Fee, Generate Statements, View Debtors List
 
----
+### 5. Navigation & Config Updates
 
-## Database Migration SQL
+Update `business-type-config.ts` for schools:
 
-```sql
--- Set trial_days = 0 for all plans (affects new signups only)
-UPDATE billing_plan_configs SET trial_days = 0;
+| Setting | Current | New |
+|---------|---------|-----|
+| `tabOrder` | `[..., 'communities', ...]` | `[..., 'customers', ...]` (Students tab) |
+| Quick Action "Student Records" | targets `communities` | targets `customers` |
+| `inventory.enabled` | `false` | `true` (for fee type setup) |
+| New quick action | -- | "View Balances" targeting accounts |
+| `hiddenTabs` | `['inventory', 'shop', 'agents', 'messages']` | `['shop', 'agents', 'messages']` (show inventory as "Fee Structure") |
 
--- Update handle_new_user trigger: new signups get 'inactive' instead of 'trial'
--- (full trigger replacement with billing_status = 'inactive', trial_expires_at = NULL)
-```
+### 6. Fee Categories Update
 
-**NOT included** (preserves existing trials):
-```sql
--- We do NOT run this:
--- UPDATE business_profiles SET billing_status = 'inactive' WHERE billing_status = 'trial';
+Expand the school fee categories in `formFields.categories`:
+
+```text
+Current: Tuition, Supplies, Activity Fee, Uniform, Other
+New:     Tuition, Exam Fee, Boarding, Transport, Uniform, Lab Fee, Library, Activity Fee, PTA Levy, Other
 ```
 
 ---
 
-## User Experience
+## Technical Implementation
 
-### New Users (after this change)
-1. Visit landing page, click "Get Started"
-2. Create account at `/auth`
-3. Land on Dashboard, see BusinessTypeSetupWizard
-4. Complete company name + business type
-5. See SubscriptionActivationGate (must subscribe)
-6. Go to `/pay`, select plan, pay via Mobile Money
-7. Account activated, full dashboard access
+### Files to Create
 
-### Existing Trial Users (unchanged)
-1. Log in, see TrialBanner with "X days left"
-2. Full feature access continues
-3. When trial expires, prompted to upgrade
+| File | Purpose |
+|------|---------|
+| `src/components/dashboard/StudentFeesManager.tsx` | Fee structure, allocation, and balance tracking |
+| `src/components/dashboard/StudentDashboard.tsx` | School-specific dashboard with enrollment and fee KPIs |
+| `src/components/dashboard/StudentAcademicForm.tsx` | Academic info form (replaces MeasurementsForm for schools) |
+
+### Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/components/dashboard/CustomerModal.tsx` | Conditionally show Academic tab instead of Measurements for schools |
+| `src/components/dashboard/CustomersManager.tsx` | Show Grade/Class columns instead of Measurements for schools |
+| `src/lib/business-type-config.ts` | Fix tab order, enable inventory, update categories, fix quick actions |
+| `src/pages/Dashboard.tsx` | Route `communities` tab to `StudentDashboard` when school type |
+| `src/components/dashboard/DashboardSidebar.tsx` | Show "Fee Structure" label for inventory tab when school type |
+
+### No Database Migration Needed
+
+- Student academic data stored in `measurements` JSONB on `customers` table
+- Fee types use the existing `inventory` table (with `hideStock: true`)
+- Fee statements use the existing `invoices` table
+- Payments use the existing `payment_receipts` table
+
+---
+
+## User Experience After Changes
+
+### School Admin Dashboard
+1. **Dashboard** -- Fee collection KPIs, enrollment stats, outstanding balances
+2. **Fees** (Sales tab) -- Record fee payments from students
+3. **Receipts** -- View/print payment receipts
+4. **Fee Statements** (Accounts tab) -- Generate and manage per-student fee statements
+5. **Students** (Customers tab) -- Manage student profiles with grade, class, guardian info
+6. **Fee Structure** (Inventory tab) -- Define fee types and amounts
+7. **HR** -- Staff management and payroll
+
+### Student Profile View
+- Personal details (name, student ID, address)
+- Guardian information (name, phone, relationship)
+- Academic info (grade, class, enrollment status, enrollment date)
+- Fee balance summary (total owed, total paid, outstanding)
+
+### Fee Balance Tracking Flow
+1. Admin sets up fee types in "Fee Structure" (e.g., Tuition K5,000/term)
+2. Admin creates fee statements for students (individually or bulk by grade)
+3. When student pays, admin records payment in "Fees" tab
+4. Balance automatically updates across all views
+5. Admin can generate a statement showing all charges and payments for any student
