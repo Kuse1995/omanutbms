@@ -6,11 +6,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MeasurementsForm, type Measurements } from "./MeasurementsForm";
+import { StudentAcademicForm, type StudentAcademicData } from "./StudentAcademicForm";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/hooks/useTenant";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
-import { User, Ruler, Save, Loader2 } from "lucide-react";
+import { User, Ruler, Save, Loader2, GraduationCap } from "lucide-react";
 
 interface Customer {
   id: string;
@@ -32,9 +33,11 @@ interface CustomerModalProps {
 export function CustomerModal({ open, onOpenChange, customer, onSuccess }: CustomerModalProps) {
   const { toast } = useToast();
   const { tenant } = useTenant();
-  const { terminology } = useBusinessConfig();
+  const { terminology, businessType } = useBusinessConfig();
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("details");
+
+  const isSchool = businessType === 'school';
 
   const [formData, setFormData] = useState({
     name: "",
@@ -111,6 +114,9 @@ export function CustomerModal({ open, onOpenChange, customer, onSuccess }: Custo
     }
   };
 
+  const secondTabLabel = isSchool ? 'Academic & Guardian' : 'Measurements';
+  const SecondTabIcon = isSchool ? GraduationCap : Ruler;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -128,8 +134,8 @@ export function CustomerModal({ open, onOpenChange, customer, onSuccess }: Custo
               Details
             </TabsTrigger>
             <TabsTrigger value="measurements" className="flex items-center gap-2">
-              <Ruler className="h-4 w-4" />
-              Measurements
+              <SecondTabIcon className="h-4 w-4" />
+              {secondTabLabel}
             </TabsTrigger>
           </TabsList>
 
@@ -140,7 +146,7 @@ export function CustomerModal({ open, onOpenChange, customer, onSuccess }: Custo
                 id="name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder={`${terminology.customer} name`}
+                placeholder={isSchool ? "Student full name" : `${terminology.customer} name`}
               />
             </div>
 
@@ -152,11 +158,11 @@ export function CustomerModal({ open, onOpenChange, customer, onSuccess }: Custo
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="customer@email.com"
+                  placeholder={isSchool ? "guardian@email.com" : "customer@email.com"}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="phone">Phone</Label>
+                <Label htmlFor="phone">{isSchool ? "Guardian Phone" : "Phone"}</Label>
                 <Input
                   id="phone"
                   value={formData.phone}
@@ -182,17 +188,31 @@ export function CustomerModal({ open, onOpenChange, customer, onSuccess }: Custo
                 id="notes"
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                placeholder="Additional notes about this customer..."
+                placeholder={isSchool ? "Additional notes about this student..." : "Additional notes about this customer..."}
                 rows={3}
               />
             </div>
           </TabsContent>
 
           <TabsContent value="measurements" className="mt-4">
-            <p className="text-sm text-muted-foreground mb-4">
-              Record body measurements in centimeters (cm). Leave fields empty if not measured.
-            </p>
-            <MeasurementsForm measurements={measurements} onChange={setMeasurements} />
+            {isSchool ? (
+              <>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Record academic and guardian information for this student.
+                </p>
+                <StudentAcademicForm
+                  data={measurements as unknown as StudentAcademicData}
+                  onChange={(data) => setMeasurements(data as unknown as Measurements)}
+                />
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Record body measurements in centimeters (cm). Leave fields empty if not measured.
+                </p>
+                <MeasurementsForm measurements={measurements} onChange={setMeasurements} />
+              </>
+            )}
           </TabsContent>
         </Tabs>
 

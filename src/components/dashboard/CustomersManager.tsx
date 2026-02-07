@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { CustomerModal } from "./CustomerModal";
-import { Users, Plus, Search, Edit, Trash2, Loader2, Ruler, Phone, Mail } from "lucide-react";
+import { Users, Plus, Search, Edit, Trash2, Loader2, Ruler, Phone, Mail, GraduationCap } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import type { Measurements } from "./MeasurementsForm";
 
@@ -29,7 +29,7 @@ export function CustomersManager() {
   const { toast } = useToast();
   const { tenant } = useTenant();
   const { isAdmin, canEdit: canEditRole } = useAuth();
-  const { terminology } = useBusinessConfig();
+  const { terminology, businessType } = useBusinessConfig();
   const [loading, setLoading] = useState(true);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -38,6 +38,7 @@ export function CustomersManager() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
 
+  const isSchool = businessType === 'school';
   const canEdit = isAdmin || canEditRole;
 
   const fetchCustomers = async () => {
@@ -126,7 +127,7 @@ export function CustomersManager() {
             {terminology.customers}
           </h1>
           <p className="text-muted-foreground">
-            Manage {terminology.customer.toLowerCase()} profiles and body measurements
+            Manage {terminology.customer.toLowerCase()} {isSchool ? 'enrollment and academic records' : 'profiles and body measurements'}
           </p>
         </div>
 
@@ -176,9 +177,9 @@ export function CustomersManager() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Measurements</TableHead>
+                    <TableHead>{isSchool ? 'Student Name' : 'Name'}</TableHead>
+                    <TableHead>{isSchool ? 'Guardian Contact' : 'Contact'}</TableHead>
+                    <TableHead>{isSchool ? 'Grade / Class' : 'Measurements'}</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -212,13 +213,29 @@ export function CustomersManager() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {countMeasurements(customer.measurements) > 0 ? (
-                          <Badge variant="secondary" className="flex items-center gap-1 w-fit">
-                            <Ruler className="h-3 w-3" />
-                            {countMeasurements(customer.measurements)} recorded
-                          </Badge>
+                        {isSchool ? (
+                          (() => {
+                            const m = customer.measurements as any;
+                            const grade = m?.grade;
+                            const section = m?.section;
+                            return grade ? (
+                              <Badge variant="secondary" className="flex items-center gap-1 w-fit">
+                                <GraduationCap className="h-3 w-3" />
+                                {grade}{section ? ` - ${section}` : ''}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">Not assigned</span>
+                            );
+                          })()
                         ) : (
-                          <span className="text-muted-foreground text-sm">Not recorded</span>
+                          countMeasurements(customer.measurements) > 0 ? (
+                            <Badge variant="secondary" className="flex items-center gap-1 w-fit">
+                              <Ruler className="h-3 w-3" />
+                              {countMeasurements(customer.measurements)} recorded
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">Not recorded</span>
+                          )
                         )}
                       </TableCell>
                       <TableCell className="text-right">
