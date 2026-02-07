@@ -144,7 +144,7 @@ const baseMenuItems: MenuItem[] = [
   { id: "inventory", title: "Inventory", icon: Package, feature: 'inventory', dynamicTitle: 'inventory' },
   { id: "returns", title: "Returns & Damages", icon: RotateCcw, feature: 'inventory' },
   { id: "custom-orders", title: "Custom Orders", icon: Scissors, feature: 'inventory' },
-  { id: "customers", title: "Customers", icon: UserCircle, feature: 'inventory' },
+  { id: "customers", title: "Customers", icon: UserCircle, feature: null },
   { id: "shop", title: "Shop Manager", icon: Store, feature: 'inventory' },
   { id: "job-cards", title: "Job Cards", icon: Wrench, feature: 'inventory' },
   { id: "warehouse", title: "Warehouse", icon: Warehouse, feature: 'warehouse' },
@@ -192,8 +192,8 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
       // Hide entire "Custom Workflow" category for non-authorized tenants
       if (item.id === 'custom-orders' && !isCustomDesignerEnabled) return false;
       if (item.id === 'production-floor' && !isCustomDesignerEnabled && !isProductionTrackingEnabled) return false;
-      // "Customers" is part of custom workflow, so hide it too if the workflow isn't enabled
-      if (item.id === 'customers' && !isCustomDesignerEnabled) return false;
+      // "Customers" is part of custom workflow unless school type (schools always show students)
+      if (item.id === 'customers' && !isCustomDesignerEnabled && businessType !== 'school') return false;
       // Only show job-cards for autoshop business type
       if (item.id === 'job-cards' && businessType !== 'autoshop') return false;
       return true;
@@ -204,6 +204,10 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
   const getItemTitle = (item: MenuItem): string => {
     if (item.dynamicTitle === 'sales') return terminology.salesLabel;
     if (item.dynamicTitle === 'inventory') return terminology.inventoryLabel;
+    // School-specific label overrides
+    if (businessType === 'school') {
+      if (item.id === 'customers') return 'Students';
+    }
     return item.title;
   };
 
