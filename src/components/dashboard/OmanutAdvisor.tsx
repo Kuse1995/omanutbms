@@ -240,18 +240,7 @@ export function OmanutAdvisor() {
     }
   }, [isOpen, isHidden, hasAnimated]);
 
-  // Periodic wiggle animation to draw attention
-  useEffect(() => {
-    if (isOpen || isHidden || prefersReducedMotion) return;
-    
-    // Trigger wiggle every 8 seconds when idle
-    const interval = setInterval(() => {
-      setShowWiggle(true);
-      setTimeout(() => setShowWiggle(false), 500);
-    }, 8000);
-    
-    return () => clearInterval(interval);
-  }, [isOpen, isHidden, prefersReducedMotion]);
+  // Periodic wiggle disabled — users reported it as a glitch
 
   const toggleHidden = () => {
     const newHidden = !isHidden;
