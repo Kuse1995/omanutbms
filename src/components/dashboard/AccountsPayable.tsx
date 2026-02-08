@@ -11,13 +11,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, FileText, CheckCircle, Clock, AlertTriangle, Trash2, Eye, RefreshCw } from "lucide-react";
+import { Plus, FileText, CheckCircle, Clock, AlertTriangle, Trash2, Eye, RefreshCw, Landmark } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { PayableViewModal } from "./PayableViewModal";
 import { useTenant } from "@/hooks/useTenant";
 import { RecurringExpensesManager } from "./RecurringExpensesManager";
+import { StatutoryTaxProvisions } from "./StatutoryTaxProvisions";
 
 interface AccountPayable {
   id: string;
@@ -225,10 +226,14 @@ const AccountsPayable = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsList className="grid w-full max-w-lg grid-cols-3">
           <TabsTrigger value="payables" className="flex items-center gap-2">
             <FileText className="h-4 w-4" />
             Payables
+          </TabsTrigger>
+          <TabsTrigger value="statutory" className="flex items-center gap-2">
+            <Landmark className="h-4 w-4" />
+            Statutory Taxes
           </TabsTrigger>
           <TabsTrigger value="recurring" className="flex items-center gap-2">
             <RefreshCw className="h-4 w-4" />
@@ -423,6 +428,10 @@ const AccountsPayable = () => {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="statutory" className="mt-6">
+          <StatutoryTaxProvisions canManage={canManage} />
         </TabsContent>
 
         <TabsContent value="recurring" className="mt-6">
