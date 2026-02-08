@@ -57,7 +57,7 @@ export function RestockModal({
   const [quantity, setQuantity] = useState<number>(0);
   const [costPerUnit, setCostPerUnit] = useState<number>(0);
   const [notes, setNotes] = useState("");
-  const [costRecordingOption, setCostRecordingOption] = useState<"opening" | "expense">("opening");
+  const [costRecordingOption, setCostRecordingOption] = useState<"opening" | "expense" | "credit">("opening");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [selectedVariantId, setSelectedVariantId] = useState<string>("base");
@@ -83,6 +83,7 @@ export function RestockModal({
   const [isUploadingQuotation, setIsUploadingQuotation] = useState(false);
   const invoiceInputRef = useRef<HTMLInputElement>(null);
   const quotationInputRef = useRef<HTMLInputElement>(null);
+  const [creditDueDate, setCreditDueDate] = useState<string>("");
   
   const { toast } = useToast();
   const { tenantId } = useTenant();
@@ -158,6 +159,7 @@ export function RestockModal({
       setCostPerUnit(product?.cost_price || 0);
       setNotes("");
       setCostRecordingOption("opening");
+      setCreditDueDate("");
       setSelectedVariantId("base");
       setSelectedVendorId("");
       setShowNewVendorForm(false);
@@ -366,13 +368,34 @@ export function RestockModal({
         if (expenseError) throw expenseError;
       }
 
+      // 4. If credit purchase, create accounts payable record
+      if (costRecordingOption === "credit" && totalCost > 0) {
+        const vendorName = selectedVendor?.name || "Unknown Vendor";
+        const { error: payableError } = await supabase
+          .from("accounts_payable")
+          .insert({
+            tenant_id: tenantId,
+            vendor_name: vendorName,
+            description: `Credit purchase: ${quantity} × ${product.name} (${product.sku})`,
+            amount_zmw: totalCost,
+            due_date: creditDueDate || null,
+            invoice_reference: invoiceUrl ? `Restock-${Date.now()}` : null,
+            notes: `Goods received on credit.${notes ? ` ${notes}` : ""}`,
+            status: "pending",
+            recorded_by: user?.id,
+          });
+
+        if (payableError) throw payableError;
+      }
+
       const stockLabel = selectedVariant 
         ? `${selectedVariant.variant_value}` 
         : product.name;
       
+      const creditNote = costRecordingOption === "credit" ? " (Credit → Accounts Payable)" : "";
       toast({
         title: "Stock updated",
-        description: `Added ${quantity} units to ${stockLabel}. New stock: ${newStock}`,
+        description: `Added ${quantity} units to ${stockLabel}. New stock: ${newStock}${creditNote}`,
       });
 
       handleOpenChange(false);
@@ -619,7 +642,7 @@ export function RestockModal({
 
               <RadioGroup
                 value={costRecordingOption}
-                onValueChange={(value: "opening" | "expense") => setCostRecordingOption(value)}
+                onValueChange={(value: "opening" | "expense" | "credit") => setCostRecordingOption(value)}
                 className="space-y-2"
               >
                 {/* Option 1: Opening Stock */}
@@ -661,7 +684,44 @@ export function RestockModal({
                     </span>
                   </div>
                 </label>
+
+                {/* Option 3: Credit Purchase → Accounts Payable */}
+                <label
+                  className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                    costRecordingOption === "credit"
+                      ? "bg-white border-[#0077B6] ring-1 ring-[#0077B6]"
+                      : "bg-white/50 border-[#004B8D]/20 hover:border-[#004B8D]/40"
+                  }`}
+                >
+                  <RadioGroupItem value="credit" className="mt-1" />
+                  <div className="flex-1">
+                    <span className="font-medium text-[#003366] block flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-blue-600" />
+                      Credit Purchase (Pay Later)
+                    </span>
+                    <span className="text-xs text-[#004B8D]/70 block mt-1">
+                      Goods received on credit. Creates an <strong>Accounts Payable</strong> record to track what you owe the vendor.
+                    </span>
+                  </div>
+                </label>
               </RadioGroup>
+
+              {/* Credit purchase due date */}
+              {costRecordingOption === "credit" && (
+                <div className="space-y-2 mt-3">
+                  <Label htmlFor="credit-due-date" className="text-sm">Payment Due Date</Label>
+                  <Input
+                    id="credit-due-date"
+                    type="date"
+                    value={creditDueDate}
+                    onChange={(e) => setCreditDueDate(e.target.value)}
+                    min={new Date().toISOString().split("T")[0]}
+                  />
+                  {!selectedVendorId && (
+                    <p className="text-xs text-amber-600">⚠ Select a vendor above to track who you owe</p>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
