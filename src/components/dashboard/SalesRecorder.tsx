@@ -205,7 +205,7 @@ export function SalesRecorder() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [tenantId, currentBranch?.id]);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -246,19 +246,57 @@ export function SalesRecorder() {
 
   const fetchInventory = async () => {
     if (!tenantId) return;
-    const { data, error } = await supabase
-      .from('inventory')
-      .select('id, name, sku, unit_price, current_stock, image_url, collection_id')
-      .eq('tenant_id', tenantId)
-      .eq('is_archived', false)
-      .gt('current_stock', 0)
-      .order('name');
 
-    if (error) {
-      console.error('Error fetching inventory:', error);
-      return;
+    // When multi-branch is enabled and a specific branch is selected,
+    // use branch_inventory to get branch-specific stock levels
+    if (isMultiBranchEnabled && currentBranch) {
+      const { data, error } = await supabase
+        .from('branch_inventory')
+        .select(`
+          current_stock,
+          inventory_id,
+          inventory:inventory_id (
+            id, name, sku, unit_price, image_url, collection_id, is_archived
+          )
+        `)
+        .eq('tenant_id', tenantId)
+        .eq('branch_id', currentBranch.id)
+        .gt('current_stock', 0);
+
+      if (error) {
+        console.error('Error fetching branch inventory:', error);
+        return;
+      }
+
+      const branchItems: InventoryItem[] = (data || [])
+        .filter((bi: any) => bi.inventory && !bi.inventory.is_archived)
+        .map((bi: any) => ({
+          id: bi.inventory.id,
+          name: bi.inventory.name,
+          sku: bi.inventory.sku,
+          unit_price: bi.inventory.unit_price,
+          current_stock: bi.current_stock, // branch-specific stock
+          image_url: bi.inventory.image_url,
+          collection_id: bi.inventory.collection_id,
+        }));
+
+      setInventory(branchItems);
+    } else {
+      // Single-branch mode or admin viewing "All Branches" — use global stock
+      const { data, error } = await supabase
+        .from('inventory')
+        .select('id, name, sku, unit_price, current_stock, image_url, collection_id')
+        .eq('tenant_id', tenantId)
+        .eq('is_archived', false)
+        .gt('current_stock', 0)
+        .order('name');
+
+      if (error) {
+        console.error('Error fetching inventory:', error);
+        return;
+      }
+      setInventory(data || []);
     }
-    setInventory(data || []);
   };
 
   const fetchRecentSales = async () => {
@@ -537,6 +575,12 @@ export function SalesRecorder() {
   };
 
   const handleCheckout = async () => {
+    // Block sales when multi-branch is enabled but no specific branch is selected
+    if (isMultiBranchEnabled && !currentBranch) {
+      toast({ title: "Select a Branch", description: "Please select a specific branch before recording a sale. You cannot sell from 'All Branches' view.", variant: "destructive" });
+      return;
+    }
+
     if (cart.length === 0) {
       toast({ title: "Empty Cart", description: "Please add items to cart", variant: "destructive" });
       return;
@@ -584,7 +628,8 @@ export function SalesRecorder() {
             receipt_number: receiptNumber,
             discount_amount: itemDiscount,
             discount_reason: discountAmount > 0 ? (discountType === "percentage" ? `${discountValue}% discount` : `K${discountValue} discount`) : null,
-          });
+            branch_id: currentBranch?.id || null,
+          } as any);
 
         if (saleError) throw saleError;
 
@@ -592,12 +637,24 @@ export function SalesRecorder() {
         if (item.type === "product" && item.productId) {
           const inventoryItem = inventory.find(inv => inv.id === item.productId);
           if (inventoryItem) {
-            const { error: inventoryError } = await supabase
-              .from('inventory')
-              .update({ current_stock: inventoryItem.current_stock - item.quantity })
-              .eq('id', item.productId);
+            // Deduct from branch-specific stock when multi-branch is active
+            if (isMultiBranchEnabled && currentBranch) {
+              const { error: branchStockError } = await supabase
+                .from('branch_inventory')
+                .update({ current_stock: inventoryItem.current_stock - item.quantity })
+                .eq('inventory_id', item.productId)
+                .eq('branch_id', currentBranch.id);
 
-            if (inventoryError) throw inventoryError;
+              if (branchStockError) throw branchStockError;
+            } else {
+              // Single-branch: deduct from global stock
+              const { error: inventoryError } = await supabase
+                .from('inventory')
+                .update({ current_stock: inventoryItem.current_stock - item.quantity })
+                .eq('id', item.productId);
+
+              if (inventoryError) throw inventoryError;
+            }
           }
 
           // Decrement variant-specific stock for fashion products
@@ -804,10 +861,26 @@ export function SalesRecorder() {
           <h2 className="text-2xl font-display font-bold text-[#003366] flex items-center gap-2">
             <ShoppingCart className="w-6 h-6 text-[#0077B6]" />
             {terminology.sales} Recorder
+            {isMultiBranchEnabled && currentBranch && (
+              <Badge variant="outline" className="ml-2 text-sm font-normal">
+                <Building2 className="w-3 h-3 mr-1" />
+                {currentBranch.name}
+              </Badge>
+            )}
           </h2>
           <p className="text-[#004B8D]/60 mt-1">Record {terminology.sales.toLowerCase()} with {terminology.products.toLowerCase()} & services bundled together</p>
         </div>
       </div>
+
+      {/* Warning when admin is viewing "All Branches" */}
+      {isMultiBranchEnabled && !currentBranch && (
+        <Alert>
+          <Building2 className="h-4 w-4" />
+          <AlertDescription>
+            You are viewing all branches. Please select a specific branch from the header to record sales. Each branch can only sell its own stock.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Add Items Section - conditional for fashion */}

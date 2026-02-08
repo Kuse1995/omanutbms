@@ -3803,6 +3803,7 @@ export type Database = {
       }
       sales_transactions: {
         Row: {
+          branch_id: string | null
           created_at: string
           customer_email: string | null
           customer_name: string | null
@@ -3829,6 +3830,7 @@ export type Database = {
           unit_price_zmw: number
         }
         Insert: {
+          branch_id?: string | null
           created_at?: string
           customer_email?: string | null
           customer_name?: string | null
@@ -3855,6 +3857,7 @@ export type Database = {
           unit_price_zmw: number
         }
         Update: {
+          branch_id?: string | null
           created_at?: string
           customer_email?: string | null
           customer_name?: string | null
@@ -3881,6 +3884,13 @@ export type Database = {
           unit_price_zmw?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "sales_transactions_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "sales_transactions_product_id_fkey"
             columns: ["product_id"]
