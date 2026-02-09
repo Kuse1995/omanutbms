@@ -283,7 +283,7 @@ export function AccountsAgent() {
           <h2 className="text-2xl font-display font-bold text-foreground mb-2">Accounts</h2>
           <p className="text-muted-foreground">{terminology.revenueLabel}, Expenses & Profit Tracking</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             onClick={() => setIsExpenseModalOpen(true)}
             className="bg-amber-600 hover:bg-amber-700 text-white"
@@ -363,7 +363,7 @@ export function AccountsAgent() {
       <Card className="bg-card border shadow-sm">
         <Tabs defaultValue="invoices-manager" className="w-full">
           <CardHeader className="pb-0">
-            <TabsList className="flex-wrap h-auto gap-1">
+            <TabsList className="flex-wrap h-auto gap-1 overflow-x-auto">
               <TabsTrigger value="invoices-manager" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 <FilePlus className="h-4 w-4 mr-2" />
                 {terminology.transactionsLabel}
