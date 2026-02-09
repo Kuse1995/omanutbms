@@ -481,7 +481,7 @@ export function InventoryAgent() {
         className="space-y-6"
       >
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-2xl font-display font-bold text-[#003366] flex items-center gap-2">
               <Package className="w-6 h-6 text-[#0077B6]" />

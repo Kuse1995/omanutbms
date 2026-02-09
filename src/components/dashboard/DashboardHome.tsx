@@ -379,7 +379,7 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
       </div>
 
       {/* Dynamic KPI Cards */}
-      <div className={`grid grid-cols-1 md:grid-cols-2 ${kpiCards.length >= 4 ? 'lg:grid-cols-4' : `lg:grid-cols-${kpiCards.length}`} gap-4 mb-8`}>
+      <div className={`grid grid-cols-2 sm:grid-cols-2 ${kpiCards.length >= 4 ? 'lg:grid-cols-4' : `lg:grid-cols-${kpiCards.length}`} gap-3 sm:gap-4 mb-8`}>
         {kpiCards.map((card, index) => {
           const Icon = iconMap[card.icon] || Package;
           return (

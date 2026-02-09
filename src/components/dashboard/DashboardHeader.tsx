@@ -68,19 +68,19 @@ export function DashboardHeader() {
       )}
       <DemoModeIndicator />
       <TrialBanner />
-      <header className="h-16 border-b border-[var(--brand-primary,#004B8D)]/10 bg-white/80 backdrop-blur-sm px-6 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-4">
+      <header className="h-16 border-b border-[var(--brand-primary,#004B8D)]/10 bg-white/80 backdrop-blur-sm px-3 sm:px-6 flex items-center justify-between shadow-sm">
+        <div className="flex items-center gap-2 sm:gap-4">
           <SidebarTrigger className="text-[var(--brand-primary,#004B8D)] hover:bg-[var(--brand-primary,#004B8D)]/10" />
-          <div className="relative">
+          <div className="relative hidden sm:block">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--brand-primary,#004B8D)]/50" />
             <Input
               placeholder="Search inventory, transactions..."
-              className="w-80 pl-10 bg-[var(--brand-primary,#004B8D)]/5 border-[var(--brand-primary,#004B8D)]/20 text-foreground placeholder:text-[var(--brand-primary,#004B8D)]/40 focus:border-[var(--brand-primary,#004B8D)] focus:ring-[var(--brand-primary,#004B8D)]/20"
+              className="w-full max-w-80 pl-10 bg-[var(--brand-primary,#004B8D)]/5 border-[var(--brand-primary,#004B8D)]/20 text-foreground placeholder:text-[var(--brand-primary,#004B8D)]/40 focus:border-[var(--brand-primary,#004B8D)] focus:ring-[var(--brand-primary,#004B8D)]/20"
             />
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <BranchSelector />
           <UploadProgressIndicator />
           <div data-tour="header-notifications">
@@ -89,8 +89,8 @@ export function DashboardHeader() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <div className="flex items-center gap-3 pl-4 border-l border-[var(--brand-primary,#004B8D)]/20 cursor-pointer hover:bg-[var(--brand-primary,#004B8D)]/5 p-2 rounded-lg transition-colors">
-                <div className="text-right">
+              <div className="flex items-center gap-2 sm:gap-3 sm:pl-4 sm:border-l border-[var(--brand-primary,#004B8D)]/20 cursor-pointer hover:bg-[var(--brand-primary,#004B8D)]/5 p-2 rounded-lg transition-colors">
+                <div className="text-right hidden sm:block">
                   <p className="text-sm font-medium text-foreground">
                     {profile?.full_name || user?.email?.split("@")[0] || "User"}
                   </p>

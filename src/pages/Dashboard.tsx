@@ -271,7 +271,7 @@ const Dashboard = () => {
             <DashboardSidebar activeTab={activeTab} setActiveTab={handleSetActiveTab} />
             <div className="flex-1 flex flex-col">
               <DashboardHeader />
-              <main className="flex-1 p-6 overflow-auto">
+              <main className="flex-1 p-3 sm:p-6 overflow-auto">
                 {renderContent()}
               </main>
             </div>
