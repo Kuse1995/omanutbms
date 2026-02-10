@@ -32,7 +32,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
 import { useAuth } from "@/hooks/useAuth";
-import { GarmentMeasurementsForm, type GarmentMeasurements, isGarmentCategoryComplete, getMissingMeasurements, getDefaultTab, serializeMeasurementsForStorage } from "./GarmentMeasurementsForm";
+import { GarmentMeasurementsForm, type GarmentMeasurements, isGarmentCategoryComplete, getMissingMeasurements, getDefaultTab, serializeMeasurementsForStorage, hasMinimumMeasurements, getMissingCoreMeasurements, CORE_MEASUREMENT_KEYS } from "./GarmentMeasurementsForm";
 import { MaterialSelector, type MaterialItem } from "./MaterialSelector";
 import { LaborEstimator, type SkillLevel } from "./LaborEstimator";
 import { PricingBreakdown, calculateQuote } from "./PricingBreakdown";
