@@ -120,6 +120,11 @@ interface GarmentMeasurementsFormProps {
 const cmToInches = (cm: number): number => Math.round((cm / 2.54) * 100) / 100;
 const inchesToCm = (inches: number): number => Math.round((inches * 2.54) * 100) / 100;
 
+// Core measurements that are the minimum required to proceed
+export const CORE_MEASUREMENT_KEYS = [
+  'shoulder', 'bust', 'waist', 'hip', 'full_length', 'sleeve_length'
+];
+
 // Count filled Dodo Wear measurements
 function countFilledDodoMeasurements(measurements: Measurements): number {
   return DODO_WEAR_MEASUREMENTS.filter(m => {
@@ -133,6 +138,25 @@ export function isDodoMeasurementsComplete(measurements: Measurements): boolean 
   return countFilledDodoMeasurements(measurements) === DODO_WEAR_MEASUREMENTS.length;
 }
 
+// Check if at least the 6 core measurements are filled
+export function hasMinimumMeasurements(measurements: Measurements): boolean {
+  const filledCore = CORE_MEASUREMENT_KEYS.filter(key => {
+    const val = measurements[key];
+    return val !== undefined && val !== null && Number(val) > 0;
+  });
+  return filledCore.length >= CORE_MEASUREMENT_KEYS.length;
+}
+
+// Get missing core measurement labels
+export function getMissingCoreMeasurements(measurements: Measurements): string[] {
+  return CORE_MEASUREMENT_KEYS
+    .filter(k => !measurements[k] || Number(measurements[k]) <= 0)
+    .map(k => {
+      const field = DODO_WEAR_MEASUREMENTS.find(m => m.key === k);
+      return field?.label || k;
+    });
+}
+
 // Get missing Dodo measurements
 export function getMissingDodoMeasurements(measurements: Measurements): string[] {
   return DODO_WEAR_MEASUREMENTS
@@ -140,13 +164,13 @@ export function getMissingDodoMeasurements(measurements: Measurements): string[]
     .map(m => m.label);
 }
 
-// Legacy exports for backward compatibility
+// Legacy exports - now uses relaxed core-minimum check
 export function isGarmentCategoryComplete(measurements: Measurements, _categoryId: string): boolean {
-  return isDodoMeasurementsComplete(measurements);
+  return hasMinimumMeasurements(measurements);
 }
 
 export function getMissingMeasurements(measurements: Measurements, _categoryId: string): string[] {
-  return getMissingDodoMeasurements(measurements);
+  return getMissingCoreMeasurements(measurements);
 }
 
 export function getDefaultTab(_designType?: string): string {
