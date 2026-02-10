@@ -545,8 +545,9 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
                       <Input
                         type="number"
                         placeholder="Qty"
-                        min="1"
-                        value={item.quantity}
+                         min="0.01"
+                         step="any"
+                         value={item.quantity}
                         onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
                       />
                     </div>
@@ -555,7 +556,7 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
                         type="number"
                         placeholder="Price"
                         min="0"
-                        step="0.01"
+                         step="any"
                         value={item.unit_price}
                         onChange={(e) => handleItemChange(index, "unit_price", e.target.value)}
                       />
