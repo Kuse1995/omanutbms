@@ -1,66 +1,88 @@
 
 
-# Mobile Optimization (Desktop Unchanged)
+# Relax Measurement Validation in Custom Orders
 
-## Principle
-Every change uses Tailwind responsive breakpoints (`sm:` = 640px+) so the **desktop layout remains pixel-identical**. Mobile-only styles apply below `sm:` and get overridden at desktop widths.
+## Problem
+Currently, the custom order wizard blocks progress unless all 22 Dodo Wear measurements are filled. This is too strict for real-world use where tailors often work with a subset of key measurements depending on the garment type.
 
----
+## Solution
+Replace the "all-or-nothing" requirement with a **minimum threshold** approach:
+- Require at least **6 core measurements** (shoulder, bust/chest, waist, hip, full length, sleeve length) to proceed
+- Show a **soft warning** (yellow banner) when fewer than 50% of measurements are filled, encouraging completion
+- Show a **green success** indicator when all measurements are filled
+- Allow progression at any point once the minimum is met
 
 ## Changes
 
-### 1. Dashboard Header
-**File**: `src/components/dashboard/DashboardHeader.tsx`
+### 1. Update Validation Logic
+**File**: `src/components/dashboard/GarmentMeasurementsForm.tsx`
 
-- Search bar: `w-80` becomes `hidden sm:block w-full max-w-80` -- hidden on mobile, identical on desktop
-- Add a mobile-only search icon button (`sm:hidden`) that toggles an inline input
-- User name/department: wrap in `hidden sm:block` -- avatar still shows on mobile, full info on desktop
+- Add a new `CORE_MEASUREMENTS` constant listing the 6 essential fields
+- Add a new `hasMinimumMeasurements()` function that checks if at least the core 6 are filled
+- Update `isGarmentCategoryComplete()` to use the relaxed check (returns true if minimum is met)
+- Keep `isDodoMeasurementsComplete()` unchanged for the "Complete" badge
 
-### 2. Main Content Padding
-**File**: `src/pages/Dashboard.tsx`
+### 2. Update Wizard Step Validation
+**File**: `src/components/dashboard/CustomDesignWizard.tsx`
 
-- `p-6` becomes `p-3 sm:p-6` -- tighter on mobile, unchanged on desktop
+- At step 3, only block if fewer than 6 core measurements are filled
+- Show a soft warning (not an error) if the user has the minimum but not all measurements, listing what is still missing
+- Allow "Next" to proceed with partial measurements
 
-### 3. Sales Recorder
-**File**: `src/components/dashboard/SalesRecorder.tsx`
+### 3. Add Visual Encouragement in the Form
+**File**: `src/components/dashboard/GarmentMeasurementsForm.tsx`
 
-- Wrap Recent Sales table in `overflow-x-auto` container with `min-w-[600px]` on the table
-- Export controls: `flex-col sm:flex-row` -- stack on mobile, row on desktop
-
-### 4. Accounts Agent
-**File**: `src/components/dashboard/AccountsAgent.tsx`
-
-- Header buttons: add `flex-wrap` -- wraps only when space is tight
-- TabsList: add `overflow-x-auto` for horizontal scroll on mobile
-- Wrap tables in `overflow-x-auto`
-
-### 5. Inventory Agent
-**File**: `src/components/dashboard/InventoryAgent.tsx`
-
-- Wrap inventory table in `overflow-x-auto` container
-
-### 6. Super Admin Panel Tabs
-**File**: `src/components/dashboard/SuperAdminPanel.tsx`
-
-- TabsList: `grid w-full grid-cols-7 lg:w-[900px]` becomes `flex w-full overflow-x-auto sm:grid sm:grid-cols-7 lg:w-[900px]` -- scrollable flex on mobile, same grid on desktop
-
-### 7. Dashboard Home
-**File**: `src/components/dashboard/DashboardHome.tsx`
-
-- Ensure stat cards and quick action grids use `grid-cols-1 sm:grid-cols-2 lg:grid-cols-4` pattern
+- Add a progress bar or color-coded badge showing measurement completeness
+- Below 6 core: red "Minimum required" message
+- 6 core filled but not all: yellow "Recommended: complete remaining X measurements for best fit"
+- All filled: green "Complete" badge (existing behavior)
 
 ---
 
-## Desktop Impact: None
+## Technical Details
 
-| Change | Mobile | Desktop |
-|--------|--------|---------|
-| Search bar hidden | Yes | No change |
-| Profile text hidden | Yes | No change |
-| Padding reduced | 12px | Still 24px |
-| Tables scroll horizontally | Yes | No change (content fits) |
-| Tabs scroll horizontally | Yes | Still grid layout |
-| Buttons wrap | Only if needed | Same row |
+### Core Measurements Constant
+```typescript
+const CORE_MEASUREMENT_KEYS = [
+  'shoulder', 'bust', 'waist', 'hip', 'full_length', 'sleeve_length'
+];
+```
 
-No new files, no database changes. All modifications are CSS-only responsive adjustments.
+### New Validation Function
+```typescript
+export function hasMinimumMeasurements(measurements: Measurements): boolean {
+  const filledCore = CORE_MEASUREMENT_KEYS.filter(key => {
+    const val = measurements[key];
+    return val !== undefined && val !== null && Number(val) > 0;
+  });
+  return filledCore.length >= CORE_MEASUREMENT_KEYS.length;
+}
+```
+
+### Wizard Validation Change (step 3)
+```typescript
+case 3: // Measurements
+  const hasSome = Object.entries(formData.measurements).some(
+    ([key, v]) => key !== '_unit' && typeof v === 'number' && v > 0
+  );
+  if (!hasSome) {
+    errors.push("Please enter at least the core measurements");
+  } else if (!hasMinimumMeasurements(formData.measurements)) {
+    const missingCore = CORE_MEASUREMENT_KEYS
+      .filter(k => !formData.measurements[k] || Number(formData.measurements[k]) <= 0)
+      .map(k => getMeasurementByKey(k)?.label || k);
+    errors.push(`Please complete core measurements: ${missingCore.join(', ')}`);
+  }
+  // No error if minimum is met -- user can proceed
+  break;
+```
+
+## Files to Modify
+
+| File | Change |
+|------|--------|
+| `src/components/dashboard/GarmentMeasurementsForm.tsx` | Add core measurements constant, `hasMinimumMeasurements()`, update progress indicator |
+| `src/components/dashboard/CustomDesignWizard.tsx` | Relax step 3 validation to require only core 6, show soft warning for incomplete |
+
+No database changes needed.
 
