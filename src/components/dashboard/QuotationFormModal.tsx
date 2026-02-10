@@ -567,8 +567,9 @@ export function QuotationFormModal({ isOpen, onClose, onSuccess, quotation }: Qu
                       <Input
                         type="number"
                         placeholder="Qty"
-                        min="1"
-                        value={item.quantity}
+                         min="0.01"
+                         step="any"
+                         value={item.quantity}
                         onChange={(e) => handleQuantityChangeWithSourcing(index, e.target.value)}
                       />
                     </div>
