@@ -62,7 +62,9 @@ export function SubscriptionActivationGate() {
 
                 <div className="mb-6">
                   <span className="text-3xl font-bold">
-                    {formatLocalPrice(plan.monthlyPrice, countryCode)}
+                    {plan.currency === "ZMW"
+                      ? `K${plan.monthlyPrice.toLocaleString()}`
+                      : formatLocalPrice(plan.monthlyPrice, countryCode)}
                   </span>
                   <span className="text-muted-foreground">/month</span>
                 </div>
