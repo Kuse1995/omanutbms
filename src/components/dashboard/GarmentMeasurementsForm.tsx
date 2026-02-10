@@ -5,7 +5,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Info, CheckCircle2, Check } from "lucide-react";
+import { Info, CheckCircle2, Check, AlertTriangle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { DODO_WEAR_MEASUREMENTS, MEASUREMENT_GROUPS, type DodoMeasurementField } from "@/lib/dodo-wear-measurements";
 import { parseFractionInput, formatMeasurementValue } from "@/lib/fraction-parser";
