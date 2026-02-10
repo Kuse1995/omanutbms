@@ -5,7 +5,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Info, CheckCircle2, Check } from "lucide-react";
+import { Info, CheckCircle2, Check, AlertTriangle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { DODO_WEAR_MEASUREMENTS, MEASUREMENT_GROUPS, type DodoMeasurementField } from "@/lib/dodo-wear-measurements";
 import { parseFractionInput, formatMeasurementValue } from "@/lib/fraction-parser";
@@ -118,6 +120,11 @@ interface GarmentMeasurementsFormProps {
 const cmToInches = (cm: number): number => Math.round((cm / 2.54) * 100) / 100;
 const inchesToCm = (inches: number): number => Math.round((inches * 2.54) * 100) / 100;
 
+// Core measurements that are the minimum required to proceed
+export const CORE_MEASUREMENT_KEYS = [
+  'shoulder', 'bust', 'waist', 'hip', 'full_length', 'sleeve_length'
+];
+
 // Count filled Dodo Wear measurements
 function countFilledDodoMeasurements(measurements: Measurements): number {
   return DODO_WEAR_MEASUREMENTS.filter(m => {
@@ -131,6 +138,25 @@ export function isDodoMeasurementsComplete(measurements: Measurements): boolean 
   return countFilledDodoMeasurements(measurements) === DODO_WEAR_MEASUREMENTS.length;
 }
 
+// Check if at least the 6 core measurements are filled
+export function hasMinimumMeasurements(measurements: Measurements): boolean {
+  const filledCore = CORE_MEASUREMENT_KEYS.filter(key => {
+    const val = measurements[key];
+    return val !== undefined && val !== null && Number(val) > 0;
+  });
+  return filledCore.length >= CORE_MEASUREMENT_KEYS.length;
+}
+
+// Get missing core measurement labels
+export function getMissingCoreMeasurements(measurements: Measurements): string[] {
+  return CORE_MEASUREMENT_KEYS
+    .filter(k => !measurements[k] || Number(measurements[k]) <= 0)
+    .map(k => {
+      const field = DODO_WEAR_MEASUREMENTS.find(m => m.key === k);
+      return field?.label || k;
+    });
+}
+
 // Get missing Dodo measurements
 export function getMissingDodoMeasurements(measurements: Measurements): string[] {
   return DODO_WEAR_MEASUREMENTS
@@ -138,13 +164,13 @@ export function getMissingDodoMeasurements(measurements: Measurements): string[]
     .map(m => m.label);
 }
 
-// Legacy exports for backward compatibility
+// Legacy exports - now uses relaxed core-minimum check
 export function isGarmentCategoryComplete(measurements: Measurements, _categoryId: string): boolean {
-  return isDodoMeasurementsComplete(measurements);
+  return hasMinimumMeasurements(measurements);
 }
 
 export function getMissingMeasurements(measurements: Measurements, _categoryId: string): string[] {
-  return getMissingDodoMeasurements(measurements);
+  return getMissingCoreMeasurements(measurements);
 }
 
 export function getDefaultTab(_designType?: string): string {
@@ -204,6 +230,10 @@ export function GarmentMeasurementsForm({ measurements, onChange, showValidation
   const filledCount = useMemo(() => countFilledDodoMeasurements(measurements), [measurements]);
   const totalCount = DODO_WEAR_MEASUREMENTS.length;
   const isComplete = filledCount === totalCount;
+  const coreComplete = useMemo(() => hasMinimumMeasurements(measurements), [measurements]);
+  const missingCore = useMemo(() => getMissingCoreMeasurements(measurements), [measurements]);
+  const coreFilledCount = CORE_MEASUREMENT_KEYS.length - missingCore.length;
+  const progressPercent = Math.round((filledCount / totalCount) * 100);
 
   // Get tooltip info for highlighted field
   const highlightedField = useMemo(() => {
@@ -326,6 +356,11 @@ export function GarmentMeasurementsForm({ measurements, onChange, showValidation
                   <CheckCircle2 className="h-3 w-3 mr-1" />
                   Complete
                 </Badge>
+              ) : coreComplete ? (
+                <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-300 h-7">
+                  <Check className="h-3 w-3 mr-1" />
+                  {filledCount}/{totalCount}
+                </Badge>
               ) : (
                 <Badge variant="secondary" className="h-7">
                   {filledCount}/{totalCount}
@@ -333,6 +368,27 @@ export function GarmentMeasurementsForm({ measurements, onChange, showValidation
               )}
             </div>
           </div>
+
+          {/* Progress bar */}
+          <Progress value={progressPercent} className={cn("h-1.5 mt-2", isComplete ? "[&>div]:bg-emerald-600" : coreComplete ? "[&>div]:bg-amber-500" : "[&>div]:bg-destructive")} />
+          
+          {/* Status messages */}
+          {!coreComplete && (
+            <Alert variant="destructive" className="mt-2 py-2">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                Complete {CORE_MEASUREMENT_KEYS.length - coreFilledCount} more core measurement{CORE_MEASUREMENT_KEYS.length - coreFilledCount !== 1 ? 's' : ''} to proceed: {missingCore.join(', ')}
+              </AlertDescription>
+            </Alert>
+          )}
+          {coreComplete && !isComplete && (
+            <Alert className="mt-2 py-2 border-amber-300 bg-amber-50 text-amber-800">
+              <Info className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-xs text-amber-800">
+                Core measurements complete — {totalCount - filledCount} more recommended for best fit
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
 
         {/* Measurement Groups */}
