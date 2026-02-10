@@ -356,6 +356,11 @@ export function GarmentMeasurementsForm({ measurements, onChange, showValidation
                   <CheckCircle2 className="h-3 w-3 mr-1" />
                   Complete
                 </Badge>
+              ) : coreComplete ? (
+                <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-300 h-7">
+                  <Check className="h-3 w-3 mr-1" />
+                  {filledCount}/{totalCount}
+                </Badge>
               ) : (
                 <Badge variant="secondary" className="h-7">
                   {filledCount}/{totalCount}
@@ -363,6 +368,27 @@ export function GarmentMeasurementsForm({ measurements, onChange, showValidation
               )}
             </div>
           </div>
+
+          {/* Progress bar */}
+          <Progress value={progressPercent} className={cn("h-1.5 mt-2", isComplete ? "[&>div]:bg-emerald-600" : coreComplete ? "[&>div]:bg-amber-500" : "[&>div]:bg-destructive")} />
+          
+          {/* Status messages */}
+          {!coreComplete && (
+            <Alert variant="destructive" className="mt-2 py-2">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                Complete {CORE_MEASUREMENT_KEYS.length - coreFilledCount} more core measurement{CORE_MEASUREMENT_KEYS.length - coreFilledCount !== 1 ? 's' : ''} to proceed: {missingCore.join(', ')}
+              </AlertDescription>
+            </Alert>
+          )}
+          {coreComplete && !isComplete && (
+            <Alert className="mt-2 py-2 border-amber-300 bg-amber-50 text-amber-800">
+              <Info className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-xs text-amber-800">
+                Core measurements complete — {totalCount - filledCount} more recommended for best fit
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
 
         {/* Measurement Groups */}
