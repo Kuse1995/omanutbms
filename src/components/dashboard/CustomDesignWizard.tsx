@@ -362,17 +362,16 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
         break;
       
       case 3: // Measurements
-        // Determine the active garment category based on design type
-        const garmentCategory = getDefaultTab(formData.designType);
         const hasSomeMeasurements = Object.entries(formData.measurements).some(
-          ([key, v]) => key !== '_unit' && typeof v === 'number' && v > 0
+          ([key, v]) => key !== '_unit' && key !== 'custom_measurements' && typeof v === 'number' && v > 0
         );
         if (!hasSomeMeasurements) {
-          errors.push("Please enter measurements for your garment");
-        } else if (!isGarmentCategoryComplete(formData.measurements, garmentCategory)) {
-          const missing = getMissingMeasurements(formData.measurements, garmentCategory);
-          errors.push(`Please complete all ${garmentCategory} measurements. Missing: ${missing.slice(0, 3).join(', ')}${missing.length > 3 ? '...' : ''}`);
+          errors.push("Please enter at least the core measurements");
+        } else if (!hasMinimumMeasurements(formData.measurements)) {
+          const missingCore = getMissingCoreMeasurements(formData.measurements);
+          errors.push(`Please complete core measurements: ${missingCore.join(', ')}`);
         }
+        // If core minimum is met, allow progression (no error)
         break;
       
       case 4: // Sketches - optional
