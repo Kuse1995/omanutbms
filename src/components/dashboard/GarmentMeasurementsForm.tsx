@@ -230,6 +230,10 @@ export function GarmentMeasurementsForm({ measurements, onChange, showValidation
   const filledCount = useMemo(() => countFilledDodoMeasurements(measurements), [measurements]);
   const totalCount = DODO_WEAR_MEASUREMENTS.length;
   const isComplete = filledCount === totalCount;
+  const coreComplete = useMemo(() => hasMinimumMeasurements(measurements), [measurements]);
+  const missingCore = useMemo(() => getMissingCoreMeasurements(measurements), [measurements]);
+  const coreFilledCount = CORE_MEASUREMENT_KEYS.length - missingCore.length;
+  const progressPercent = Math.round((filledCount / totalCount) * 100);
 
   // Get tooltip info for highlighted field
   const highlightedField = useMemo(() => {
