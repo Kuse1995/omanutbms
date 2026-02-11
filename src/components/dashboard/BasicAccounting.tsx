@@ -222,6 +222,7 @@ export function BasicAccounting() {
                   Export CSV
                 </Button>
               </div>
+              <Table>
                 <TableHeader>
                   <TableRow className="border-border hover:bg-transparent">
                     <TableHead className="text-muted-foreground">Date</TableHead>
