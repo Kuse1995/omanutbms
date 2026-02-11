@@ -23,7 +23,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { DollarSign, Receipt, TrendingUp, TrendingDown, Loader2, Eye, Pencil, Trash2, BookOpen } from "lucide-react";
+import { DollarSign, Receipt, TrendingUp, TrendingDown, Loader2, Eye, Pencil, Trash2, BookOpen, Download } from "lucide-react";
+import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useFeatures } from "@/hooks/useFeatures";
@@ -112,6 +113,26 @@ export function BasicAccounting() {
 
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount_zmw), 0);
 
+  const handleDownloadCSV = () => {
+    if (expenses.length === 0) return;
+    const headers = ["Date", "Category", "Vendor", "Amount", "Notes"];
+    const rows = expenses.map((e) => [
+      format(new Date(e.date_incurred), "yyyy-MM-dd"),
+      e.category,
+      e.vendor_name,
+      Number(e.amount_zmw).toFixed(2),
+      (e.notes || "").replace(/,/g, ";"),
+    ]);
+    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `expenses-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleDeleteExpense = async () => {
     if (!expenseToDelete) return;
     setIsDeleting(true);
@@ -195,6 +216,12 @@ export function BasicAccounting() {
               <CashBook />
             </TabsContent>
             <TabsContent value="expenses" className="mt-0">
+              <div className="flex justify-end mb-3">
+                <Button variant="outline" size="sm" onClick={handleDownloadCSV} disabled={expenses.length === 0}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Export CSV
+                </Button>
+              </div>
               <Table>
                 <TableHeader>
                   <TableRow className="border-border hover:bg-transparent">
