@@ -113,6 +113,26 @@ export function BasicAccounting() {
 
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount_zmw), 0);
 
+  const handleDownloadCSV = () => {
+    if (expenses.length === 0) return;
+    const headers = ["Date", "Category", "Vendor", "Amount", "Notes"];
+    const rows = expenses.map((e) => [
+      format(new Date(e.date_incurred), "yyyy-MM-dd"),
+      e.category,
+      e.vendor_name,
+      Number(e.amount_zmw).toFixed(2),
+      (e.notes || "").replace(/,/g, ";"),
+    ]);
+    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `expenses-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleDeleteExpense = async () => {
     if (!expenseToDelete) return;
     setIsDeleting(true);
