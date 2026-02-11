@@ -56,7 +56,7 @@ interface PayrollEntry {
   pending_adjustment_count: number;
 }
 
-// Zambian PAYE brackets (2024)
+// Zambian PAYE brackets (2026)
 const calculatePAYE = (taxableIncome: number): number => {
   if (taxableIncome <= 5100) return 0;
   if (taxableIncome <= 7100) return (taxableIncome - 5100) * 0.2;

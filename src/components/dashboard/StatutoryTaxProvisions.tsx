@@ -298,7 +298,7 @@ export function StatutoryTaxProvisions({ canManage }: StatutoryTaxProvisionsProp
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
             <div className="p-2 bg-muted rounded">
-              <strong>PAYE:</strong> Progressive (0%-37.5%)
+              <strong>PAYE:</strong> Progressive (0%-37%)
             </div>
             <div className="p-2 bg-muted rounded">
               <strong>NAPSA:</strong> 5% employer + 5% employee
