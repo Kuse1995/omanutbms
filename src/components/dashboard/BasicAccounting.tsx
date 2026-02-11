@@ -216,7 +216,12 @@ export function BasicAccounting() {
               <CashBook />
             </TabsContent>
             <TabsContent value="expenses" className="mt-0">
-              <Table>
+              <div className="flex justify-end mb-3">
+                <Button variant="outline" size="sm" onClick={handleDownloadCSV} disabled={expenses.length === 0}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Export CSV
+                </Button>
+              </div>
                 <TableHeader>
                   <TableRow className="border-border hover:bg-transparent">
                     <TableHead className="text-muted-foreground">Date</TableHead>
