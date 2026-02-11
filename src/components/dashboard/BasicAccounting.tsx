@@ -23,7 +23,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { DollarSign, Receipt, TrendingUp, TrendingDown, Loader2, Eye, Pencil, Trash2, BookOpen } from "lucide-react";
+import { DollarSign, Receipt, TrendingUp, TrendingDown, Loader2, Eye, Pencil, Trash2, BookOpen, Download } from "lucide-react";
+import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useFeatures } from "@/hooks/useFeatures";
