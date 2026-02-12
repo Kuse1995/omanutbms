@@ -1,8 +1,9 @@
 import { useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Download, Printer } from "lucide-react";
+import { Download, Printer, Info } from "lucide-react";
 import { format } from "date-fns";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { TenantDocumentHeader, DocumentComplianceFooter } from "./TenantDocumentHeader";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -110,6 +111,16 @@ export const PayslipModal = ({ isOpen, onClose, payroll }: PayslipModalProps) =>
               <div className="font-medium">{format(new Date(payroll.pay_period_end), "dd MMM yyyy")}</div>
             </div>
           </div>
+
+          {/* Statutory waiver notice */}
+          {payroll.napsa_deduction === 0 && payroll.paye_deduction === 0 && payroll.gross_pay > 5100 && (
+            <Alert className="bg-amber-50 border-amber-200">
+              <Info className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-800 text-sm">
+                Statutory deductions (NAPSA, NHIMA, PAYE) were waived for this pay period. This payslip does not include statutory contributions.
+              </AlertDescription>
+            </Alert>
+          )}
 
           <div className="grid grid-cols-2 gap-6">
             {/* Earnings */}
