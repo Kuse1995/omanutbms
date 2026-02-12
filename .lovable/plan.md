@@ -1,36 +1,42 @@
 
 
-# Align PAYE Deductions with ZRA 2026 Rates
+# Optional Statutory Deductions Toggle for Payroll
 
-## Current State
+## Overview
 
-The PAYE calculation logic in `PayrollRunModal.tsx` already matches the 2026 ZRA tax bands correctly:
+Add a transparent toggle in the Payroll Run modal that allows tenants (like House of Dodo) to skip statutory deductions (NAPSA, NHIMA, PAYE) when running payroll. The key is transparency -- the system clearly labels when deductions are skipped, flags it on payslips, and records it in the payroll notes.
 
-| ZRA 2026 Band | Current Code | Status |
-|---|---|---|
-| First K5,100 at 0% | Correct | OK |
-| K5,100.01 to K7,100 at 20% | Correct | OK |
-| K7,100.01 to K9,200 at 30% | Correct | OK |
-| K9,200.01 and above at 37% | Correct | OK |
+## How It Works
 
-The taxable income base is also correct: `gross - NAPSA` (NAPSA is tax-deductible per ZRA rules).
-
-## Issues Found
-
-Two minor inaccuracies in labels/comments:
-
-1. **Comment says "2024"** in `PayrollRunModal.tsx` line 59 — should say "2026"
-2. **Tax rate shown as "37.5%"** in the Quick Reference guide in `StatutoryTaxProvisions.tsx` — should be "37%"
+- A "Skip Statutory Deductions" switch appears at the top of the PayrollRunModal
+- When toggled ON, NAPSA/NHIMA/PAYE are calculated as K0 for all employees in that run
+- A prominent warning banner explains the implications
+- The payroll records are saved with a clear note: "Statutory deductions waived for this pay period"
+- The PayrollManager table and PayslipModal show a visible badge ("No Statutory") so it is never hidden
 
 ## Changes
 
-### 1. Fix comment year label
-**File**: `src/components/dashboard/PayrollRunModal.tsx`
-- Update comment from `// Zambian PAYE brackets (2024)` to `// Zambian PAYE brackets (2026)`
+### 1. PayrollRunModal.tsx -- Add toggle and conditional logic
 
-### 2. Fix displayed tax rate
-**File**: `src/components/dashboard/StatutoryTaxProvisions.tsx`
-- Change the Quick Reference from `Progressive (0%-37.5%)` to `Progressive (0%-37%)`
+- Add a `skipStatutory` boolean state (default: `false`)
+- Add a Switch toggle with label "Skip Statutory Deductions" and an info banner explaining this means NAPSA, NHIMA, and PAYE will be set to zero
+- In `calculateTotals`, when `skipStatutory` is true, set napsa/nhima/paye to 0
+- In `handleSubmit`, append a note to each payroll record: "Statutory deductions were waived for this pay period"
+- The summary footer still shows the deduction columns but they display K0 with a label
 
-Both are single-line text fixes. No logic changes needed — the actual calculation is already correct and aligned with the ZRA 2026 PAYE calculator.
+### 2. PayrollManager.tsx -- Show waived status
+
+- When displaying payroll records, check if all three statutory deductions are 0 while gross pay is above the PAYE threshold (K5,100)
+- Show a small "No Statutory" badge next to the status badge for those records so it is immediately visible
+
+### 3. PayslipModal.tsx -- Indicate on payslip
+
+- If NAPSA + NHIMA + PAYE are all 0 and gross > K5,100, show an info alert on the payslip: "Statutory deductions were waived for this pay period"
+
+## Technical Details
+
+- No database changes needed -- the existing `notes` column and deduction columns handle this
+- No tenant-specific hardcoding -- any tenant admin can use the toggle (not restricted to House of Dodo)
+- The toggle is per payroll run, not a permanent setting, so each month is an independent decision
+- Transparency is maintained through: warning banner at toggle time, notes on each record, badge on the table, and alert on the payslip
 
