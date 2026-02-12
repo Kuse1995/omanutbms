@@ -5,9 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, AlertTriangle } from "lucide-react";
+import { Loader2, AlertTriangle, ShieldOff } from "lucide-react";
 import { toast } from "sonner";
 import { format, startOfMonth, endOfMonth, parseISO } from "date-fns";
 import { useTenant } from "@/hooks/useTenant";
@@ -85,6 +86,7 @@ export const PayrollRunModal = ({
 }: PayrollRunModalProps) => {
   const [loading, setLoading] = useState(false);
   const [fetchingAttendance, setFetchingAttendance] = useState(false);
+  const [skipStatutory, setSkipStatutory] = useState(false);
   const { tenantId } = useTenant();
   const [entries, setEntries] = useState<PayrollEntry[]>([]);
   const [attendanceDataMap, setAttendanceDataMap] = useState<Map<string, AttendanceData>>(new Map());
@@ -231,9 +233,9 @@ export const PayrollRunModal = ({
     const gross = basePay + entry.allowances + entry.overtime_pay + entry.bonus;
     
     // Statutory deductions based on verified gross pay
-    const napsa = calculateNAPSA(gross);
-    const nhima = calculateNHIMA(gross);
-    const paye = calculatePAYE(gross - napsa);
+    const napsa = skipStatutory ? 0 : calculateNAPSA(gross);
+    const nhima = skipStatutory ? 0 : calculateNHIMA(gross);
+    const paye = skipStatutory ? 0 : calculatePAYE(gross - napsa);
     const totalDeductions = napsa + nhima + paye + entry.loan_deduction + entry.other_deductions;
     const net = gross - totalDeductions;
     
@@ -291,10 +293,13 @@ export const PayrollRunModal = ({
           net_pay: net,
           status: "draft",
           tenant_id: tenantId,
-          // Flag for pending adjustments in notes
-          notes: entry.has_pending_adjustments 
-            ? `Warning: ${entry.pending_adjustment_count} pending attendance adjustment(s) were excluded from this calculation.`
-            : null,
+          // Flag for pending adjustments and statutory waiver in notes
+          notes: [
+            skipStatutory ? "⚠️ Statutory deductions (NAPSA, NHIMA, PAYE) were waived for this pay period." : null,
+            entry.has_pending_adjustments 
+              ? `Warning: ${entry.pending_adjustment_count} pending attendance adjustment(s) were excluded from this calculation.`
+              : null,
+          ].filter(Boolean).join(" ") || null,
         };
       });
 
@@ -357,6 +362,39 @@ export const PayrollRunModal = ({
             </p>
           </div>
           
+          {/* Skip Statutory Deductions Toggle */}
+          <div className="flex items-center justify-between p-3 rounded-lg border border-dashed border-amber-300 bg-amber-50/50">
+            <div className="flex items-center gap-3">
+              <ShieldOff className="h-5 w-5 text-amber-600" />
+              <div>
+                <Label htmlFor="skip-statutory" className="font-semibold text-amber-800 cursor-pointer">
+                  Skip Statutory Deductions
+                </Label>
+                <p className="text-xs text-amber-600 mt-0.5">
+                  NAPSA, NHIMA, and PAYE will be set to K0 for this payroll run
+                </p>
+              </div>
+            </div>
+            <Switch
+              id="skip-statutory"
+              checked={skipStatutory}
+              onCheckedChange={setSkipStatutory}
+            />
+          </div>
+
+          {skipStatutory && (
+            <div className="bg-red-50 border border-red-200 p-3 rounded-lg text-sm flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <strong className="text-red-800">Statutory Deductions Waived:</strong>
+                <span className="text-red-700 ml-1">
+                  All NAPSA, NHIMA, and PAYE deductions will be K0 for every employee in this run.
+                  Each payslip will be clearly marked. This does not exempt the employer from statutory obligations.
+                </span>
+              </div>
+            </div>
+          )}
+
           {entries.some((e) => e.has_pending_adjustments) && (
             <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg text-sm flex items-start gap-2">
               <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />

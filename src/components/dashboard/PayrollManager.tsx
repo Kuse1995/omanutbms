@@ -291,7 +291,14 @@ export const PayrollManager = () => {
                     <TableCell className="text-right text-purple-600">K{record.paye_deduction.toLocaleString()}</TableCell>
                     <TableCell className="text-right font-bold text-primary">K{record.net_pay.toLocaleString()}</TableCell>
                     <TableCell>
-                      <Badge className={statusColors[record.status]}>{record.status}</Badge>
+                      <div className="flex items-center gap-1">
+                        <Badge className={statusColors[record.status]}>{record.status}</Badge>
+                        {record.napsa_deduction === 0 && record.paye_deduction === 0 && (record.nhima_deduction || 0) === 0 && record.gross_pay > 5100 && (
+                          <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-300">
+                            No Statutory
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
