@@ -1,42 +1,61 @@
 
 
-# Optional Statutory Deductions Toggle for Payroll
+# Fix Invoice and Quotation Number Uniqueness
 
-## Overview
+## Problem
 
-Add a transparent toggle in the Payroll Run modal that allows tenants (like House of Dodo) to skip statutory deductions (NAPSA, NHIMA, PAYE) when running payroll. The key is transparency -- the system clearly labels when deductions are skipped, flags it on payslips, and records it in the payroll notes.
+The invoice and quotation number generators have two issues:
 
-## How It Works
+1. **Not tenant-scoped**: The triggers count numbers across ALL tenants globally, so Tenant A and Tenant B share the same sequence. This means numbers aren't unique per-tenant and can collide or skip.
+2. **No unique constraint**: There's no database-level uniqueness enforcement on `(tenant_id, invoice_number)` or `(tenant_id, quotation_number)`, so duplicates can slip through under concurrency.
 
-- A "Skip Statutory Deductions" switch appears at the top of the PayrollRunModal
-- When toggled ON, NAPSA/NHIMA/PAYE are calculated as K0 for all employees in that run
-- A prominent warning banner explains the implications
-- The payroll records are saved with a clear note: "Statutory deductions waived for this pay period"
-- The PayrollManager table and PayslipModal show a visible badge ("No Statutory") so it is never hidden
+## Solution
 
-## Changes
+A single database migration that:
 
-### 1. PayrollRunModal.tsx -- Add toggle and conditional logic
+### 1. Replace `generate_invoice_number()` with a tenant-scoped version
+- Filter by `NEW.tenant_id` when finding the next number
+- Format: `INV-2026-0001` (prefixed for clarity, scoped per tenant per year)
 
-- Add a `skipStatutory` boolean state (default: `false`)
-- Add a Switch toggle with label "Skip Statutory Deductions" and an info banner explaining this means NAPSA, NHIMA, and PAYE will be set to zero
-- In `calculateTotals`, when `skipStatutory` is true, set napsa/nhima/paye to 0
-- In `handleSubmit`, append a note to each payroll record: "Statutory deductions were waived for this pay period"
-- The summary footer still shows the deduction columns but they display K0 with a label
+### 2. Replace `generate_quotation_number()` with a tenant-scoped version
+- Filter by `NEW.tenant_id` when finding the next number
+- Format: `Q2026-0001` (same as current but scoped per tenant)
+- Add a `WHEN` guard so it only fires when `quotation_number IS NULL OR ''` (matching invoice behavior)
 
-### 2. PayrollManager.tsx -- Show waived status
+### 3. Add composite unique constraints
+- `UNIQUE(tenant_id, invoice_number)` on `invoices`
+- `UNIQUE(tenant_id, quotation_number)` on `quotations`
 
-- When displaying payroll records, check if all three statutory deductions are 0 while gross pay is above the PAYE threshold (K5,100)
-- Show a small "No Statutory" badge next to the status badge for those records so it is immediately visible
-
-### 3. PayslipModal.tsx -- Indicate on payslip
-
-- If NAPSA + NHIMA + PAYE are all 0 and gross > K5,100, show an info alert on the payslip: "Statutory deductions were waived for this pay period"
+This ensures each tenant gets their own independent numbering sequence and the database enforces uniqueness.
 
 ## Technical Details
 
-- No database changes needed -- the existing `notes` column and deduction columns handle this
-- No tenant-specific hardcoding -- any tenant admin can use the toggle (not restricted to House of Dodo)
-- The toggle is per payroll run, not a permanent setting, so each month is an independent decision
-- Transparency is maintained through: warning banner at toggle time, notes on each record, badge on the table, and alert on the payslip
+### Migration SQL (single migration)
 
+**Function: `generate_invoice_number`** -- replace to scope by `NEW.tenant_id`:
+```sql
+WHERE tenant_id = NEW.tenant_id AND invoice_number LIKE year_prefix || '-%'
+```
+
+**Function: `generate_quotation_number`** -- replace to scope by `NEW.tenant_id`:
+```sql
+WHERE tenant_id = NEW.tenant_id AND quotation_number LIKE year_prefix || '-%'
+```
+
+**Trigger fix** for quotations -- drop and recreate with a `WHEN` guard so user-provided numbers aren't overwritten:
+```sql
+WHEN (NEW.quotation_number IS NULL OR NEW.quotation_number = '')
+```
+
+**Unique constraints**:
+```sql
+ALTER TABLE invoices ADD CONSTRAINT uq_invoices_tenant_number UNIQUE (tenant_id, invoice_number);
+ALTER TABLE quotations ADD CONSTRAINT uq_quotations_tenant_number UNIQUE (tenant_id, quotation_number);
+```
+
+### No code changes needed
+The frontend already passes `invoice_number: ""` and `quotation_number: ""` to let the trigger generate numbers. The trigger logic change is fully backend-side.
+
+### Impact on existing data
+- Existing records are unaffected (numbers stay as-is)
+- The unique constraint will only fail if there are already duplicate `(tenant_id, number)` pairs -- which is unlikely since most setups are single-tenant today
