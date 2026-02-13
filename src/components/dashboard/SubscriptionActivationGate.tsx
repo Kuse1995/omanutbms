@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { CreditCard, Sparkles, Check, ArrowRight } from "lucide-react";
+import { CreditCard, Sparkles, Check, ArrowRight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,8 +14,9 @@ export function SubscriptionActivationGate() {
   const navigate = useNavigate();
   const { plans, planKeys, loading } = useBillingPlans();
   const { countryCode } = useGeoLocation();
+  const [dismissed, setDismissed] = useState(false);
 
-  if (loading) return null;
+  if (loading || dismissed) return null;
 
   return (
     <motion.div
@@ -28,6 +30,19 @@ export function SubscriptionActivationGate() {
         transition={{ delay: 0.1 }}
         className="w-full max-w-4xl my-8"
       >
+        {/* Close / Skip button */}
+        <div className="flex justify-end mb-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setDismissed(true)}
+            className="text-muted-foreground hover:text-foreground gap-1"
+          >
+            <X className="w-4 h-4" />
+            Maybe Later
+          </Button>
+        </div>
+
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
             <CreditCard className="w-8 h-8 text-primary" />
