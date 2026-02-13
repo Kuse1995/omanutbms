@@ -1,61 +1,65 @@
 
 
-# Fix Invoice and Quotation Number Uniqueness
+# Enable Clean Deletion of Records with Linked Data
 
-## Problem
+## The Problem
 
-The invoice and quotation number generators have two issues:
+When House of Dodo (or any tenant) tries to delete test data like invoices, sales, or quotations, the database blocks it because other records reference them. Currently, some of these links use "NO ACTION" — meaning the database simply refuses the delete.
 
-1. **Not tenant-scoped**: The triggers count numbers across ALL tenants globally, so Tenant A and Tenant B share the same sequence. This means numbers aren't unique per-tenant and can collide or skip.
-2. **No unique constraint**: There's no database-level uniqueness enforcement on `(tenant_id, invoice_number)` or `(tenant_id, quotation_number)`, so duplicates can slip through under concurrency.
+## The Approach: Smart Cascading
 
-## Solution
+Rather than cascading everything blindly (which could cause unexpected data loss), the fix uses two strategies:
 
-A single database migration that:
+| Strategy | When to use | Example |
+|---|---|---|
+| CASCADE (delete child too) | The child record only makes sense with its parent | Invoice items, payment receipts, sale items |
+| SET NULL (unlink only) | The child is an independent record that should survive | Custom orders linked to a quotation, cross-references between invoices and quotations |
 
-### 1. Replace `generate_invoice_number()` with a tenant-scoped version
-- Filter by `NEW.tenant_id` when finding the next number
-- Format: `INV-2026-0001` (prefixed for clarity, scoped per tenant per year)
+## What Changes
 
-### 2. Replace `generate_quotation_number()` with a tenant-scoped version
-- Filter by `NEW.tenant_id` when finding the next number
-- Format: `Q2026-0001` (same as current but scoped per tenant)
-- Add a `WHEN` guard so it only fires when `quotation_number IS NULL OR ''` (matching invoice behavior)
+### Records that will be deleted along with their parent (CASCADE)
 
-### 3. Add composite unique constraints
-- `UNIQUE(tenant_id, invoice_number)` on `invoices`
-- `UNIQUE(tenant_id, quotation_number)` on `quotations`
+| When you delete... | These get deleted too | Why |
+|---|---|---|
+| An invoice | Payment receipts for that invoice | Receipts are proof-of-payment for that specific invoice -- no invoice, no receipt |
+| A sale | Related inventory adjustments (returns/damages) get unlinked | Adjustments reference the original sale loosely |
 
-This ensures each tenant gets their own independent numbering sequence and the database enforces uniqueness.
+### Records that will be unlinked but kept (SET NULL)
+
+| When you delete... | These keep existing but lose their link |
+|---|---|
+| An invoice | Quotation's "converted_to_invoice" reference is cleared |
+| A quotation | Invoice's "source_quotation" reference is cleared |
+| A sale | Inventory adjustment's "original_sale" reference is cleared |
+| A custom order | Other custom orders referencing it as "original_order" are cleared |
+| An employee | Custom order "assigned_tailor" and adjustment "attended_by" references are cleared |
+
+### Already working correctly (no changes needed)
+
+These are already properly cascading or unlinking:
+- Invoice items cascade with invoice
+- Quotation items cascade with quotation
+- Sale items cascade with sale
+- Custom order items and adjustments cascade with the order
+- Employee attendance and documents cascade with employee
+- Payroll records cascade with employee
+- Agent transactions unlink from deleted invoices
+- Job cards unlink from deleted invoices/quotations
 
 ## Technical Details
 
-### Migration SQL (single migration)
+A single database migration that alters 7 foreign key constraints:
 
-**Function: `generate_invoice_number`** -- replace to scope by `NEW.tenant_id`:
-```sql
-WHERE tenant_id = NEW.tenant_id AND invoice_number LIKE year_prefix || '-%'
-```
+**Change to CASCADE (child deleted with parent):**
+1. `payment_receipts.invoice_id` -- NO ACTION to CASCADE
 
-**Function: `generate_quotation_number`** -- replace to scope by `NEW.tenant_id`:
-```sql
-WHERE tenant_id = NEW.tenant_id AND quotation_number LIKE year_prefix || '-%'
-```
+**Change to SET NULL (unlink only):**
+2. `quotations.converted_to_invoice_id` -- NO ACTION to SET NULL
+3. `invoices.source_quotation_id` -- NO ACTION to SET NULL
+4. `inventory_adjustments.original_sale_id` -- NO ACTION to SET NULL
+5. `custom_orders.original_order_id` -- NO ACTION to SET NULL
+6. `custom_orders.assigned_tailor_id` -- NO ACTION to SET NULL
+7. `custom_order_adjustments.attended_by` -- NO ACTION to SET NULL
 
-**Trigger fix** for quotations -- drop and recreate with a `WHEN` guard so user-provided numbers aren't overwritten:
-```sql
-WHEN (NEW.quotation_number IS NULL OR NEW.quotation_number = '')
-```
+Each constraint is dropped and recreated with the new rule. No frontend code changes needed.
 
-**Unique constraints**:
-```sql
-ALTER TABLE invoices ADD CONSTRAINT uq_invoices_tenant_number UNIQUE (tenant_id, invoice_number);
-ALTER TABLE quotations ADD CONSTRAINT uq_quotations_tenant_number UNIQUE (tenant_id, quotation_number);
-```
-
-### No code changes needed
-The frontend already passes `invoice_number: ""` and `quotation_number: ""` to let the trigger generate numbers. The trigger logic change is fully backend-side.
-
-### Impact on existing data
-- Existing records are unaffected (numbers stay as-is)
-- The unique constraint will only fail if there are already duplicate `(tenant_id, number)` pairs -- which is unlikely since most setups are single-tenant today
