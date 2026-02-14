@@ -133,9 +133,15 @@ export function convertToUSD(localAmount: number, countryCode: string): number {
 }
 
 // Format price with currency symbol
-export function formatLocalPrice(usdAmount: number, countryCode: string): string {
+// If nativeCurrencyCode is provided and matches the target country's currency,
+// the amount is already in local currency and no conversion is applied.
+export function formatLocalPrice(usdAmount: number, countryCode: string, nativeCurrencyCode?: string): string {
   const config = getCurrencyByCountry(countryCode);
-  const localAmount = usdAmount * config.exchangeRate;
+  
+  // Skip conversion if the price is already in the target currency
+  const localAmount = (nativeCurrencyCode && nativeCurrencyCode === config.currencyCode)
+    ? usdAmount
+    : usdAmount * config.exchangeRate;
   
   // Format based on amount size
   if (localAmount >= 1000) {
