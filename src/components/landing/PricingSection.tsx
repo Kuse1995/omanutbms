@@ -18,7 +18,7 @@ import {
 import { useBillingPlans } from "@/hooks/useBillingPlans";
 import { useGeoLocation } from "@/hooks/useGeoLocation";
 import { BillingPlan } from "@/lib/billing-plans";
-import { getAvailableCurrencies, formatLocalPrice, formatUSDPrice } from "@/lib/currency-config";
+import { getAvailableCurrencies, formatLocalPrice, formatUSDPrice, getCurrencyByCountry } from "@/lib/currency-config";
 import { PlanComparisonTable } from "./PlanComparisonTable";
 
 export function PricingSection() {
@@ -177,19 +177,20 @@ export function PricingSection() {
                         <span className="text-4xl font-bold">
                           {formatLocalPrice(
                             isAnnual ? Math.round(planData.annualPrice / 12) : planData.monthlyPrice,
-                            countryCode
+                            countryCode,
+                            planData.currency
                           )}
                         </span>
                         <span className="text-muted-foreground">/month</span>
                       </div>
-                      {countryCode !== "US" && (
+                      {countryCode !== "US" && planData.currency !== getCurrencyByCountry(countryCode).currencyCode && (
                         <p className="text-xs text-muted-foreground mt-1">
                           ≈ {formatUSDPrice(isAnnual ? Math.round(planData.annualPrice / 12) : planData.monthlyPrice)} USD
                         </p>
                       )}
                       {isAnnual && (
                         <p className="text-sm text-muted-foreground mt-2">
-                          Billed annually ({formatLocalPrice(planData.annualPrice, countryCode)}/year)
+                          Billed annually ({formatLocalPrice(planData.annualPrice, countryCode, planData.currency)}/year)
                         </p>
                       )}
                     </div>
