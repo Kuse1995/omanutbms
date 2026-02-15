@@ -16,13 +16,14 @@ import {
 } from "recharts";
 import { 
   Activity, TrendingUp, Users, Package, CreditCard, MessageSquare,
-  ShoppingCart, FileText, Building2, RefreshCw, Calendar, AlertCircle, CheckCircle2, XCircle,
-  UserCheck, Zap
+  ShoppingCart, FileText, Building2, RefreshCw, Calendar, AlertCircle, CheckCircle2,
+  UserCheck, Zap, Radio, Eye, ArrowUpRight, Moon
 } from "lucide-react";
-import { format, subDays } from "date-fns";
+import { format, subDays, differenceInDays } from "date-fns";
 import { BILLING_PLANS, BillingPlan } from "@/lib/billing-plans";
 import { UserActivityTab } from "./UserActivityTab";
 import { FeatureInsightsTab } from "./FeatureInsightsTab";
+import { LiveActivityFeed } from "./LiveActivityFeed";
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
@@ -66,6 +67,7 @@ interface TenantUsageData {
   last_activity: string | null;
   features_enabled: string[];
   inferred_features: InferredFeatures;
+  created_at: string | null;
 }
 
 interface FeatureUsageStats {
@@ -76,48 +78,55 @@ interface FeatureUsageStats {
   trend: number;
 }
 
-// Get inventory limit from billing-plans.ts (single source of truth)
 function getInventoryLimit(plan: string | null): number {
   if (!plan) return BILLING_PLANS.starter.limits.inventoryItems;
   const planConfig = BILLING_PLANS[plan as BillingPlan];
   if (!planConfig) return BILLING_PLANS.starter.limits.inventoryItems;
   const limit = planConfig.limits.inventoryItems;
-  return limit === Infinity ? -1 : limit; // -1 represents unlimited for UI
+  return limit === Infinity ? -1 : limit;
 }
 
-// WhatsApp limits (not in billing-plans.ts, define here)
 function getWhatsAppLimit(plan: string | null): number {
-  const limits: Record<string, number> = {
-    starter: 100,
-    growth: 500,
-    enterprise: 5000,
-  };
+  const limits: Record<string, number> = { starter: 100, growth: 500, enterprise: 5000 };
   return limits[plan || "starter"] || 100;
 }
+
+/** Classify tenant health based on activity */
+function getTenantHealth(tenant: TenantUsageData): "active" | "engaged" | "dormant" | "new" {
+  const totalActivity = tenant.sales_count + tenant.invoice_count + tenant.receipt_count;
+  const daysSinceCreation = tenant.created_at 
+    ? differenceInDays(new Date(), new Date(tenant.created_at)) 
+    : 999;
+  
+  if (daysSinceCreation <= 7) return "new";
+  if (totalActivity >= 10) return "active";
+  if (totalActivity >= 1) return "engaged";
+  return "dormant";
+}
+
+const healthConfig = {
+  active: { label: "Active", color: "bg-green-500", badgeVariant: "default" as const, icon: CheckCircle2 },
+  engaged: { label: "Engaged", color: "bg-blue-500", badgeVariant: "secondary" as const, icon: ArrowUpRight },
+  dormant: { label: "Dormant", color: "bg-muted-foreground", badgeVariant: "outline" as const, icon: Moon },
+  new: { label: "New", color: "bg-amber-500", badgeVariant: "secondary" as const, icon: Zap },
+};
 
 export function UsageAnalyticsDashboard() {
   const [dateRange, setDateRange] = useState<string>("30");
   const [activeTab, setActiveTab] = useState("overview");
 
-  // Fetch all tenants with comprehensive usage data
   const { data: tenantUsageData, isLoading: tenantsLoading, refetch: refetchTenants } = useQuery({
     queryKey: ["tenant-usage-analytics", dateRange],
+    refetchInterval: 60000, // Auto-refresh every 60 seconds
     queryFn: async () => {
       const startDate = subDays(new Date(), parseInt(dateRange)).toISOString();
       
-      // FIXED: Fetch tenants and business_profiles separately to avoid RLS issues with nested queries
       const [tenantsRes, profilesRes] = await Promise.all([
-        supabase.from("tenants").select("id, name, status"),
+        supabase.from("tenants").select("id, name, status, created_at"),
         supabase.from("business_profiles").select(`
-          tenant_id,
-          billing_plan,
-          billing_status,
-          inventory_enabled,
-          payroll_enabled,
-          agents_enabled,
-          whatsapp_enabled,
-          website_enabled,
-          advanced_accounting_enabled,
+          tenant_id, billing_plan, billing_status,
+          inventory_enabled, payroll_enabled, agents_enabled,
+          whatsapp_enabled, website_enabled, advanced_accounting_enabled,
           whatsapp_messages_used
         `)
       ]);
@@ -125,65 +134,42 @@ export function UsageAnalyticsDashboard() {
       const tenants = tenantsRes.data;
       if (!tenants) return [];
 
-      // Build a map of tenant_id -> business_profile for efficient lookup
       const profilesByTenantId = new Map(
         profilesRes.data?.map(p => [p.tenant_id, p]) || []
       );
 
-      // For each tenant, get comprehensive usage counts
       const usagePromises = tenants.map(async (tenant) => {
-        // Get profile from our map instead of nested query
         const profile = profilesByTenantId.get(tenant.id);
-        const hasBusinessProfile = !!profile;
         
-        // Parallel queries for each metric - comprehensive coverage
         const [
-          salesRes, 
-          salesTransRes, 
-          invoicesRes, 
-          inventoryRes, 
-          employeesRes, 
-          agentsRes,
-          receiptsRes,
-          payrollRes,
-          whatsappRes,
-          lastSaleRes, 
-          lastTransRes
+          salesRes, salesTransRes, invoicesRes, inventoryRes, 
+          employeesRes, agentsRes, receiptsRes, payrollRes, whatsappRes,
+          lastSaleRes, lastTransRes
         ] = await Promise.all([
-          // Sales count (both tables, in period)
           supabase.from("sales").select("id", { count: "exact", head: true })
             .eq("tenant_id", tenant.id).gte("created_at", startDate),
           supabase.from("sales_transactions").select("id", { count: "exact", head: true })
             .eq("tenant_id", tenant.id).gte("created_at", startDate),
-          // Invoices (in period)
           supabase.from("invoices").select("id", { count: "exact", head: true })
             .eq("tenant_id", tenant.id).gte("created_at", startDate),
-          // Inventory (cumulative - no date filter)
           supabase.from("inventory").select("id", { count: "exact", head: true })
             .eq("tenant_id", tenant.id),
-          // Employees (cumulative)
           supabase.from("employees").select("id", { count: "exact", head: true })
             .eq("tenant_id", tenant.id),
-          // Agent transactions (in period)
           supabase.from("agent_transactions").select("id", { count: "exact", head: true })
             .eq("tenant_id", tenant.id).gte("created_at", startDate),
-          // Receipts (in period)
           supabase.from("payment_receipts").select("id", { count: "exact", head: true })
             .eq("tenant_id", tenant.id).gte("created_at", startDate),
-          // Payroll records (cumulative to detect usage)
           supabase.from("payroll_records").select("id", { count: "exact", head: true })
             .eq("tenant_id", tenant.id),
-          // WhatsApp logs (cumulative)
           supabase.from("whatsapp_audit_logs").select("id", { count: "exact", head: true })
             .eq("tenant_id", tenant.id),
-          // Last activity dates
           supabase.from("sales").select("created_at")
             .eq("tenant_id", tenant.id).order("created_at", { ascending: false }).limit(1),
           supabase.from("sales_transactions").select("created_at")
             .eq("tenant_id", tenant.id).order("created_at", { ascending: false }).limit(1),
         ]);
 
-        // Build features_enabled from profile (if exists)
         const featuresEnabled: string[] = [];
         if (profile?.inventory_enabled) featuresEnabled.push("inventory");
         if (profile?.payroll_enabled) featuresEnabled.push("payroll");
@@ -192,20 +178,16 @@ export function UsageAnalyticsDashboard() {
         if (profile?.website_enabled) featuresEnabled.push("website");
         if (profile?.advanced_accounting_enabled) featuresEnabled.push("accounting");
 
-        // INFERRED features from actual data (regardless of toggle settings)
         const inferred: InferredFeatures = {
           inventory: (inventoryRes.count || 0) > 0,
           payroll: (payrollRes.count || 0) > 0,
           agents: (agentsRes.count || 0) > 0,
           whatsapp: (whatsappRes.count || 0) > 0,
-          website: false, // Can't infer website usage from data
-          accounting: false, // Core feature, always available
+          website: false,
+          accounting: false,
         };
 
-        // Combine sales counts from both tables
         const totalSalesCount = (salesRes.count || 0) + (salesTransRes.count || 0);
-        
-        // Get the most recent activity from either table
         const lastSaleDate = lastSaleRes.data?.[0]?.created_at;
         const lastTransDate = lastTransRes.data?.[0]?.created_at;
         const lastActivity = lastSaleDate && lastTransDate 
@@ -216,7 +198,7 @@ export function UsageAnalyticsDashboard() {
           tenant_id: tenant.id,
           tenant_name: tenant.name,
           tenant_status: tenant.status,
-          has_business_profile: hasBusinessProfile,
+          has_business_profile: !!profile,
           billing_plan: profile?.billing_plan || null,
           billing_status: profile?.billing_status || null,
           sales_count: totalSalesCount,
@@ -231,6 +213,7 @@ export function UsageAnalyticsDashboard() {
           last_activity: lastActivity,
           features_enabled: featuresEnabled,
           inferred_features: inferred,
+          created_at: tenant.created_at,
         } as TenantUsageData;
       });
 
@@ -238,27 +221,19 @@ export function UsageAnalyticsDashboard() {
     },
   });
 
-  // Fetch feature usage logs for trends
   const { data: featureUsageStats, isLoading: statsLoading } = useQuery({
     queryKey: ["feature-usage-stats", dateRange],
+    refetchInterval: 60000,
     queryFn: async () => {
       const startDate = subDays(new Date(), parseInt(dateRange)).toISOString();
       
-      // Get actual database activity as proxy for feature usage
       const [
-        salesStats, 
-        salesTransStats, 
-        invoiceStats, 
-        inventoryStats, 
-        payrollStats, 
-        agentStats, 
-        whatsappStats,
-        receiptsStats
+        salesStats, salesTransStats, invoiceStats, inventoryStats, 
+        payrollStats, agentStats, whatsappStats, receiptsStats
       ] = await Promise.all([
         supabase.from("sales").select("tenant_id", { count: "exact" }).gte("created_at", startDate),
         supabase.from("sales_transactions").select("tenant_id", { count: "exact" }).gte("created_at", startDate),
         supabase.from("invoices").select("tenant_id", { count: "exact" }).gte("created_at", startDate),
-        // For inventory, use the actual inventory table (cumulative items)
         supabase.from("inventory").select("tenant_id", { count: "exact" }),
         supabase.from("payroll_records").select("tenant_id", { count: "exact" }).gte("created_at", startDate),
         supabase.from("agent_transactions").select("tenant_id", { count: "exact" }).gte("created_at", startDate),
@@ -266,7 +241,6 @@ export function UsageAnalyticsDashboard() {
         supabase.from("payment_receipts").select("tenant_id", { count: "exact" }).gte("created_at", startDate),
       ]);
 
-      // Combine sales from both tables
       const combinedSalesCount = (salesStats.count || 0) + (salesTransStats.count || 0);
       const combinedSalesTenants = new Set([
         ...(salesStats.data?.map(s => s.tenant_id) || []),
@@ -285,63 +259,53 @@ export function UsageAnalyticsDashboard() {
     },
   });
 
-  // Aggregated stats with proper calculations
+  // Tenant health segmentation
+  const tenantSegments = useMemo(() => {
+    if (!tenantUsageData) return { active: [], engaged: [], dormant: [], new: [] };
+    const segments: Record<string, TenantUsageData[]> = { active: [], engaged: [], dormant: [], new: [] };
+    tenantUsageData.forEach(t => {
+      segments[getTenantHealth(t)].push(t);
+    });
+    return segments;
+  }, [tenantUsageData]);
+
   const aggregatedStats = useMemo(() => {
     if (!tenantUsageData) return null;
-    
-    // All tenants vs active tenants
     const activeTenants = tenantUsageData.filter(t => t.tenant_status === "active");
     const tenantsWithProfiles = tenantUsageData.filter(t => t.has_business_profile);
-    const tenantsWithoutProfiles = tenantUsageData.filter(t => !t.has_business_profile);
-    
-    const totalSales = tenantUsageData.reduce((sum, t) => sum + t.sales_count, 0);
-    const totalInvoices = tenantUsageData.reduce((sum, t) => sum + t.invoice_count, 0);
-    const totalInventory = tenantUsageData.reduce((sum, t) => sum + t.inventory_count, 0);
-    const totalReceipts = tenantUsageData.reduce((sum, t) => sum + t.receipt_count, 0);
-    const totalEmployees = tenantUsageData.reduce((sum, t) => sum + t.employee_count, 0);
-    const totalAgentTransactions = tenantUsageData.reduce((sum, t) => sum + t.agent_count, 0);
-    
-    // Active tenants with activity in period
     const activeTenantsWithActivity = activeTenants.filter(t => 
       t.sales_count > 0 || t.invoice_count > 0 || t.receipt_count > 0
     ).length;
     
-    // Feature adoption - calculate based on ACTIVE tenants only (proper denominator)
-    const featureAdoption = {
-      inventory: activeTenants.filter(t => t.features_enabled.includes("inventory")).length,
-      payroll: activeTenants.filter(t => t.features_enabled.includes("payroll")).length,
-      agents: activeTenants.filter(t => t.features_enabled.includes("agents")).length,
-      whatsapp: activeTenants.filter(t => t.features_enabled.includes("whatsapp")).length,
-      website: activeTenants.filter(t => t.features_enabled.includes("website")).length,
-      accounting: activeTenants.filter(t => t.features_enabled.includes("accounting")).length,
-    };
-
-    // INFERRED feature usage (actual data exists, regardless of toggle)
-    const inferredUsage = {
-      inventory: tenantUsageData.filter(t => t.inferred_features.inventory).length,
-      payroll: tenantUsageData.filter(t => t.inferred_features.payroll).length,
-      agents: tenantUsageData.filter(t => t.inferred_features.agents).length,
-      whatsapp: tenantUsageData.filter(t => t.inferred_features.whatsapp).length,
-    };
-
     return {
       totalTenants: tenantUsageData.length,
       activeTenants: activeTenants.length,
       activeTenantsWithActivity,
       tenantsWithProfiles: tenantsWithProfiles.length,
-      tenantsWithoutProfiles: tenantsWithoutProfiles.length,
-      totalSales,
-      totalInvoices,
-      totalReceipts,
-      totalInventory,
-      totalEmployees,
-      totalAgentTransactions,
-      featureAdoption,
-      inferredUsage,
+      tenantsWithoutProfiles: tenantUsageData.length - tenantsWithProfiles.length,
+      totalSales: tenantUsageData.reduce((sum, t) => sum + t.sales_count, 0),
+      totalInvoices: tenantUsageData.reduce((sum, t) => sum + t.invoice_count, 0),
+      totalReceipts: tenantUsageData.reduce((sum, t) => sum + t.receipt_count, 0),
+      totalInventory: tenantUsageData.reduce((sum, t) => sum + t.inventory_count, 0),
+      totalEmployees: tenantUsageData.reduce((sum, t) => sum + t.employee_count, 0),
+      totalAgentTransactions: tenantUsageData.reduce((sum, t) => sum + t.agent_count, 0),
+      featureAdoption: {
+        inventory: activeTenants.filter(t => t.features_enabled.includes("inventory")).length,
+        payroll: activeTenants.filter(t => t.features_enabled.includes("payroll")).length,
+        agents: activeTenants.filter(t => t.features_enabled.includes("agents")).length,
+        whatsapp: activeTenants.filter(t => t.features_enabled.includes("whatsapp")).length,
+        website: activeTenants.filter(t => t.features_enabled.includes("website")).length,
+        accounting: activeTenants.filter(t => t.features_enabled.includes("accounting")).length,
+      },
+      inferredUsage: {
+        inventory: tenantUsageData.filter(t => t.inferred_features.inventory).length,
+        payroll: tenantUsageData.filter(t => t.inferred_features.payroll).length,
+        agents: tenantUsageData.filter(t => t.inferred_features.agents).length,
+        whatsapp: tenantUsageData.filter(t => t.inferred_features.whatsapp).length,
+      },
     };
   }, [tenantUsageData]);
 
-  // Plan distribution data - handle null/missing plans
   const planDistribution = useMemo(() => {
     if (!tenantUsageData) return [];
     const distribution: Record<string, number> = {};
@@ -354,29 +318,21 @@ export function UsageAnalyticsDashboard() {
     return Object.entries(distribution).map(([name, value]) => ({ name, value }));
   }, [tenantUsageData]);
 
-  // Feature adoption chart data - use active tenants as denominator
   const featureAdoptionData = useMemo(() => {
     if (!aggregatedStats || aggregatedStats.activeTenants === 0) return [];
     return Object.entries(aggregatedStats.featureAdoption).map(([feature, count]) => ({
       feature: featureLabels[feature]?.label || feature,
       adoption: Math.round((count / aggregatedStats.activeTenants) * 100),
       enabled: count,
-      // Also show inferred usage for comparison
       inferred: aggregatedStats.inferredUsage[feature as keyof typeof aggregatedStats.inferredUsage] || 0,
     }));
   }, [aggregatedStats]);
 
-  // ALL tenants sorted by activity (not capped to 10)
   const allTenantsSorted = useMemo(() => {
     if (!tenantUsageData) return [];
     return [...tenantUsageData]
       .sort((a, b) => (b.sales_count + b.invoice_count) - (a.sales_count + a.invoice_count));
   }, [tenantUsageData]);
-
-  // Top 5 for overview
-  const topTenants = useMemo(() => {
-    return allTenantsSorted.slice(0, 5);
-  }, [allTenantsSorted]);
 
   const isLoading = tenantsLoading || statsLoading;
 
@@ -393,11 +349,6 @@ export function UsageAnalyticsDashboard() {
             </Card>
           ))}
         </div>
-        <Card>
-          <CardContent className="p-6">
-            <Skeleton className="h-64 w-full" />
-          </CardContent>
-        </Card>
       </div>
     );
   }
@@ -408,7 +359,10 @@ export function UsageAnalyticsDashboard() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Usage Analytics</h2>
-          <p className="text-muted-foreground">Track feature adoption and client activity across the platform</p>
+          <p className="text-sm text-muted-foreground flex items-center gap-2">
+            <Radio className="h-3 w-3 text-green-500 animate-pulse" />
+            Auto-refreshing every 60s · Track feature adoption and client activity
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <Select value={dateRange} onValueChange={setDateRange}>
@@ -429,37 +383,39 @@ export function UsageAnalyticsDashboard() {
         </div>
       </div>
 
-      {/* Data Health Alert */}
-      {aggregatedStats && aggregatedStats.tenantsWithoutProfiles > 0 && (
-        <Card className="border-warning bg-warning/5">
-          <CardContent className="p-4 flex items-center gap-3">
-            <AlertCircle className="h-5 w-5 text-warning" />
-            <div>
-              <p className="text-sm font-medium">Data Integrity Notice</p>
-              <p className="text-xs text-muted-foreground">
-                {aggregatedStats.tenantsWithoutProfiles} tenant(s) are missing business profiles. 
-                Feature flags may not be accurate for these tenants.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Tenant Health Segments */}
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+        {(["active", "engaged", "new", "dormant"] as const).map(segment => {
+          const config = healthConfig[segment];
+          const Icon = config.icon;
+          const count = tenantSegments[segment].length;
+          const percent = tenantUsageData?.length 
+            ? Math.round((count / tenantUsageData.length) * 100) 
+            : 0;
+
+          return (
+            <Card key={segment} className="relative overflow-hidden">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className={`h-2 w-2 rounded-full ${config.color}`} />
+                    <span className="text-sm font-medium">{config.label}</span>
+                  </div>
+                  <Icon className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="mt-2">
+                  <span className="text-2xl font-bold">{count}</span>
+                  <span className="text-sm text-muted-foreground ml-1">({percent}%)</span>
+                </div>
+                <Progress value={percent} className="mt-2 h-1" />
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
 
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Tenants</CardTitle>
-            <Building2 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{aggregatedStats?.activeTenants || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              {aggregatedStats?.activeTenantsWithActivity || 0} with activity in period ({aggregatedStats?.activeTenants ? Math.round((aggregatedStats.activeTenantsWithActivity / aggregatedStats.activeTenants) * 100) : 0}%)
-            </p>
-          </CardContent>
-        </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
@@ -467,25 +423,19 @@ export function UsageAnalyticsDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{aggregatedStats?.totalSales?.toLocaleString() || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              In the last {dateRange} days
-            </p>
+            <p className="text-xs text-muted-foreground">Last {dateRange} days</p>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Invoices Created</CardTitle>
+            <CardTitle className="text-sm font-medium">Invoices</CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{aggregatedStats?.totalInvoices?.toLocaleString() || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              In the last {dateRange} days
-            </p>
+            <p className="text-xs text-muted-foreground">Last {dateRange} days</p>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Inventory Items</CardTitle>
@@ -493,18 +443,12 @@ export function UsageAnalyticsDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{aggregatedStats?.totalInventory?.toLocaleString() || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              Across all tenants
-            </p>
+            <p className="text-xs text-muted-foreground">Across all tenants</p>
           </CardContent>
         </Card>
-      </div>
-
-      {/* Secondary KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Employees</CardTitle>
+            <CardTitle className="text-sm font-medium">Employees</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -512,34 +456,15 @@ export function UsageAnalyticsDashboard() {
             <p className="text-xs text-muted-foreground">Across all tenants</p>
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Receipts Issued</CardTitle>
-            <CreditCard className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{aggregatedStats?.totalReceipts?.toLocaleString() || 0}</div>
-            <p className="text-xs text-muted-foreground">In the last {dateRange} days</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Agent Transactions</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{aggregatedStats?.totalAgentTransactions?.toLocaleString() || 0}</div>
-            <p className="text-xs text-muted-foreground">In the last {dateRange} days</p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="flex-wrap">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="overview" className="flex items-center gap-1">
+            <Eye className="h-3 w-3" />
+            Overview
+          </TabsTrigger>
           <TabsTrigger value="user-activity" className="flex items-center gap-1">
             <UserCheck className="h-3 w-3" />
             User Activity
@@ -548,144 +473,114 @@ export function UsageAnalyticsDashboard() {
             <Zap className="h-3 w-3" />
             Feature Insights
           </TabsTrigger>
-          <TabsTrigger value="features">Feature Adoption</TabsTrigger>
-          <TabsTrigger value="tenants">Tenant Details</TabsTrigger>
-          <TabsTrigger value="limits">Usage Limits</TabsTrigger>
+          <TabsTrigger value="tenants" className="flex items-center gap-1">
+            <Building2 className="h-3 w-3" />
+            Tenant Details
+          </TabsTrigger>
+          <TabsTrigger value="limits" className="flex items-center gap-1">
+            <Activity className="h-3 w-3" />
+            Usage Limits
+          </TabsTrigger>
         </TabsList>
 
-        {/* User Activity Tab - NEW */}
-        <TabsContent value="user-activity">
-          <UserActivityTab dateRange={dateRange} />
-        </TabsContent>
-
-        {/* Feature Insights Tab - NEW */}
-        <TabsContent value="feature-insights">
-          <FeatureInsightsTab dateRange={dateRange} />
-        </TabsContent>
-
-        {/* Overview Tab */}
+        {/* Overview Tab - Redesigned with Live Feed */}
         <TabsContent value="overview" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
-            {/* Plan Distribution */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Plan Distribution</CardTitle>
-                <CardDescription>Breakdown of tenants by billing plan</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[250px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={planDistribution}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={100}
-                        paddingAngle={5}
-                        dataKey="value"
-                        label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                      >
-                        {planDistribution.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Live Activity Feed */}
+            <LiveActivityFeed />
 
-            {/* Top Active Tenants */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Most Active Tenants</CardTitle>
-                <CardDescription>Top 5 tenants by transaction volume</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {topTenants.map((tenant, index) => (
-                    <div key={tenant.tenant_id} className="flex items-center gap-3">
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-medium text-primary">
-                        {index + 1}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium truncate">{tenant.tenant_name}</p>
-                          {!tenant.has_business_profile && (
-                            <AlertCircle className="h-3 w-3 text-warning" />
-                          )}
+            {/* Plan Distribution + Top Tenants */}
+            <div className="space-y-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg">Plan Distribution</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[180px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={planDistribution}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={50}
+                          outerRadius={80}
+                          paddingAngle={5}
+                          dataKey="value"
+                          label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                          labelLine={false}
+                        >
+                          {planDistribution.map((_, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg">Most Active Tenants</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {allTenantsSorted.slice(0, 5).map((tenant, index) => {
+                      const health = getTenantHealth(tenant);
+                      const hConfig = healthConfig[health];
+                      return (
+                        <div key={tenant.tenant_id} className="flex items-center gap-3">
+                          <div className="flex-shrink-0 w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary">
+                            {index + 1}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{tenant.tenant_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {tenant.sales_count} sales · {tenant.invoice_count} invoices · {tenant.receipt_count} receipts
+                            </p>
+                          </div>
+                          <Badge variant={hConfig.badgeVariant} className="text-xs">
+                            {hConfig.label}
+                          </Badge>
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          {tenant.sales_count} sales · {tenant.invoice_count} invoices
-                        </p>
-                      </div>
-                      <Badge variant="outline">{tenant.billing_plan || "No Plan"}</Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
-        </TabsContent>
 
-        {/* Feature Adoption Tab */}
-        <TabsContent value="features" className="space-y-4">
+          {/* Feature Adoption Bar */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Feature Adoption Rate</CardTitle>
+              <CardTitle className="text-lg">Feature Adoption</CardTitle>
               <CardDescription>
-                Percentage of active tenants ({aggregatedStats?.activeTenants || 0}) with each add-on enabled
+                Enabled vs actually using ({aggregatedStats?.activeTenants || 0} active tenants)
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={featureAdoptionData} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
-                    <YAxis type="category" dataKey="feature" width={100} />
-                    <Tooltip 
-                      formatter={(value: number, name: string) => [`${value}%`, 'Adoption Rate']}
-                      labelFormatter={(label) => `${label}`}
-                    />
-                    <Bar dataKey="adoption" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Enabled vs Actually Using */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Enabled vs. Actually Using</CardTitle>
-              <CardDescription>Compare feature toggles to actual data usage</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {["inventory", "payroll", "agents", "whatsapp"].map((feature) => {
                   const enabled = aggregatedStats?.featureAdoption[feature as keyof typeof aggregatedStats.featureAdoption] || 0;
                   const inferred = aggregatedStats?.inferredUsage[feature as keyof typeof aggregatedStats.inferredUsage] || 0;
                   return (
                     <div key={feature} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                      <div className="flex items-center gap-3">
-                        <span className="font-medium capitalize">{featureLabels[feature]?.label || feature}</span>
-                      </div>
-                      <div className="flex items-center gap-4 text-sm">
+                      <span className="font-medium text-sm">{featureLabels[feature]?.label || feature}</span>
+                      <div className="flex items-center gap-3 text-sm">
                         <div className="flex items-center gap-1.5">
-                          <CheckCircle2 className="h-4 w-4 text-primary" />
+                          <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
                           <span>{enabled} enabled</span>
                         </div>
                         <div className="flex items-center gap-1.5">
-                          <Activity className="h-4 w-4 text-chart-2" />
+                          <Activity className="h-3.5 w-3.5 text-chart-2" />
                           <span>{inferred} using</span>
                         </div>
                         {enabled > 0 && inferred < enabled && (
                           <Badge variant="secondary" className="text-xs">
-                            {enabled - inferred} not using
+                            {enabled - inferred} idle
                           </Badge>
                         )}
                       </div>
@@ -695,38 +590,22 @@ export function UsageAnalyticsDashboard() {
               </div>
             </CardContent>
           </Card>
-
-          {/* Feature Usage Breakdown */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Feature Usage Volume</CardTitle>
-              <CardDescription>Number of records per feature (inventory is cumulative, others are in period)</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={featureUsageStats || []}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="feature_key" tickFormatter={(v) => featureLabels[v]?.label || v} />
-                    <YAxis />
-                    <Tooltip 
-                      formatter={(value: number) => [value.toLocaleString(), 'Records']}
-                      labelFormatter={(label) => featureLabels[label]?.label || label}
-                    />
-                    <Bar dataKey="total_usage" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
         </TabsContent>
 
-        {/* Tenant Details Tab - NOW SHOWS ALL TENANTS */}
+        <TabsContent value="user-activity">
+          <UserActivityTab dateRange={dateRange} />
+        </TabsContent>
+
+        <TabsContent value="feature-insights">
+          <FeatureInsightsTab dateRange={dateRange} />
+        </TabsContent>
+
+        {/* Tenant Details Tab */}
         <TabsContent value="tenants">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">All Tenant Activity ({allTenantsSorted.length})</CardTitle>
-              <CardDescription>Detailed breakdown of each tenant's usage (sorted by activity)</CardDescription>
+              <CardTitle className="text-lg">All Tenants ({allTenantsSorted.length})</CardTitle>
+              <CardDescription>Sorted by activity · health status auto-classified</CardDescription>
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-[500px]">
@@ -734,69 +613,48 @@ export function UsageAnalyticsDashboard() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Tenant</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead>Health</TableHead>
                       <TableHead>Plan</TableHead>
                       <TableHead className="text-right">Sales</TableHead>
                       <TableHead className="text-right">Invoices</TableHead>
                       <TableHead className="text-right">Inventory</TableHead>
-                      <TableHead className="text-right">Employees</TableHead>
-                      <TableHead>Features</TableHead>
+                      <TableHead className="text-right">Staff</TableHead>
                       <TableHead>Last Activity</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {allTenantsSorted.map((tenant) => (
-                      <TableRow key={tenant.tenant_id}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{tenant.tenant_name}</span>
-                          {!tenant.has_business_profile && (
-                            <span title="Missing business profile">
-                              <AlertCircle className="h-3 w-3 text-warning" />
-                            </span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={tenant.tenant_status === "active" ? "default" : "secondary"}>
-                            {tenant.tenant_status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{tenant.billing_plan || "No Plan"}</Badge>
-                        </TableCell>
-                        <TableCell className="text-right">{tenant.sales_count.toLocaleString()}</TableCell>
-                        <TableCell className="text-right">{tenant.invoice_count.toLocaleString()}</TableCell>
-                        <TableCell className="text-right">{tenant.inventory_count.toLocaleString()}</TableCell>
-                        <TableCell className="text-right">{tenant.employee_count.toLocaleString()}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {tenant.features_enabled.length === 0 ? (
-                              <span className="text-xs text-muted-foreground">None</span>
-                            ) : (
-                              <>
-                                {tenant.features_enabled.slice(0, 3).map((f) => (
-                                  <Badge key={f} variant="secondary" className="text-xs">
-                                    {f}
-                                  </Badge>
-                                ))}
-                                {tenant.features_enabled.length > 3 && (
-                                  <Badge variant="secondary" className="text-xs">
-                                    +{tenant.features_enabled.length - 3}
-                                  </Badge>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {tenant.last_activity 
-                            ? format(new Date(tenant.last_activity), "MMM d, yyyy")
-                            : <span className="text-muted-foreground">No activity</span>
-                          }
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {allTenantsSorted.map((tenant) => {
+                      const health = getTenantHealth(tenant);
+                      const hConfig = healthConfig[health];
+                      return (
+                        <TableRow key={tenant.tenant_id}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <div className={`h-2 w-2 rounded-full ${hConfig.color}`} />
+                              <span className="font-medium">{tenant.tenant_name}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={hConfig.badgeVariant} className="text-xs">
+                              {hConfig.label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">{tenant.billing_plan || "—"}</Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-mono">{tenant.sales_count}</TableCell>
+                          <TableCell className="text-right font-mono">{tenant.invoice_count}</TableCell>
+                          <TableCell className="text-right font-mono">{tenant.inventory_count}</TableCell>
+                          <TableCell className="text-right font-mono">{tenant.employee_count}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {tenant.last_activity 
+                              ? format(new Date(tenant.last_activity), "MMM d, yyyy")
+                              : "None"
+                            }
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </ScrollArea>
@@ -808,17 +666,15 @@ export function UsageAnalyticsDashboard() {
         <TabsContent value="limits" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">WhatsApp Usage by Tenant</CardTitle>
-              <CardDescription>Monitor WhatsApp message limits and usage</CardDescription>
+              <CardTitle className="text-lg">WhatsApp Usage</CardTitle>
+              <CardDescription>Message limits and consumption</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
                 {tenantUsageData?.filter(t => t.features_enabled.includes("whatsapp") || t.inferred_features.whatsapp).map((tenant) => {
                   const usagePercent = tenant.whatsapp_limit > 0 
-                    ? Math.min((tenant.whatsapp_messages / tenant.whatsapp_limit) * 100, 100)
-                    : 0;
+                    ? Math.min((tenant.whatsapp_messages / tenant.whatsapp_limit) * 100, 100) : 0;
                   const isNearLimit = usagePercent >= 80;
-                  
                   return (
                     <div key={tenant.tenant_id} className="space-y-2">
                       <div className="flex justify-between items-center">
@@ -828,28 +684,23 @@ export function UsageAnalyticsDashboard() {
                             {tenant.whatsapp_messages.toLocaleString()} / {tenant.whatsapp_limit.toLocaleString()} messages
                           </p>
                         </div>
-                        <Badge variant={isNearLimit ? "destructive" : "secondary"}>
-                          {usagePercent.toFixed(0)}%
-                        </Badge>
+                        <Badge variant={isNearLimit ? "destructive" : "secondary"}>{usagePercent.toFixed(0)}%</Badge>
                       </div>
                       <Progress value={usagePercent} className={isNearLimit ? "[&>div]:bg-destructive" : ""} />
                     </div>
                   );
                 })}
                 {!tenantUsageData?.some(t => t.features_enabled.includes("whatsapp") || t.inferred_features.whatsapp) && (
-                  <p className="text-muted-foreground text-center py-8">
-                    No tenants with WhatsApp enabled or usage
-                  </p>
+                  <p className="text-muted-foreground text-center py-8">No tenants with WhatsApp enabled</p>
                 )}
               </div>
             </CardContent>
           </Card>
 
-          {/* Inventory Limits - Show ALL tenants with inventory, not capped */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Inventory Capacity</CardTitle>
-              <CardDescription>Track inventory item counts against plan limits (from billing configuration)</CardDescription>
+              <CardDescription>Item counts vs plan limits</CardDescription>
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-[400px]">
@@ -857,10 +708,8 @@ export function UsageAnalyticsDashboard() {
                   {tenantUsageData?.filter(t => t.features_enabled.includes("inventory") || t.inferred_features.inventory).map((tenant) => {
                     const limit = getInventoryLimit(tenant.billing_plan);
                     const usagePercent = limit > 0 
-                      ? Math.min((tenant.inventory_count / limit) * 100, 100)
-                      : 0;
+                      ? Math.min((tenant.inventory_count / limit) * 100, 100) : 0;
                     const isNearLimit = usagePercent >= 80;
-                    
                     return (
                       <div key={tenant.tenant_id} className="space-y-2">
                         <div className="flex justify-between items-center">
@@ -868,15 +717,12 @@ export function UsageAnalyticsDashboard() {
                             <p className="text-sm font-medium">{tenant.tenant_name}</p>
                             <p className="text-xs text-muted-foreground">
                               {tenant.inventory_count.toLocaleString()} / {limit === -1 ? "∞" : limit.toLocaleString()} items
-                              <span className="ml-2 text-muted-foreground">({tenant.billing_plan || "No Plan"})</span>
+                              <span className="ml-2">({tenant.billing_plan || "No Plan"})</span>
                             </p>
                           </div>
-                          {limit !== -1 && (
-                            <Badge variant={isNearLimit ? "destructive" : "secondary"}>
-                              {usagePercent.toFixed(0)}%
-                            </Badge>
-                          )}
-                          {limit === -1 && (
+                          {limit !== -1 ? (
+                            <Badge variant={isNearLimit ? "destructive" : "secondary"}>{usagePercent.toFixed(0)}%</Badge>
+                          ) : (
                             <Badge variant="outline">Unlimited</Badge>
                           )}
                         </div>
