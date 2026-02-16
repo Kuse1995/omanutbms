@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,7 +18,8 @@ import {
   Building2, 
   AlertCircle,
   Clock,
-  Calculator
+  Calculator,
+  Tag
 } from "lucide-react";
 import {
   ALTERATION_TYPES,
@@ -71,14 +73,16 @@ export function AlterationDetailsStep({
   const { currencySymbol } = useBusinessConfig();
   const [customAlterationText, setCustomAlterationText] = useState("");
   const [customAlterationHours, setCustomAlterationHours] = useState(1);
+  const [customAlterationPrice, setCustomAlterationPrice] = useState(0);
   const [expandedCategory, setExpandedCategory] = useState<string | null>("sizing");
+  const [manualPricing, setManualPricing] = useState(false);
 
   // Calculate totals
   const totals = useMemo(() => {
     const totalHours = selectedAlterations.reduce((sum, a) => sum + a.estimatedHours, 0);
-    const totalPrice = selectedAlterations.reduce((sum, a) => sum + a.price, 0);
+    const totalPrice = selectedAlterations.reduce((sum, a) => sum + (manualPricing ? (a.manualPrice ?? a.price) : a.price), 0);
     return { totalHours, totalPrice };
-  }, [selectedAlterations]);
+  }, [selectedAlterations, manualPricing]);
 
   // Toggle alteration selection
   const toggleAlteration = (alterationType: AlterationType) => {
@@ -95,6 +99,7 @@ export function AlterationDetailsStep({
         label: alterationType.label,
         estimatedHours: alterationType.defaultHours,
         price: calculateAlterationPrice(alterationType.defaultHours, hourlyRate),
+        manualPrice: undefined,
       };
       onAlterationsChange([...selectedAlterations, newItem]);
     }
@@ -107,6 +112,15 @@ export function AlterationDetailsStep({
         a.id === alterationId 
           ? { ...a, estimatedHours: hours, price: calculateAlterationPrice(hours, hourlyRate) }
           : a
+      )
+    );
+  };
+
+  // Update manual price directly
+  const updateAlterationManualPrice = (alterationId: string, price: number) => {
+    onAlterationsChange(
+      selectedAlterations.map(a => 
+        a.id === alterationId ? { ...a, manualPrice: price } : a
       )
     );
   };
@@ -128,8 +142,9 @@ export function AlterationDetailsStep({
       id: `custom-${Date.now()}`,
       type: 'custom',
       label: customAlterationText.trim(),
-      estimatedHours: customAlterationHours,
-      price: calculateAlterationPrice(customAlterationHours, hourlyRate),
+      estimatedHours: manualPricing ? 0 : customAlterationHours,
+      price: manualPricing ? 0 : calculateAlterationPrice(customAlterationHours, hourlyRate),
+      manualPrice: manualPricing ? customAlterationPrice : undefined,
     };
     
     onAlterationsChange([...selectedAlterations, newItem]);
@@ -247,6 +262,21 @@ export function AlterationDetailsStep({
         </CardContent>
       </Card>
 
+      {/* Pricing Mode Toggle */}
+      <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">{manualPricing ? 'Manual pricing' : 'Hourly pricing'}</span>
+          <span className="text-xs text-muted-foreground">
+            {manualPricing ? 'Set price per item directly' : `Based on ${currencySymbol}${hourlyRate}/hr`}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+          <Switch checked={manualPricing} onCheckedChange={setManualPricing} />
+          <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+        </div>
+      </div>
+
       {/* Alterations Selection */}
       <Card>
         <CardHeader className="pb-3">
@@ -330,22 +360,40 @@ export function AlterationDetailsStep({
                       </Button>
                     </div>
                     <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                        <Input
-                          type="number"
-                          min={0.5}
-                          step={0.5}
-                          value={alt.estimatedHours}
-                          onChange={(e) => updateAlterationHours(alt.id, parseFloat(e.target.value) || 0)}
-                          className="w-20 h-7 text-sm"
-                        />
-                        <span className="text-xs text-muted-foreground">hours</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Calculator className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="font-medium text-sm">{currencySymbol}{alt.price}</span>
-                      </div>
+                      {manualPricing ? (
+                        <div className="flex items-center gap-2">
+                          <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">{currencySymbol}</span>
+                          <Input
+                            type="number"
+                            min={0}
+                            step="any"
+                            value={alt.manualPrice ?? alt.price}
+                            onChange={(e) => updateAlterationManualPrice(alt.id, parseFloat(e.target.value) || 0)}
+                            className="w-24 h-7 text-sm"
+                            placeholder="0.00"
+                          />
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                            <Input
+                              type="number"
+                              min={0.5}
+                              step={0.5}
+                              value={alt.estimatedHours}
+                              onChange={(e) => updateAlterationHours(alt.id, parseFloat(e.target.value) || 0)}
+                              className="w-20 h-7 text-sm"
+                            />
+                            <span className="text-xs text-muted-foreground">hours</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Calculator className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span className="font-medium text-sm">{currencySymbol}{alt.price}</span>
+                          </div>
+                        </>
+                      )}
                     </div>
                     <Input
                       placeholder="Add notes for this alteration..."
@@ -373,15 +421,32 @@ export function AlterationDetailsStep({
                 className="flex-1"
               />
               <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  min={0.5}
-                  step={0.5}
-                  value={customAlterationHours}
-                  onChange={(e) => setCustomAlterationHours(parseFloat(e.target.value) || 1)}
-                  className="w-20"
-                />
-                <span className="text-sm text-muted-foreground whitespace-nowrap">hrs</span>
+                {manualPricing ? (
+                  <>
+                    <span className="text-sm text-muted-foreground">{currencySymbol}</span>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="any"
+                      value={customAlterationPrice || ''}
+                      onChange={(e) => setCustomAlterationPrice(parseFloat(e.target.value) || 0)}
+                      className="w-24"
+                      placeholder="0.00"
+                    />
+                  </>
+                ) : (
+                  <>
+                    <Input
+                      type="number"
+                      min={0.5}
+                      step={0.5}
+                      value={customAlterationHours}
+                      onChange={(e) => setCustomAlterationHours(parseFloat(e.target.value) || 1)}
+                      className="w-20"
+                    />
+                    <span className="text-sm text-muted-foreground whitespace-nowrap">hrs</span>
+                  </>
+                )}
                 <Button
                   type="button"
                   size="sm"
@@ -432,7 +497,9 @@ export function AlterationDetailsStep({
             </div>
           </div>
           <p className="text-xs text-muted-foreground mt-2">
-            Based on {currencySymbol}{hourlyRate}/hour rate. Final price may vary based on complexity.
+            {manualPricing 
+              ? 'Prices set manually per item.' 
+              : `Based on ${currencySymbol}${hourlyRate}/hour rate. Final price may vary based on complexity.`}
           </p>
         </div>
       )}
