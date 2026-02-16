@@ -20,7 +20,9 @@ import {
   ArrowRightLeft,
   RotateCcw,
   Scissors,
-  Wrench
+  Wrench,
+  Tag,
+  List,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,7 +37,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { GarmentMeasurementsForm, type GarmentMeasurements, isGarmentCategoryComplete, getMissingMeasurements, getDefaultTab, serializeMeasurementsForStorage, hasMinimumMeasurements, getMissingCoreMeasurements, CORE_MEASUREMENT_KEYS } from "./GarmentMeasurementsForm";
 import { MaterialSelector, type MaterialItem } from "./MaterialSelector";
 import { LaborEstimator, type SkillLevel } from "./LaborEstimator";
-import { PricingBreakdown, calculateQuote } from "./PricingBreakdown";
+import { PricingBreakdown, calculateQuote, type PricingMode } from "./PricingBreakdown";
 import { AdditionalCostsSection, type AdditionalCostItem } from "./AdditionalCostsSection";
 import { SketchUploader } from "./SketchUploader";
 import { CustomerSignaturePad } from "./CustomerSignaturePad";
@@ -195,8 +197,8 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
     tailorId: null as string | null,
     marginPercentage: 30,
     priceLocked: false,
-    
-    // Review & Sign (Step 7)
+    pricingMode: 'hourly' as PricingMode,
+    fixedPrice: 0,
     estimatedCost: 0,
     depositAmount: 0,
     dueDate: '',
@@ -270,6 +272,8 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
           tailorId: order.assigned_tailor_id || null,
           marginPercentage: order.margin_percentage || 30,
           priceLocked: order.price_locked || false,
+          pricingMode: ((order as any).pricing_mode as PricingMode) || 'hourly',
+          fixedPrice: (order as any).pricing_mode === 'fixed' ? (order.quoted_price || 0) : 0,
           estimatedCost: order.estimated_cost || 0,
           depositAmount: order.deposit_paid || 0,
           dueDate: order.due_date || '',
@@ -378,11 +382,16 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
         break;
       
       case 5: // Pricing
-        if (formData.laborHours <= 0) errors.push("Please estimate labor hours");
-        const hasStockIssues = formData.materials.some(m => 
-          m.stockWarning?.includes('Insufficient')
-        );
-        if (hasStockIssues) errors.push("Some materials have insufficient stock");
+        if (formData.pricingMode === 'hourly') {
+          if (formData.laborHours <= 0) errors.push("Please estimate labor hours");
+          const hasStockIssues = formData.materials.some(m => 
+            m.stockWarning?.includes('Insufficient')
+          );
+          if (hasStockIssues) errors.push("Some materials have insufficient stock");
+        } else if (formData.pricingMode === 'fixed') {
+          if (formData.fixedPrice <= 0) errors.push("Please enter a total price");
+        }
+        // per_item mode: no special validation needed (items come from alterations or manual entry)
         break;
       
       case 6: // Review & Sign
@@ -453,6 +462,11 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
 
   // Calculate balance due
   const calculateBalance = () => {
+    if (formData.pricingMode === 'fixed') {
+      const base = formData.fixedPrice;
+      const total = base + base * (formData.marginPercentage / 100);
+      return total - (formData.depositAmount || 0);
+    }
     const materialCost = formData.materials.reduce(
       (sum, m) => sum + m.quantity * m.unitCost, 0
     );
@@ -527,12 +541,21 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
         }
       }
 
-      // Calculate pricing if materials exist
+      // Calculate pricing based on mode
       const materialCost = formData.materials.reduce(
         (sum, m) => sum + m.quantity * m.unitCost, 0
       );
       const laborCost = formData.laborHours * formData.hourlyRate;
-      const { quotedPrice } = calculateQuote(materialCost, laborCost, formData.marginPercentage);
+      const additionalCost = formData.additionalCosts.reduce(
+        (sum, c) => sum + c.quantity * c.unitPrice, 0
+      );
+      let quotedPrice: number;
+      if (formData.pricingMode === 'fixed') {
+        const base = formData.fixedPrice;
+        quotedPrice = base + base * (formData.marginPercentage / 100);
+      } else {
+        ({ quotedPrice } = calculateQuote(materialCost, laborCost, formData.marginPercentage, additionalCost));
+      }
 
       const orderData: Record<string, unknown> = {
         customer_id: customerId,
@@ -564,6 +587,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
         collection_date: formData.collectionDate || null,
         collection_time: formData.collectionTime || null,
         tag_material: formData.tagMaterial || null,
+        pricing_mode: formData.pricingMode,
       };
 
       // Determine if this is an UPDATE or INSERT
@@ -805,12 +829,21 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
         }
       }
 
-      // Calculate pricing
+      // Calculate pricing based on mode
       const materialCost = formData.materials.reduce(
         (sum, m) => sum + m.quantity * m.unitCost, 0
       );
       const laborCost = formData.laborHours * formData.hourlyRate;
-      const { quotedPrice } = calculateQuote(materialCost, laborCost, formData.marginPercentage);
+      const additionalCostSubmit = formData.additionalCosts.reduce(
+        (sum, c) => sum + c.quantity * c.unitPrice, 0
+      );
+      let quotedPrice: number;
+      if (formData.pricingMode === 'fixed') {
+        const base = formData.fixedPrice;
+        quotedPrice = base + base * (formData.marginPercentage / 100);
+      } else {
+        ({ quotedPrice } = calculateQuote(materialCost, laborCost, formData.marginPercentage, additionalCostSubmit));
+      }
 
       const insertData: Record<string, unknown> = {
         tenant_id: tenantId,
@@ -844,6 +877,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
         collection_date: formData.collectionDate || null,
         collection_time: formData.collectionTime || null,
         tag_material: formData.tagMaterial || null,
+        pricing_mode: formData.pricingMode,
         created_by: user?.id,
       };
       
@@ -1428,49 +1462,120 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
         
         return (
           <div className="space-y-6">
-            <LaborEstimator
-              hours={formData.laborHours}
-              skillLevel={formData.skillLevel}
-              hourlyRate={formData.hourlyRate}
-              tailorId={formData.tailorId}
-              onHoursChange={(h) => updateFormData('laborHours', h)}
-              onSkillLevelChange={(s) => updateFormData('skillLevel', s)}
-              onHourlyRateChange={(r) => updateFormData('hourlyRate', r)}
-              onTailorChange={(t) => updateFormData('tailorId', t)}
-              designType={formData.designType}
-              styleNotes={formData.styleNotes}
-              fabric={formData.fabric}
-            />
-            {validationErrors.some(e => e.includes('labor')) && (
-              <p className="text-sm text-destructive flex items-center gap-1">
-                <AlertCircle className="h-4 w-4" />
-                Please estimate labor hours
-              </p>
+            {/* Pricing Mode Selector */}
+            <div className="grid grid-cols-3 gap-3">
+              {([
+                { mode: 'hourly' as PricingMode, label: 'Hourly Rate', icon: Clock, desc: 'Hours × Rate' },
+                { mode: 'fixed' as PricingMode, label: 'Fixed Price', icon: Tag, desc: 'Set total price' },
+                { mode: 'per_item' as PricingMode, label: 'Per Item', icon: List, desc: 'Price each item' },
+              ]).map(({ mode, label, icon: Icon, desc }) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => updateFormData('pricingMode', mode)}
+                  className={`flex flex-col items-center gap-1.5 p-4 rounded-xl border-2 transition-all text-center ${
+                    formData.pricingMode === mode
+                      ? 'border-primary bg-primary/5 shadow-sm'
+                      : 'border-border hover:border-muted-foreground/30 hover:bg-muted/50'
+                  }`}
+                >
+                  <Icon className={`h-5 w-5 ${formData.pricingMode === mode ? 'text-primary' : 'text-muted-foreground'}`} />
+                  <span className={`text-sm font-medium ${formData.pricingMode === mode ? 'text-primary' : 'text-foreground'}`}>
+                    {label}
+                  </span>
+                  <span className="text-xs text-muted-foreground">{desc}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Hourly Mode: LaborEstimator + MaterialSelector */}
+            {formData.pricingMode === 'hourly' && (
+              <>
+                <LaborEstimator
+                  hours={formData.laborHours}
+                  skillLevel={formData.skillLevel}
+                  hourlyRate={formData.hourlyRate}
+                  tailorId={formData.tailorId}
+                  onHoursChange={(h) => updateFormData('laborHours', h)}
+                  onSkillLevelChange={(s) => updateFormData('skillLevel', s)}
+                  onHourlyRateChange={(r) => updateFormData('hourlyRate', r)}
+                  onTailorChange={(t) => updateFormData('tailorId', t)}
+                  designType={formData.designType}
+                  styleNotes={formData.styleNotes}
+                  fabric={formData.fabric}
+                />
+                {validationErrors.some(e => e.includes('labor')) && (
+                  <p className="text-sm text-destructive flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4" />
+                    Please estimate labor hours
+                  </p>
+                )}
+
+                <div className="border-t pt-4">
+                  <MaterialSelector
+                    materials={formData.materials}
+                    onChange={(m) => updateFormData('materials', m)}
+                    designType={formData.designType}
+                    fabric={formData.fabric}
+                    color={formData.color}
+                    styleNotes={formData.styleNotes}
+                  />
+                  {validationErrors.some(e => e.includes('stock')) && (
+                    <p className="text-sm text-destructive flex items-center gap-1 mt-2">
+                      <AlertCircle className="h-4 w-4" />
+                      Some materials have insufficient stock - please adjust quantities
+                    </p>
+                  )}
+                </div>
+
+                <div className="border-t pt-4">
+                  <AdditionalCostsSection
+                    items={formData.additionalCosts}
+                    onChange={(items) => updateFormData('additionalCosts', items)}
+                  />
+                </div>
+              </>
             )}
 
-            <div className="border-t pt-4">
-              <MaterialSelector
-                materials={formData.materials}
-                onChange={(m) => updateFormData('materials', m)}
-                designType={formData.designType}
-                fabric={formData.fabric}
-                color={formData.color}
-                styleNotes={formData.styleNotes}
-              />
-              {validationErrors.some(e => e.includes('stock')) && (
-                <p className="text-sm text-destructive flex items-center gap-1 mt-2">
-                  <AlertCircle className="h-4 w-4" />
-                  Some materials have insufficient stock - please adjust quantities
+            {/* Fixed Price Mode: simple total input */}
+            {formData.pricingMode === 'fixed' && (
+              <div className="p-4 rounded-lg border bg-muted/30 space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Enter the total price for this order. The margin will be applied on top.
                 </p>
-              )}
-            </div>
+                {validationErrors.some(e => e.includes('total price')) && (
+                  <p className="text-sm text-destructive flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4" />
+                    Please enter a total price
+                  </p>
+                )}
+              </div>
+            )}
 
-            <div className="border-t pt-4">
-              <AdditionalCostsSection
-                items={formData.additionalCosts}
-                onChange={(items) => updateFormData('additionalCosts', items)}
-              />
-            </div>
+            {/* Per Item Mode: show existing items or note */}
+            {formData.pricingMode === 'per_item' && (
+              <div className="p-4 rounded-lg border bg-muted/30 space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Each service or alteration item is priced individually. You can also add materials below.
+                </p>
+                <div className="border-t pt-4">
+                  <MaterialSelector
+                    materials={formData.materials}
+                    onChange={(m) => updateFormData('materials', m)}
+                    designType={formData.designType}
+                    fabric={formData.fabric}
+                    color={formData.color}
+                    styleNotes={formData.styleNotes}
+                  />
+                </div>
+                <div className="border-t pt-4">
+                  <AdditionalCostsSection
+                    items={formData.additionalCosts}
+                    onChange={(items) => updateFormData('additionalCosts', items)}
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="border-t pt-4">
               <PricingBreakdown
@@ -1480,6 +1585,9 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
                 marginPercentage={formData.marginPercentage}
                 onMarginChange={(m) => updateFormData('marginPercentage', m)}
                 isLocked={formData.priceLocked}
+                pricingMode={formData.pricingMode}
+                fixedPrice={formData.fixedPrice}
+                onFixedPriceChange={(p) => updateFormData('fixedPrice', p)}
               />
             </div>
 

@@ -1439,6 +1439,7 @@ export type Database = {
           original_order_id: string | null
           price_locked: boolean | null
           price_locked_at: string | null
+          pricing_mode: string | null
           production_type: string | null
           qc_checks: Json | null
           qc_completed_at: string | null
@@ -1505,6 +1506,7 @@ export type Database = {
           original_order_id?: string | null
           price_locked?: boolean | null
           price_locked_at?: string | null
+          pricing_mode?: string | null
           production_type?: string | null
           qc_checks?: Json | null
           qc_completed_at?: string | null
@@ -1571,6 +1573,7 @@ export type Database = {
           original_order_id?: string | null
           price_locked?: boolean | null
           price_locked_at?: string | null
+          pricing_mode?: string | null
           production_type?: string | null
           qc_checks?: Json | null
           qc_completed_at?: string | null

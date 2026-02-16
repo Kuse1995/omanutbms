@@ -3,6 +3,8 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Calculator, Percent, Lock, Package, Wrench, Gift } from "lucide-react";
 
+export type PricingMode = 'hourly' | 'fixed' | 'per_item';
+
 interface PricingBreakdownProps {
   materialCost: number;
   laborCost: number;
@@ -16,6 +18,10 @@ interface PricingBreakdownProps {
   hourlyRate?: number;
   skillLevel?: string;
   additionalItems?: { description: string; quantity: number; unitPrice: number; itemType: string }[];
+  pricingMode?: PricingMode;
+  fixedPrice?: number;
+  onFixedPriceChange?: (price: number) => void;
+  perItemList?: { label: string; price: number }[];
 }
 
 export function PricingBreakdown({
@@ -31,8 +37,18 @@ export function PricingBreakdown({
   hourlyRate = 0,
   skillLevel = "Senior",
   additionalItems = [],
+  pricingMode = 'hourly',
+  fixedPrice = 0,
+  onFixedPriceChange,
+  perItemList = [],
 }: PricingBreakdownProps) {
-  const baseCost = materialCost + laborCost + additionalCost;
+  // Calculate base cost depending on mode
+  const baseCost = pricingMode === 'fixed'
+    ? fixedPrice
+    : pricingMode === 'per_item'
+      ? perItemList.reduce((sum, item) => sum + item.price, 0) + materialCost + additionalCost
+      : materialCost + laborCost + additionalCost;
+
   const marginAmount = baseCost * (marginPercentage / 100);
   const quotedPrice = baseCost + marginAmount;
 
@@ -44,8 +60,95 @@ export function PricingBreakdown({
       </div>
 
       <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-        {/* Materials Section */}
-        <div className="space-y-1">
+        {/* Fixed Price Mode */}
+        {pricingMode === 'fixed' && (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground flex items-center gap-2">
+                <Package className="h-3 w-3" />
+                Fixed Total Price
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">K</span>
+                <Input
+                  type="number"
+                  step="any"
+                  min="0"
+                  value={fixedPrice || ''}
+                  onChange={(e) => onFixedPriceChange?.(parseFloat(e.target.value) || 0)}
+                  className="h-8 w-28 text-right text-sm"
+                  disabled={isLocked}
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Per Item Mode */}
+        {pricingMode === 'per_item' && perItemList.length > 0 && (
+          <div className="space-y-1">
+            <div className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Wrench className="h-3 w-3" />
+              Service Items
+            </div>
+            <div className="ml-5 space-y-0.5">
+              {perItemList.map((item, idx) => (
+                <div key={idx} className="flex justify-between text-sm">
+                  <span>{item.label}</span>
+                  <span>K {item.price.toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-between text-sm font-medium pt-1">
+              <span>Items Subtotal</span>
+              <span>K {perItemList.reduce((s, i) => s + i.price, 0).toFixed(2)}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Hourly Mode - Materials */}
+        {pricingMode === 'hourly' && (
+          <>
+            <div className="space-y-1">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground flex items-center gap-2">
+                  <Package className="h-3 w-3" />
+                  Material Cost
+                </span>
+                <span>K {materialCost.toFixed(2)}</span>
+              </div>
+              {showItemized && materialItems.length > 0 && (
+                <div className="ml-5 space-y-0.5">
+                  {materialItems.map((item, idx) => (
+                    <div key={idx} className="flex justify-between text-xs text-muted-foreground">
+                      <span>{item.name} ({item.quantity} {item.unitOfMeasure})</span>
+                      <span>K {(item.quantity * item.unitCost).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground flex items-center gap-2">
+                  <Wrench className="h-3 w-3" />
+                  Labor Cost
+                </span>
+                <span>K {laborCost.toFixed(2)}</span>
+              </div>
+              {showItemized && laborHours > 0 && (
+                <div className="ml-5 text-xs text-muted-foreground">
+                  {skillLevel} Tailor × {laborHours} hrs @ K{hourlyRate}/hr
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Per-item mode can also have material & additional costs */}
+        {pricingMode === 'per_item' && materialCost > 0 && (
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground flex items-center gap-2">
               <Package className="h-3 w-3" />
@@ -53,36 +156,10 @@ export function PricingBreakdown({
             </span>
             <span>K {materialCost.toFixed(2)}</span>
           </div>
-          {showItemized && materialItems.length > 0 && (
-            <div className="ml-5 space-y-0.5">
-              {materialItems.map((item, idx) => (
-                <div key={idx} className="flex justify-between text-xs text-muted-foreground">
-                  <span>{item.name} ({item.quantity} {item.unitOfMeasure})</span>
-                  <span>K {(item.quantity * item.unitCost).toFixed(2)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        )}
 
-        {/* Labor Section */}
-        <div className="space-y-1">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground flex items-center gap-2">
-              <Wrench className="h-3 w-3" />
-              Labor Cost
-            </span>
-            <span>K {laborCost.toFixed(2)}</span>
-          </div>
-          {showItemized && laborHours > 0 && (
-            <div className="ml-5 text-xs text-muted-foreground">
-              {skillLevel} Tailor × {laborHours} hrs @ K{hourlyRate}/hr
-            </div>
-          )}
-        </div>
-
-        {/* Additional Costs Section */}
-        {additionalCost > 0 && (
+        {/* Additional Costs (hourly & per_item modes) */}
+        {pricingMode !== 'fixed' && additionalCost > 0 && (
           <div className="space-y-1">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground flex items-center gap-2">
@@ -160,7 +237,6 @@ export function PricingBreakdown({
     </div>
   );
 }
-
 export function calculateQuote(
   materialCost: number,
   laborCost: number,

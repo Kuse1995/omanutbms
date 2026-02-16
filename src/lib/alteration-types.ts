@@ -15,6 +15,7 @@ export interface AlterationItem {
   estimatedHours: number;
   price: number;
   notes?: string;
+  manualPrice?: number; // Used when pricing mode is 'manual' (per-item pricing)
 }
 
 export const ALTERATION_TYPES: AlterationType[] = [
