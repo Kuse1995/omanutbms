@@ -1,108 +1,51 @@
 
 
-# Flexible Pricing Mode for Custom Orders and Alterations
+# Fix Quotation Number Generation
 
-## What This Solves
+## The Problem
 
-Currently, House of Dodo's pricing is locked into an hourly-rate model -- every order calculates cost as (hours x rate). This doesn't work for all scenarios:
+The quotation number generator crashes when trying to create new quotations. The database contains quotation numbers with "-DUP" suffixes (e.g., `Q2026-0001-DUP3`, `Q2026-0001-DUP88`). The current function uses a simple `SUBSTRING` to extract the sequence number, which fails because it tries to cast `0001-DUP3` as an integer.
 
-- Some jobs have a known flat fee (e.g., "a dress hem is always K150")
-- Some items are priced per piece or per garment, not by time
-- Experienced tailors may want to quote a lump sum without breaking down hours
+The receipt (`generate_receipt_number`) and sale (`generate_sale_number`) generators were already updated to handle this using `regexp_replace`, but the quotation generator was missed.
 
-This plan adds a **Pricing Mode selector** so users can choose how they want to price each order.
+## The Fix
 
-## Three Pricing Modes
+A single database migration to update the `generate_quotation_number` function to use the same robust pattern already in place for receipts and sales:
 
-| Mode | How it works | Best for |
-|---|---|---|
-| **Hourly** (current default) | Hours x Hourly Rate = Labor Cost | Complex or unpredictable jobs |
-| **Fixed Price** | User enters a flat total price directly | Standard/routine jobs with known pricing |
-| **Per Item** | Price per alteration/service item, no hourly breakdown | Alterations, simple repairs |
+- Strip the prefix (`Q2026-`) using `regexp_replace`
+- Strip any non-digit trailing characters (`-DUP3`, etc.) using a second `regexp_replace`
+- Scope the sequence to the current tenant for proper numbering
+- Add a guard so manually-set quotation numbers are not overwritten
 
-## What Changes
-
-### 1. Custom Design Wizard (Smart Pricing step)
-
-Add a pricing mode toggle at the top of the pricing step (Step 6). Based on the selection:
-
-- **Hourly mode**: Shows the current LaborEstimator + MaterialSelector + PricingBreakdown (no change)
-- **Fixed Price mode**: Hides LaborEstimator, shows a single "Total Price" input field + optional material costs + margin
-- **Per Item mode**: Shows a list where each line item gets its own price (useful when not using hourly rates)
-
-### 2. Alteration Details Step
-
-Currently, alterations calculate price as `hours x hourlyRate` for each alteration item. The change:
-
-- Add a toggle: "Price by hours" vs "Set price manually"
-- When manual: each alteration item gets a direct price input instead of calculating from hours
-- The hourly rate field becomes optional/hidden
-
-### 3. LaborEstimator Component
-
-- Make the entire component conditional -- only shown when pricing mode is "hourly"
-- No changes to the component itself
-
-### 4. PricingBreakdown Component
-
-- Accept a new `pricingMode` prop
-- In "fixed" mode: show just the entered total + margin
-- In "per_item" mode: show line items summed up + margin
-- In "hourly" mode: current behavior (no change)
-
-### 5. Form Data and Database
-
-- Add a `pricing_mode` field to the form state (`'hourly' | 'fixed' | 'per_item'`)
-- Store in `custom_orders.pricing_mode` column (new, nullable text column, defaults to `'hourly'`)
-- The `quoted_price`, `estimated_cost`, and other financial fields already exist and will continue to be used
+No frontend code changes needed.
 
 ## Technical Details
 
-### Database Migration
-
 ```text
-ALTER TABLE custom_orders ADD COLUMN pricing_mode text DEFAULT 'hourly';
+-- Updated function logic (same pattern as generate_receipt_number)
+IF NEW.quotation_number IS NOT NULL AND NEW.quotation_number != '' THEN
+  RETURN NEW;  -- Keep manually-set numbers
+END IF;
+
+year_prefix := 'Q' || to_char(CURRENT_DATE, 'YYYY');
+
+SELECT COALESCE(MAX(
+  CAST(
+    regexp_replace(
+      regexp_replace(quotation_number, '^Q\d{4}-', ''),
+      '[^0-9].*$', ''
+    ) AS integer
+  )
+), 0) + 1
+INTO next_number
+FROM public.quotations
+WHERE quotation_number LIKE year_prefix || '-%'
+  AND tenant_id = NEW.tenant_id;
+
+NEW.quotation_number := year_prefix || '-' || LPAD(next_number::text, 4, '0');
 ```
 
-Single column addition. No RLS changes needed (existing policies cover it).
+Similarly, the `generate_invoice_number` function has the same vulnerability and should be updated preventatively.
 
-### Files to Modify
-
-1. **`src/components/dashboard/CustomDesignWizard.tsx`**
-   - Add `pricingMode` to formData state
-   - Render pricing mode selector at top of Step 5 (Smart Pricing)
-   - Conditionally render LaborEstimator vs Fixed Price input vs Per Item list
-   - Save `pricing_mode` to database on submit
-
-2. **`src/components/dashboard/AlterationDetailsStep.tsx`**
-   - Add a toggle for "Calculate from hours" vs "Set price directly"
-   - When manual pricing: show a direct price input on each alteration item instead of hours-based calculation
-   - Update the `AlterationItem` interface to support both modes
-
-3. **`src/components/dashboard/PricingBreakdown.tsx`**
-   - Add `pricingMode` prop
-   - In fixed mode: simplified view showing entered price + margin
-   - In per_item mode: list items + margin
-
-4. **`src/lib/alteration-types.ts`**
-   - Update `AlterationItem` to include an optional `manualPrice` field
-
-5. **`src/components/dashboard/LaborEstimator.tsx`**
-   - No internal changes; it simply won't be rendered in non-hourly modes
-
-### User Experience Flow
-
-When a user opens the pricing step, they see three card-style buttons at the top:
-
-```text
-+------------------+  +------------------+  +------------------+
-|   Clock icon     |  |   Tag icon       |  |   List icon      |
-|   Hourly Rate    |  |   Fixed Price    |  |   Per Item       |
-|   (selected)     |  |                  |  |                  |
-+------------------+  +------------------+  +------------------+
-```
-
-Selecting "Fixed Price" collapses the labor estimator and material selector, replacing them with a simple total price input. The margin percentage and final quoted price still apply.
-
-For alterations, a simpler inline toggle appears next to the hourly rate field: "Use hourly calculation" / "Set prices manually".
-
+### Files changed
+- One new database migration file (no app code changes)
