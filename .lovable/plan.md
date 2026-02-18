@@ -1,184 +1,122 @@
 
-# Super Admin Training & Coaching Centre
+# Make the Training Centre More Effective for Teaching
 
-## What This Builds
+## What's Missing Right Now
 
-A dedicated page inside the Super Admin panel (new tab) that allows Abkanyanta — as the platform operator — to run structured training sessions with any tenant's users. The workflow is:
+The current system is a good **tracker** — you can mark things as taught and add notes. But it doesn't actively help you **teach**. When you sit with a user in front of the system, you need:
 
-1. Select a tenant (organisation)
-2. Select a user within that tenant
-3. Walk through a live feature checklist (tailored to that tenant's enabled modules)
-4. Mark items as taught / not yet covered
-5. Add trainer notes and improvement observations per feature
-6. Save the session and review it later
+1. A step-by-step guide on **what to actually show them** and in what order
+2. A way to **verify** the user understood — not just that you covered it
+3. Quick reference **talking points** for each feature (so you don't forget anything important)
+4. A clear sense of **what to focus on next** based on what's pending
 
-This replaces informal, ad-hoc training with a trackable, structured coaching record.
+This plan upgrades the Training Session View to be a genuine teaching companion.
 
 ---
 
-## Where It Lives
+## The Enhancements
 
-This goes inside the existing `SuperAdminPanel.tsx` as a new "Training" tab alongside Platform, Tenants, Users, Plans, Add-ons, Usage, and Overview.
+### 1. Teaching Script per Feature (Talking Points)
+Each checklist item gets a built-in "trainer guide" — a short expandable panel that shows:
+- **What to demo**: The exact steps to walk through (e.g., "Go to Sales → Click New Sale → show the product search, quantity, and payment method")
+- **What to ask the user to do**: A hands-on task they should perform themselves to confirm understanding
+- **Common mistakes to watch for**
 
-It is **protected to super admins only** — the same RLS-protected space already used by the other admin tabs.
+This is stored as static content in the `CORE_FEATURES` / `ADDON_FEATURES` config arrays (no database needed — it's training knowledge, not user data).
 
----
+### 2. Verification Step — "Did They Do It?"
+Currently clicking the status button cycles through: Pending → Taught → Needs Practice → Skipped.
 
-## Feature Checklist Structure
+The upgrade: When you click "Mark as Taught", a small confirmation appears inline:
+- "Did the user complete the hands-on task?" → **Yes** (marks Taught) / **Needs more time** (marks Needs Practice)
 
-The checklist is dynamically built from the tenant's enabled modules and the full module registry. Each item maps to a real BMS feature:
+This forces a deliberate decision rather than an accidental click.
 
-**Core (always shown):**
-- Dashboard overview & KPIs
-- Recording sales / transactions
-- Quotations (create, convert to invoice)
-- Payment receipts
-- Basic accounting — cashbook, expenses
-- Customer management
-- Access control — adding users and roles
-- Tenant settings — branding, currency
+### 3. Session Focus Mode
+Add a "Start Teaching" mode that:
+- Shows one feature at a time, full-width, with the teaching script prominently displayed
+- Has Prev / Next navigation between features
+- Shows which features are still pending (so you can work through them in order)
+- Can be exited back to the checklist overview at any time
 
-**Add-on modules (shown only if tenant has them enabled):**
-- Inventory management — products, stock, reorder alerts
-- Returns & damages
-- Shop manager & POS mode
-- HR & payroll — employees, attendance, payslips, NAPSA/PAYE/NHIMA
-- Agents & distribution
-- Advanced accounting — general ledger, trial balance, P&L, balance sheet
-- Impact & communities
-- Website CMS & blog
-- Warehouse & stock transfers
-- Multi-branch setup
-- Custom orders & production floor (fashion/dodo)
-- Job cards (autoshop)
+This turns the interface from a passive tracker into an active teaching workflow.
 
----
+### 4. Recommended Teaching Order
+Re-order the checklist items so they flow naturally (e.g., Dashboard → Customers → Sales → Receipts → Quotations → Accounting). Currently the order is whatever was inserted first. The fix: add a `sort_order` field to the feature definitions and use it when seeding checklist items.
 
-## Data Flow & Database
-
-A new table `training_sessions` stores each coaching session:
-
-```text
-training_sessions
-  id              uuid PK
-  trainer_id      uuid (references auth.users, always the super admin)
-  tenant_id       uuid
-  user_id         uuid (the person being trained)
-  session_date    timestamptz
-  status          text ('in_progress' | 'completed')
-  overall_notes   text
-  created_at      timestamptz
-  updated_at      timestamptz
-
-training_checklist_items
-  id              uuid PK
-  session_id      uuid FK → training_sessions
-  feature_key     text
-  feature_label   text
-  status          text ('pending' | 'taught' | 'needs_practice' | 'skipped')
-  trainer_notes   text
-  improvement_notes text
-  created_at      timestamptz
-```
-
-RLS: Only super admins can INSERT/UPDATE/SELECT on these tables (checked via `is_super_admin()`).
+### 5. Quick-Start Tips Banner
+At the top of the session, a collapsible "Trainer Tips" card with practical guidance:
+- "Start with a real scenario — use the user's actual business data"
+- "Let them navigate, don't click for them"
+- "Teach one module fully before moving to the next"
+- "End every feature with: Can you show me how to do that again?"
 
 ---
 
-## User Experience
+## What Does NOT Change
 
-### Step 1 — Select Tenant
-A searchable dropdown listing all tenants (name + billing plan badge). Shows current plan and user count.
-
-### Step 2 — Select User
-Shows users in that tenant (name, email, role badge). Clicking one starts or resumes a session.
-
-### Step 3 — Training Session View
-A three-column layout:
-- **Left**: Session info panel (tenant, user, date, session status, overall notes textarea)
-- **Centre**: Feature checklist — one card per module group, each feature shows:
-  - Feature name + description
-  - Status toggle: `Pending → Taught → Needs Practice → Skipped`
-  - Expandable notes field for trainer observations
-  - Improvement suggestion field
-- **Right**: Session history — past sessions for this user with completion summaries
-
-### Checklist Item States (colour coded)
-- **Pending** — grey — not yet covered in session
-- **Taught** — green check — user demonstrated understanding
-- **Needs Practice** — amber warning — covered but user needs more time
-- **Skipped** — muted — not applicable or deferred
-
-### Progress Bar
-At the top of the checklist: `7 of 12 features taught (58%)` — live as items are updated.
-
-### Session Actions
-- **Save & Continue** — saves current state without marking complete
-- **Complete Session** — marks session as done, shows summary card
-- **Export Summary** — generates a printable/shareable text summary of what was covered and notes
-
-### Past Sessions Panel
-Shows session history for the selected user:
-- Date, trainer name, status badge, completion %
-- Click to re-open a past session (read-only view)
+- The database schema stays the same (no migration needed)
+- The status cycling system stays
+- The notes fields stay
+- Export summary stays
+- Session history stays
+- RLS policies stay
 
 ---
 
 ## Technical Details
 
-### New Files
-1. **`src/components/dashboard/TrainingCoachingCenter.tsx`** — Main container
-2. **`src/components/dashboard/TrainingSessionView.tsx`** — The active session checklist
-3. **`src/components/dashboard/TrainingSessionHistory.tsx`** — Past sessions for a user
+### Files to Modify
 
-### Modified Files
-1. **`src/components/dashboard/SuperAdminPanel.tsx`** — Add "Training" tab
-2. **`supabase/migrations/`** — New migration for `training_sessions` + `training_checklist_items` tables with RLS
+**1. `src/components/dashboard/TrainingCoachingCenter.tsx`**
+- Add `teachingGuide` field to each feature in `CORE_FEATURES` and `ADDON_FEATURES`:
+  ```typescript
+  {
+    key: "sales_transactions",
+    label: "Recording sales & transactions",
+    group: "Core",
+    sort_order: 2,
+    teachingGuide: {
+      demo: ["Navigate to Sales in the sidebar", "Click 'New Sale'", "Search for a product, set quantity", "Choose payment method and complete"],
+      userTask: "Ask the user to record a sale for any product in their inventory",
+      watchFor: "Check they understand the difference between cash and credit sales"
+    }
+  }
+  ```
+- Pass the feature guide data into `TrainingSessionView` via a lookup map (keyed by `feature_key`)
 
-### Key Logic
+**2. `src/components/dashboard/TrainingSessionView.tsx`**
+- Accept a `featureGuides` prop (a `Record<string, TeachingGuide>`)
+- In the expanded item view, show the teaching guide above the notes fields:
+  - Demo steps as a numbered list
+  - User task in an amber callout box
+  - Watch-for note in a subtle tip
+- Add "Focus Mode" — a `focusModeItem` state; when set, renders a single full-width teaching panel instead of the list
+- Add Prev / Next buttons in focus mode
+- Add the "Trainer Tips" collapsible card at the top of the session
+- Replace the current status button click with a two-step: click opens a small inline confirmation (two buttons) instead of cycling immediately
 
-The feature checklist is built at session-start time by:
-1. Fetching the selected tenant's `business_profile` to know which modules are enabled
-2. Loading the module definitions from `modules-config.ts` and `business-type-config.ts`
-3. Creating checklist items in the DB for each applicable feature (if not already created for this session)
+### No Database Migration Required
+All teaching guide content is static in the frontend config. No new tables, no new columns.
 
-Notes auto-save on blur (debounced 500ms) so the trainer never loses work.
+### Component Structure After Change
 
-### Database Migration (summary)
 ```text
-CREATE TABLE training_sessions (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  trainer_id uuid NOT NULL,
-  tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  user_id uuid NOT NULL,
-  session_date timestamptz DEFAULT now(),
-  status text DEFAULT 'in_progress',
-  overall_notes text,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
-
-CREATE TABLE training_checklist_items (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  session_id uuid NOT NULL REFERENCES training_sessions(id) ON DELETE CASCADE,
-  feature_key text NOT NULL,
-  feature_label text NOT NULL,
-  status text DEFAULT 'pending',
-  trainer_notes text,
-  improvement_notes text,
-  created_at timestamptz DEFAULT now()
-);
-
--- RLS: super admin only
-ALTER TABLE training_sessions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE training_checklist_items ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "super_admin_training_sessions" ON training_sessions
-  USING (is_super_admin());
-
-CREATE POLICY "super_admin_training_items" ON training_checklist_items
-  USING (is_super_admin());
+TrainingSessionView
+├── Trainer Tips Card (collapsible, shown once at session start)
+├── Progress Bar Card (unchanged)
+├── Overall Notes Card (unchanged)
+├── [Focus Mode] Single-feature teaching panel  ← NEW
+│   ├── Feature name + status badge
+│   ├── Demo steps (numbered list)
+│   ├── User Task callout
+│   ├── Watch-For tip
+│   ├── Notes fields (trainer + improvement)
+│   └── Prev / Next / Exit Focus Mode buttons
+├── [List Mode] Grouped checklist  ← existing, enhanced
+│   └── Each item expanded view now shows teaching guide
+└── Action buttons (unchanged)
 ```
 
-### No New Routes Needed
-Everything lives within the existing `/bms?tab=platform-admin` route, inside the SuperAdminPanel tabs. No new URL routes, no new auth wrappers.
+### Teaching Guide Coverage
+All 8 core features + all add-on features get a teaching guide. The guide for each covers the real workflow in the actual BMS system, based on the feature's actual navigation path and purpose.
