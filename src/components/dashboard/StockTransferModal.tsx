@@ -153,31 +153,16 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
         console.error('Error fetching branch inventory:', branchError);
       }
 
-      // If branch_inventory has data, use it
-      if (branchData && branchData.length > 0) {
-        setAvailableInventory(branchData.map((item: any) => ({
-          id: item.inventory_id,
-          product_name: item.inventory?.name || 'Unknown',
-          sku: item.inventory?.sku || '',
-          current_stock: item.current_stock || 0,
-        })));
+      // If no branch_inventory records exist for this location, show empty state
+      if (!branchData || branchData.length === 0) {
+        setAvailableInventory([]);
         return;
       }
 
-      // Fallback: use main inventory table when branch_inventory is empty
-      const { data: inventoryData, error: inventoryError } = await supabase
-        .from('inventory')
-        .select('id, name, sku, current_stock')
-        .eq('tenant_id', tenant.id)
-        .gt('current_stock', 0)
-        .order('name');
-
-      if (inventoryError) throw inventoryError;
-
-      setAvailableInventory((inventoryData || []).map((item: any) => ({
-        id: item.id,
-        product_name: item.name || 'Unknown',
-        sku: item.sku || '',
+      setAvailableInventory(branchData.map((item: any) => ({
+        id: item.inventory_id,
+        product_name: item.inventory?.name || 'Unknown',
+        sku: item.inventory?.sku || '',
         current_stock: item.current_stock || 0,
       })));
     } catch (error) {

@@ -25,12 +25,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
@@ -48,7 +42,6 @@ import {
   XCircle,
   MoreHorizontal,
   Loader2,
-  AlertCircle
 } from "lucide-react";
 import { format } from "date-fns";
 import { StockTransferModal } from "./StockTransferModal";
@@ -468,31 +461,20 @@ export function StockTransfersManager() {
                           </DropdownMenu>
                         )}
                         {transfer.status === 'in_transit' && (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span>
-                                  <Button 
-                                    size="sm" 
-                                    variant="outline"
-                                    onClick={() => handleComplete(transfer)}
-                                    disabled={actionLoading || !canCompleteTransfer(transfer)}
-                                    className={!canCompleteTransfer(transfer) ? "opacity-50" : ""}
-                                  >
-                                    {!canCompleteTransfer(transfer) && (
-                                      <AlertCircle className="h-3 w-3 mr-1 text-amber-500" />
-                                    )}
-                                    Mark Complete
-                                  </Button>
-                                </span>
-                              </TooltipTrigger>
-                              {getCompleteDisabledReason(transfer) && (
-                                <TooltipContent side="left" className="max-w-[200px]">
-                                  <p className="text-xs">{getCompleteDisabledReason(transfer)}</p>
-                                </TooltipContent>
-                              )}
-                            </Tooltip>
-                          </TooltipProvider>
+                          canCompleteTransfer(transfer) ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleComplete(transfer)}
+                              disabled={actionLoading}
+                            >
+                              Mark Complete
+                            </Button>
+                          ) : (
+                            <Badge variant="outline" className="text-xs text-muted-foreground">
+                              Awaiting receipt at {transfer.to_branch_name}
+                            </Badge>
+                          )
                         )}
                       </TableCell>
                     </TableRow>
