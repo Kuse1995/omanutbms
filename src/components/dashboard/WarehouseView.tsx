@@ -169,8 +169,92 @@ export function WarehouseView() {
   };
 
   const fetchTransferSuggestions = async () => {
-    // Simplified - just clear suggestions for now
-    setSuggestions([]);
+    if (!tenant?.id || warehouses.length === 0) return;
+
+    try {
+      // Get all active store branches
+      const { data: stores } = await supabase
+        .from('branches')
+        .select('id, name')
+        .eq('tenant_id', tenant.id)
+        .eq('type', 'Store')
+        .eq('is_active', true);
+
+      if (!stores?.length) return;
+
+      // Get all branch_inventory rows for stores
+      const { data: storeInventory } = await supabase
+        .from('branch_inventory')
+        .select('branch_id, inventory_id, current_stock, reorder_level, inventory:inventory_id(name, sku)')
+        .eq('tenant_id', tenant.id)
+        .in('branch_id', stores.map(s => s.id));
+
+      if (!storeInventory?.length) return;
+
+      // Filter client-side for items below reorder level
+      const lowStockItems = storeInventory.filter(
+        (item: any) => item.current_stock <= item.reorder_level
+      );
+
+      if (!lowStockItems.length) {
+        setSuggestions([]);
+        return;
+      }
+
+      // Get warehouse inventory for all low-stock inventory_ids
+      const lowInventoryIds = [...new Set(lowStockItems.map((i: any) => i.inventory_id))];
+      const { data: warehouseInventory } = await supabase
+        .from('branch_inventory')
+        .select('branch_id, inventory_id, current_stock')
+        .eq('tenant_id', tenant.id)
+        .in('branch_id', warehouses.map(w => w.id))
+        .in('inventory_id', lowInventoryIds)
+        .gt('current_stock', 0);
+
+      if (!warehouseInventory?.length) {
+        setSuggestions([]);
+        return;
+      }
+
+      // Build a warehouse stock lookup: inventoryId → { branch_id, stock }
+      const warehouseStockMap: Record<string, { branch_id: string; current_stock: number }[]> = {};
+      warehouseInventory.forEach((row: any) => {
+        if (!warehouseStockMap[row.inventory_id]) warehouseStockMap[row.inventory_id] = [];
+        warehouseStockMap[row.inventory_id].push({ branch_id: row.branch_id, current_stock: row.current_stock });
+      });
+
+      const storeMap = Object.fromEntries(stores.map(s => [s.id, s.name]));
+      const warehouseMap = Object.fromEntries(warehouses.map(w => [w.id, w.name]));
+
+      const newSuggestions: TransferSuggestion[] = [];
+      lowStockItems.forEach((item: any) => {
+        const warehouseSources = warehouseStockMap[item.inventory_id];
+        if (!warehouseSources?.length) return;
+
+        // Use the warehouse with most surplus
+        const best = warehouseSources.reduce((a, b) => (a.current_stock > b.current_stock ? a : b));
+        const deficit = item.reorder_level - item.current_stock;
+        const suggestedQty = Math.min(deficit * 2, best.current_stock); // transfer up to 2× deficit
+
+        newSuggestions.push({
+          warehouseId: best.branch_id,
+          warehouseName: warehouseMap[best.branch_id] || 'Warehouse',
+          storeId: item.branch_id,
+          storeName: storeMap[item.branch_id] || 'Store',
+          productName: (item.inventory as any)?.name || 'Unknown',
+          sku: (item.inventory as any)?.sku || '',
+          warehouseStock: best.current_stock,
+          storeStock: item.current_stock,
+          reorderLevel: item.reorder_level,
+          inventoryId: item.inventory_id,
+          suggestedQuantity: Math.max(1, Math.floor(suggestedQty)),
+        });
+      });
+
+      setSuggestions(newSuggestions);
+    } catch (error) {
+      console.error('Error fetching transfer suggestions:', error);
+    }
   };
 
   const handleSuggestTransfer = (suggestion: TransferSuggestion) => {
