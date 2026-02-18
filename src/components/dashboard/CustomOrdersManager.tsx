@@ -130,7 +130,29 @@ export function CustomOrdersManager() {
       const { data, error } = await supabase
         .from("custom_orders")
         .select(`
-          *,
+          id,
+          order_number,
+          customer_id,
+          design_type,
+          fabric,
+          color,
+          style_notes,
+          estimated_cost,
+          quoted_price,
+          deposit_paid,
+          order_date,
+          due_date,
+          collection_date,
+          status,
+          assigned_to,
+          invoice_id,
+          created_at,
+          order_type,
+          handoff_step,
+          handoff_status,
+          assigned_operations_user_id,
+          handoff_notes,
+          alteration_items,
           customers(name, email, phone),
           employees!custom_orders_assigned_to_fkey(full_name),
           invoices(id, invoice_number, total_amount, paid_amount, status)
@@ -142,7 +164,7 @@ export function CustomOrdersManager() {
       
       const parsed = (data || []).map(o => ({
         ...o,
-        measurements: (o.measurements as Measurements) || {},
+        measurements: {} as Measurements,
       }));
       
       setOrders(parsed);
