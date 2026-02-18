@@ -1098,11 +1098,13 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
         );
 
       case 4: // Review & Sign
-        // Use manualPrice if set (per-item manual pricing mode), otherwise fall back to computed price
+        // Always use manualPrice ?? price so manual overrides reflect in totals
         const alterationTotal = formData.alterationItems.reduce(
           (sum, item) => sum + (item.manualPrice ?? item.price), 0
         );
+        const alterationTotalWithMargin = alterationTotal + alterationTotal * (formData.marginPercentage / 100);
         const totalHours = formData.alterationItems.reduce((sum, item) => sum + item.estimatedHours, 0);
+        const hasManualPrices = formData.alterationItems.some(item => item.manualPrice !== undefined);
         
         return (
           <div className="space-y-6">
@@ -1125,20 +1127,39 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
               </div>
               
               <div className="border-t pt-3 mt-3">
-                <h5 className="text-sm font-medium mb-2">Alterations ({formData.alterationItems.length})</h5>
+                <div className="flex items-center justify-between mb-2">
+                  <h5 className="text-sm font-medium">Alterations ({formData.alterationItems.length})</h5>
+                  {hasManualPrices && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Tag className="h-3 w-3" /> Manual pricing
+                    </span>
+                  )}
+                </div>
                 <div className="space-y-1">
                   {formData.alterationItems.map((item, idx) => (
                     <div key={idx} className="flex justify-between text-sm">
                       <span>{item.label}</span>
-                      <span className="font-medium">K {(item.manualPrice ?? item.price).toLocaleString()}</span>
+                      <span className="font-medium">K {(item.manualPrice ?? item.price).toFixed(2)}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="border-t pt-3 mt-3 flex justify-between font-semibold">
-                <span>Total Estimate</span>
-                <span className="text-lg">K {alterationTotal.toLocaleString()}</span>
+              <div className="border-t pt-3 mt-3 space-y-1">
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Subtotal</span>
+                  <span>K {alterationTotal.toFixed(2)}</span>
+                </div>
+                {formData.marginPercentage > 0 && (
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>Margin ({formData.marginPercentage}%)</span>
+                    <span>+ K {(alterationTotal * formData.marginPercentage / 100).toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-semibold pt-1 border-t">
+                  <span>Total Estimate</span>
+                  <span className="text-lg text-primary">K {(formData.marginPercentage > 0 ? alterationTotalWithMargin : alterationTotal).toFixed(2)}</span>
+                </div>
               </div>
               <p className="text-xs text-muted-foreground">Est. {totalHours.toFixed(1)} hours of work</p>
             </div>
