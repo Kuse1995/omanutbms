@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -75,6 +75,61 @@ export function TrainingSessionView({ session, tenantName, userName, userEmail, 
   const [tipsOpen, setTipsOpen] = useState(true);
   const [focusModeIndex, setFocusModeIndex] = useState<number | null>(null);
   const [verifyingItemId, setVerifyingItemId] = useState<string | null>(null);
+
+  // Refs for flush-on-exit — always hold latest values without stale closures
+  const overallNotesRef = useRef(overallNotes);
+  const localNotesRef = useRef(localNotes);
+  const saveTimersRef = useRef(saveTimers);
+  const sessionIdRef = useRef(session.id);
+
+  useEffect(() => { overallNotesRef.current = overallNotes; }, [overallNotes]);
+  useEffect(() => { localNotesRef.current = localNotes; }, [localNotes]);
+  useEffect(() => { saveTimersRef.current = saveTimers; }, [saveTimers]);
+  useEffect(() => { sessionIdRef.current = session.id; }, [session.id]);
+
+  // Flush all pending saves immediately (used on exit/tab hide)
+  const flushPendingSaves = useCallback(async () => {
+    // Cancel all debounce timers
+    Object.values(saveTimersRef.current).forEach(clearTimeout);
+
+    const notes = localNotesRef.current;
+    const overall = overallNotesRef.current;
+    const sid = sessionIdRef.current;
+
+    // Flush overall notes
+    await supabase.from("training_sessions").update({ overall_notes: overall }).eq("id", sid);
+
+    // Flush all pending item notes
+    const itemIds = Object.keys(notes);
+    await Promise.all(
+      itemIds.map((itemId) =>
+        supabase.from("training_checklist_items").update({
+          trainer_notes: notes[itemId].trainer_notes,
+          improvement_notes: notes[itemId].improvement_notes,
+        }).eq("id", itemId)
+      )
+    );
+  }, []);
+
+  // Save on page unload / tab visibility change
+  useEffect(() => {
+    if (readOnly) return;
+
+    const handleBeforeUnload = () => { flushPendingSaves(); };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") flushPendingSaves();
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      // Also flush on component unmount (navigation away)
+      if (!readOnly) flushPendingSaves();
+    };
+  }, [readOnly, flushPendingSaves]);
 
   useEffect(() => {
     fetchItems();
