@@ -1098,7 +1098,10 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
         );
 
       case 4: // Review & Sign
-        const alterationTotal = formData.alterationItems.reduce((sum, item) => sum + item.price, 0);
+        // Use manualPrice if set (per-item manual pricing mode), otherwise fall back to computed price
+        const alterationTotal = formData.alterationItems.reduce(
+          (sum, item) => sum + (item.manualPrice ?? item.price), 0
+        );
         const totalHours = formData.alterationItems.reduce((sum, item) => sum + item.estimatedHours, 0);
         
         return (
@@ -1127,7 +1130,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
                   {formData.alterationItems.map((item, idx) => (
                     <div key={idx} className="flex justify-between text-sm">
                       <span>{item.label}</span>
-                      <span className="font-medium">K {item.price.toLocaleString()}</span>
+                      <span className="font-medium">K {(item.manualPrice ?? item.price).toLocaleString()}</span>
                     </div>
                   ))}
                 </div>
@@ -1616,9 +1619,25 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
           (sum, m) => sum + m.quantity * m.unitCost, 0
         );
         const finalLaborCost = formData.laborHours * formData.hourlyRate;
-        const { quotedPrice: finalQuote } = calculateQuote(
-          finalMaterialCost, finalLaborCost, formData.marginPercentage
+        const finalAdditionalCost = formData.additionalCosts.reduce(
+          (sum, c) => sum + c.quantity * c.unitPrice, 0
         );
+        // Respect pricing mode when computing the final quoted price
+        let finalQuote: number;
+        if (formData.pricingMode === 'fixed') {
+          const base = formData.fixedPrice;
+          finalQuote = base + base * (formData.marginPercentage / 100);
+        } else if (formData.pricingMode === 'per_item') {
+          const perItemTotal = formData.alterationItems.reduce(
+            (sum, item) => sum + (item.manualPrice ?? item.price), 0
+          );
+          const perItemBase = perItemTotal + finalMaterialCost + finalAdditionalCost;
+          finalQuote = perItemBase + perItemBase * (formData.marginPercentage / 100);
+        } else {
+          ({ quotedPrice: finalQuote } = calculateQuote(
+            finalMaterialCost, finalLaborCost, formData.marginPercentage, finalAdditionalCost
+          ));
+        }
         const balanceDue = finalQuote - (formData.depositAmount || 0);
 
         return (
@@ -1698,26 +1717,55 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
                 <Calculator className="h-4 w-4" />
                 Payment Summary
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <p className="text-muted-foreground">Materials</p>
-                  <p className="font-medium">K {finalMaterialCost.toFixed(2)}</p>
+              {formData.pricingMode === 'fixed' ? (
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Fixed Price</p>
+                    <p className="font-medium">K {formData.fixedPrice.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Margin ({formData.marginPercentage}%)</p>
+                    <p className="font-medium">K {(formData.fixedPrice * formData.marginPercentage / 100).toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Total Charge</p>
+                    <p className="font-bold text-lg text-primary">K {finalQuote.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Balance Due</p>
+                    <p className={`font-bold text-lg ${balanceDue > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                      K {balanceDue.toFixed(2)}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-muted-foreground">Labor ({formData.laborHours}hrs)</p>
-                  <p className="font-medium">K {finalLaborCost.toFixed(2)}</p>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Materials</p>
+                    <p className="font-medium">K {finalMaterialCost.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">
+                      {formData.pricingMode === 'per_item' ? 'Items' : `Labor (${formData.laborHours}hrs)`}
+                    </p>
+                    <p className="font-medium">
+                      K {formData.pricingMode === 'per_item'
+                        ? formData.alterationItems.reduce((s, i) => s + (i.manualPrice ?? i.price), 0).toFixed(2)
+                        : finalLaborCost.toFixed(2)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Total Charge</p>
+                    <p className="font-bold text-lg text-primary">K {finalQuote.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Balance Due</p>
+                    <p className={`font-bold text-lg ${balanceDue > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                      K {balanceDue.toFixed(2)}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-muted-foreground">Total Charge</p>
-                  <p className="font-bold text-lg text-primary">K {finalQuote.toFixed(2)}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Balance Due</p>
-                  <p className={`font-bold text-lg ${balanceDue > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
-                    K {balanceDue.toFixed(2)}
-                  </p>
-                </div>
-              </div>
+              )}
             </div>
 
             {/* Deposit & Due Date */}
