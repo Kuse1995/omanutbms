@@ -1419,6 +1419,7 @@ export type Database = {
           fabric: string | null
           final_cost: number | null
           fitting_date: string | null
+          fixed_price: number | null
           garment_condition: string | null
           garment_source: string | null
           generated_images: Json | null
@@ -1486,6 +1487,7 @@ export type Database = {
           fabric?: string | null
           final_cost?: number | null
           fitting_date?: string | null
+          fixed_price?: number | null
           garment_condition?: string | null
           garment_source?: string | null
           generated_images?: Json | null
@@ -1553,6 +1555,7 @@ export type Database = {
           fabric?: string | null
           final_cost?: number | null
           fitting_date?: string | null
+          fixed_price?: number | null
           garment_condition?: string | null
           garment_source?: string | null
           generated_images?: Json | null

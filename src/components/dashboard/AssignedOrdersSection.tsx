@@ -20,17 +20,26 @@ interface AssignedOrder {
   handed_off_at: string | null;
   design_type: string | null;
   collection_date: string | null;
+  order_type: string | null;
   customers?: { name: string } | null;
   profiles?: { full_name: string } | null; // Admin who assigned
 }
 
-const STEP_LABELS = [
+const CUSTOM_STEP_LABELS = [
   "Client Info",
-  "Work Details", 
+  "Work Details",
   "Design Details",
   "Measurements",
   "Sketches & Refs",
   "Smart Pricing",
+  "Review & Sign",
+];
+
+const ALTERATION_STEP_LABELS = [
+  "Client Info",
+  "Alteration Details",
+  "Measurements",
+  "Photos & Notes",
   "Review & Sign",
 ];
 
@@ -76,6 +85,7 @@ export function AssignedOrdersSection({ onContinueOrder }: AssignedOrdersSection
           handed_off_at,
           design_type,
           collection_date,
+          order_type,
           customers(name),
           created_by
         `)
@@ -229,7 +239,7 @@ export function AssignedOrdersSection({ onContinueOrder }: AssignedOrdersSection
                 </div>
                 <div className="flex items-center gap-2 text-xs">
                   <span className="text-blue-600 font-medium">
-                    Start from: Step {startStep} ({STEP_LABELS[startStep] || "Unknown"})
+                    Start from: Step {startStep} ({(order.order_type === 'alteration' ? ALTERATION_STEP_LABELS : CUSTOM_STEP_LABELS)[startStep] || "Unknown"})
                   </span>
                   {order.profiles?.full_name && (
                     <span className="text-muted-foreground">
