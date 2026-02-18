@@ -134,6 +134,9 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
+  // Track if "Pick Up" was done this session so we can revert on abandoned close (Fix #4)
+  const pickedUpThisSession = React.useRef<string | null>(null);
+  const saveCompletedThisSession = React.useRef(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [existingOrderData, setExistingOrderData] = useState<any>(null);
   const [isLoadingOrder, setIsLoadingOrder] = useState(false);
@@ -273,7 +276,12 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
           marginPercentage: order.margin_percentage || 30,
           priceLocked: order.price_locked || false,
           pricingMode: ((order as any).pricing_mode as PricingMode) || 'hourly',
-          fixedPrice: (order as any).pricing_mode === 'fixed' ? (order.quoted_price || 0) : 0,
+          // Fix #1: Use stored fixed_price base to avoid double-margin on reload
+          fixedPrice: (order as any).pricing_mode === 'fixed'
+            ? ((order as any).fixed_price != null
+                ? (order as any).fixed_price
+                : (order.quoted_price || 0) / (1 + ((order.margin_percentage || 30) / 100)))
+            : 0,
           estimatedCost: order.estimated_cost || 0,
           depositAmount: order.deposit_paid || 0,
           dueDate: order.due_date || '',
@@ -588,6 +596,8 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
         collection_time: formData.collectionTime || null,
         tag_material: formData.tagMaterial || null,
         pricing_mode: formData.pricingMode,
+        // Fix #1: Save fixed_price base so reload doesn't double-apply margin
+        fixed_price: formData.pricingMode === 'fixed' ? formData.fixedPrice : null,
       };
 
       // Determine if this is an UPDATE or INSERT
@@ -756,6 +766,8 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
         }
       }
 
+      saveCompletedThisSession.current = true;
+      pickedUpThisSession.current = null; // clear so handleClose won't revert
       onSuccess?.();
       onClose();
     } catch (error: any) {
@@ -878,6 +890,8 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
         collection_time: formData.collectionTime || null,
         tag_material: formData.tagMaterial || null,
         pricing_mode: formData.pricingMode,
+        // Fix #1: Save fixed_price base so reload doesn't double-apply margin
+        fixed_price: formData.pricingMode === 'fixed' ? formData.fixedPrice : null,
         created_by: user?.id,
       };
       
@@ -973,6 +987,8 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
         description: `Order for ${formData.customerName} has been confirmed and added to the production queue.`,
       });
 
+      saveCompletedThisSession.current = true;
+      pickedUpThisSession.current = null;
       onSuccess?.();
       onClose();
     } catch (error: any) {
@@ -984,6 +1000,30 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Fix #4: When ops manager closes wizard without saving after picking up an order,
+  // revert handoff_status back to pending_handoff so the order doesn't get stuck "in_progress"
+  const handleClose = async () => {
+    if (
+      isOperationsContinuation &&
+      editOrderId &&
+      !saveCompletedThisSession.current &&
+      existingOrderData?.handoff_status === 'in_progress'
+    ) {
+      try {
+        await supabase
+          .from('custom_orders')
+          .update({ handoff_status: 'pending_handoff' })
+          .eq('id', editOrderId);
+      } catch (err) {
+        console.warn('Failed to revert handoff status on close:', err);
+      }
+    }
+    // Reset session tracking refs
+    pickedUpThisSession.current = null;
+    saveCompletedThisSession.current = false;
+    onClose();
   };
 
   // Apply scroll lock when modal is open (must be called before any early returns)
@@ -1382,6 +1422,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
                 config={handoffConfig}
                 onChange={setHandoffConfig}
                 disabled={false}
+                orderType={orderType || 'custom'}
               />
             )}
           </div>
@@ -1893,7 +1934,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
       </div>
 
       <div className="flex justify-center pt-4">
-        <Button variant="ghost" onClick={onClose} className="text-muted-foreground">
+        <Button variant="ghost" onClick={handleClose} className="text-muted-foreground">
           Cancel
         </Button>
       </div>
@@ -1936,7 +1977,7 @@ export function CustomDesignWizard({ open, onClose, onSuccess, editOrderId, isOp
             <Button 
               variant="ghost" 
               size="icon" 
-              onClick={onClose} 
+              onClick={handleClose} 
               className="text-white/80 hover:text-white hover:bg-white/20 rounded-xl"
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

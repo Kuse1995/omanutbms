@@ -345,10 +345,8 @@ export function CustomOrdersManager() {
         )}
       </div>
 
-      {/* My Assigned Orders - For Operations Officers */}
-      {isOperationsRole && (
-        <AssignedOrdersSection onContinueOrder={handleContinueOrder} />
-      )}
+      {/* My Assigned Orders - Shown to all logged-in users; component returns null if no assignments */}
+      <AssignedOrdersSection onContinueOrder={handleContinueOrder} />
 
       {/* Status Summary Cards - Horizontal scroll on mobile */}
       <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">

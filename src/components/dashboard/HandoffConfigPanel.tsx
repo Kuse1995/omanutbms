@@ -26,9 +26,10 @@ interface HandoffConfigPanelProps {
   config: HandoffConfig;
   onChange: (config: HandoffConfig) => void;
   disabled?: boolean;
+  orderType?: 'custom' | 'alteration';
 }
 
-const STEP_OPTIONS = [
+const CUSTOM_STEP_OPTIONS = [
   { value: 0, label: "After Client Info", description: "Ops handles everything from Work Details" },
   { value: 1, label: "After Work Details", description: "Ops captures design requirements" },
   { value: 2, label: "After Design Details", description: "Most common - Ops takes measurements" },
@@ -36,7 +37,13 @@ const STEP_OPTIONS = [
   { value: 4, label: "After Sketches", description: "Ops finalizes pricing (rare)" },
 ];
 
-export function HandoffConfigPanel({ config, onChange, disabled }: HandoffConfigPanelProps) {
+const ALTERATION_STEP_OPTIONS = [
+  { value: 0, label: "After Client Info", description: "Ops handles alteration details, measurements, and photos" },
+  { value: 1, label: "After Alteration Details", description: "Ops takes measurements and photos" },
+  { value: 2, label: "After Measurements", description: "Ops handles photos only" },
+];
+
+export function HandoffConfigPanel({ config, onChange, disabled, orderType }: HandoffConfigPanelProps) {
   const { tenantId } = useTenant();
   const [isOpen, setIsOpen] = useState(config.enabled);
   const [officers, setOfficers] = useState<OperationsOfficer[]>([]);
@@ -110,6 +117,10 @@ export function HandoffConfigPanel({ config, onChange, disabled }: HandoffConfig
       fetchOperationsOfficers();
     }
   };
+
+  // Use correct step options based on order type (Fix #2)
+  const STEP_OPTIONS = orderType === 'alteration' ? ALTERATION_STEP_OPTIONS : CUSTOM_STEP_OPTIONS;
+  const totalSteps = orderType === 'alteration' ? 5 : 7;
 
   const selectedStep = STEP_OPTIONS.find((s) => s.value === config.handoffStep);
   const selectedOfficer = officers.find((o) => o.user_id === config.assignedUserId);
@@ -254,10 +265,10 @@ export function HandoffConfigPanel({ config, onChange, disabled }: HandoffConfig
                 <div className="bg-blue-50 text-blue-700 text-xs p-3 rounded-lg space-y-1">
                   <p className="font-medium">How Handoff Works:</p>
                   <ul className="list-disc list-inside space-y-0.5 text-blue-600">
-                    <li>Complete steps 1-{config.handoffStep + 1}, then save the order</li>
-                    <li>The assigned officer will see this in their "My Assignments"</li>
-                    <li>They'll complete steps {config.handoffStep + 2}-7 and hand back to you</li>
-                    <li>You'll do the final review and sign-off</li>
+                     <li>Complete steps 1-{config.handoffStep + 1}, then save the order</li>
+                     <li>The assigned officer will see this in their "My Assignments"</li>
+                     <li>They'll complete steps {config.handoffStep + 2}-{totalSteps} and hand back to you</li>
+                     <li>You'll do the final review and sign-off</li>
                   </ul>
                 </div>
               </>
