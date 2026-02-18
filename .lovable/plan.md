@@ -1,107 +1,143 @@
 
-# Fix All Four Handover System Issues
+# Location & Item Transfer Issues — Audit & Fix
 
-## The Four Problems Being Fixed
+## Current State Summary
 
-### Issue 1 — Double-Margin Bug on Fixed Price (Critical)
-When loading an existing fixed-price order, line 276 of `CustomDesignWizard.tsx` does:
+The core transfer workflow (create → approve → mark complete) works correctly at the database level. The `complete_stock_transfer` database function properly deducts from source and adds to destination `branch_inventory`. However, there are **4 real issues** that affect reliability and usability.
+
+---
+
+## Issue 1 — Transfer Suggestion Engine is Completely Stubbed Out
+
+In `WarehouseView.tsx`, the `fetchTransferSuggestions()` function (line 172) is a stub:
+
 ```typescript
-fixedPrice: (order as any).pricing_mode === 'fixed' ? (order.quoted_price || 0) : 0,
+const fetchTransferSuggestions = async () => {
+  // Simplified - just clear suggestions for now
+  setSuggestions([]);
+};
 ```
-`quoted_price` already has the margin baked in (e.g. fixedPrice=100, margin=30% → quoted_price=130). When the order is loaded and saved again, the save logic applies the margin again to this 130 value, resulting in 130×1.30 = 169. The customer gets overcharged on every resave.
 
-The fix: store a separate `fixed_price_base` column in the database so the pre-margin value is always available, OR on load, reverse-calculate the base by dividing `quoted_price / (1 + margin/100)`. The simpler, zero-migration approach is to add a `fixed_price` column to `custom_orders` and write it at save time. On load, use `order.fixed_price` when it exists, falling back to the reverse-calculated value.
+The UI already has a full "Transfer Suggestions" panel ready to display results, but it always shows nothing because the query was never implemented. The suggestion logic should:
+- Find items where a store's `branch_inventory.current_stock` is below `reorder_level`
+- Check if any warehouse has surplus stock of that same item
+- Surface these as actionable suggestions with a "Transfer X units" button
 
-**Database migration needed**: Add `fixed_price` column to `custom_orders` table.
+**Fix**: Implement `fetchTransferSuggestions()` with a real cross-branch query comparing store and warehouse stock levels.
 
-### Issue 2 — Alteration Step Labels in HandoffConfigPanel (UX Bug)
-`HandoffConfigPanel` always shows 5 custom-order step options (After Client Info → After Sketches), but alteration orders only have 3 meaningful handoff points (Client Info, Alteration Details, Measurements). This misleads the admin when setting up handoffs on alteration orders.
+---
 
-The fix: pass the `orderType` prop into `HandoffConfigPanel` and switch between two `STEP_OPTIONS` arrays — one for custom orders and one for alterations.
+## Issue 2 — Stock Availability Validation Uses Global Stock as Fallback
 
-### Issue 3 — AssignedOrdersSection Hidden from Multi-Role Users
-In `CustomOrdersManager.tsx` line 349:
+In `StockTransferModal.tsx`, `fetchSourceInventory()` has a fallback (lines 167–183): if no `branch_inventory` record exists for the selected source location, it falls back to the **global** `inventory` table's `current_stock`. This means a user can see "120 available" for a location that physically has 0 of that item, and submit a transfer request for 120 units. The `complete_stock_transfer` function would then deduct from a `branch_inventory` starting at 0, resulting in negative stock.
+
+**Fix**: Remove the global `inventory` fallback entirely. If a location has no `branch_inventory` record for an item, that item should simply not appear in the transfer item picker for that source location. Add a clear "No inventory recorded at this location" empty state.
+
+---
+
+## Issue 3 — Missing `branch_inventory` INSERT Policy for Non-Admins
+
+The `branch_inventory` table has no INSERT RLS policy for regular tenant users. Only the `complete_stock_transfer` database function (which runs as `SECURITY DEFINER`) can insert new `branch_inventory` rows safely. Any future code path that tries to directly insert a `branch_inventory` record for a non-admin user (e.g. initial stock seeding per branch) would silently fail or error.
+
+**Fix**: Add an INSERT RLS policy:
+```sql
+CREATE POLICY "Tenant users can insert branch inventory"
+ON public.branch_inventory FOR INSERT
+TO authenticated
+WITH CHECK (user_belongs_to_tenant(tenant_id));
+```
+
+---
+
+## Issue 4 — "Mark Complete" Button Visible But Disabled with No Explanation for Non-Receiving Users
+
+In `StockTransfersManager.tsx`, if a user is not assigned to the receiving branch, the "Mark Complete" button is rendered but disabled (with 50% opacity). There is a tooltip explaining why, but tooltips don't work on disabled buttons in most browsers (the `pointer-events: none` on disabled prevents the hover). Users see a greyed-out button with no clear reason.
+
+**Fix**: For users who cannot complete the transfer, replace the disabled button with a clear informational badge (e.g. "Awaiting receipt at [Branch Name]") so the constraint is obvious without needing to hover.
+
+---
+
+## Files to Change
+
+| File | Change | Issue |
+|---|---|---|
+| Migration SQL | Add `branch_inventory` INSERT policy | #3 |
+| `src/components/dashboard/WarehouseView.tsx` | Implement real `fetchTransferSuggestions()` query | #1 |
+| `src/components/dashboard/StockTransferModal.tsx` | Remove global inventory fallback; add empty state when no branch stock exists | #2 |
+| `src/components/dashboard/StockTransfersManager.tsx` | Replace disabled "Mark Complete" button with informational badge for non-eligible users | #4 |
+
+---
+
+## Technical Details
+
+### Fix 1 — Transfer Suggestions Query (WarehouseView.tsx)
+
+Replace the stub with:
+```typescript
+const fetchTransferSuggestions = async () => {
+  if (!tenant?.id || warehouses.length === 0) return;
+  
+  // Get all store branches
+  const { data: stores } = await supabase
+    .from('branches')
+    .select('id, name')
+    .eq('tenant_id', tenant.id)
+    .eq('type', 'Store')
+    .eq('is_active', true);
+
+  if (!stores?.length) return;
+
+  // Get branch_inventory for stores that are below reorder level
+  const { data: lowStoreStock } = await supabase
+    .from('branch_inventory')
+    .select('branch_id, inventory_id, current_stock, reorder_level')
+    .eq('tenant_id', tenant.id)
+    .in('branch_id', stores.map(s => s.id))
+    .filter('current_stock', 'lte', 'reorder_level');  // raw filter
+
+  // For each low-stock store item, check if any warehouse has surplus
+  // Cross-reference against warehouse branch_inventory
+  // Build suggestion objects
+};
+```
+
+Because Supabase doesn't support column-to-column comparisons in `.filter()`, this will be done client-side: fetch all store `branch_inventory` records then filter where `current_stock <= reorder_level`.
+
+### Fix 2 — Remove Inventory Fallback (StockTransferModal.tsx)
+
+Delete lines 167–183 (the fallback block) and replace with:
+```typescript
+if (!branchData || branchData.length === 0) {
+  setAvailableInventory([]);
+  return; // show empty state in picker
+}
+```
+
+Add a note in the Select's empty state: "No inventory on record at this location".
+
+### Fix 3 — Database Migration
+
+```sql
+CREATE POLICY "Tenant users can insert branch inventory"
+ON public.branch_inventory FOR INSERT
+TO authenticated
+WITH CHECK (user_belongs_to_tenant(tenant_id));
+```
+
+### Fix 4 — Replace Disabled Button (StockTransfersManager.tsx)
+
 ```tsx
-{isOperationsRole && (
-  <AssignedOrdersSection onContinueOrder={handleContinueOrder} />
+{transfer.status === 'in_transit' && (
+  canCompleteTransfer(transfer) ? (
+    <Button size="sm" variant="outline" onClick={() => handleComplete(transfer)}>
+      Mark Complete
+    </Button>
+  ) : (
+    <Badge variant="outline" className="text-xs text-muted-foreground">
+      Awaiting receipt at {transfer.to_branch_name}
+    </Badge>
+  )
 )}
 ```
-Users who are admins but also have orders assigned to them (or users whose role resolves differently) never see this section. The real condition should be: show the section if the current user has any assigned orders, regardless of role. The `AssignedOrdersSection` already queries by `assigned_operations_user_id = user.id` so it returns nothing if there are no assignments — making it safe to always render it.
 
-The fix: remove the `isOperationsRole` gate. The component already handles the empty-state by returning `null`.
-
-### Issue 4 — Orders Stuck "In Progress" if Wizard Closed Without Saving
-When an ops manager clicks "Pick Up", the status immediately becomes `in_progress`. If they close the wizard without saving, the order stays stuck in `in_progress` with no way to revert except manual DB intervention.
-
-The fix: track whether "Pick Up" was just performed in this session (using a ref or state in the wizard). When the wizard's `onClose` fires without a successful save (`isSubmitting` / `isSavingDraft` never completed), check if this session changed the status to `in_progress` and, if so, revert it back to `pending_handoff`.
-
----
-
-## Technical Implementation
-
-### Files Modified
-
-**1. Database migration** — Add `fixed_price` column:
-```sql
-ALTER TABLE public.custom_orders 
-ADD COLUMN IF NOT EXISTS fixed_price numeric(12,2) DEFAULT NULL;
-```
-No RLS changes needed — the column inherits existing policies.
-
-**2. `src/components/dashboard/CustomDesignWizard.tsx`**
-
-*Fix 1 — Load base price correctly:*
-```typescript
-// Line 276 — change from:
-fixedPrice: (order as any).pricing_mode === 'fixed' ? (order.quoted_price || 0) : 0,
-// To:
-fixedPrice: (order as any).pricing_mode === 'fixed' 
-  ? ((order as any).fixed_price || 0)   // use stored base if available
-  : 0,
-```
-
-*Fix 1 — Save base price alongside quoted price:*
-Add `fixed_price: formData.pricingMode === 'fixed' ? formData.fixedPrice : null` to both the draft save payload and the full submit payload (in both `handleSaveDraft` and `handleSubmit`).
-
-*Fix 4 — Release order on abandoned close:*
-- Add a `pickedUpThisSession` ref (useRef) that gets set to the orderId when the user clicks "Pick Up" from inside the wizard flow.
-- Wrap `onClose` in a `handleClose` function that checks: if `pickedUpThisSession.current` is set AND the wizard is closing without a completed save, call Supabase to revert `handoff_status` back to `pending_handoff`.
-- Clear `pickedUpThisSession.current` after a successful save so normal saves don't revert.
-
-**3. `src/components/dashboard/HandoffConfigPanel.tsx`**
-
-*Fix 2 — Order-type-aware step labels:*
-- Add `orderType?: 'custom' | 'alteration'` to the props interface.
-- Define `ALTERATION_STEP_OPTIONS`:
-```typescript
-const ALTERATION_STEP_OPTIONS = [
-  { value: 0, label: "After Client Info", description: "Ops handles alteration details, measurements, and photos" },
-  { value: 1, label: "After Alteration Details", description: "Ops takes measurements and photos" },
-  { value: 2, label: "After Measurements", description: "Ops handles photos only" },
-];
-```
-- Replace the static `STEP_OPTIONS` with a dynamic selection based on `orderType`.
-- Also update the summary text that says "They'll complete steps X-7" to use the correct count.
-
-**4. `src/components/dashboard/CustomOrdersManager.tsx`**
-
-*Fix 3 — Show AssignedOrdersSection to all logged-in users:*
-- Remove the `{isOperationsRole && ...}` wrapper around `<AssignedOrdersSection>`.
-- The component already returns `null` when the current user has no assigned orders, so there is no UI change for users with no assignments.
-
-**5. `src/components/dashboard/AssignedOrdersSection.tsx`**
-- The `STEP_LABELS` array on line 27 is custom-order-only (7 labels). Add a second array for alteration steps, and fetch the `order_type` from the DB alongside other fields so the correct label set is used in the "Start from: Step X" display.
-
----
-
-## Summary of Changes
-
-| File | Change | Issue Fixed |
-|---|---|---|
-| Migration SQL | Add `fixed_price` column | #1 |
-| `CustomDesignWizard.tsx` | Load `fixed_price` base; save `fixed_price` to DB; revert on abandoned close | #1, #4 |
-| `HandoffConfigPanel.tsx` | Accept `orderType` prop; switch step options accordingly | #2 |
-| `CustomOrdersManager.tsx` | Remove `isOperationsRole` guard on AssignedOrdersSection | #3 |
-| `AssignedOrdersSection.tsx` | Fetch `order_type`; use correct step labels for alteration vs custom | #2, #3 |
-
-No new components. No new routes. No RLS changes.
+No new components. No new routes. No schema column changes (only a new RLS policy).
