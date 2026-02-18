@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, Users, BarChart3, CreditCard, Package, Activity, Settings2 } from "lucide-react";
+import { Building2, Users, BarChart3, CreditCard, Package, Activity, Settings2, GraduationCap } from "lucide-react";
 import { TenantManager } from "./TenantManager";
 import { SuperAdminUsersManager } from "./SuperAdminUsersManager";
 import { PlatformStats } from "./PlatformStats";
@@ -10,6 +10,7 @@ import { UsageAnalyticsDashboard } from "./UsageAnalyticsDashboard";
 import { PlatformConfigManager } from "./PlatformConfigManager";
 import { PlatformComplianceChecklist } from "./PlatformComplianceChecklist";
 import { PlatformRevenueStats } from "./PlatformRevenueStats";
+import { TrainingCoachingCenter } from "./TrainingCoachingCenter";
 
 export function SuperAdminPanel() {
   const [activeTab, setActiveTab] = useState("platform");
@@ -24,7 +25,7 @@ export function SuperAdminPanel() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="flex w-full overflow-x-auto sm:grid sm:grid-cols-7 lg:w-[900px]">
+        <TabsList className="flex w-full overflow-x-auto sm:grid sm:grid-cols-8 lg:w-[1024px]">
           <TabsTrigger value="platform" className="flex items-center gap-2">
             <Settings2 className="h-4 w-4" />
             <span className="hidden sm:inline">Platform</span>
@@ -52,6 +53,10 @@ export function SuperAdminPanel() {
           <TabsTrigger value="stats" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
             <span className="hidden sm:inline">Overview</span>
+          </TabsTrigger>
+          <TabsTrigger value="training" className="flex items-center gap-2">
+            <GraduationCap className="h-4 w-4" />
+            <span className="hidden sm:inline">Training</span>
           </TabsTrigger>
         </TabsList>
 
@@ -83,6 +88,10 @@ export function SuperAdminPanel() {
         <TabsContent value="stats" className="space-y-6">
           <PlatformRevenueStats />
           <PlatformStats />
+        </TabsContent>
+
+        <TabsContent value="training">
+          <TrainingCoachingCenter />
         </TabsContent>
       </Tabs>
     </div>

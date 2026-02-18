@@ -4386,6 +4386,97 @@ export type Database = {
         }
         Relationships: []
       }
+      training_checklist_items: {
+        Row: {
+          created_at: string | null
+          feature_key: string
+          feature_label: string
+          id: string
+          improvement_notes: string | null
+          module_group: string | null
+          session_id: string
+          status: string | null
+          trainer_notes: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          feature_key: string
+          feature_label: string
+          id?: string
+          improvement_notes?: string | null
+          module_group?: string | null
+          session_id: string
+          status?: string | null
+          trainer_notes?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          feature_key?: string
+          feature_label?: string
+          id?: string
+          improvement_notes?: string | null
+          module_group?: string | null
+          session_id?: string
+          status?: string | null
+          trainer_notes?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_checklist_items_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "training_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_sessions: {
+        Row: {
+          created_at: string | null
+          id: string
+          overall_notes: string | null
+          session_date: string | null
+          status: string | null
+          tenant_id: string
+          trainer_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          overall_notes?: string | null
+          session_date?: string | null
+          status?: string | null
+          tenant_id: string
+          trainer_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          overall_notes?: string | null
+          session_date?: string | null
+          status?: string | null
+          tenant_id?: string
+          trainer_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_sessions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       transaction_audit_log: {
         Row: {
           action: string
