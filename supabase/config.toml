@@ -47,3 +47,6 @@ verify_jwt = false
 
 [functions.lenco-diagnostics]
 verify_jwt = false
+
+[functions.subscription-renewal-reminder]
+verify_jwt = false
