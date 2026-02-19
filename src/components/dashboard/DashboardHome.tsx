@@ -16,6 +16,7 @@ import { useEnterpriseFeatures } from "@/hooks/useEnterpriseFeatures";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ExpiryAlertsCard } from "@/components/dashboard/ExpiryAlertsCard";
 import { VariantLowStockAlerts } from "@/components/dashboard/VariantLowStockAlerts";
+import { RenewalNoticeBanner } from "@/components/dashboard/RenewalNoticeBanner";
 import { CustomDesignWizard } from "@/components/dashboard/CustomDesignWizard";
 import { throttle } from "@/lib/performance-utils";
 import type { DashboardTab } from "@/pages/Dashboard";
@@ -371,6 +372,8 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
       transition={{ duration: 0.5 }}
       data-tour="dashboard-home"
     >
+      <RenewalNoticeBanner />
+
       <div className="mb-6">
         <h2 className="text-2xl font-display font-bold text-[#003366] mb-2">Dashboard Overview</h2>
         <p className="text-[#004B8D]/60">
