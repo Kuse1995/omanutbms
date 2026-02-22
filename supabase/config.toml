@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.subscription-renewal-reminder]
 verify_jwt = false
+
+[functions.send-sales-receipt]
+verify_jwt = false

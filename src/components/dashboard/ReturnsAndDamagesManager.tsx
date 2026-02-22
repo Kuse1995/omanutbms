@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -19,7 +20,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { RotateCcw, PackageX, Loader2, RefreshCw, Check, X, AlertTriangle } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { RotateCcw, PackageX, Loader2, RefreshCw, Check, X, AlertTriangle, CalendarIcon, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/hooks/useTenant";
 import { useFeatures } from "@/hooks/useFeatures";
@@ -27,7 +30,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { ReturnModal } from "./ReturnModal";
 import { DamageModal } from "./DamageModal";
 import { ExpiryAlertsCard } from "./ExpiryAlertsCard";
-import { format, formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow, startOfYear } from "date-fns";
+import { cn } from "@/lib/utils";
 
 interface InventoryAdjustment {
   id: string;
@@ -57,6 +61,9 @@ export function ReturnsAndDamagesManager() {
   const [isDamageModalOpen, setIsDamageModalOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
+  const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const { toast } = useToast();
   const { tenantId } = useTenant();
   const { currencySymbol } = useFeatures();
@@ -84,6 +91,14 @@ export function ReturnsAndDamagesManager() {
         query = query.eq("status", statusFilter);
       }
 
+      if (dateFrom) {
+        query = query.gte("created_at", format(dateFrom, "yyyy-MM-dd") + "T00:00:00");
+      }
+
+      if (dateTo) {
+        query = query.lte("created_at", format(dateTo, "yyyy-MM-dd") + "T23:59:59");
+      }
+
       const { data, error } = await query;
 
       if (error) throw error;
@@ -105,7 +120,7 @@ export function ReturnsAndDamagesManager() {
     if (tenantId) {
       fetchAdjustments();
     }
-  }, [tenantId, typeFilter, statusFilter]);
+  }, [tenantId, typeFilter, statusFilter, dateFrom, dateTo]);
 
   useEffect(() => {
     if (!tenantId) return;
@@ -349,9 +364,18 @@ export function ReturnsAndDamagesManager() {
         </Card>
       </div>
 
-      <div className="flex gap-4">
+      <div className="flex flex-wrap gap-3 items-end">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search product or customer..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 bg-white"
+          />
+        </div>
         <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger className="w-40">
             <SelectValue placeholder="Filter by type" />
           </SelectTrigger>
           <SelectContent>
@@ -364,7 +388,7 @@ export function ReturnsAndDamagesManager() {
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger className="w-40">
             <SelectValue placeholder="Filter by status" />
           </SelectTrigger>
           <SelectContent>
@@ -374,6 +398,33 @@ export function ReturnsAndDamagesManager() {
             <SelectItem value="rejected">Rejected</SelectItem>
           </SelectContent>
         </Select>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className={cn("w-[140px] justify-start text-left font-normal", !dateFrom && "text-muted-foreground")}>
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {dateFrom ? format(dateFrom, "PP") : "From"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0 bg-white" align="start">
+            <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom} initialFocus className="pointer-events-auto" />
+          </PopoverContent>
+        </Popover>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className={cn("w-[140px] justify-start text-left font-normal", !dateTo && "text-muted-foreground")}>
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {dateTo ? format(dateTo, "PP") : "To"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0 bg-white" align="start">
+            <Calendar mode="single" selected={dateTo} onSelect={setDateTo} initialFocus className="pointer-events-auto" />
+          </PopoverContent>
+        </Popover>
+        {(dateFrom || dateTo || searchQuery) && (
+          <Button variant="ghost" size="sm" onClick={() => { setDateFrom(undefined); setDateTo(undefined); setSearchQuery(""); }}>
+            Clear
+          </Button>
+        )}
       </div>
 
       <Card className="bg-white border-[#004B8D]/10">
@@ -385,7 +436,15 @@ export function ReturnsAndDamagesManager() {
             <div className="flex items-center justify-center py-8">
               <Loader2 className="w-8 h-8 animate-spin text-[#004B8D]" />
             </div>
-          ) : adjustments.length === 0 ? (
+          ) : (() => {
+            const query = searchQuery.toLowerCase().trim();
+            const filtered = query ? adjustments.filter(a =>
+              (a.inventory?.name || '').toLowerCase().includes(query) ||
+              (a.inventory?.sku || '').toLowerCase().includes(query) ||
+              (a.customer_name || '').toLowerCase().includes(query) ||
+              (a.reason || '').toLowerCase().includes(query)
+            ) : adjustments;
+            return filtered.length === 0 ? (
             <div className="text-center py-8 text-[#004B8D]/60">
               <RotateCcw className="w-12 h-12 mx-auto mb-4 opacity-30" />
               <p>No adjustments recorded yet</p>

@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { ShoppingCart, Plus, Loader2, CheckCircle, DollarSign, Package, Eye, Download, FileSpreadsheet, CalendarIcon, FileText, AlertCircle, Wrench, Truck, Settings, HardHat, Trash2, Receipt, Building2, Percent, Banknote } from "lucide-react";
+import { ShoppingCart, Plus, Loader2, CheckCircle, DollarSign, Package, Eye, Download, FileSpreadsheet, CalendarIcon, FileText, AlertCircle, Wrench, Truck, Settings, HardHat, Trash2, Receipt, Building2, Percent, Banknote, ChevronDown, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,6 +63,20 @@ interface SaleTransaction {
   notes: string | null;
   created_at: string;
   item_type: string;
+  receipt_number: string | null;
+}
+
+interface GroupedSale {
+  receiptNumber: string;
+  customerName: string | null;
+  customerEmail: string | null;
+  customerPhone: string | null;
+  paymentMethod: string | null;
+  createdAt: string;
+  items: SaleTransaction[];
+  totalAmount: number;
+  totalLiters: number;
+  totalQty: number;
 }
 
 interface CartItem {
@@ -131,6 +145,10 @@ export function SalesRecorder() {
   // Risk adjustment for credit sales (internal - not shown to customer)
   const [riskAdjustment, setRiskAdjustment] = useState<number>(0);
   const [riskAdjustmentNotes, setRiskAdjustmentNotes] = useState<string>("");
+  const [showRiskAdjustment, setShowRiskAdjustment] = useState(false);
+  
+  // Grouped sales expansion state
+  const [expandedReceipts, setExpandedReceipts] = useState<Set<string>>(new Set());
   
   // Modal state
   const [selectedSale, setSelectedSale] = useState<SaleTransaction | null>(null);
@@ -306,7 +324,7 @@ export function SalesRecorder() {
       .select('*')
       .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false })
-      .limit(10);
+      .limit(50);
 
     if (error) {
       console.error('Error fetching sales:', error);
@@ -314,6 +332,30 @@ export function SalesRecorder() {
     }
     setRecentSales(data || []);
   };
+
+  // Group recent sales by receipt_number
+  const groupedSales = useMemo((): GroupedSale[] => {
+    const groups: Record<string, SaleTransaction[]> = {};
+    
+    recentSales.forEach((sale) => {
+      const key = sale.receipt_number || sale.id; // fallback for legacy sales without receipt_number
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(sale);
+    });
+
+    return Object.entries(groups).map(([receiptNumber, items]) => ({
+      receiptNumber,
+      customerName: items[0].customer_name,
+      customerEmail: items[0].customer_email,
+      customerPhone: items[0].customer_phone,
+      paymentMethod: items[0].payment_method,
+      createdAt: items[0].created_at,
+      items,
+      totalAmount: items.reduce((sum, i) => sum + i.total_amount_zmw, 0),
+      totalLiters: items.reduce((sum, i) => sum + i.liters_impact, 0),
+      totalQty: items.reduce((sum, i) => sum + i.quantity, 0),
+    })).slice(0, 15); // show up to 15 grouped transactions
+  }, [recentSales]);
 
   // Reset item form (not cart)
   const resetItemForm = () => {
@@ -341,6 +383,7 @@ export function SalesRecorder() {
     setAmountPaid(0);
     setRiskAdjustment(0);
     setRiskAdjustmentNotes("");
+    setShowRiskAdjustment(false);
   };
 
   useEffect(() => {
@@ -812,10 +855,46 @@ export function SalesRecorder() {
     }
   };
 
-  // Generate receipt for existing sale
-  const handleGenerateReceipt = (sale: SaleTransaction) => {
+  // Generate receipt for a grouped sale
+  const handleGenerateGroupedReceipt = (group: GroupedSale) => {
     setReceiptData({
-      receiptNumber: `SR-${sale.id.slice(0, 8).toUpperCase()}`,
+      receiptNumber: group.receiptNumber,
+      customerName: group.customerName,
+      customerEmail: group.customerEmail,
+      customerPhone: group.customerPhone,
+      items: group.items.map(sale => ({
+        id: sale.id,
+        type: sale.item_type as "product" | "service",
+        name: sale.product_name,
+        quantity: sale.quantity,
+        unitPrice: sale.unit_price_zmw,
+        totalPrice: sale.total_amount_zmw,
+        selectedColor: sale.selected_color || undefined,
+        selectedSize: sale.selected_size || undefined,
+        litersImpact: sale.liters_impact,
+      })),
+      subtotal: group.totalAmount,
+      discountAmount: 0,
+      totalAmount: group.totalAmount,
+      amountPaid: group.totalAmount,
+      changeAmount: 0,
+      paymentMethod: group.paymentMethod || 'cash',
+      paymentDate: group.createdAt,
+      litersImpact: group.totalLiters,
+    });
+    setIsReceiptOpen(true);
+  };
+
+  // Generate receipt for existing single sale (legacy)
+  const handleGenerateReceipt = (sale: SaleTransaction) => {
+    // Try to find the group for this sale
+    const group = groupedSales.find(g => g.items.some(i => i.id === sale.id));
+    if (group) {
+      handleGenerateGroupedReceipt(group);
+      return;
+    }
+    setReceiptData({
+      receiptNumber: sale.receipt_number || `SR-${sale.id.slice(0, 8).toUpperCase()}`,
       customerName: sale.customer_name,
       customerEmail: sale.customer_email,
       customerPhone: sale.customer_phone,
@@ -1382,39 +1461,53 @@ export function SalesRecorder() {
                   </div>
                 </div>
 
-                {/* Risk Adjustment for Credit Sales (Internal Only) */}
-                <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-orange-800">Credit Sale Risk Adjustment</span>
-                    <span className="text-xs text-orange-600">(Internal - not shown on invoice)</span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-orange-800">Adjustment Amount (K)</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={riskAdjustment || ""}
-                        onChange={(e) => setRiskAdjustment(Number(e.target.value) || 0)}
-                        placeholder="0.00"
-                        className="bg-white border-orange-300 focus:border-orange-500"
-                      />
+                {/* Risk Adjustment for Credit Sales (Internal Only - Collapsible) */}
+                <div className="border border-orange-200 rounded-lg overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setShowRiskAdjustment(!showRiskAdjustment)}
+                    className="w-full flex items-center justify-between p-3 bg-orange-50/50 hover:bg-orange-50 transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      {showRiskAdjustment ? <ChevronDown className="w-4 h-4 text-orange-600" /> : <ChevronRight className="w-4 h-4 text-orange-600" />}
+                      <span className="text-sm font-medium text-orange-800">Risk Adjustment</span>
+                      <span className="text-xs text-orange-600">(Optional - Internal only)</span>
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-orange-800">Internal Notes</Label>
-                      <Input
-                        value={riskAdjustmentNotes}
-                        onChange={(e) => setRiskAdjustmentNotes(e.target.value)}
-                        placeholder="Reason for adjustment..."
-                        className="bg-white border-orange-300 focus:border-orange-500"
-                      />
+                    {riskAdjustment > 0 && (
+                      <Badge className="bg-orange-100 text-orange-700 border-orange-200">+K{riskAdjustment.toLocaleString()}</Badge>
+                    )}
+                  </button>
+                  {showRiskAdjustment && (
+                    <div className="p-4 bg-orange-50 space-y-3 border-t border-orange-200">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-orange-800">Adjustment Amount (K)</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={riskAdjustment || ""}
+                            onChange={(e) => setRiskAdjustment(Number(e.target.value) || 0)}
+                            placeholder="0.00"
+                            className="bg-white border-orange-300 focus:border-orange-500"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-orange-800">Internal Notes</Label>
+                          <Input
+                            value={riskAdjustmentNotes}
+                            onChange={(e) => setRiskAdjustmentNotes(e.target.value)}
+                            placeholder="Reason for adjustment..."
+                            className="bg-white border-orange-300 focus:border-orange-500"
+                          />
+                        </div>
+                      </div>
+                      {riskAdjustment > 0 && (
+                        <p className="text-sm text-orange-700">
+                          Total will include +K{riskAdjustment.toLocaleString()} risk markup (hidden from customer)
+                        </p>
+                      )}
                     </div>
-                  </div>
-                  {riskAdjustment > 0 && (
-                    <p className="text-sm text-orange-700">
-                      Total will include +K{riskAdjustment.toLocaleString()} risk markup (hidden from customer)
-                    </p>
                   )}
                 </div>
               </div>
@@ -1598,72 +1691,115 @@ export function SalesRecorder() {
           <Table>
             <TableHeader>
               <TableRow className="border-[#004B8D]/10">
+                <TableHead className="text-[#004B8D]/70 w-8"></TableHead>
                 <TableHead className="text-[#004B8D]/70">Date</TableHead>
-                <TableHead className="text-[#004B8D]/70">Item</TableHead>
+                <TableHead className="text-[#004B8D]/70">Receipt #</TableHead>
                 <TableHead className="text-[#004B8D]/70">Customer</TableHead>
-                <TableHead className="text-[#004B8D]/70">Qty</TableHead>
+                <TableHead className="text-[#004B8D]/70">Items</TableHead>
                 <TableHead className="text-[#004B8D]/70">Amount</TableHead>
-                <TableHead className="text-[#004B8D]/70">Impact</TableHead>
                 <TableHead className="text-[#004B8D]/70">Payment</TableHead>
                 <TableHead className="text-[#004B8D]/70 w-24">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {recentSales.length === 0 ? (
+              {groupedSales.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center text-[#004B8D]/50 py-8">
                     No sales recorded yet
                   </TableCell>
                 </TableRow>
               ) : (
-                recentSales.map((sale) => (
-                  <TableRow key={sale.id} className="border-[#004B8D]/10 hover:bg-[#004B8D]/5">
-                    <TableCell className="text-[#003366]/70 text-sm">
-                      {new Date(sale.created_at).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="text-[#003366] font-medium">
-                      <div className="flex items-center gap-2">
-                        {sale.product_name}
-                        {sale.item_type === "service" && (
-                          <Badge className="text-[10px] bg-amber-100 text-amber-700">Service</Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-[#003366]/70">
-                      {sale.customer_name || <span className="text-[#004B8D]/40">Walk-in</span>}
-                    </TableCell>
-                    <TableCell className="text-[#003366]/70">{sale.quantity}</TableCell>
-                    <TableCell className="text-[#0077B6] font-medium">
-                      K{sale.total_amount_zmw.toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-teal-600">
-                      {sale.liters_impact > 0 ? `${sale.liters_impact.toLocaleString()} L` : '-'}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="border-[#004B8D]/20 text-[#003366] capitalize">
-                        {sale.payment_method?.replace('_', ' ') || 'Cash'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <button 
-                          className="p-1.5 rounded-md hover:bg-[#0077B6]/10 text-[#0077B6] transition-colors"
-                          onClick={() => { setSelectedSale(sale); setIsDetailsOpen(true); }}
-                          title="View details"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button 
-                          className="p-1.5 rounded-md hover:bg-green-500/10 text-green-600 transition-colors"
-                          onClick={() => handleGenerateReceipt(sale)}
-                          title="Generate receipt"
-                        >
-                          <Receipt className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
+                groupedSales.map((group) => {
+                  const isExpanded = expandedReceipts.has(group.receiptNumber);
+                  return (
+                    <React.Fragment key={group.receiptNumber}>
+                      <TableRow className="border-[#004B8D]/10 hover:bg-[#004B8D]/5">
+                        <TableCell className="p-1">
+                          {group.items.length > 1 && (
+                            <button
+                              onClick={() => {
+                                setExpandedReceipts(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(group.receiptNumber)) next.delete(group.receiptNumber);
+                                  else next.add(group.receiptNumber);
+                                  return next;
+                                });
+                              }}
+                              className="p-1 rounded hover:bg-[#004B8D]/10"
+                            >
+                              {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                            </button>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-[#003366]/70 text-sm">
+                          {new Date(group.createdAt).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="text-[#003366] font-mono text-xs">
+                          {group.receiptNumber.length > 12 ? group.receiptNumber.slice(0, 12) + '…' : group.receiptNumber}
+                        </TableCell>
+                        <TableCell className="text-[#003366]/70">
+                          {group.customerName || <span className="text-[#004B8D]/40">Walk-in</span>}
+                        </TableCell>
+                        <TableCell className="text-[#003366]/70">
+                          {group.items.length === 1 ? (
+                            <span>{group.items[0].product_name}</span>
+                          ) : (
+                            <Badge variant="outline" className="border-[#004B8D]/20">{group.items.length} items</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-[#0077B6] font-medium">
+                          K{group.totalAmount.toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="border-[#004B8D]/20 text-[#003366] capitalize">
+                            {group.paymentMethod?.replace('_', ' ') || 'Cash'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <button 
+                              className="p-1.5 rounded-md hover:bg-[#0077B6]/10 text-[#0077B6] transition-colors"
+                              onClick={() => { setSelectedSale(group.items[0]); setIsDetailsOpen(true); }}
+                              title="View details"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button 
+                              className="p-1.5 rounded-md hover:bg-green-500/10 text-green-600 transition-colors"
+                              onClick={() => handleGenerateGroupedReceipt(group)}
+                              title="Generate receipt"
+                            >
+                              <Receipt className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {/* Expanded items for multi-item receipts */}
+                      {isExpanded && group.items.map((sale) => (
+                        <TableRow key={sale.id} className="bg-[#f0f7fa]/50 border-[#004B8D]/5">
+                          <TableCell></TableCell>
+                          <TableCell></TableCell>
+                          <TableCell></TableCell>
+                          <TableCell></TableCell>
+                          <TableCell className="text-[#003366] text-sm pl-4">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[#004B8D]/30">↳</span>
+                              {sale.quantity}x {sale.product_name}
+                              {sale.item_type === "service" && (
+                                <Badge className="text-[10px] bg-amber-100 text-amber-700">Service</Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-[#003366]/70 text-sm">
+                            K{sale.total_amount_zmw.toLocaleString()}
+                          </TableCell>
+                          <TableCell></TableCell>
+                          <TableCell></TableCell>
+                        </TableRow>
+                      ))}
+                    </React.Fragment>
+                  );
+                })
               )}
             </TableBody>
           </Table>
