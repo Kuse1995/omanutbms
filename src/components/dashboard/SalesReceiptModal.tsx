@@ -9,6 +9,7 @@ import { TenantDocumentHeader, DocumentComplianceFooter } from "./TenantDocument
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useTenant } from "@/hooks/useTenant";
 
 interface SaleItem {
   product_name: string;
@@ -56,7 +57,42 @@ export function SalesReceiptModal({
   litersImpact,
 }: SalesReceiptModalProps) {
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
   const { companyName, tagline, isImpactEnabled, impact } = useBusinessConfig();
+  const { tenantId } = useTenant();
+  const { toast } = useToast();
+
+  const handleSendEmail = async () => {
+    if (!customerEmail) return;
+    setIsSendingEmail(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-sales-receipt', {
+        body: {
+          email: customerEmail,
+          receiptNumber,
+          customerName: customerName || 'Valued Customer',
+          items: items.map(i => ({
+            product_name: i.product_name,
+            quantity: i.quantity,
+            unit_price_zmw: i.unit_price_zmw,
+            total_amount_zmw: i.total_amount_zmw,
+          })),
+          totalAmount,
+          paymentMethod,
+          paymentDate,
+          companyName: companyName || 'Our Store',
+          tenantId,
+        },
+      });
+      if (error) throw error;
+      toast({ title: "Email Sent", description: `Receipt emailed to ${customerEmail}` });
+    } catch (error: any) {
+      console.error('Email send error:', error);
+      toast({ title: "Email Failed", description: error.message || "Could not send email", variant: "destructive" });
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
 
   const formatPaymentMethod = (method: string) => {
     return method.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
@@ -308,6 +344,21 @@ export function SalesReceiptModal({
               <Printer className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Print</span>
             </Button>
+            {customerEmail && (
+              <Button
+                onClick={handleSendEmail}
+                disabled={isSendingEmail}
+                variant="outline"
+                className="flex-1 sm:flex-none"
+              >
+                {isSendingEmail ? (
+                  <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" />
+                ) : (
+                  <Mail className="h-4 w-4 sm:mr-2" />
+                )}
+                <span className="hidden sm:inline">Email</span>
+              </Button>
+            )}
             <Button
               onClick={handleDownloadPDF}
               disabled={isDownloading}

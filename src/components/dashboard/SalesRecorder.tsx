@@ -108,7 +108,7 @@ export function SalesRecorder() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const { tenantId } = useTenant();
-  const { currentBranch, isMultiBranchEnabled, canAccessAllBranches } = useBranch();
+  const { currentBranch, isMultiBranchEnabled, canAccessAllBranches, userBranchId } = useBranch();
   const { isImpactEnabled, impact, businessType, currencySymbol, terminology } = useBusinessConfig();
 
   // Collections for fashion POS
@@ -617,10 +617,19 @@ export function SalesRecorder() {
     return `SR${year}-${random}`;
   };
 
+  // Initial payment state for credit sales
+  const [initialPayment, setInitialPayment] = useState<number>(0);
+
   const handleCheckout = async () => {
     // Block sales when multi-branch is enabled but no specific branch is selected
     if (isMultiBranchEnabled && !currentBranch) {
       toast({ title: "Select a Branch", description: "Please select a specific branch before recording a sale. You cannot sell from 'All Branches' view.", variant: "destructive" });
+      return;
+    }
+
+    // Enforce branch isolation: non-admin users can only sell from their assigned branch
+    if (isMultiBranchEnabled && userBranchId && !canAccessAllBranches && currentBranch && currentBranch.id !== userBranchId) {
+      toast({ title: "Branch Restricted", description: "You can only record sales for your assigned branch.", variant: "destructive" });
       return;
     }
 
@@ -735,7 +744,8 @@ export function SalesRecorder() {
             client_phone: customerPhone.trim() || null,
             invoice_date: format(new Date(), "yyyy-MM-dd"),
             due_date: format(invoiceDueDate, "yyyy-MM-dd"),
-            status: 'sent',
+            status: initialPayment > 0 ? 'partial' : 'sent',
+            paid_amount: initialPayment > 0 ? initialPayment : 0,
             subtotal: cartSubtotal,
             tax_rate: 0,
             tax_amount: 0,
@@ -1459,6 +1469,26 @@ export function SalesRecorder() {
                       Payment expected by {format(invoiceDueDate, "MMMM d, yyyy")}
                     </p>
                   </div>
+                </div>
+
+                {/* Initial Payment for Credit Sales (Optional) */}
+                <div className="border border-blue-200 rounded-lg p-4 bg-blue-50/50 space-y-2">
+                  <Label className="text-blue-800">Initial Payment (Optional)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max={cartTotal}
+                    step="0.01"
+                    value={initialPayment || ""}
+                    onChange={(e) => setInitialPayment(Math.min(Number(e.target.value) || 0, cartTotal))}
+                    placeholder="0.00"
+                    className="bg-white border-blue-300 focus:border-blue-500"
+                  />
+                  {initialPayment > 0 && (
+                    <p className="text-sm text-blue-700">
+                      Balance due: K{(cartTotal - initialPayment).toLocaleString()} (Partial payment)
+                    </p>
+                  )}
                 </div>
 
                 {/* Risk Adjustment for Credit Sales (Internal Only - Collapsible) */}
