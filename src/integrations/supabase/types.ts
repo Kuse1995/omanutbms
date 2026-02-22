@@ -5235,6 +5235,10 @@ export type Database = {
         Args: { _tenant_id: string }
         Returns: boolean
       }
+      sync_user_role_by_email: {
+        Args: { p_email: string; p_new_role: string; p_tenant_id: string }
+        Returns: Json
+      }
       user_belongs_to_tenant: { Args: { _tenant_id: string }; Returns: boolean }
       user_is_assigned_to_branch: {
         Args: { _branch_id: string }

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, User, LogOut, Shield, AlertTriangle } from "lucide-react";
+import { Search, User, LogOut, Shield, AlertTriangle, Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/useAuth";
 import { useFeatures } from "@/hooks/useFeatures";
 import { useNavigate } from "react-router-dom";
+import { useTheme } from "next-themes";
 import { NotificationsCenter } from "./NotificationsCenter";
 import { TrialBanner } from "./TrialBanner";
 import { UpgradePlanModal } from "./UpgradePlanModal";
@@ -28,6 +29,7 @@ export function DashboardHeader() {
   const { user, profile, role, signOut, isSuperAdmin } = useAuth();
   const { companyName } = useFeatures();
   const navigate = useNavigate();
+  const { theme, setTheme } = useTheme();
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
 
   const handleSignOut = async () => {
@@ -83,6 +85,14 @@ export function DashboardHeader() {
         <div className="flex items-center gap-2 sm:gap-3">
           <BranchSelector />
           <UploadProgressIndicator />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            className="text-[var(--brand-primary,#004B8D)] hover:bg-[var(--brand-primary,#004B8D)]/10"
+          >
+            {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          </Button>
           <div data-tour="header-notifications">
             <NotificationsCenter />
           </div>

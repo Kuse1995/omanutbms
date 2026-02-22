@@ -121,6 +121,8 @@ export function InventoryAgent() {
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   // Tab state for inventory vs movements view
   const [activeTab, setActiveTab] = useState<"inventory" | "movements">("inventory");
+  // View all locations toggle (read-only cross-branch visibility)
+  const [viewAllLocations, setViewAllLocations] = useState(false);
   const { toast } = useToast();
   const { tenantId } = useTenant();
   const { currentBranch, isMultiBranchEnabled, branches } = useBranch();
@@ -144,7 +146,7 @@ export function InventoryAgent() {
         .eq("tenant_id", tenantId)
         .eq("is_archived", showArchived);
       
-      if (currentBranch && isMultiBranchEnabled) {
+      if (currentBranch && isMultiBranchEnabled && !viewAllLocations) {
         countQuery = countQuery.eq("default_location_id", currentBranch.id);
       }
       if (classFilter) {
@@ -170,7 +172,7 @@ export function InventoryAgent() {
         .eq("is_archived", showArchived);
       
       // Filter by branch when one is selected
-      if (currentBranch && isMultiBranchEnabled) {
+      if (currentBranch && isMultiBranchEnabled && !viewAllLocations) {
         query = query.eq("default_location_id", currentBranch.id);
       }
       if (classFilter) {
@@ -504,6 +506,22 @@ export function InventoryAgent() {
             </TabsList>
           </Tabs>
           <div className="flex gap-2">
+            {isMultiBranchEnabled && (
+              <div className="flex items-center gap-2 mr-2">
+                <Switch
+                  id="view-all-locations"
+                  checked={viewAllLocations}
+                  onCheckedChange={setViewAllLocations}
+                />
+                <Label
+                  htmlFor="view-all-locations"
+                  className="text-sm text-[#004B8D]/70 cursor-pointer flex items-center gap-1"
+                >
+                  <MapPin className="w-4 h-4" />
+                  All Locations
+                </Label>
+              </div>
+            )}
             <div className="flex items-center gap-2 mr-2">
               <Switch
                 id="show-archived"
@@ -726,7 +744,7 @@ export function InventoryAgent() {
         <Card className="bg-white border-[#004B8D]/10">
           <CardHeader>
             <CardTitle className="text-[#003366]">
-              {terminology.productLabel} {terminology.inventoryLabel}
+              {terminology.inventoryLabel}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -748,10 +766,12 @@ export function InventoryAgent() {
                     <TableHead>SKU</TableHead>
                     <TableHead>{terminology.productLabel}</TableHead>
                     {showMaterialsAndConsumables && <TableHead>Type</TableHead>}
-                    <TableHead>
-                      <Building2 className="w-4 h-4 inline mr-1" />
-                      Location
-                    </TableHead>
+                    {isMultiBranchEnabled && (
+                      <TableHead>
+                        <Building2 className="w-4 h-4 inline mr-1" />
+                        Location
+                      </TableHead>
+                    )}
                     {!formFields.hideVariants && hasAnyColors && (
                       <TableHead className="text-center">
                         <Palette className="w-4 h-4 inline mr-1" />
@@ -808,13 +828,15 @@ export function InventoryAgent() {
                           )}
                         </TableCell>
                       )}
-                      <TableCell>
-                        {item.location_name ? (
-                          <span className="text-sm text-[#004B8D]">📍 {item.location_name}</span>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
+                      {isMultiBranchEnabled && (
+                        <TableCell>
+                          {item.location_name ? (
+                            <span className="text-sm text-[#004B8D]">📍 {item.location_name}</span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                      )}
                       {!formFields.hideVariants && hasAnyColors && (
                         <TableCell className="text-center">
                           {(item.color_count || 0) > 0 ? (
