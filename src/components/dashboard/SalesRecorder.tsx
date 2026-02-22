@@ -799,7 +799,7 @@ export function SalesRecorder() {
           subtotal: cartSubtotal,
           discountAmount,
           totalAmount: cartTotal,
-          amountPaid: 0,
+          amountPaid: initialPayment,
           changeAmount: 0,
           paymentMethod: "credit_invoice",
           paymentDate: new Date().toISOString(),
