@@ -107,7 +107,7 @@ export function SalesRecorder() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
-  const { tenantId } = useTenant();
+  const { tenantId, businessProfile } = useTenant();
   const { currentBranch, isMultiBranchEnabled, canAccessAllBranches, userBranchId } = useBranch();
   const { isImpactEnabled, impact, businessType, currencySymbol, terminology } = useBusinessConfig();
 
@@ -747,8 +747,8 @@ export function SalesRecorder() {
             status: initialPayment > 0 ? 'partial' : 'sent',
             paid_amount: initialPayment > 0 ? initialPayment : 0,
             subtotal: cartSubtotal,
-            tax_rate: 0,
-            tax_amount: 0,
+            tax_rate: businessProfile?.tax_rate || 0,
+            tax_amount: businessProfile?.tax_enabled && businessProfile?.tax_rate ? Math.round(cartSubtotal * (businessProfile.tax_rate / 100) * 100) / 100 : 0,
             total_amount: cartTotal,
             discount_amount: discountAmount,
             discount_reason: discountAmount > 0 ? (discountType === "percentage" ? `${discountValue}% discount` : `K${discountValue} discount`) : null,

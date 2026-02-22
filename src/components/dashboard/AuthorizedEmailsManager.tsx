@@ -205,9 +205,8 @@ export function AuthorizedEmailsManager() {
   const handleUpdateRole = async (id: string, newRole: AppRole) => {
     setUpdatingId(id);
     
-    // Find the email record to get the email address and branch_id
     const emailRecord = emails.find(e => e.id === id);
-    if (!emailRecord) {
+    if (!emailRecord || !tenantId) {
       setUpdatingId(null);
       return;
     }
@@ -221,64 +220,25 @@ export function AuthorizedEmailsManager() {
 
       if (authEmailError) throw authEmailError;
 
-      // 2. Find and update the user in tenant_users if they already have a membership
-      // First, find the user's profile by email to get their user_id
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("user_id")
-        .ilike("full_name", `%${emailRecord.email.split("@")[0]}%`)
-        .limit(1);
+      // 2. Use the database function to atomically sync role across tenant_users and user_roles
+      const { data: syncResult, error: syncError } = await supabase
+        .rpc("sync_user_role_by_email", {
+          p_email: emailRecord.email,
+          p_new_role: newRole,
+          p_tenant_id: tenantId,
+        });
 
-      // Alternative: Query tenant_users directly with a join approach
-      // Since we can't directly query auth.users, we look for existing membership
-      if (tenantId) {
-        const { data: tenantUsers } = await supabase
-          .from("tenant_users")
-          .select("user_id, role")
-          .eq("tenant_id", tenantId);
-
-        // Find matching user by checking their profile email (if profile has email-like name)
-        // This is a workaround since we can't query auth.users directly
-        if (tenantUsers && tenantUsers.length > 0) {
-          // Get all profiles for these users
-          const userIds = tenantUsers.map(tu => tu.user_id);
-          
-          for (const userId of userIds) {
-            // Check if this user matches the email by querying their profile
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("full_name")
-              .eq("user_id", userId)
-              .single();
-            
-            // We'll update all tenant_users records that might match
-            // A more robust solution would store email in profiles, but for now
-            // we update the tenant_user record
-          }
-
-          // Direct approach: Update tenant_users where we find a user matching this authorized email
-          // Since authorized_emails.email should match auth.users.email, update tenant_users
-          const { error: tenantUserError } = await supabase
-            .from("tenant_users")
-            .update({ 
-              role: newRole as any,
-              // Also sync branch access based on role
-              can_access_all_branches: newRole === 'admin' || emailRecord.branch_id === null
-            })
-            .eq("tenant_id", tenantId)
-            .in("user_id", userIds.filter(async (uid) => {
-              // This filtering happens after the query, so we do a simpler update
-              return true;
-            }));
-
-          // Since we can't filter by email in tenant_users, we use a stored function approach
-          // For now, trigger a sync via RPC or accept the limitation
-        }
+      if (syncError) {
+        console.error("Role sync error:", syncError);
       }
+
+      const wasUpdated = (syncResult as any)?.updated;
 
       toast({
         title: "Role Updated",
-        description: `Role changed to ${roleConfig[newRole].label}. User may need to re-login for changes to take effect.`,
+        description: wasUpdated
+          ? `Role changed to ${roleConfig[newRole].label} and applied immediately.`
+          : `Role set to ${roleConfig[newRole].label}. Will apply when the user signs up.`,
       });
       fetchEmails();
     } catch (error: any) {

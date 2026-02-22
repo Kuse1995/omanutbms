@@ -1,3 +1,4 @@
+import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -64,27 +65,29 @@ function AnimatedRoutes() {
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <AuthProvider>
-        <TenantProvider>
-          <DemoModeProvider>
-            <BrandingProvider>
-              <BrowserRouter>
-                <UploadProvider>
-                  <OmanutAdvisor />
-                  <Toaster />
-                  <Sonner />
-                  <AnimatedRoutes />
-                  <DemoModeToggle />
-                </UploadProvider>
-              </BrowserRouter>
-            </BrandingProvider>
-          </DemoModeProvider>
-        </TenantProvider>
-      </AuthProvider>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <AuthProvider>
+          <TenantProvider>
+            <DemoModeProvider>
+              <BrandingProvider>
+                <BrowserRouter>
+                  <UploadProvider>
+                    <OmanutAdvisor />
+                    <Toaster />
+                    <Sonner />
+                    <AnimatedRoutes />
+                    <DemoModeToggle />
+                  </UploadProvider>
+                </BrowserRouter>
+              </BrandingProvider>
+            </DemoModeProvider>
+          </TenantProvider>
+        </AuthProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ThemeProvider>
 );
 
 export default App;

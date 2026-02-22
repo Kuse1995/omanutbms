@@ -298,19 +298,11 @@ export function HRAgent() {
           </div>
         </div>
 
-        <Tabs defaultValue="bms-staff" className="space-y-6">
-          <TabsList className={`grid w-full max-w-3xl ${showAgents ? 'grid-cols-6' : 'grid-cols-4'}`}>
-            <TabsTrigger value="bms-staff" className="flex items-center gap-1">
-              <Shield className="h-4 w-4" />
-              <span className="hidden sm:inline">BMS Staff</span>
-            </TabsTrigger>
+        <Tabs defaultValue="employees" className="space-y-6">
+          <TabsList className={`grid w-full max-w-3xl ${showAgents ? 'grid-cols-4' : 'grid-cols-2'}`}>
             <TabsTrigger value="employees" className="flex items-center gap-1">
               <Briefcase className="h-4 w-4" />
               <span className="hidden sm:inline">Employees</span>
-            </TabsTrigger>
-            <TabsTrigger value="attendance" className="flex items-center gap-1">
-              <CalendarClock className="h-4 w-4" />
-              <span className="hidden sm:inline">Attendance</span>
             </TabsTrigger>
             <TabsTrigger value="payroll" className="flex items-center gap-1">
               <DollarSign className="h-4 w-4" />

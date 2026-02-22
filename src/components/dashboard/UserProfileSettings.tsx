@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -35,6 +35,17 @@ export function UserProfileSettings() {
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || "");
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+
+  // Sync state when profile loads/changes
+  useEffect(() => {
+    if (profile) {
+      setFullName(profile.full_name || "");
+      setTitle(profile.title || "");
+      setDepartment(profile.department || "");
+      setPhone((profile as any)?.phone || "");
+      setAvatarUrl(profile.avatar_url || "");
+    }
+  }, [profile]);
 
   const getInitials = (name: string) => {
     return name
@@ -184,12 +195,21 @@ export function UserProfileSettings() {
           .single();
 
         if (employeeData) {
-          // Update or create whatsapp mapping
+          // Update or create whatsapp mapping with employee link
           await supabase
             .from("whatsapp_user_mappings")
             .upsert({
               whatsapp_number: formattedPhone,
               employee_id: employeeData.id,
+              is_verified: true,
+            } as any, { onConflict: 'whatsapp_number' });
+        } else {
+          // Even without employee record, create mapping with user_id for recognition
+          await supabase
+            .from("whatsapp_user_mappings")
+            .upsert({
+              whatsapp_number: formattedPhone,
+              user_id: user.id,
               is_verified: true,
             } as any, { onConflict: 'whatsapp_number' });
         }
