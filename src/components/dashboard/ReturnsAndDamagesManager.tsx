@@ -270,6 +270,14 @@ export function ReturnsAndDamagesManager() {
   const returnsCount = adjustments.filter((a) => a.adjustment_type === "return").length;
   const damagesCount = adjustments.filter((a) => ["damage", "loss", "expired"].includes(a.adjustment_type)).length;
 
+  const query = searchQuery.toLowerCase().trim();
+  const filteredAdjustments = query ? adjustments.filter(a =>
+    (a.inventory?.name || '').toLowerCase().includes(query) ||
+    (a.inventory?.sku || '').toLowerCase().includes(query) ||
+    (a.customer_name || '').toLowerCase().includes(query) ||
+    (a.reason || '').toLowerCase().includes(query)
+  ) : adjustments;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -436,15 +444,7 @@ export function ReturnsAndDamagesManager() {
             <div className="flex items-center justify-center py-8">
               <Loader2 className="w-8 h-8 animate-spin text-[#004B8D]" />
             </div>
-          ) : (() => {
-            const query = searchQuery.toLowerCase().trim();
-            const filtered = query ? adjustments.filter(a =>
-              (a.inventory?.name || '').toLowerCase().includes(query) ||
-              (a.inventory?.sku || '').toLowerCase().includes(query) ||
-              (a.customer_name || '').toLowerCase().includes(query) ||
-              (a.reason || '').toLowerCase().includes(query)
-            ) : adjustments;
-            return filtered.length === 0 ? (
+          ) : filteredAdjustments.length === 0 ? (
             <div className="text-center py-8 text-[#004B8D]/60">
               <RotateCcw className="w-12 h-12 mx-auto mb-4 opacity-30" />
               <p>No adjustments recorded yet</p>
@@ -465,7 +465,7 @@ export function ReturnsAndDamagesManager() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {adjustments.map((adjustment) => (
+                {filteredAdjustments.map((adjustment) => (
                   <TableRow key={adjustment.id}>
                     <TableCell>
                       <div className="text-sm">
