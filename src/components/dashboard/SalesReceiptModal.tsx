@@ -344,21 +344,15 @@ export function SalesReceiptModal({
               <Printer className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Print</span>
             </Button>
-            {customerEmail && (
-              <Button
-                onClick={handleSendEmail}
-                disabled={isSendingEmail}
-                variant="outline"
-                className="flex-1 sm:flex-none"
-              >
-                {isSendingEmail ? (
-                  <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" />
-                ) : (
-                  <Mail className="h-4 w-4 sm:mr-2" />
-                )}
-                <span className="hidden sm:inline">Email</span>
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              disabled
+              className="flex-1 sm:flex-none opacity-60 cursor-not-allowed relative"
+            >
+              <Mail className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Email</span>
+              <span className="ml-1 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">Coming Soon</span>
+            </Button>
             <Button
               onClick={handleDownloadPDF}
               disabled={isDownloading}
