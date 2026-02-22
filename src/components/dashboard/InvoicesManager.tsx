@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -27,7 +28,14 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { FileText, Plus, RefreshCw, Loader2, Eye, Pencil, Trash2, Receipt, Lock, ChevronDown, ChevronRight, Users } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { FileText, Plus, RefreshCw, Loader2, Eye, Pencil, Trash2, Receipt, Lock, ChevronDown, ChevronRight, Users, Search, Banknote } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/hooks/useTenant";
@@ -71,6 +79,8 @@ export function InvoicesManager() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const { toast } = useToast();
   const { canAdd, isAdmin } = useAuth();
   const { tenantId } = useTenant();
@@ -121,11 +131,23 @@ export function InvoicesManager() {
     };
   }, [tenantId]);
 
-  // Group invoices by client name
+  // Group invoices by client name, with search and status filtering
   const clientGroups = useMemo((): ClientGroup[] => {
+    const query = searchQuery.toLowerCase().trim();
+    
+    // Filter invoices by search and status
+    const filtered = invoices.filter((inv) => {
+      const matchesStatus = statusFilter === "all" || inv.status === statusFilter;
+      const matchesSearch = !query || 
+        inv.invoice_number.toLowerCase().includes(query) ||
+        inv.client_name.toLowerCase().includes(query) ||
+        (inv.client_email && inv.client_email.toLowerCase().includes(query));
+      return matchesStatus && matchesSearch;
+    });
+
     const groups: Record<string, Invoice[]> = {};
     
-    invoices.forEach((invoice) => {
+    filtered.forEach((invoice) => {
       const clientName = invoice.client_name || "Unknown Client";
       if (!groups[clientName]) {
         groups[clientName] = [];
@@ -144,7 +166,14 @@ export function InvoicesManager() {
         balance: totalAmount - paidAmount,
       };
     }).sort((a, b) => a.clientName.localeCompare(b.clientName));
-  }, [invoices]);
+  }, [invoices, searchQuery, statusFilter]);
+
+  // Auto-expand groups when searching
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      setExpandedClients(new Set(clientGroups.map(g => g.clientName)));
+    }
+  }, [searchQuery, clientGroups.length]);
 
   const toggleClient = (clientName: string) => {
     setExpandedClients((prev) => {
@@ -268,6 +297,33 @@ export function InvoicesManager() {
         </div>
       </div>
 
+      {/* Search and Filter Bar */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by invoice #, client name, or email..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 bg-white border-[#004B8D]/20"
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-48 bg-white border-[#004B8D]/20">
+            <SelectValue placeholder="Filter by status" />
+          </SelectTrigger>
+          <SelectContent className="bg-white">
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="draft">Draft</SelectItem>
+            <SelectItem value="sent">Sent</SelectItem>
+            <SelectItem value="partial">Partial</SelectItem>
+            <SelectItem value="paid">Paid</SelectItem>
+            <SelectItem value="overdue">Overdue</SelectItem>
+            <SelectItem value="cancelled">Cancelled</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       <Card className="bg-white border-[#004B8D]/10 shadow-sm">
         <CardHeader>
           <CardTitle className="text-[#003366] flex items-center gap-2">
@@ -362,13 +418,14 @@ export function InvoicesManager() {
                                 </Button>
                                 {invoice.status !== "paid" && canAdd && (
                                   <Button
-                                    variant="ghost"
-                                    size="icon"
+                                    variant="outline"
+                                    size="sm"
                                     onClick={() => handleRecordPayment(invoice)}
-                                    className="h-8 w-8 text-green-600 hover:bg-green-50"
+                                    className="h-8 text-green-600 border-green-200 hover:bg-green-50 gap-1"
                                     title="Record Payment"
                                   >
-                                    <Receipt className="h-4 w-4" />
+                                    <Banknote className="h-4 w-4" />
+                                    <span className="hidden lg:inline text-xs">Pay</span>
                                   </Button>
                                 )}
                                 <TooltipProvider>
