@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, Users, BarChart3, CreditCard, Package, Activity, Settings2, GraduationCap } from "lucide-react";
+import { Building2, Users, BarChart3, CreditCard, Package, Activity, Settings2, GraduationCap, Receipt } from "lucide-react";
 import { TenantManager } from "./TenantManager";
 import { SuperAdminUsersManager } from "./SuperAdminUsersManager";
 import { PlatformStats } from "./PlatformStats";
@@ -11,6 +11,7 @@ import { PlatformConfigManager } from "./PlatformConfigManager";
 import { PlatformComplianceChecklist } from "./PlatformComplianceChecklist";
 import { PlatformRevenueStats } from "./PlatformRevenueStats";
 import { TrainingCoachingCenter } from "./TrainingCoachingCenter";
+import { SubscriptionPaymentsManager } from "./SubscriptionPaymentsManager";
 
 export function SuperAdminPanel() {
   const [activeTab, setActiveTab] = useState("platform");
@@ -25,7 +26,7 @@ export function SuperAdminPanel() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="flex w-full overflow-x-auto sm:grid sm:grid-cols-8 lg:w-[1024px]">
+        <TabsList className="flex w-full overflow-x-auto sm:grid sm:grid-cols-9 lg:w-[1100px]">
           <TabsTrigger value="platform" className="flex items-center gap-2">
             <Settings2 className="h-4 w-4" />
             <span className="hidden sm:inline">Platform</span>
@@ -37,6 +38,10 @@ export function SuperAdminPanel() {
           <TabsTrigger value="users" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             <span className="hidden sm:inline">Users</span>
+          </TabsTrigger>
+          <TabsTrigger value="billing" className="flex items-center gap-2">
+            <Receipt className="h-4 w-4" />
+            <span className="hidden sm:inline">Billing</span>
           </TabsTrigger>
           <TabsTrigger value="plans" className="flex items-center gap-2">
             <CreditCard className="h-4 w-4" />
@@ -71,6 +76,10 @@ export function SuperAdminPanel() {
 
         <TabsContent value="users">
           <SuperAdminUsersManager />
+        </TabsContent>
+
+        <TabsContent value="billing">
+          <SubscriptionPaymentsManager />
         </TabsContent>
 
         <TabsContent value="plans">
