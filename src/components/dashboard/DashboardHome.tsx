@@ -146,62 +146,24 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
   useEffect(() => {
     if (!tenantId) return;
 
-    // Set up real-time subscriptions with throttled callbacks
     const inventoryChannel = supabase
       .channel('dashboard-inventory')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'inventory',
-          filter: `tenant_id=eq.${tenantId}`
-        },
-        throttledFetchMetrics
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory', filter: `tenant_id=eq.${tenantId}` }, throttledRefetch)
       .subscribe();
 
     const invoicesChannel = supabase
       .channel('dashboard-invoices')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'invoices',
-          filter: `tenant_id=eq.${tenantId}`
-        },
-        throttledFetchMetrics
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices', filter: `tenant_id=eq.${tenantId}` }, throttledRefetch)
       .subscribe();
 
     const salesChannel = supabase
       .channel('dashboard-sales-transactions')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'sales_transactions',
-          filter: `tenant_id=eq.${tenantId}`,
-        },
-        throttledFetchMetrics
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_transactions', filter: `tenant_id=eq.${tenantId}` }, throttledRefetch)
       .subscribe();
 
-    // Subscribe to payment_receipts for invoice payment updates
     const paymentsChannel = supabase
       .channel('dashboard-payment-receipts')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'payment_receipts',
-          filter: `tenant_id=eq.${tenantId}`,
-        },
-        throttledFetchMetrics
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_receipts', filter: `tenant_id=eq.${tenantId}` }, throttledRefetch)
       .subscribe();
 
     return () => {
@@ -210,7 +172,7 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
       supabase.removeChannel(salesChannel);
       supabase.removeChannel(paymentsChannel);
     };
-  }, [tenantId, throttledFetchMetrics]);
+  }, [tenantId, throttledRefetch]);
 
   // Get metric value based on metric type
   const getMetricValue = (metric: string): string => {
