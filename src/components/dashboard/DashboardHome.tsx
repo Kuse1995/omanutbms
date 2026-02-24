@@ -148,7 +148,7 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
 
       setMetrics({
         inventoryValue: totalValue,
-        pendingInvoices: pendingInvoicesData?.length || 0,
+        pendingInvoices: pendingInvoicesData.length,
         activeAgents: agentsData.length,
         lowStockAlerts: lowStock,
         totalRevenue,
