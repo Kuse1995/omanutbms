@@ -310,7 +310,7 @@ export function InventoryAgent() {
           ? `${target.name} has been archived and hidden from sales.`
           : `${target.name} is active again.`,
       });
-      fetchInventory();
+      handleRefresh();
     } catch (error: any) {
       console.error("Archive/restore error:", error);
       toast({
