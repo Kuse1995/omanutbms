@@ -377,7 +377,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .single();
       
       if (profileData) {
-        setProfile(profileData);
+        setProfile(prev => {
+          if (prev && JSON.stringify(prev) === JSON.stringify(profileData)) return prev;
+          return profileData;
+        });
       }
     }
   };
