@@ -36,8 +36,8 @@ export function NotificationsCenter() {
   const isMountedRef = useRef(true);
   const hasFetchedRef = useRef(false);
 
-  // Stable fetch function that doesn't change between renders
-  const fetchNotifications = async () => {
+  // Stable fetch function wrapped in useCallback to prevent infinite re-render loops
+  const fetchNotifications = useCallback(async () => {
     // Prevent concurrent fetches
     if (!isMountedRef.current) return;
     const allNotifications: Notification[] = [];
