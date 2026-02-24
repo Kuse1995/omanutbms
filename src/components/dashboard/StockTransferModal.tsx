@@ -136,8 +136,8 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
   const fetchSourceInventory = async () => {
     if (!tenant?.id || !sourceId) return;
     try {
-      // Fetch branch-specific stock for the source location
-      const { data: branchData, error: branchError } = await supabase
+      // First try branch-specific stock
+      const { data: branchData } = await supabase
         .from('branch_inventory')
         .select(`
           id,
@@ -148,15 +148,31 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
         .eq('tenant_id', tenant.id)
         .eq('branch_id', sourceId)
         .gt('current_stock', 0);
-      
-      if (branchError) {
-        console.error('Error fetching branch inventory:', branchError);
+
+      if (branchData && branchData.length > 0) {
+        setAvailableInventory(branchData.map((item: any) => ({
+          id: item.inventory_id,
+          product_name: item.inventory?.name || 'Unknown',
+          sku: item.inventory?.sku || '',
+          current_stock: item.current_stock || 0,
+        })));
+        return;
       }
 
-      setAvailableInventory((branchData || []).map((item: any) => ({
-        id: item.inventory_id,
-        product_name: item.inventory?.name || 'Unknown',
-        sku: item.inventory?.sku || '',
+      // Fallback: show all tenant inventory with stock > 0
+      const { data: globalData, error: globalError } = await supabase
+        .from('inventory')
+        .select('id, name, sku, current_stock')
+        .eq('tenant_id', tenant.id)
+        .gt('current_stock', 0)
+        .order('name');
+
+      if (globalError) throw globalError;
+
+      setAvailableInventory((globalData || []).map((item: any) => ({
+        id: item.id,
+        product_name: item.name,
+        sku: item.sku || '',
         current_stock: item.current_stock || 0,
       })));
     } catch (error) {
