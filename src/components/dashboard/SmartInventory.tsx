@@ -90,7 +90,7 @@ export function SmartInventory() {
       const useBranchInventory = currentBranch && isMultiBranchEnabled;
 
       if (useBranchInventory) {
-        // Branch-specific: query branch_inventory joined with inventory
+        // Branch-specific: run count and data queries in parallel
         let countQuery = supabase
           .from("branch_inventory")
           .select("id", { count: "exact", head: true })
@@ -98,31 +98,25 @@ export function SmartInventory() {
           .eq("branch_id", currentBranch.id)
           .gt("current_stock", 0);
 
-        if (debouncedSearch.trim()) {
-          // For branch_inventory count with search, we need a different approach
-          // We'll get the count from the data query instead
-        }
+        const [countResult, dataResult] = await Promise.all([
+          countQuery,
+          supabase
+            .from("branch_inventory")
+            .select(`
+              id,
+              current_stock,
+              reserved,
+              inventory:inventory_id(id, sku, name, ai_prediction, status, item_type, category, is_archived)
+            `)
+            .eq("tenant_id", tenantId)
+            .eq("branch_id", currentBranch.id)
+            .gt("current_stock", 0)
+            .range(from, to),
+        ]);
 
-        const { count: branchCount } = await countQuery;
+        if (dataResult.error) throw dataResult.error;
 
-        let query = supabase
-          .from("branch_inventory")
-          .select(`
-            id,
-            current_stock,
-            reserved,
-            inventory:inventory_id(id, sku, name, ai_prediction, status, item_type, category, is_archived)
-          `)
-          .eq("tenant_id", tenantId)
-          .eq("branch_id", currentBranch.id)
-          .gt("current_stock", 0)
-          .range(from, to);
-
-        const { data: branchData, error } = await query;
-        if (error) throw error;
-
-        // Map branch_inventory data to InventoryItem format
-        let mappedItems: InventoryItem[] = (branchData || [])
+        let mappedItems: InventoryItem[] = (dataResult.data || [])
           .filter((item: any) => item.inventory && !item.inventory.is_archived)
           .map((item: any) => ({
             id: item.inventory.id,
@@ -136,7 +130,6 @@ export function SmartInventory() {
             category: item.inventory.category,
           }));
 
-        // Apply search filter client-side for branch inventory
         if (debouncedSearch.trim()) {
           const search = debouncedSearch.trim().toLowerCase();
           mappedItems = mappedItems.filter(item =>
@@ -144,11 +137,9 @@ export function SmartInventory() {
             (item.sku && item.sku.toLowerCase().includes(search))
           );
         }
-
-        // Sort by name
         mappedItems.sort((a, b) => a.name.localeCompare(b.name));
 
-        setTotalCount(debouncedSearch.trim() ? mappedItems.length : (branchCount || 0));
+        setTotalCount(debouncedSearch.trim() ? mappedItems.length : (countResult.count || 0));
         setInventory(mappedItems);
       } else {
         // Global view: query inventory table directly
