@@ -1,77 +1,52 @@
 
+# Fix Profile Flickering and Maximum Update Depth Error
 
-# Fix Profile Flickering and User Management Issues
+## Root Cause
 
-## Problem Analysis
+The console shows a **"Maximum update depth exceeded"** error originating from `NotificationsCenter`. This error causes the entire dashboard (including the Settings/Profile tab) to enter a re-render loop, producing the flickering you see. The profile form also has a secondary issue where fields render empty before being populated.
 
-Two distinct issues were identified:
+## What's Going Wrong
 
-### 1. Profile Settings Flickering
-The `Profile` interface in `useAuth.tsx` (line 16-23) is missing the `phone` field that exists in the database. This causes:
-- `UserProfileSettings` to use `(profile as any)?.phone` -- a type cast workaround
-- The `refreshProfile()` function returns a new object reference every time, triggering the `useEffect([profile])` in `UserProfileSettings`, which resets all form fields
-- This creates a visible flicker as fields blank out then refill
+1. **NotificationsCenter infinite loop**: The `fetchNotifications` function is defined inside the component but NOT wrapped in `useCallback`. It gets recreated on every render. The `throttledFetch` useMemo captures a stale reference, and when notifications state updates, it triggers a re-render, which creates a new `fetchNotifications`, which can trigger another fetch cycle -- causing the "Maximum update depth exceeded" error.
 
-### 2. User Management (Authorized Emails)
-The `AuthorizedEmailsManager` has a console.log on every render (line 65) and the role update now uses the `sync_user_role_by_email` RPC. The main issue is that `fetchEmails` depends on `tenantId` which may be null during initial load, causing the component to show "Loading..." indefinitely or fail silently.
+2. **Profile form double-render**: The form fields initialize with `useState(profile?.phone || "")` on line 31-35. Since `profile` is `null` on the first render, all fields start empty (`""`). Then the `useEffect` on line 41 fires and sets them again, causing a visible flash from empty to filled.
+
+3. **Auth context cascade**: Every `refreshProfile()` call (after save/upload) creates a new profile object reference. Even with the `JSON.stringify` comparison, the auth state change propagates through `TenantProvider` and `BranchProvider`, causing the whole dashboard to re-render.
 
 ## Fixes
 
-### Fix 1: Update `Profile` interface in `useAuth.tsx`
-Add the missing `phone` field to the `Profile` interface so the type system is correct and no `as any` casts are needed.
+### Fix 1: Stabilize NotificationsCenter (stops the infinite loop)
+- Wrap `fetchNotifications` in `useCallback` so it has a stable reference
+- This prevents the "Maximum update depth exceeded" error that cascades into all other components
 
-```text
-interface Profile {
-  id: string;
-  user_id: string;
-  full_name: string | null;
-  avatar_url: string | null;
-  department: string | null;
-  title: string | null;     // already exists but ensure it's here
-  phone: string | null;     // ADD THIS - exists in DB but missing from interface
-  last_login: string | null; // ADD THIS - exists in DB
-}
-```
+### Fix 2: Eliminate profile form flash
+- Remove the `useEffect` sync pattern entirely
+- Instead, derive initial values directly: don't render the form until `profile` is available
+- Use a simple early return with no spinner (just render nothing or the card shell) so there's no loading flash
+- Keep the `hasInitialized` ref but use it to set initial state only once via lazy initialization
 
-### Fix 2: Stabilize `UserProfileSettings` to prevent flickering
-The `useEffect([profile])` fires every time the profile object reference changes, resetting form state and causing flicker. Fix this by:
-- Adding a `hasInitialized` ref to only sync from profile on first load (not on every profile change)
-- Remove `(profile as any)?.phone` casts now that the type includes `phone`
-- Prevent `refreshProfile` from triggering form resets after saves (since the local state is already correct)
+### Fix 3: Prevent refreshProfile from triggering unnecessary re-renders
+- After saving profile data, DON'T call `refreshProfile()` since the local state already has the correct values
+- Only call `refreshProfile` for avatar changes where the URL comes from the server
 
-```text
-// Use a ref to track if we've done the initial sync
-const hasInitialized = useRef(false);
+## Technical Details
 
-useEffect(() => {
-  if (profile && !hasInitialized.current) {
-    setFullName(profile.full_name || "");
-    setTitle(profile.title || "");
-    setDepartment(profile.department || "");
-    setPhone(profile.phone || "");
-    setAvatarUrl(profile.avatar_url || "");
-    hasInitialized.current = true;
-  }
-}, [profile]);
-```
+### File: `src/components/dashboard/NotificationsCenter.tsx`
+- Wrap `fetchNotifications` in `useCallback` with proper dependencies
+- Update `throttledFetch` useMemo to depend on the stable callback
 
-### Fix 3: Remove noisy console.log in AuthorizedEmailsManager
-Line 65 logs auth state on every render, which adds noise. Remove it.
+### File: `src/components/dashboard/UserProfileSettings.tsx`
+- Remove the `useEffect` that syncs profile to form state
+- Instead, use a guard: if `!profile`, return the Card with a minimal placeholder (no spinner)
+- Initialize `useState` values lazily from profile on first meaningful render using a key pattern or conditional rendering
+- Remove `await refreshProfile()` from `handleSave` (local state is already correct)
+- Keep `refreshProfile` only in avatar upload/remove handlers
 
-### Fix 4: Clean up type casts in UserProfileSettings
-Replace all `(profile as any)?.phone` with `profile?.phone` and remove `as any` from the upsert calls since `phone` is now in the type.
+### File: `src/hooks/useAuth.tsx`
+- Memoize the `refreshProfile` function with `useCallback` to prevent it from being recreated on every render and causing downstream re-renders
 
-## Files to Modify
-
-| File | Change |
-|------|--------|
-| `src/hooks/useAuth.tsx` | Add `phone`, `last_login` to `Profile` interface (lines 16-23) |
-| `src/components/dashboard/UserProfileSettings.tsx` | Add `hasInitialized` ref to prevent re-sync flicker; remove `as any` casts |
-| `src/components/dashboard/AuthorizedEmailsManager.tsx` | Remove debug console.log on line 65 |
-
-## Impact
-- Profile tab will load once without flickering
-- Form fields will populate on first load and stay stable
-- Saves will update local state + DB without triggering a form reset loop
-- User management will continue working as before but without debug noise
-
+## Expected Result
+- No more "Maximum update depth exceeded" error
+- Profile tab loads instantly without any flicker or loading spinner
+- Saving profile doesn't trigger a full dashboard re-render cycle
+- The fix is minimal and targeted -- no architectural changes needed
