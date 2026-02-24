@@ -319,6 +319,37 @@ export function RestockModal({
           .eq("id", product.id);
 
         if (updateError) throw updateError;
+
+        // Also update branch_inventory for the current branch so location-level stock is in sync
+        if (currentBranch?.id && tenantId) {
+          // Check if a branch_inventory record exists
+          const { data: existingBranchInv } = await supabase
+            .from("branch_inventory")
+            .select("id, current_stock")
+            .eq("inventory_id", product.id)
+            .eq("branch_id", currentBranch.id)
+            .eq("tenant_id", tenantId)
+            .maybeSingle();
+
+          if (existingBranchInv) {
+            // Update existing record
+            await supabase
+              .from("branch_inventory")
+              .update({ current_stock: existingBranchInv.current_stock + quantity })
+              .eq("id", existingBranchInv.id);
+          } else {
+            // Create new branch_inventory record
+            await supabase
+              .from("branch_inventory")
+              .insert({
+                inventory_id: product.id,
+                branch_id: currentBranch.id,
+                tenant_id: tenantId,
+                current_stock: quantity,
+                reorder_level: 0,
+              });
+          }
+        }
       }
 
       // 2. Record restock history
