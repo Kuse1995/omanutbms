@@ -143,7 +143,7 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
           id,
           inventory_id,
           current_stock,
-          inventory:inventory_id(name, sku)
+          inventory:inventory_id(name, sku, is_archived)
         `)
         .eq('tenant_id', tenant.id)
         .eq('branch_id', sourceId)
