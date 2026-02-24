@@ -211,56 +211,52 @@ export function InventoryAgent() {
         setTotalCount(debouncedSearch.trim() || classFilter ? finalItems.length : (countResult.count || 0));
         setInventory(finalItems);
       } else {
-        // Global / All Locations view: query inventory table directly
+        // Global / All Locations view: run count, data, and variant queries in parallel
         let countQuery = supabase
           .from("inventory")
           .select("id", { count: "exact", head: true })
           .eq("tenant_id", tenantId)
           .eq("is_archived", showArchived);
 
-        if (classFilter) {
-          countQuery = countQuery.eq("inventory_class", classFilter);
-        }
+        if (classFilter) countQuery = countQuery.eq("inventory_class", classFilter);
         if (debouncedSearch.trim()) {
           const searchPattern = `%${debouncedSearch.trim()}%`;
           countQuery = countQuery.or(`name.ilike.${searchPattern},sku.ilike.${searchPattern}`);
         }
-        
-        const { count } = await countQuery;
-        setTotalCount(count || 0);
 
-        let query = supabase
+        let dataQuery = supabase
           .from("inventory")
           .select(`
-            *,
+            id, sku, name, current_stock, wholesale_stock, unit_price, cost_price, original_price,
+            reorder_level, liters_per_unit, image_url, category, status, item_type,
+            inventory_class, unit_of_measure, default_location_id, is_archived,
+            color_count, size_count, description, highlight, features, certifications, technical_specs,
             branches!default_location_id(name)
           `)
           .eq("tenant_id", tenantId)
           .eq("is_archived", showArchived);
 
-        if (classFilter) {
-          query = query.eq("inventory_class", classFilter);
-        }
+        if (classFilter) dataQuery = dataQuery.eq("inventory_class", classFilter);
         if (debouncedSearch.trim()) {
           const searchPattern = `%${debouncedSearch.trim()}%`;
-          query = query.or(`name.ilike.${searchPattern},sku.ilike.${searchPattern}`);
+          dataQuery = dataQuery.or(`name.ilike.${searchPattern},sku.ilike.${searchPattern}`);
         }
-        
-        const { data: inventoryData, error } = await query
-          .order("name")
-          .range(from, to);
 
-        if (error) throw error;
+        const [countResult, dataResult, variantsResult] = await Promise.all([
+          countQuery,
+          dataQuery.order("name").range(from, to),
+          supabase
+            .from("product_variants")
+            .select("product_id, variant_type")
+            .eq("tenant_id", tenantId)
+            .eq("is_active", true),
+        ]);
 
-        // Fetch variant counts for each product
-        const { data: variantsData } = await supabase
-          .from("product_variants")
-          .select("product_id, variant_type")
-          .eq("tenant_id", tenantId)
-          .eq("is_active", true);
+        if (dataResult.error) throw dataResult.error;
+        setTotalCount(countResult.count || 0);
 
         const variantCounts: Record<string, { colors: number; sizes: number }> = {};
-        variantsData?.forEach((v) => {
+        variantsResult.data?.forEach((v) => {
           if (!variantCounts[v.product_id]) {
             variantCounts[v.product_id] = { colors: 0, sizes: 0 };
           }
@@ -268,7 +264,7 @@ export function InventoryAgent() {
           if (v.variant_type === "size") variantCounts[v.product_id].sizes++;
         });
 
-        const enrichedInventory = ((inventoryData || []) as any[]).map((item) => ({
+        const enrichedInventory = ((dataResult.data || []) as any[]).map((item) => ({
           ...item,
           color_count: variantCounts[item.id]?.colors || 0,
           size_count: variantCounts[item.id]?.sizes || 0,
