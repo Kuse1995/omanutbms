@@ -32,12 +32,13 @@ export function FinancialReportGenerator() {
   const [periodEnd, setPeriodEnd] = useState(format(endOfMonth(subMonths(new Date(), 1)), "yyyy-MM-dd"));
   const [report, setReport] = useState<{ summary: string; insights: ReportInsights } | null>(null);
   const { toast } = useToast();
+  const { tenantId } = useTenant();
 
   const generateReport = async () => {
     setIsGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke("generate-financial-report", {
-        body: { periodStart, periodEnd },
+        body: { periodStart, periodEnd, tenantId },
       });
 
       if (error) throw error;
