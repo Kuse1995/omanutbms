@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -52,208 +53,117 @@ const iconMap: Record<string, LucideIcon> = {
 };
 
 export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
-  const [metrics, setMetrics] = useState<DashboardMetrics>({
-    inventoryValue: 0,
-    pendingInvoices: 0,
-    activeAgents: 0,
-    lowStockAlerts: 0,
-    totalRevenue: 0,
-    todaySales: 0,
-    activeClients: 0,
-    studentsEnrolled: 0,
-    donationsReceived: 0,
-    bookingsToday: 0,
-    appointmentsToday: 0,
-    patientsToday: 0,
-    jobsInProgress: 0,
-    livestockCount: 0,
-  });
-  const [isLoading, setIsLoading] = useState(true);
   const [showCustomDesignWizard, setShowCustomDesignWizard] = useState(false);
   const { features, loading: featuresLoading, companyName, currencySymbol } = useFeatures();
   const { layout, terminology, businessType } = useBusinessConfig();
   const { tenantId } = useTenant();
   const { isCustomDesignerEnabled, isProductionTrackingEnabled } = useEnterpriseFeatures();
-  const isMountedRef = useRef(true);
-  const hasFetchedRef = useRef(false);
 
-  const fetchMetrics = useCallback(async () => {
-    if (!tenantId) {
-      setIsLoading(false);
-      return;
-    }
+  const defaultMetrics: DashboardMetrics = {
+    inventoryValue: 0, pendingInvoices: 0, activeAgents: 0, lowStockAlerts: 0,
+    totalRevenue: 0, todaySales: 0, activeClients: 0, studentsEnrolled: 0,
+    donationsReceived: 0, bookingsToday: 0, appointmentsToday: 0, patientsToday: 0,
+    jobsInProgress: 0, livestockCount: 0,
+  };
 
-    try {
-      const startOfMonth = new Date();
-      startOfMonth.setDate(1);
-      startOfMonth.setHours(0, 0, 0, 0);
-      const startOfMonthStr = startOfMonth.toISOString().split("T")[0];
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayDateStr = today.toISOString().split("T")[0];
+  const fetchMetrics = useCallback(async (): Promise<DashboardMetrics> => {
+    if (!tenantId) return defaultMetrics;
 
-      // Run all independent queries in parallel
-      const [
-        inventoryResult,
-        pendingInvoicesResult,
-        agentsResult,
-        allReceiptsResult,
-        todayReceiptsResult,
-        pendingJobsResult,
-        livestockResult,
-      ] = await Promise.all([
-        // Inventory data
-        features.inventory
-          ? supabase.from("inventory").select("current_stock, unit_price, reorder_level").eq("tenant_id", tenantId)
-          : Promise.resolve({ data: [] }),
-        // Pending invoices
-        supabase.from("invoices").select("id").eq("tenant_id", tenantId).in("status", ["pending", "draft"]),
-        // Approved agents
-        features.agents
-          ? supabase.from("agent_applications").select("status").eq("tenant_id", tenantId).eq("status", "approved")
-          : Promise.resolve({ data: [] }),
-        // Monthly receipts
-        supabase.from("payment_receipts").select("amount_paid, payment_date, client_email, client_name").eq("tenant_id", tenantId).gte("payment_date", startOfMonthStr),
-        // Today's receipts
-        supabase.from("payment_receipts").select("id, amount_paid").eq("tenant_id", tenantId).eq("payment_date", todayDateStr),
-        // Pending jobs
-        supabase.from("invoices").select("id").eq("tenant_id", tenantId).eq("status", "pending"),
-        // Livestock count
-        features.inventory
-          ? supabase.from("inventory").select("current_stock").eq("tenant_id", tenantId).eq("category", "livestock")
-          : Promise.resolve({ data: [] }),
-      ]);
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+    const startOfMonthStr = startOfMonth.toISOString().split("T")[0];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayDateStr = today.toISOString().split("T")[0];
 
-      const inventoryData = inventoryResult.data || [];
-      const pendingInvoicesData = pendingInvoicesResult.data || [];
-      const agentsData = agentsResult.data || [];
-      const allReceiptsData = allReceiptsResult.data || [];
-      const todayReceiptsData = todayReceiptsResult.data || [];
-      const pendingJobs = pendingJobsResult.data || [];
-      const livestockData = livestockResult.data || [];
+    const [
+      inventoryResult, pendingInvoicesResult, agentsResult,
+      allReceiptsResult, todayReceiptsResult, pendingJobsResult, livestockResult,
+    ] = await Promise.all([
+      features.inventory
+        ? supabase.from("inventory").select("current_stock, unit_price, reorder_level").eq("tenant_id", tenantId)
+        : Promise.resolve({ data: [] }),
+      supabase.from("invoices").select("id").eq("tenant_id", tenantId).in("status", ["pending", "draft"]),
+      features.agents
+        ? supabase.from("agent_applications").select("status").eq("tenant_id", tenantId).eq("status", "approved")
+        : Promise.resolve({ data: [] }),
+      supabase.from("payment_receipts").select("amount_paid, payment_date, client_email, client_name").eq("tenant_id", tenantId).gte("payment_date", startOfMonthStr),
+      supabase.from("payment_receipts").select("id, amount_paid").eq("tenant_id", tenantId).eq("payment_date", todayDateStr),
+      supabase.from("invoices").select("id").eq("tenant_id", tenantId).eq("status", "pending"),
+      features.inventory
+        ? supabase.from("inventory").select("current_stock").eq("tenant_id", tenantId).eq("category", "livestock")
+        : Promise.resolve({ data: [] }),
+    ]);
 
-      const totalRevenue = allReceiptsData.reduce((sum: number, r: any) => sum + Number(r.amount_paid ?? 0), 0);
-      const uniqueClients = new Set(
-        allReceiptsData.map((r: any) => r.client_email || r.client_name).filter(Boolean)
-      ).size;
-      const totalValue = inventoryData.reduce(
-        (sum: number, item: any) => sum + item.current_stock * Number(item.unit_price), 0
-      );
-      const lowStock = inventoryData.filter(
-        (item: any) => item.current_stock < (item.reorder_level || 10)
-      ).length;
-      const todaySalesCount = todayReceiptsData.length;
-      const todaySalesRevenue = todayReceiptsData.reduce((sum: number, r: any) => sum + Number(r.amount_paid || 0), 0);
-      const livestockCount = livestockData.reduce((sum: number, item: any) => sum + item.current_stock, 0);
+    const inventoryData = inventoryResult.data || [];
+    const allReceiptsData = allReceiptsResult.data || [];
+    const todayReceiptsData = todayReceiptsResult.data || [];
+    const livestockData = livestockResult.data || [];
 
-      setMetrics({
-        inventoryValue: totalValue,
-        pendingInvoices: pendingInvoicesData.length,
-        activeAgents: agentsData.length,
-        lowStockAlerts: lowStock,
-        totalRevenue,
-        todaySales: todaySalesRevenue,
-        activeClients: uniqueClients,
-        studentsEnrolled: uniqueClients,
-        donationsReceived: totalRevenue,
-        bookingsToday: todaySalesCount,
-        appointmentsToday: todaySalesCount,
-        patientsToday: todaySalesCount,
-        jobsInProgress: pendingJobs.length,
-        livestockCount,
-      });
-    } catch (error) {
-      console.error("Error fetching metrics:", error);
-    } finally {
-      if (isMountedRef.current) {
-        setIsLoading(false);
-      }
-    }
+    const totalRevenue = allReceiptsData.reduce((sum: number, r: any) => sum + Number(r.amount_paid ?? 0), 0);
+    const uniqueClients = new Set(allReceiptsData.map((r: any) => r.client_email || r.client_name).filter(Boolean)).size;
+    const totalValue = inventoryData.reduce((sum: number, item: any) => sum + item.current_stock * Number(item.unit_price), 0);
+    const lowStock = inventoryData.filter((item: any) => item.current_stock < (item.reorder_level || 10)).length;
+    const todaySalesCount = todayReceiptsData.length;
+    const todaySalesRevenue = todayReceiptsData.reduce((sum: number, r: any) => sum + Number(r.amount_paid || 0), 0);
+    const livestockCount = livestockData.reduce((sum: number, item: any) => sum + item.current_stock, 0);
+
+    return {
+      inventoryValue: totalValue,
+      pendingInvoices: (pendingInvoicesResult.data || []).length,
+      activeAgents: (agentsResult.data || []).length,
+      lowStockAlerts: lowStock,
+      totalRevenue,
+      todaySales: todaySalesRevenue,
+      activeClients: uniqueClients,
+      studentsEnrolled: uniqueClients,
+      donationsReceived: totalRevenue,
+      bookingsToday: todaySalesCount,
+      appointmentsToday: todaySalesCount,
+      patientsToday: todaySalesCount,
+      jobsInProgress: (pendingJobsResult.data || []).length,
+      livestockCount,
+    };
   }, [tenantId, features]);
 
-  // Throttled version for realtime updates (max once per 3 seconds)
-  const throttledFetchMetrics = useMemo(
-    () => throttle(() => {
-      if (isMountedRef.current) {
-        fetchMetrics();
-      }
-    }, 3000),
-    [fetchMetrics]
+  const { data: metrics = defaultMetrics, isLoading, refetch } = useQuery({
+    queryKey: ['dashboard-metrics', tenantId],
+    queryFn: fetchMetrics,
+    enabled: !!tenantId && !featuresLoading,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  // Throttled refetch for realtime updates
+  const throttledRefetch = useMemo(
+    () => throttle(() => { refetch(); }, 3000),
+    [refetch]
   );
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    
-    if (!featuresLoading && tenantId && !hasFetchedRef.current) {
-      hasFetchedRef.current = true;
-      fetchMetrics();
-    }
-
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, [featuresLoading, tenantId, fetchMetrics]);
 
   // Separate effect for realtime subscriptions to avoid re-subscribing on every render
   useEffect(() => {
     if (!tenantId) return;
 
-    // Set up real-time subscriptions with throttled callbacks
     const inventoryChannel = supabase
       .channel('dashboard-inventory')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'inventory',
-          filter: `tenant_id=eq.${tenantId}`
-        },
-        throttledFetchMetrics
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory', filter: `tenant_id=eq.${tenantId}` }, throttledRefetch)
       .subscribe();
 
     const invoicesChannel = supabase
       .channel('dashboard-invoices')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'invoices',
-          filter: `tenant_id=eq.${tenantId}`
-        },
-        throttledFetchMetrics
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices', filter: `tenant_id=eq.${tenantId}` }, throttledRefetch)
       .subscribe();
 
     const salesChannel = supabase
       .channel('dashboard-sales-transactions')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'sales_transactions',
-          filter: `tenant_id=eq.${tenantId}`,
-        },
-        throttledFetchMetrics
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_transactions', filter: `tenant_id=eq.${tenantId}` }, throttledRefetch)
       .subscribe();
 
-    // Subscribe to payment_receipts for invoice payment updates
     const paymentsChannel = supabase
       .channel('dashboard-payment-receipts')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'payment_receipts',
-          filter: `tenant_id=eq.${tenantId}`,
-        },
-        throttledFetchMetrics
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_receipts', filter: `tenant_id=eq.${tenantId}` }, throttledRefetch)
       .subscribe();
 
     return () => {
@@ -262,7 +172,7 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
       supabase.removeChannel(salesChannel);
       supabase.removeChannel(paymentsChannel);
     };
-  }, [tenantId, throttledFetchMetrics]);
+  }, [tenantId, throttledRefetch]);
 
   // Get metric value based on metric type
   const getMetricValue = (metric: string): string => {

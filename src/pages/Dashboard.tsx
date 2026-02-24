@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, lazy, Suspense } from "react";
+import { useState, useEffect, useMemo, useRef, lazy, Suspense } from "react";
 import { useSearchParams } from "react-router-dom";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
@@ -53,6 +53,9 @@ const JobCardsManager = lazy(() => import("@/components/dashboard/JobCardsManage
 export type DashboardTab = "dashboard" | "sales" | "receipts" | "quotations" | "accounts" | "assets" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings" | "tenant-settings" | "modules" | "platform-admin" | "branches" | "returns" | "customers" | "custom-orders" | "warehouse" | "stock-transfers" | "locations" | "production-floor" | "job-cards";
 
 const validTabs: DashboardTab[] = ["dashboard", "sales", "receipts", "quotations", "accounts", "assets", "hr", "inventory", "shop", "agents", "communities", "messages", "contacts", "website", "settings", "tenant-settings", "modules", "platform-admin", "branches", "returns", "customers", "custom-orders", "warehouse", "stock-transfers", "locations", "production-floor", "job-cards"];
+
+// Heavy tabs that stay mounted (CSS hidden) once visited for instant switch-back
+const PERSISTENT_TABS: DashboardTab[] = ["inventory", "sales", "accounts", "hr", "shop"];
 
 function TabFallback() {
   return (
@@ -168,66 +171,53 @@ const Dashboard = () => {
     }
   };
 
-  const renderContent = () => {
-    switch (activeTab) {
-      case "dashboard":
-        return <DashboardHome setActiveTab={handleSetActiveTab} />;
-      case "sales":
-        return <SalesRecorder />;
-      case "receipts":
-        return <ReceiptsManager />;
-      case "quotations":
-        return <QuotationsManager />;
-      case "accounts":
-        return <AccountsAgent />;
-      case "assets":
-        return <AssetsManager />;
-      case "hr":
-        return <HRAgent />;
-      case "inventory":
-        return <InventoryAgent />;
-      case "shop":
-        return <ShopManager />;
-      case "agents":
-        return <AgentsManager />;
-      case "communities":
-        return <WASHForumsManagement />;
-      case "messages":
-        return <CommunityMessagesManagement />;
-      case "contacts":
-        return <WebsiteContactsManagement />;
-      case "website":
-        return <WebsiteManager />;
-      case "settings":
-        return <SettingsManager />;
-      case "tenant-settings":
-        return <TenantSettings />;
-      case "modules":
-        return <ModulesMarketplace />;
-      case "platform-admin":
-        return <SuperAdminPanel />;
-      case "branches":
-        return <BranchesManager />;
-      case "returns":
-        return <ReturnsAndDamagesManager />;
-      case "customers":
-        return <CustomersManager />;
-      case "custom-orders":
-        return <CustomOrdersManager />;
-      case "warehouse":
-        return <WarehouseView />;
-      case "stock-transfers":
-        return <StockTransfersManager />;
-      case "locations":
-        return <LocationsManager />;
-      case "production-floor":
-        return <ProductionFloor />;
-      case "job-cards":
-        return <JobCardsManager />;
-      default:
-        return <DashboardHome />;
+  // Track which persistent tabs have been visited so we can mount them
+  const [visitedPersistentTabs, setVisitedPersistentTabs] = useState<Set<DashboardTab>>(
+    () => new Set(PERSISTENT_TABS.includes(getInitialTab()) ? [getInitialTab()] : [])
+  );
+
+  // When activeTab changes, mark persistent tabs as visited
+  useEffect(() => {
+    if (PERSISTENT_TABS.includes(activeTab) && !visitedPersistentTabs.has(activeTab)) {
+      setVisitedPersistentTabs(prev => new Set([...prev, activeTab]));
+    }
+  }, [activeTab]);
+
+  const getTabComponent = (tab: DashboardTab) => {
+    switch (tab) {
+      case "dashboard": return <DashboardHome setActiveTab={handleSetActiveTab} />;
+      case "sales": return <SalesRecorder />;
+      case "receipts": return <ReceiptsManager />;
+      case "quotations": return <QuotationsManager />;
+      case "accounts": return <AccountsAgent />;
+      case "assets": return <AssetsManager />;
+      case "hr": return <HRAgent />;
+      case "inventory": return <InventoryAgent />;
+      case "shop": return <ShopManager />;
+      case "agents": return <AgentsManager />;
+      case "communities": return <WASHForumsManagement />;
+      case "messages": return <CommunityMessagesManagement />;
+      case "contacts": return <WebsiteContactsManagement />;
+      case "website": return <WebsiteManager />;
+      case "settings": return <SettingsManager />;
+      case "tenant-settings": return <TenantSettings />;
+      case "modules": return <ModulesMarketplace />;
+      case "platform-admin": return <SuperAdminPanel />;
+      case "branches": return <BranchesManager />;
+      case "returns": return <ReturnsAndDamagesManager />;
+      case "customers": return <CustomersManager />;
+      case "custom-orders": return <CustomOrdersManager />;
+      case "warehouse": return <WarehouseView />;
+      case "stock-transfers": return <StockTransfersManager />;
+      case "locations": return <LocationsManager />;
+      case "production-floor": return <ProductionFloor />;
+      case "job-cards": return <JobCardsManager />;
+      default: return <DashboardHome />;
     }
   };
+
+  // Check if current tab is a persistent one
+  const isActivePersistent = PERSISTENT_TABS.includes(activeTab);
 
   return (
     <>
@@ -242,7 +232,15 @@ const Dashboard = () => {
               <DashboardHeader />
               <main className="flex-1 p-3 sm:p-6 overflow-auto">
                 <Suspense fallback={<TabFallback />}>
-                  {renderContent()}
+                  {/* Persistent tabs: kept mounted but hidden via CSS */}
+                  {Array.from(visitedPersistentTabs).map(tab => (
+                    <div key={tab} style={{ display: activeTab === tab ? 'block' : 'none' }}>
+                      {getTabComponent(tab)}
+                    </div>
+                  ))}
+
+                  {/* Non-persistent tabs: mount/unmount normally */}
+                  {!isActivePersistent && getTabComponent(activeTab)}
                 </Suspense>
               </main>
             </div>
