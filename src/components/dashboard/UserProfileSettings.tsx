@@ -206,7 +206,8 @@ function UserProfileForm({ profile: initialProfile }: { profile: NonNullable<Ret
         }
       }
 
-      await refreshProfile?.();
+      // Don't call refreshProfile here - local state is already correct
+      // This prevents cascading re-renders through TenantProvider/BranchProvider
 
       toast({
         title: "Profile updated",
