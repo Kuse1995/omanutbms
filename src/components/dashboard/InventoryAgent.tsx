@@ -142,31 +142,36 @@ export function InventoryAgent() {
       const useBranchInventory = currentBranch && isMultiBranchEnabled && !viewAllLocations;
 
       if (useBranchInventory) {
-        // Branch-specific: query branch_inventory joined with inventory
-        const { count: branchCount } = await supabase
-          .from("branch_inventory")
-          .select("id", { count: "exact", head: true })
-          .eq("tenant_id", tenantId)
-          .eq("branch_id", currentBranch.id)
-          .gt("current_stock", 0);
+        // Branch-specific: run count, data, and variant queries in parallel
+        const [countResult, dataResult, variantsResult] = await Promise.all([
+          supabase
+            .from("branch_inventory")
+            .select("id", { count: "exact", head: true })
+            .eq("tenant_id", tenantId)
+            .eq("branch_id", currentBranch.id)
+            .gt("current_stock", 0),
+          supabase
+            .from("branch_inventory")
+            .select(`
+              id,
+              current_stock,
+              reserved,
+              inventory:inventory_id(id, sku, name, current_stock, wholesale_stock, unit_price, cost_price, original_price, reorder_level, image_url, category, status, item_type, inventory_class, unit_of_measure, default_location_id, is_archived)
+            `)
+            .eq("tenant_id", tenantId)
+            .eq("branch_id", currentBranch.id)
+            .gt("current_stock", 0)
+            .range(from, to),
+          supabase
+            .from("product_variants")
+            .select("product_id, variant_type")
+            .eq("tenant_id", tenantId)
+            .eq("is_active", true),
+        ]);
 
-        const { data: branchData, error } = await supabase
-          .from("branch_inventory")
-          .select(`
-            id,
-            current_stock,
-            reserved,
-            inventory:inventory_id(*)
-          `)
-          .eq("tenant_id", tenantId)
-          .eq("branch_id", currentBranch.id)
-          .gt("current_stock", 0)
-          .range(from, to);
+        if (dataResult.error) throw dataResult.error;
 
-        if (error) throw error;
-
-        // Map branch_inventory data, overlay branch stock onto inventory record
-        let enrichedItems = (branchData || [])
+        let enrichedItems = (dataResult.data || [])
           .filter((item: any) => item.inventory && item.inventory.is_archived === showArchived)
           .map((item: any) => ({
             ...item.inventory,
@@ -175,12 +180,9 @@ export function InventoryAgent() {
             location_name: currentBranch.name,
           }));
 
-        // Apply class filter client-side
         if (classFilter) {
           enrichedItems = enrichedItems.filter((item: any) => item.inventory_class === classFilter);
         }
-
-        // Apply search filter client-side
         if (debouncedSearch.trim()) {
           const search = debouncedSearch.trim().toLowerCase();
           enrichedItems = enrichedItems.filter((item: any) =>
@@ -188,19 +190,10 @@ export function InventoryAgent() {
             (item.sku && item.sku.toLowerCase().includes(search))
           );
         }
-
-        // Sort by name
         enrichedItems.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
 
-        // Fetch variant counts
-        const { data: variantsData } = await supabase
-          .from("product_variants")
-          .select("product_id, variant_type")
-          .eq("tenant_id", tenantId)
-          .eq("is_active", true);
-
         const variantCounts: Record<string, { colors: number; sizes: number }> = {};
-        variantsData?.forEach((v) => {
+        variantsResult.data?.forEach((v) => {
           if (!variantCounts[v.product_id]) {
             variantCounts[v.product_id] = { colors: 0, sizes: 0 };
           }
@@ -215,7 +208,7 @@ export function InventoryAgent() {
           technical_specs: item.technical_specs as unknown as TechnicalSpec[] | null,
         }));
 
-        setTotalCount(debouncedSearch.trim() || classFilter ? finalItems.length : (branchCount || 0));
+        setTotalCount(debouncedSearch.trim() || classFilter ? finalItems.length : (countResult.count || 0));
         setInventory(finalItems);
       } else {
         // Global / All Locations view: query inventory table directly
