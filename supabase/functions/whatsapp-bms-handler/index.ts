@@ -39,6 +39,11 @@ const REQUIRED_FIELDS: Record<string, string[]> = {
   record_sale: ['product', 'amount'],
   record_expense: ['description', 'amount'],
   generate_invoice: ['customer_name'],
+  create_invoice: ['customer_name', 'items'],
+  create_quotation: ['customer_name', 'items'],
+  credit_sale: ['product', 'amount', 'customer_name'],
+  who_owes: [],
+  daily_report: [],
   check_stock: [],
   list_products: [],
   get_sales_summary: [],
@@ -48,11 +53,11 @@ const REQUIRED_FIELDS: Record<string, string[]> = {
   send_invoice: [],
   send_quotation: [],
   send_payslip: [],
-  // New employee intents
+  // Employee intents
   my_tasks: [],
   task_details: ['order_number'],
   my_schedule: [],
-  clock_in: [], // Location optional but enables verification
+  clock_in: [],
   clock_out: [],
   my_attendance: [],
   my_pay: [],
