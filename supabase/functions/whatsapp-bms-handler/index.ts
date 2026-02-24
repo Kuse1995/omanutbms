@@ -15,18 +15,27 @@ const HELP_MESSAGE = `Hey there! 👋 I'm your business assistant.
 Here's what I can help with:
 
 📦 *Sales & Stock*
-Just tell me what you sold, like "sold 5 cement 2500 cash" or ask "check stock cement"
+"sold 5 cement 2500 cash" or "check stock cement" or "list products"
+
+💳 *Credit Sales*
+"sold 3 bags to John on credit 1500" or "who owes me"
+
+📋 *Invoices & Quotes*
+"invoice John 5 bags cement 2500" or "quote for ABC 10 bags 5000"
+
+📊 *Reports*
+"daily report" or "sales today" or "sales this week"
 
 👔 *Your Work*
-Say "my tasks" to see what's pending, "clock in" when you arrive, or "my pay" for your latest payslip
+"my tasks", "clock in", "my pay"
 
-📋 *Documents*
-Need a receipt or invoice? Just ask - "last receipt" or "send invoice"
+📄 *Documents*
+"last receipt" or "send invoice 2026-0001"
 
 💰 *Expenses*
-Log spending with "spent 200 on transport"
+"spent 200 on transport"
 
-Just chat naturally - I understand broken English and shortcuts! Say "cancel" anytime to start fresh.`;
+Just chat naturally - I understand shortcuts! Say "cancel" anytime to start fresh.`;
 
 const UNREGISTERED_MESSAGE = `Hi! I don't recognize this number yet.
 
@@ -39,6 +48,11 @@ const REQUIRED_FIELDS: Record<string, string[]> = {
   record_sale: ['product', 'amount'],
   record_expense: ['description', 'amount'],
   generate_invoice: ['customer_name'],
+  create_invoice: ['customer_name', 'items'],
+  create_quotation: ['customer_name', 'items'],
+  credit_sale: ['product', 'amount', 'customer_name'],
+  who_owes: [],
+  daily_report: [],
   check_stock: [],
   list_products: [],
   get_sales_summary: [],
@@ -48,11 +62,11 @@ const REQUIRED_FIELDS: Record<string, string[]> = {
   send_invoice: [],
   send_quotation: [],
   send_payslip: [],
-  // New employee intents
+  // Employee intents
   my_tasks: [],
   task_details: ['order_number'],
   my_schedule: [],
-  clock_in: [], // Location optional but enables verification
+  clock_in: [],
   clock_out: [],
   my_attendance: [],
   my_pay: [],
@@ -684,6 +698,9 @@ Your admin can upgrade the plan to keep chatting, or it'll reset next month. Con
     // Check if confirmation is required for high-value transactions
     const amount = mergedEntities.amount || 0;
     const needsConfirmation = (parsedIntent.intent === 'record_sale' && amount >= 10000) ||
+                              (parsedIntent.intent === 'credit_sale') ||
+                              (parsedIntent.intent === 'create_invoice') ||
+                              (parsedIntent.intent === 'create_quotation') ||
                               (parsedIntent.intent === 'record_expense' && amount >= 5000) ||
                               parsedIntent.intent === 'generate_invoice';
 
@@ -1010,6 +1027,45 @@ function generatePromptForMissingFields(intent: string, missingFields: string[],
     return `Who should I create the invoice for?${haveSummary}`;
   }
 
+  if (intent === 'create_invoice') {
+    if (missingFields.includes('customer_name') && missingFields.includes('items')) {
+      return `Who is the invoice for and what items? Example: "invoice John 5 bags cement 2500"${haveSummary}`;
+    }
+    if (missingFields.includes('customer_name')) {
+      return `Who is the invoice for?${haveSummary}`;
+    }
+    if (missingFields.includes('items')) {
+      return `What items should I include? E.g. "5 bags cement at 500 each"${haveSummary}`;
+    }
+  }
+
+  if (intent === 'create_quotation') {
+    if (missingFields.includes('customer_name') && missingFields.includes('items')) {
+      return `Who is the quotation for and what items? Example: "quote John 10 bags at 500"${haveSummary}`;
+    }
+    if (missingFields.includes('customer_name')) {
+      return `Who is the quotation for?${haveSummary}`;
+    }
+    if (missingFields.includes('items')) {
+      return `What items should I quote? E.g. "10 bags cement at 500"${haveSummary}`;
+    }
+  }
+
+  if (intent === 'credit_sale') {
+    if (missingFields.includes('customer_name')) {
+      return `Who are you selling to on credit?${haveSummary}`;
+    }
+    if (missingFields.includes('product') && missingFields.includes('amount')) {
+      return `What did you sell on credit and for how much?${haveSummary}`;
+    }
+    if (missingFields.includes('product')) {
+      return `What product was sold on credit?${haveSummary}`;
+    }
+    if (missingFields.includes('amount')) {
+      return `How much was the credit sale for?${haveSummary}`;
+    }
+  }
+
   // Friendly generic fallback
   const fieldNames = missingFields.map(f => f.replace(/_/g, ' ')).join(' and ');
   return `Just need the ${fieldNames} to continue.${haveSummary}`;
@@ -1105,6 +1161,24 @@ function getConfirmationMessage(intent: string, entities: any): string {
       return `Recording K${amount} expense for "${entities.description}".\n\nLooks good? Say yes to confirm.`;
     case 'generate_invoice':
       return `I'll create an invoice for ${customer}.\n\nGood to go?`;
+    case 'create_invoice': {
+      const itemList = (entities.items || []).map((item: any) => 
+        `  • ${item.quantity || 1}x ${item.description || item.product || 'Item'} @ K${(item.unit_price || 0).toLocaleString()}`
+      ).join('\n');
+      const total = (entities.items || []).reduce((sum: number, i: any) => sum + (Number(i.amount) || 0), 0);
+      return `Creating invoice for ${customer}:\n${itemList}\n💵 Total: K${total.toLocaleString()}\n\nLooks right? Say yes to create.`;
+    }
+    case 'create_quotation': {
+      const itemList = (entities.items || []).map((item: any) => 
+        `  • ${item.quantity || 1}x ${item.description || item.product || 'Item'} @ K${(item.unit_price || 0).toLocaleString()}`
+      ).join('\n');
+      const total = (entities.items || []).reduce((sum: number, i: any) => sum + (Number(i.amount) || 0), 0);
+      return `Creating quotation for ${customer}:\n${itemList}\n💵 Total: K${total.toLocaleString()}\n\nLooks right? Say yes to create.`;
+    }
+    case 'credit_sale': {
+      const cQty = qty > 1 ? `${qty}x ` : '';
+      return `Recording credit sale: ${cQty}${product} to ${customer} for K${amount}.\n\nAn invoice will be created. Say yes to confirm.`;
+    }
     default:
       return `Just confirming - ${intent.replace(/_/g, ' ')}?\n\nSay yes to proceed.`;
   }

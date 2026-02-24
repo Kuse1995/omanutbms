@@ -23,17 +23,20 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'record_sale', 'check_stock', 'list_products', 'generate_invoice', 'record_expense', 
     'get_sales_summary', 'get_sales_details', 'check_customer',
     'my_tasks', 'task_details', 'my_schedule', 'clock_in', 'clock_out', 'my_attendance', 'my_pay',
-    'team_attendance', 'pending_orders', 'low_stock_alerts', 'update_order_status'
+    'team_attendance', 'pending_orders', 'low_stock_alerts', 'update_order_status',
+    'create_invoice', 'create_quotation', 'who_owes', 'daily_report', 'credit_sale'
   ],
   manager: [
     'record_sale', 'check_stock', 'list_products', 'generate_invoice', 'record_expense', 
     'get_sales_summary', 'get_sales_details', 'check_customer',
     'my_tasks', 'task_details', 'my_schedule', 'clock_in', 'clock_out', 'my_attendance', 'my_pay',
-    'team_attendance', 'pending_orders', 'low_stock_alerts', 'update_order_status'
+    'team_attendance', 'pending_orders', 'low_stock_alerts', 'update_order_status',
+    'create_invoice', 'create_quotation', 'who_owes', 'daily_report', 'credit_sale'
   ],
   accountant: [
     'check_stock', 'list_products', 'generate_invoice', 'record_expense', 'get_sales_summary', 'get_sales_details',
-    'my_tasks', 'my_schedule', 'clock_in', 'clock_out', 'my_attendance', 'my_pay'
+    'my_tasks', 'my_schedule', 'clock_in', 'clock_out', 'my_attendance', 'my_pay',
+    'create_invoice', 'create_quotation', 'who_owes', 'daily_report'
   ],
   hr_manager: [
     'check_stock', 'list_products', 'get_sales_summary',
@@ -42,11 +45,13 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
   ],
   sales_rep: [
     'record_sale', 'check_stock', 'list_products', 'get_sales_details', 'check_customer',
-    'my_tasks', 'task_details', 'my_schedule', 'clock_in', 'clock_out', 'my_attendance', 'my_pay'
+    'my_tasks', 'task_details', 'my_schedule', 'clock_in', 'clock_out', 'my_attendance', 'my_pay',
+    'create_quotation', 'who_owes', 'credit_sale'
   ],
   cashier: [
     'record_sale', 'check_stock', 'list_products',
-    'clock_in', 'clock_out', 'my_attendance', 'my_pay'
+    'clock_in', 'clock_out', 'my_attendance', 'my_pay',
+    'credit_sale'
   ],
   staff: [
     'record_sale', 'check_stock', 'list_products', 'record_expense', 'get_sales_details',
@@ -450,6 +455,22 @@ serve(async (req) => {
         break;
       case 'update_order_status':
         result = await handleUpdateOrderStatus(supabase, entities, context);
+        break;
+      // Financial intents
+      case 'create_invoice':
+        result = await handleCreateInvoice(supabase, entities, context);
+        break;
+      case 'create_quotation':
+        result = await handleCreateQuotation(supabase, entities, context);
+        break;
+      case 'who_owes':
+        result = await handleWhoOwes(supabase, entities, context);
+        break;
+      case 'daily_report':
+        result = await handleDailyReport(supabase, entities, context);
+        break;
+      case 'credit_sale':
+        result = await handleCreditSale(supabase, entities, context);
         break;
       default:
         result = { success: false, message: `Unknown intent: ${intent}` };
@@ -2049,6 +2070,557 @@ async function handleUpdateOrderStatus(supabase: any, entities: Record<string, a
     success: true,
     message: `✅ ${order_number} updated!\n\n${statusEmoji} New status: ${new_status}\n\n💡 Reply "pending orders" to see the queue.`,
     data: { order_number, new_status },
+  };
+}
+
+// ========== FINANCIAL HANDLERS ==========
+
+async function generateSequentialInvoiceNumber(supabase: any, tenantId: string, attempt: number = 0): Promise<string> {
+  const year = new Date().getFullYear();
+  const prefix = `${year}`;
+  
+  const { data: lastInvoices } = await supabase
+    .from('invoices')
+    .select('invoice_number, created_at')
+    .eq('tenant_id', tenantId)
+    .like('invoice_number', `${prefix}-%`)
+    .order('created_at', { ascending: false })
+    .limit(10);
+
+  let maxNum = 0;
+  if (lastInvoices) {
+    for (const inv of lastInvoices) {
+      const match = inv.invoice_number?.match(/\d{4}-(\d+)/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxNum) maxNum = num;
+      }
+    }
+  }
+  const nextNum = maxNum + 1 + attempt;
+  return `${prefix}-${String(nextNum).padStart(4, '0')}`;
+}
+
+async function generateSequentialQuotationNumber(supabase: any, tenantId: string, attempt: number = 0): Promise<string> {
+  const year = new Date().getFullYear();
+  const prefix = `Q${year}`;
+  
+  const { data: lastQuotes } = await supabase
+    .from('quotations')
+    .select('quotation_number, created_at')
+    .eq('tenant_id', tenantId)
+    .like('quotation_number', `${prefix}-%`)
+    .order('created_at', { ascending: false })
+    .limit(10);
+
+  let maxNum = 0;
+  if (lastQuotes) {
+    for (const q of lastQuotes) {
+      const match = q.quotation_number?.match(/Q\d{4}-(\d+)/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxNum) maxNum = num;
+      }
+    }
+  }
+  const nextNum = maxNum + 1 + attempt;
+  return `${prefix}-${String(nextNum).padStart(4, '0')}`;
+}
+
+async function handleCreateInvoice(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const { customer_name, items } = entities;
+
+  if (!customer_name) {
+    return { success: false, message: 'Please specify a customer name for the invoice.' };
+  }
+
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return { success: false, message: 'Please specify at least one item. Example: "invoice John 5 bags cement 2500"' };
+  }
+
+  // Get tax rate from business profile
+  const { data: profile } = await supabase
+    .from('business_profiles')
+    .select('tax_rate, tax_enabled, company_name')
+    .eq('tenant_id', context.tenant_id)
+    .maybeSingle();
+
+  const taxRate = (profile?.tax_enabled && profile?.tax_rate) ? Number(profile.tax_rate) : 0;
+
+  // Calculate totals
+  let subtotal = 0;
+  const invoiceItems = items.map((item: any) => {
+    const qty = Number(item.quantity) || 1;
+    const unitPrice = Number(item.unit_price) || Number(item.amount) / qty || 0;
+    const amount = qty * unitPrice;
+    subtotal += amount;
+    return {
+      description: sanitizeUserInput(item.description || item.product || 'Item', 200),
+      quantity: qty,
+      unit_price: unitPrice,
+      amount,
+      item_type: 'product',
+    };
+  });
+
+  const taxAmount = Math.round(subtotal * taxRate) / 100;
+  const totalAmount = subtotal + taxAmount;
+
+  // Generate invoice number
+  let invoiceNumber = await generateSequentialInvoiceNumber(supabase, context.tenant_id);
+
+  // Create invoice
+  let invoice: any = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { data, error } = await supabase
+      .from('invoices')
+      .insert({
+        tenant_id: context.tenant_id,
+        invoice_number: invoiceNumber,
+        client_name: sanitizeUserInput(customer_name, 200),
+        invoice_date: new Date().toISOString().split('T')[0],
+        due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        status: 'sent',
+        subtotal,
+        tax_rate: taxRate,
+        tax_amount: taxAmount,
+        total_amount: totalAmount,
+        paid_amount: 0,
+        created_by: context.user_id,
+        notes: 'Created via WhatsApp',
+      })
+      .select()
+      .single();
+
+    if (error?.code === '23505') {
+      invoiceNumber = await generateSequentialInvoiceNumber(supabase, context.tenant_id, attempt + 1);
+      continue;
+    }
+    if (error) {
+      console.error('Invoice creation error:', error);
+      return { success: false, message: 'Failed to create invoice. Please try again.' };
+    }
+    invoice = data;
+    break;
+  }
+
+  if (!invoice) {
+    return { success: false, message: 'Failed to generate unique invoice number.' };
+  }
+
+  // Create invoice items
+  for (const item of invoiceItems) {
+    await supabase.from('invoice_items').insert({
+      invoice_id: invoice.id,
+      tenant_id: context.tenant_id,
+      ...item,
+    });
+  }
+
+  const itemsSummary = invoiceItems.map((item: any) => 
+    `  • ${item.quantity}x ${item.description} @ K${item.unit_price.toLocaleString()}`
+  ).join('\n');
+
+  return {
+    success: true,
+    message: `✅ Invoice ${invoiceNumber} created!\n\n👤 ${customer_name}\n${itemsSummary}\n\n💰 Subtotal: K${subtotal.toLocaleString()}${taxAmount > 0 ? `\n🏛️ Tax: K${taxAmount.toLocaleString()}` : ''}\n━━━━━━━━━━━━━━━━\n💵 Total: K${totalAmount.toLocaleString()}\n📅 Due: 30 days\n\n💡 Say "send invoice ${invoiceNumber}" to get the PDF.`,
+    data: { invoice_id: invoice.id, invoice_number: invoiceNumber, tenant_id: context.tenant_id },
+  };
+}
+
+async function handleCreateQuotation(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const { customer_name, items } = entities;
+
+  if (!customer_name) {
+    return { success: false, message: 'Please specify a customer name for the quotation.' };
+  }
+
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return { success: false, message: 'Please specify at least one item. Example: "quote for John 10 bags cement at 500 each"' };
+  }
+
+  const { data: profile } = await supabase
+    .from('business_profiles')
+    .select('tax_rate, tax_enabled')
+    .eq('tenant_id', context.tenant_id)
+    .maybeSingle();
+
+  const taxRate = (profile?.tax_enabled && profile?.tax_rate) ? Number(profile.tax_rate) : 0;
+
+  let subtotal = 0;
+  const quotationItems = items.map((item: any) => {
+    const qty = Number(item.quantity) || 1;
+    const unitPrice = Number(item.unit_price) || Number(item.amount) / qty || 0;
+    const amount = qty * unitPrice;
+    subtotal += amount;
+    return {
+      description: sanitizeUserInput(item.description || item.product || 'Item', 200),
+      quantity: qty,
+      unit_price: unitPrice,
+      amount,
+      item_type: 'product',
+    };
+  });
+
+  const taxAmount = Math.round(subtotal * taxRate) / 100;
+  const totalAmount = subtotal + taxAmount;
+
+  let quotationNumber = await generateSequentialQuotationNumber(supabase, context.tenant_id);
+
+  let quotation: any = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { data, error } = await supabase
+      .from('quotations')
+      .insert({
+        tenant_id: context.tenant_id,
+        quotation_number: quotationNumber,
+        client_name: sanitizeUserInput(customer_name, 200),
+        quotation_date: new Date().toISOString().split('T')[0],
+        valid_until: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        status: 'sent',
+        subtotal,
+        tax_rate: taxRate,
+        tax_amount: taxAmount,
+        total_amount: totalAmount,
+        created_by: context.user_id,
+        notes: 'Created via WhatsApp',
+      })
+      .select()
+      .single();
+
+    if (error?.code === '23505') {
+      quotationNumber = await generateSequentialQuotationNumber(supabase, context.tenant_id, attempt + 1);
+      continue;
+    }
+    if (error) {
+      console.error('Quotation creation error:', error);
+      return { success: false, message: 'Failed to create quotation. Please try again.' };
+    }
+    quotation = data;
+    break;
+  }
+
+  if (!quotation) {
+    return { success: false, message: 'Failed to generate unique quotation number.' };
+  }
+
+  for (const item of quotationItems) {
+    await supabase.from('quotation_items').insert({
+      quotation_id: quotation.id,
+      tenant_id: context.tenant_id,
+      ...item,
+    });
+  }
+
+  const itemsSummary = quotationItems.map((item: any) =>
+    `  • ${item.quantity}x ${item.description} @ K${item.unit_price.toLocaleString()}`
+  ).join('\n');
+
+  return {
+    success: true,
+    message: `✅ Quotation ${quotationNumber} created!\n\n👤 ${customer_name}\n${itemsSummary}\n\n💵 Total: K${totalAmount.toLocaleString()}\n📅 Valid for 14 days\n\n💡 Say "send quotation ${quotationNumber}" to get the PDF.`,
+    data: { quotation_id: quotation.id, quotation_number: quotationNumber, tenant_id: context.tenant_id },
+  };
+}
+
+async function handleWhoOwes(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  // Find unpaid/partial invoices
+  const { data: invoices, error } = await supabase
+    .from('invoices')
+    .select('invoice_number, client_name, total_amount, paid_amount, due_date, status')
+    .eq('tenant_id', context.tenant_id)
+    .in('status', ['sent', 'unpaid', 'partial', 'overdue'])
+    .order('due_date', { ascending: true })
+    .limit(20);
+
+  if (error) {
+    console.error('Who owes error:', error);
+    return { success: false, message: 'Failed to check outstanding invoices.' };
+  }
+
+  if (!invoices || invoices.length === 0) {
+    return {
+      success: true,
+      message: '✅ No outstanding invoices!\n\nAll customers are paid up. 🎉',
+      data: [],
+    };
+  }
+
+  let totalOwed = 0;
+  const overdueItems: string[] = [];
+  const pendingItems: string[] = [];
+
+  invoices.forEach((inv: any) => {
+    const balance = Number(inv.total_amount) - Number(inv.paid_amount || 0);
+    totalOwed += balance;
+    const dueDate = inv.due_date ? new Date(inv.due_date) : null;
+    const isOverdue = dueDate && dueDate < new Date();
+    const dueDateStr = dueDate 
+      ? dueDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+      : 'No date';
+
+    const line = `• ${inv.client_name}\n  ${inv.invoice_number} | K${balance.toLocaleString()} | Due: ${dueDateStr}`;
+    
+    if (isOverdue) {
+      overdueItems.push(line);
+    } else {
+      pendingItems.push(line);
+    }
+  });
+
+  let message = `💰 Outstanding: K${totalOwed.toLocaleString()} (${invoices.length} invoices)\n`;
+
+  if (overdueItems.length > 0) {
+    message += `\n🔴 OVERDUE (${overdueItems.length}):\n${overdueItems.slice(0, 5).join('\n')}`;
+    if (overdueItems.length > 5) message += `\n  ...+${overdueItems.length - 5} more`;
+  }
+
+  if (pendingItems.length > 0) {
+    message += `\n\n🟡 PENDING (${pendingItems.length}):\n${pendingItems.slice(0, 5).join('\n')}`;
+    if (pendingItems.length > 5) message += `\n  ...+${pendingItems.length - 5} more`;
+  }
+
+  return {
+    success: true,
+    message,
+    data: { total_owed: totalOwed, invoice_count: invoices.length },
+  };
+}
+
+async function handleDailyReport(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const today = new Date();
+  const startOfDay = new Date(today);
+  startOfDay.setHours(0, 0, 0, 0);
+
+  // Parallel queries for today's data
+  const [salesResult, expensesResult, attendanceResult, ordersResult] = await Promise.all([
+    supabase
+      .from('sales')
+      .select('total_amount, payment_method')
+      .eq('tenant_id', context.tenant_id)
+      .gte('sale_date', startOfDay.toISOString()),
+    supabase
+      .from('expenses')
+      .select('amount_zmw, category')
+      .eq('tenant_id', context.tenant_id)
+      .gte('date_incurred', startOfDay.toISOString().split('T')[0]),
+    supabase
+      .from('employee_attendance')
+      .select('id, clock_out')
+      .eq('tenant_id', context.tenant_id)
+      .eq('date', today.toISOString().split('T')[0]),
+    supabase
+      .from('custom_orders')
+      .select('id, status')
+      .eq('tenant_id', context.tenant_id)
+      .gte('updated_at', startOfDay.toISOString()),
+  ]);
+
+  const sales = salesResult.data || [];
+  const expenses = expensesResult.data || [];
+  const attendance = attendanceResult.data || [];
+  const orders = ordersResult.data || [];
+
+  const totalRevenue = sales.reduce((sum: number, s: any) => sum + Number(s.total_amount || 0), 0);
+  const totalExpenses = expenses.reduce((sum: number, e: any) => sum + Number(e.amount_zmw || 0), 0);
+  const cashSales = sales.filter((s: any) => s.payment_method === 'Cash').reduce((sum: number, s: any) => sum + Number(s.total_amount || 0), 0);
+  const mobileSales = sales.filter((s: any) => s.payment_method === 'Mobile Money').reduce((sum: number, s: any) => sum + Number(s.total_amount || 0), 0);
+  const cardSales = sales.filter((s: any) => s.payment_method === 'Card').reduce((sum: number, s: any) => sum + Number(s.total_amount || 0), 0);
+  const netProfit = totalRevenue - totalExpenses;
+  const staffPresent = attendance.length;
+  const staffStillIn = attendance.filter((a: any) => !a.clock_out).length;
+
+  // Get unpaid invoices total
+  const { data: unpaidInvoices } = await supabase
+    .from('invoices')
+    .select('total_amount, paid_amount')
+    .eq('tenant_id', context.tenant_id)
+    .in('status', ['sent', 'unpaid', 'partial', 'overdue']);
+
+  const totalReceivable = (unpaidInvoices || []).reduce((sum: number, inv: any) => 
+    sum + (Number(inv.total_amount) - Number(inv.paid_amount || 0)), 0);
+
+  const dateStr = today.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' });
+
+  let message = `📊 *Daily Report* - ${dateStr}\n\n`;
+  message += `💰 *Revenue*\n`;
+  message += `📈 Sales: ${sales.length} transactions\n`;
+  message += `💵 Total: K${totalRevenue.toLocaleString()}\n`;
+  if (cashSales > 0) message += `   Cash: K${cashSales.toLocaleString()}\n`;
+  if (mobileSales > 0) message += `   Mobile: K${mobileSales.toLocaleString()}\n`;
+  if (cardSales > 0) message += `   Card: K${cardSales.toLocaleString()}\n`;
+  
+  message += `\n💸 *Expenses*\n`;
+  message += `📉 Total: K${totalExpenses.toLocaleString()}\n`;
+  
+  message += `\n━━━━━━━━━━━━━━━━\n`;
+  message += `${netProfit >= 0 ? '📗' : '📕'} Net: K${netProfit.toLocaleString()}\n`;
+  
+  if (totalReceivable > 0) {
+    message += `\n🏦 Outstanding receivables: K${totalReceivable.toLocaleString()}`;
+  }
+
+  message += `\n\n👥 *Staff*\n`;
+  message += `✅ Present today: ${staffPresent}`;
+  if (staffStillIn > 0) message += ` (${staffStillIn} still in)`;
+
+  if (orders.length > 0) {
+    message += `\n\n📋 *Orders Updated*: ${orders.length}`;
+  }
+
+  return {
+    success: true,
+    message,
+    data: { revenue: totalRevenue, expenses: totalExpenses, net: netProfit },
+  };
+}
+
+async function handleCreditSale(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const { product, customer_name, customer_phone } = entities;
+  const quantity = Number.isFinite(Number(entities.quantity)) ? Number(entities.quantity) : 1;
+  const amount = Number(entities.amount);
+
+  if (!product || !Number.isFinite(amount) || amount <= 0) {
+    return { success: false, message: 'Please specify product, amount, and customer. Example: "credit sale 5 cement to John 2500"' };
+  }
+
+  if (!customer_name) {
+    return { success: false, message: 'Credit sales require a customer name. Who sold to?' };
+  }
+
+  // Look up inventory
+  const { pattern: productPattern, raw: productRaw } = normalizeProductQuery(product);
+  const { data: products } = await supabase
+    .from('inventory')
+    .select('id, name, unit_price, current_stock')
+    .eq('tenant_id', context.tenant_id)
+    .ilike('name', productPattern)
+    .limit(1);
+
+  const productItem = products?.[0] ?? null;
+
+  if (productItem && productItem.current_stock < quantity) {
+    return { success: false, message: `Insufficient stock for ${productItem.name}. Available: ${productItem.current_stock} units.` };
+  }
+
+  const resolvedItemName = productItem?.name ?? productRaw;
+  const resolvedUnitPrice = productItem?.unit_price ?? amount / Math.max(1, quantity);
+
+  // Get tax rate
+  const { data: profile } = await supabase
+    .from('business_profiles')
+    .select('tax_rate, tax_enabled')
+    .eq('tenant_id', context.tenant_id)
+    .maybeSingle();
+
+  const taxRate = (profile?.tax_enabled && profile?.tax_rate) ? Number(profile.tax_rate) : 0;
+  const taxAmount = Math.round(amount * taxRate) / 100;
+  const totalAmount = amount + taxAmount;
+
+  // Create invoice for the credit sale
+  let invoiceNumber = await generateSequentialInvoiceNumber(supabase, context.tenant_id);
+
+  let invoice: any = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { data, error } = await supabase
+      .from('invoices')
+      .insert({
+        tenant_id: context.tenant_id,
+        invoice_number: invoiceNumber,
+        client_name: sanitizeUserInput(customer_name, 200),
+        client_phone: customer_phone || null,
+        invoice_date: new Date().toISOString().split('T')[0],
+        due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        status: 'sent',
+        subtotal: amount,
+        tax_rate: taxRate,
+        tax_amount: taxAmount,
+        total_amount: totalAmount,
+        paid_amount: 0,
+        created_by: context.user_id,
+        notes: 'Credit sale via WhatsApp',
+      })
+      .select()
+      .single();
+
+    if (error?.code === '23505') {
+      invoiceNumber = await generateSequentialInvoiceNumber(supabase, context.tenant_id, attempt + 1);
+      continue;
+    }
+    if (error) {
+      console.error('Credit sale invoice error:', error);
+      return { success: false, message: 'Failed to record credit sale.' };
+    }
+    invoice = data;
+    break;
+  }
+
+  if (!invoice) {
+    return { success: false, message: 'Failed to generate invoice for credit sale.' };
+  }
+
+  // Create invoice item
+  await supabase.from('invoice_items').insert({
+    invoice_id: invoice.id,
+    tenant_id: context.tenant_id,
+    description: resolvedItemName,
+    quantity,
+    unit_price: resolvedUnitPrice,
+    amount,
+    item_type: 'product',
+  });
+
+  // Also record a sale with "Credit" note (no payment receipt)
+  let saleNumber = await generateSequentialSaleNumber(supabase, context.tenant_id);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { error } = await supabase
+      .from('sales')
+      .insert({
+        tenant_id: context.tenant_id,
+        sale_number: saleNumber,
+        customer_name: customer_name,
+        payment_method: 'Cash',
+        subtotal: amount,
+        tax_amount: 0,
+        total_amount: amount,
+        recorded_by: context.user_id,
+      });
+    if (error?.code === '23505') {
+      saleNumber = await generateSequentialSaleNumber(supabase, context.tenant_id, attempt + 1);
+      continue;
+    }
+    break;
+  }
+
+  // Create sales_transaction for BMS visibility
+  await supabase.from('sales_transactions').insert({
+    tenant_id: context.tenant_id,
+    transaction_type: 'sale',
+    customer_name: customer_name,
+    product_id: productItem?.id ?? null,
+    product_name: resolvedItemName,
+    quantity,
+    unit_price_zmw: resolvedUnitPrice,
+    total_amount_zmw: amount,
+    payment_method: 'Cash',
+    receipt_number: `CR-${invoiceNumber}`,
+    recorded_by: context.user_id,
+    item_type: productItem ? 'product' : 'service',
+    notes: `Credit sale - Invoice ${invoiceNumber}`,
+  });
+
+  // Update inventory
+  if (productItem) {
+    await supabase
+      .from('inventory')
+      .update({ current_stock: productItem.current_stock - quantity })
+      .eq('id', productItem.id);
+  }
+
+  return {
+    success: true,
+    message: `✅ Credit sale recorded!\n\n👤 ${customer_name}\n📦 ${quantity > 1 ? `${quantity}x ` : ''}${resolvedItemName}\n💰 K${amount.toLocaleString()} (on credit)\n📋 Invoice: ${invoiceNumber}\n📅 Due: 30 days\n\n💡 Say "who owes" to see all outstanding.`,
+    data: { invoice_number: invoiceNumber, invoice_id: invoice.id, tenant_id: context.tenant_id },
   };
 }
 

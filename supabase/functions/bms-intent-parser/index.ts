@@ -45,6 +45,13 @@ SUPPORTED INTENTS:
 24. low_stock_alerts - View items below reorder level
 25. update_order_status - Update production order status (e.g., "CO-001 cutting done")
 
+=== FINANCIAL INTENTS (admin/manager/accountant) ===
+26. create_invoice - Create an invoice for a customer with items
+27. create_quotation - Create a quotation for a customer with items
+28. who_owes - Check outstanding credit / unpaid invoices
+29. daily_report - Get end-of-day business summary
+30. credit_sale - Record a sale on credit (no payment yet)
+
 === LANGUAGE TOLERANCE RULES ===
 Accept broken English, SMS-style text, and informal expressions:
 - "sld" / "sold" / "I sld" = sold
@@ -88,6 +95,13 @@ Accept broken English, SMS-style text, and informal expressions:
 - "CO-001 sewing done" / "sewn CO-001" = update_order_status
 - "CO-001 ready" / "completed CO-001" = update_order_status
 - "delivered CO-001" / "customer collected CO-001" = update_order_status
+
+=== FINANCIAL EXPRESSIONS ===
+- "invoice John 5 bags cement 2500" / "create invoice for ABC" = create_invoice
+- "quote for John" / "quotation 10 bags cement" / "give quote" = create_quotation
+- "who owes" / "outstanding" / "unpaid invoices" / "credit customers" / "debtors" = who_owes
+- "daily report" / "end of day" / "eod" / "today summary" / "day report" = daily_report
+- "sold on credit" / "credit sale" / "on account" / "will pay later" = credit_sale
 
 === ZAMBIAN BUSINESS EXPRESSIONS ===
 These are common ways locals describe sales:
@@ -210,14 +224,26 @@ Response: {"intent":"send_payslip","confidence":"high","entities":{},"requires_c
 User: "chk stk cement"
 Response: {"intent":"check_stock","confidence":"high","entities":{"product":"cement"},"requires_confirmation":false,"clarification_needed":null}
 
-User: "sales 2day" or "tday sales"
-Response: {"intent":"get_sales_summary","confidence":"high","entities":{"period":"today"},"requires_confirmation":false,"clarification_needed":null}
+User: "invoice John 5 bags cement 2500"
+Response: {"intent":"create_invoice","confidence":"high","entities":{"customer_name":"John","items":[{"description":"cement bags","quantity":5,"unit_price":500,"amount":2500}]},"requires_confirmation":false,"clarification_needed":null}
 
-User: "spent 200 fuel"
-Response: {"intent":"record_expense","confidence":"high","entities":{"description":"fuel","amount":200},"requires_confirmation":false,"clarification_needed":null}
+User: "quote for ABC Company 10 bags cement at 500 each"
+Response: {"intent":"create_quotation","confidence":"high","entities":{"customer_name":"ABC Company","items":[{"description":"cement bags","quantity":10,"unit_price":500,"amount":5000}]},"requires_confirmation":false,"clarification_needed":null}
 
-User: "hello" or "help" or "hi" or "menu" or "?"
-Response: {"intent":"help","confidence":"high","entities":{},"requires_confirmation":false,"clarification_needed":null}
+User: "who owes"
+Response: {"intent":"who_owes","confidence":"high","entities":{},"requires_confirmation":false,"clarification_needed":null}
+
+User: "who owes me" or "outstanding invoices" or "debtors"
+Response: {"intent":"who_owes","confidence":"high","entities":{},"requires_confirmation":false,"clarification_needed":null}
+
+User: "daily report" or "eod" or "end of day"
+Response: {"intent":"daily_report","confidence":"high","entities":{},"requires_confirmation":false,"clarification_needed":null}
+
+User: "sold 5 cement 2500 on credit to John"
+Response: {"intent":"credit_sale","confidence":"high","entities":{"product":"cement","quantity":5,"amount":2500,"customer_name":"John"},"requires_confirmation":false,"clarification_needed":null}
+
+User: "credit sale 3 bags to Mutale 1500"
+Response: {"intent":"credit_sale","confidence":"high","entities":{"product":"bags","quantity":3,"amount":1500,"customer_name":"Mutale"},"requires_confirmation":false,"clarification_needed":null}
 
 IMPORTANT: Respond with valid JSON only. No markdown, no explanations. Be generous in interpretation.`;
 
