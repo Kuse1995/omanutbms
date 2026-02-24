@@ -20,6 +20,8 @@ interface Profile {
   avatar_url: string | null;
   department: string | null;
   title?: string | null;
+  phone: string | null;
+  last_login: string | null;
 }
 
 // Function to check if email is authorized (checks database)

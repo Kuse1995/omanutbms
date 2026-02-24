@@ -62,7 +62,7 @@ export function AuthorizedEmailsManager() {
   const SUPER_ADMIN_EMAIL = "abkanyanta@gmail.com";
   const isSuperAdminUser = user?.email === SUPER_ADMIN_EMAIL;
 
-  console.log("AuthorizedEmailsManager auth state", { userId: user?.id, email: user?.email, isAdmin, isSuperAdmin, isSuperAdminUser, tenantId, authLoading, roleSource: "authorized_emails_fallback_enabled" });
+  
 
   useEffect(() => {
     if (tenantId || isSuperAdminUser) {
