@@ -165,6 +165,7 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
         .from('inventory')
         .select('id, name, sku, current_stock')
         .eq('tenant_id', tenant.id)
+        .eq('is_archived', false)
         .gt('current_stock', 0)
         .order('name');
 
