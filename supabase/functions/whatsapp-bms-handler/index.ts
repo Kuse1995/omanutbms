@@ -1161,6 +1161,24 @@ function getConfirmationMessage(intent: string, entities: any): string {
       return `Recording K${amount} expense for "${entities.description}".\n\nLooks good? Say yes to confirm.`;
     case 'generate_invoice':
       return `I'll create an invoice for ${customer}.\n\nGood to go?`;
+    case 'create_invoice': {
+      const itemList = (entities.items || []).map((item: any) => 
+        `  • ${item.quantity || 1}x ${item.description || item.product || 'Item'} @ K${(item.unit_price || 0).toLocaleString()}`
+      ).join('\n');
+      const total = (entities.items || []).reduce((sum: number, i: any) => sum + (Number(i.amount) || 0), 0);
+      return `Creating invoice for ${customer}:\n${itemList}\n💵 Total: K${total.toLocaleString()}\n\nLooks right? Say yes to create.`;
+    }
+    case 'create_quotation': {
+      const itemList = (entities.items || []).map((item: any) => 
+        `  • ${item.quantity || 1}x ${item.description || item.product || 'Item'} @ K${(item.unit_price || 0).toLocaleString()}`
+      ).join('\n');
+      const total = (entities.items || []).reduce((sum: number, i: any) => sum + (Number(i.amount) || 0), 0);
+      return `Creating quotation for ${customer}:\n${itemList}\n💵 Total: K${total.toLocaleString()}\n\nLooks right? Say yes to create.`;
+    }
+    case 'credit_sale': {
+      const cQty = qty > 1 ? `${qty}x ` : '';
+      return `Recording credit sale: ${cQty}${product} to ${customer} for K${amount}.\n\nAn invoice will be created. Say yes to confirm.`;
+    }
     default:
       return `Just confirming - ${intent.replace(/_/g, ' ')}?\n\nSay yes to proceed.`;
   }
