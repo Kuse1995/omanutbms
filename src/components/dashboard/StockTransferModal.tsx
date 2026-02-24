@@ -143,14 +143,15 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
           id,
           inventory_id,
           current_stock,
-          inventory:inventory_id(name, sku)
+          inventory:inventory_id(name, sku, is_archived)
         `)
         .eq('tenant_id', tenant.id)
         .eq('branch_id', sourceId)
         .gt('current_stock', 0);
 
       if (branchData && branchData.length > 0) {
-        setAvailableInventory(branchData.map((item: any) => ({
+        const activeItems = branchData.filter((item: any) => item.inventory?.is_archived !== true);
+        setAvailableInventory(activeItems.map((item: any) => ({
           id: item.inventory_id,
           product_name: item.inventory?.name || 'Unknown',
           sku: item.inventory?.sku || '',
@@ -164,6 +165,7 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
         .from('inventory')
         .select('id, name, sku, current_stock')
         .eq('tenant_id', tenant.id)
+        .eq('is_archived', false)
         .gt('current_stock', 0)
         .order('name');
 
