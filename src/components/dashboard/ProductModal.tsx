@@ -924,6 +924,18 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
 
         if (error) throw error;
 
+        // Sync branch_inventory when location changes
+        const newLocationId = formData.default_location_id && formData.default_location_id !== "none" ? formData.default_location_id : null;
+        const oldLocationId = product.default_location_id || null;
+        if (newLocationId && newLocationId !== oldLocationId) {
+          await supabase.from("branch_inventory").upsert({
+            inventory_id: product.id,
+            branch_id: newLocationId,
+            tenant_id: tenantId,
+            current_stock: isServiceItem ? 9999 : formData.current_stock,
+          }, { onConflict: "inventory_id,branch_id" });
+        }
+
         toast({
           title: `${terminology.product} Updated`,
           description: `${formData.name} has been updated successfully`,
@@ -936,6 +948,16 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
           .single();
 
         if (error) throw error;
+
+        // Sync branch_inventory so product appears in Sales for the assigned location
+        if (insertedProduct?.id && formData.default_location_id && formData.default_location_id !== "none") {
+          await supabase.from("branch_inventory").upsert({
+            inventory_id: insertedProduct.id,
+            branch_id: formData.default_location_id,
+            tenant_id: tenantId,
+            current_stock: isServiceItem ? 9999 : formData.current_stock,
+          }, { onConflict: "inventory_id,branch_id" });
+        }
 
         // Create pending variants for fashion products
         if (isFashionMode && pendingVariants.length > 0 && insertedProduct?.id) {
