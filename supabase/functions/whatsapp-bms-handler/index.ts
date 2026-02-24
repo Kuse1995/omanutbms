@@ -698,6 +698,9 @@ Your admin can upgrade the plan to keep chatting, or it'll reset next month. Con
     // Check if confirmation is required for high-value transactions
     const amount = mergedEntities.amount || 0;
     const needsConfirmation = (parsedIntent.intent === 'record_sale' && amount >= 10000) ||
+                              (parsedIntent.intent === 'credit_sale') ||
+                              (parsedIntent.intent === 'create_invoice') ||
+                              (parsedIntent.intent === 'create_quotation') ||
                               (parsedIntent.intent === 'record_expense' && amount >= 5000) ||
                               parsedIntent.intent === 'generate_invoice';
 
