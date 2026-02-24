@@ -456,6 +456,22 @@ serve(async (req) => {
       case 'update_order_status':
         result = await handleUpdateOrderStatus(supabase, entities, context);
         break;
+      // Financial intents
+      case 'create_invoice':
+        result = await handleCreateInvoice(supabase, entities, context);
+        break;
+      case 'create_quotation':
+        result = await handleCreateQuotation(supabase, entities, context);
+        break;
+      case 'who_owes':
+        result = await handleWhoOwes(supabase, entities, context);
+        break;
+      case 'daily_report':
+        result = await handleDailyReport(supabase, entities, context);
+        break;
+      case 'credit_sale':
+        result = await handleCreditSale(supabase, entities, context);
+        break;
       default:
         result = { success: false, message: `Unknown intent: ${intent}` };
     }
