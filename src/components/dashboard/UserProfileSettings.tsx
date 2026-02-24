@@ -31,19 +31,21 @@ export function UserProfileSettings() {
   const [fullName, setFullName] = useState(profile?.full_name || "");
   const [title, setTitle] = useState(profile?.title || "");
   const [department, setDepartment] = useState(profile?.department || "");
-  const [phone, setPhone] = useState((profile as any)?.phone || "");
+  const [phone, setPhone] = useState(profile?.phone || "");
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || "");
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const hasInitialized = useRef(false);
 
-  // Sync state when profile loads/changes
+  // Sync state when profile first loads (only once to prevent flickering)
   useEffect(() => {
-    if (profile) {
+    if (profile && !hasInitialized.current) {
       setFullName(profile.full_name || "");
       setTitle(profile.title || "");
       setDepartment(profile.department || "");
-      setPhone((profile as any)?.phone || "");
+      setPhone(profile.phone || "");
       setAvatarUrl(profile.avatar_url || "");
+      hasInitialized.current = true;
     }
   }, [profile]);
 
@@ -179,7 +181,7 @@ export function UserProfileSettings() {
           department: department,
           phone: phone || null,
           avatar_url: avatarUrl || null,
-        } as any, { onConflict: 'user_id' });
+        }, { onConflict: 'user_id' });
 
       if (error) throw error;
 
