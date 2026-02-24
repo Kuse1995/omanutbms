@@ -367,7 +367,7 @@ export function InventoryAgent() {
         description: `${selectedIds.size} ${terminology.productsLabel.toLowerCase()} archived successfully. View them using "Show Archived" toggle.`,
       });
       setSelectedIds(new Set());
-      fetchInventory();
+      handleRefresh();
     } catch (error: any) {
       console.error("Bulk archive error:", error);
       toast({
