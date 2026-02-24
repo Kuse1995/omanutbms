@@ -159,7 +159,7 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
         bookingsToday: todaySalesCount,
         appointmentsToday: todaySalesCount,
         patientsToday: todaySalesCount,
-        jobsInProgress: pendingJobs?.length || 0,
+        jobsInProgress: pendingJobs.length,
         livestockCount,
       });
     } catch (error) {
