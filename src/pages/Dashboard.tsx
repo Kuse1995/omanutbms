@@ -1,40 +1,15 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { useSearchParams } from "react-router-dom";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { DashboardHome } from "@/components/dashboard/DashboardHome";
-import { InventoryAgent } from "@/components/dashboard/InventoryAgent";
-import { AccountsAgent } from "@/components/dashboard/AccountsAgent";
-import { HRAgent } from "@/components/dashboard/HRAgent";
-import { SettingsManager } from "@/components/dashboard/SettingsManager";
-import { TenantSettings } from "@/components/dashboard/TenantSettings";
-import { ModulesMarketplace } from "@/components/dashboard/ModulesMarketplace";
-import { CommunityMessagesManagement } from "@/components/dashboard/CommunityMessagesManagement";
-import { WebsiteManager } from "@/components/dashboard/WebsiteManager";
-import { SalesRecorder } from "@/components/dashboard/SalesRecorder";
-import { ShopManager } from "@/components/dashboard/ShopManager";
-import { WASHForumsManagement } from "@/components/dashboard/WASHForumsManagement";
-import { ReceiptsManager } from "@/components/dashboard/ReceiptsManager";
-import { AgentsManager } from "@/components/dashboard/AgentsManager";
-import { QuotationsManager } from "@/components/dashboard/QuotationsManager";
-import { WebsiteContactsManagement } from "@/components/dashboard/WebsiteContactsManagement";
 import { PoweredByFooter } from "@/components/dashboard/PoweredByFooter";
-import { SuperAdminPanel } from "@/components/dashboard/SuperAdminPanel";
 import { OnboardingTour } from "@/components/dashboard/OnboardingTour";
 import { WelcomeVideoModal } from "@/components/dashboard/WelcomeVideoModal";
-import { BranchesManager } from "@/components/dashboard/BranchesManager";
-import { ReturnsAndDamagesManager } from "@/components/dashboard/ReturnsAndDamagesManager";
-import { CustomersManager } from "@/components/dashboard/CustomersManager";
-import { CustomOrdersManager } from "@/components/dashboard/CustomOrdersManager";
-import { LocationsManager } from "@/components/dashboard/LocationsManager";
-import { StockTransfersManager } from "@/components/dashboard/StockTransfersManager";
-import { WarehouseView } from "@/components/dashboard/WarehouseView";
-import { ProductionFloor } from "@/components/dashboard/ProductionFloor";
-import { AssetsManager } from "@/components/dashboard/AssetsManager";
-import { JobCardsManager } from "@/components/dashboard/JobCardsManager";
 import { BusinessTypeSetupWizard } from "@/components/dashboard/BusinessTypeSetupWizard";
 import { SubscriptionActivationGate } from "@/components/dashboard/SubscriptionActivationGate";
+import { Loader2 } from "lucide-react";
 import { useOnboardingTour } from "@/hooks/useOnboardingTour";
 import { useFeatures } from "@/hooks/useFeatures";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
@@ -47,15 +22,50 @@ import { useBranding } from "@/hooks/useBranding";
 import { useApplyTenantBranding } from "@/contexts/BrandingContext";
 import { useTrackedNavigation } from "@/hooks/useTrackedNavigation";
 
+// Lazy-loaded tab components
+const InventoryAgent = lazy(() => import("@/components/dashboard/InventoryAgent").then(m => ({ default: m.InventoryAgent })));
+const AccountsAgent = lazy(() => import("@/components/dashboard/AccountsAgent").then(m => ({ default: m.AccountsAgent })));
+const HRAgent = lazy(() => import("@/components/dashboard/HRAgent").then(m => ({ default: m.HRAgent })));
+const SettingsManager = lazy(() => import("@/components/dashboard/SettingsManager").then(m => ({ default: m.SettingsManager })));
+const TenantSettings = lazy(() => import("@/components/dashboard/TenantSettings").then(m => ({ default: m.TenantSettings })));
+const ModulesMarketplace = lazy(() => import("@/components/dashboard/ModulesMarketplace").then(m => ({ default: m.ModulesMarketplace })));
+const CommunityMessagesManagement = lazy(() => import("@/components/dashboard/CommunityMessagesManagement").then(m => ({ default: m.CommunityMessagesManagement })));
+const WebsiteManager = lazy(() => import("@/components/dashboard/WebsiteManager").then(m => ({ default: m.WebsiteManager })));
+const SalesRecorder = lazy(() => import("@/components/dashboard/SalesRecorder").then(m => ({ default: m.SalesRecorder })));
+const ShopManager = lazy(() => import("@/components/dashboard/ShopManager").then(m => ({ default: m.ShopManager })));
+const WASHForumsManagement = lazy(() => import("@/components/dashboard/WASHForumsManagement").then(m => ({ default: m.WASHForumsManagement })));
+const ReceiptsManager = lazy(() => import("@/components/dashboard/ReceiptsManager").then(m => ({ default: m.ReceiptsManager })));
+const AgentsManager = lazy(() => import("@/components/dashboard/AgentsManager").then(m => ({ default: m.AgentsManager })));
+const QuotationsManager = lazy(() => import("@/components/dashboard/QuotationsManager").then(m => ({ default: m.QuotationsManager })));
+const WebsiteContactsManagement = lazy(() => import("@/components/dashboard/WebsiteContactsManagement").then(m => ({ default: m.WebsiteContactsManagement })));
+const SuperAdminPanel = lazy(() => import("@/components/dashboard/SuperAdminPanel").then(m => ({ default: m.SuperAdminPanel })));
+const BranchesManager = lazy(() => import("@/components/dashboard/BranchesManager").then(m => ({ default: m.BranchesManager })));
+const ReturnsAndDamagesManager = lazy(() => import("@/components/dashboard/ReturnsAndDamagesManager").then(m => ({ default: m.ReturnsAndDamagesManager })));
+const CustomersManager = lazy(() => import("@/components/dashboard/CustomersManager").then(m => ({ default: m.CustomersManager })));
+const CustomOrdersManager = lazy(() => import("@/components/dashboard/CustomOrdersManager").then(m => ({ default: m.CustomOrdersManager })));
+const LocationsManager = lazy(() => import("@/components/dashboard/LocationsManager").then(m => ({ default: m.LocationsManager })));
+const StockTransfersManager = lazy(() => import("@/components/dashboard/StockTransfersManager").then(m => ({ default: m.StockTransfersManager })));
+const WarehouseView = lazy(() => import("@/components/dashboard/WarehouseView").then(m => ({ default: m.WarehouseView })));
+const ProductionFloor = lazy(() => import("@/components/dashboard/ProductionFloor").then(m => ({ default: m.ProductionFloor })));
+const AssetsManager = lazy(() => import("@/components/dashboard/AssetsManager").then(m => ({ default: m.AssetsManager })));
+const JobCardsManager = lazy(() => import("@/components/dashboard/JobCardsManager").then(m => ({ default: m.JobCardsManager })));
+
 export type DashboardTab = "dashboard" | "sales" | "receipts" | "quotations" | "accounts" | "assets" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings" | "tenant-settings" | "modules" | "platform-admin" | "branches" | "returns" | "customers" | "custom-orders" | "warehouse" | "stock-transfers" | "locations" | "production-floor" | "job-cards";
 
 const validTabs: DashboardTab[] = ["dashboard", "sales", "receipts", "quotations", "accounts", "assets", "hr", "inventory", "shop", "agents", "communities", "messages", "contacts", "website", "settings", "tenant-settings", "modules", "platform-admin", "branches", "returns", "customers", "custom-orders", "warehouse", "stock-transfers", "locations", "production-floor", "job-cards"];
+
+function TabFallback() {
+  return (
+    <div className="flex items-center justify-center py-20">
+      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+    </div>
+  );
+}
 
 const Dashboard = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { layout, loading: configLoading } = useBusinessConfig();
   
-  // Initialize from URL param or default
   const getInitialTab = (): DashboardTab => {
     const urlTab = searchParams.get("tab") as DashboardTab;
     if (urlTab && validTabs.includes(urlTab)) {
@@ -73,11 +83,8 @@ const Dashboard = () => {
   const { businessProfile, tenantUser, refetchTenant } = useTenant();
   const branding = useBranding();
   const applyBranding = useApplyTenantBranding();
-
-  // Track navigation and page views for analytics
   const { trackAction } = useTrackedNavigation({ activeTab });
 
-  // Apply tenant branding globally when in dashboard
   useEffect(() => {
     applyBranding({
       companyName: branding.companyName,
@@ -90,25 +97,17 @@ const Dashboard = () => {
       isWhiteLabel: branding.isWhiteLabel,
     });
   }, [
-    branding.companyName,
-    branding.logoUrl,
-    branding.primaryColor,
-    branding.secondaryColor,
-    branding.accentColor,
-    branding.tagline,
-    branding.slogan,
-    branding.isWhiteLabel,
-    applyBranding,
+    branding.companyName, branding.logoUrl, branding.primaryColor,
+    branding.secondaryColor, branding.accentColor, branding.tagline,
+    branding.slogan, branding.isWhiteLabel, applyBranding,
   ]);
 
-  // Generate dynamic CSS variables from tenant branding (local fallback)
   const brandingStyles = useMemo(() => ({
     '--brand-primary': branding.primaryColor,
     '--brand-secondary': branding.secondaryColor,
     '--brand-accent': branding.accentColor,
   } as React.CSSProperties), [branding.primaryColor, branding.secondaryColor, branding.accentColor]);
 
-  // Sync URL params with active tab
   useEffect(() => {
     const urlTab = searchParams.get("tab") as DashboardTab;
     if (urlTab && validTabs.includes(urlTab) && urlTab !== activeTab) {
@@ -116,7 +115,6 @@ const Dashboard = () => {
     }
   }, [searchParams]);
 
-  // Update URL when tab changes (optional - for shareable links)
   useEffect(() => {
     const currentUrlTab = searchParams.get("tab");
     if (activeTab !== "dashboard" && currentUrlTab !== activeTab) {
@@ -126,64 +124,39 @@ const Dashboard = () => {
     }
   }, [activeTab, setSearchParams]);
 
-  // Route protection: redirect to dashboard if user tries to access disabled feature
   useEffect(() => {
     if (loading) return;
     
-    // Super admin can access platform-admin tab
     if (activeTab === "platform-admin" && !isSuperAdmin) {
-      toast({
-        title: "Access denied",
-        description: "You don't have permission to access this section.",
-        variant: "destructive",
-      });
+      toast({ title: "Access denied", description: "You don't have permission to access this section.", variant: "destructive" });
       setActiveTab("dashboard");
       return;
     }
 
-    // Enterprise feature gating for custom workflow tabs
     if (activeTab === "custom-orders" && !isCustomDesignerEnabled) {
-      toast({
-        title: "Feature not available",
-        description: "The Custom Design Wizard is an exclusive feature for authorized tenants.",
-        variant: "destructive",
-      });
+      toast({ title: "Feature not available", description: "The Custom Design Wizard is an exclusive feature for authorized tenants.", variant: "destructive" });
       setActiveTab("dashboard");
       return;
     }
 
     if (activeTab === "production-floor" && !isCustomDesignerEnabled && !isProductionTrackingEnabled) {
-      toast({
-        title: "Feature not available",
-        description: "The Production Floor is an exclusive feature for authorized tenants.",
-        variant: "destructive",
-      });
+      toast({ title: "Feature not available", description: "The Production Floor is an exclusive feature for authorized tenants.", variant: "destructive" });
       setActiveTab("dashboard");
       return;
     }
     
     if (activeTab !== "platform-admin" && !canAccessTab(activeTab)) {
-      toast({
-        title: "Feature not available",
-        description: "This feature is not enabled for your organization.",
-        variant: "destructive",
-      });
+      toast({ title: "Feature not available", description: "This feature is not enabled for your organization.", variant: "destructive" });
       setActiveTab("dashboard");
     }
   }, [activeTab, canAccessTab, loading, toast, isSuperAdmin, isCustomDesignerEnabled, isProductionTrackingEnabled]);
 
-  // Safe tab setter that checks feature access
   const handleSetActiveTab = (tab: DashboardTab) => {
-    // Super admin can access platform-admin
     if (tab === "platform-admin") {
       if (isSuperAdmin) {
         setActiveTab(tab);
       } else {
-        toast({
-          title: "Access denied",
-          description: "You don't have permission to access this section.",
-          variant: "destructive",
-        });
+        toast({ title: "Access denied", description: "You don't have permission to access this section.", variant: "destructive" });
       }
       return;
     }
@@ -191,11 +164,7 @@ const Dashboard = () => {
     if (canAccessTab(tab)) {
       setActiveTab(tab);
     } else {
-      toast({
-        title: "Feature not available",
-        description: "This feature is not enabled for your organization.",
-        variant: "destructive",
-      });
+      toast({ title: "Feature not available", description: "This feature is not enabled for your organization.", variant: "destructive" });
     }
   };
 
@@ -272,29 +241,27 @@ const Dashboard = () => {
             <div className="flex-1 flex flex-col">
               <DashboardHeader />
               <main className="flex-1 p-3 sm:p-6 overflow-auto">
-                {renderContent()}
+                <Suspense fallback={<TabFallback />}>
+                  {renderContent()}
+                </Suspense>
               </main>
             </div>
           </div>
           
-          {/* Business Type Setup Wizard - shows for new tenants (owner only) */}
           {!businessProfile?.onboarding_completed && tenantUser?.is_owner === true && (
             <BusinessTypeSetupWizard onComplete={refetchTenant} />
           )}
           
-          {/* Subscription Activation Gate - shows after onboarding for inactive billing */}
           {businessProfile?.onboarding_completed && 
            businessProfile?.billing_status === 'inactive' && 
            tenantUser?.is_owner === true && (
             <SubscriptionActivationGate />
           )}
           
-          {/* Welcome Video Modal - shows first for new users after business type is set */}
           {!tourLoading && !welcomeVideoCompleted && businessProfile?.onboarding_completed && (
             <WelcomeVideoModal onComplete={onWelcomeVideoComplete} />
           )}
           
-          {/* Onboarding Tour - starts after video is completed */}
           {!tourLoading && welcomeVideoCompleted && businessProfile?.onboarding_completed && (
             <OnboardingTour run={runTour} onComplete={completeTour} />
           )}
