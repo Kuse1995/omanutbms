@@ -400,7 +400,7 @@ export function InventoryAgent() {
       });
       setSelectedIds(new Set());
       setTargetBranchId(null);
-      fetchInventory();
+      handleRefresh();
     } catch (error: any) {
       console.error("Bulk move error:", error);
       toast({
