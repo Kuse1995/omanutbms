@@ -177,7 +177,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .single();
 
       if (profileData && isMountedRef.current) {
-        setProfile(profileData);
+        setProfile(prev => {
+          // Only update if data actually changed to prevent unnecessary re-renders
+          if (prev && JSON.stringify(prev) === JSON.stringify(profileData)) return prev;
+          return profileData;
+        });
       }
 
       // First try to get role from tenant_users (new multi-tenant system)
@@ -373,7 +377,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .single();
       
       if (profileData) {
-        setProfile(profileData);
+        setProfile(prev => {
+          if (prev && JSON.stringify(prev) === JSON.stringify(profileData)) return prev;
+          return profileData;
+        });
       }
     }
   };

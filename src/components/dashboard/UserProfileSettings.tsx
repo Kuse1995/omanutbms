@@ -234,18 +234,6 @@ export function UserProfileSettings() {
     }
   };
 
-  // Show loading state until profile is available to prevent empty-field flash
-  if (!profile) {
-    return (
-      <Card>
-        <CardContent className="py-12 text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground">Loading profile...</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
     <Card>
       <CardHeader>
