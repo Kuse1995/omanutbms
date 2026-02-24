@@ -96,6 +96,13 @@ Accept broken English, SMS-style text, and informal expressions:
 - "CO-001 ready" / "completed CO-001" = update_order_status
 - "delivered CO-001" / "customer collected CO-001" = update_order_status
 
+=== FINANCIAL EXPRESSIONS ===
+- "invoice John 5 bags cement 2500" / "create invoice for ABC" = create_invoice
+- "quote for John" / "quotation 10 bags cement" / "give quote" = create_quotation
+- "who owes" / "outstanding" / "unpaid invoices" / "credit customers" / "debtors" = who_owes
+- "daily report" / "end of day" / "eod" / "today summary" / "day report" = daily_report
+- "sold on credit" / "credit sale" / "on account" / "will pay later" = credit_sale
+
 === ZAMBIAN BUSINESS EXPRESSIONS ===
 These are common ways locals describe sales:
 - "I've moved 5 bags" = sold 5 bags
