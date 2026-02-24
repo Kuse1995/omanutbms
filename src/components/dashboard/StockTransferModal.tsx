@@ -150,7 +150,8 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
         .gt('current_stock', 0);
 
       if (branchData && branchData.length > 0) {
-        setAvailableInventory(branchData.map((item: any) => ({
+        const activeItems = branchData.filter((item: any) => item.inventory?.is_archived !== true);
+        setAvailableInventory(activeItems.map((item: any) => ({
           id: item.inventory_id,
           product_name: item.inventory?.name || 'Unknown',
           sku: item.inventory?.sku || '',
