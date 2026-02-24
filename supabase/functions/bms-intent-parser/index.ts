@@ -45,6 +45,13 @@ SUPPORTED INTENTS:
 24. low_stock_alerts - View items below reorder level
 25. update_order_status - Update production order status (e.g., "CO-001 cutting done")
 
+=== FINANCIAL INTENTS (admin/manager/accountant) ===
+26. create_invoice - Create an invoice for a customer with items
+27. create_quotation - Create a quotation for a customer with items
+28. who_owes - Check outstanding credit / unpaid invoices
+29. daily_report - Get end-of-day business summary
+30. credit_sale - Record a sale on credit (no payment yet)
+
 === LANGUAGE TOLERANCE RULES ===
 Accept broken English, SMS-style text, and informal expressions:
 - "sld" / "sold" / "I sld" = sold
