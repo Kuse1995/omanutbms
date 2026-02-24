@@ -43,36 +43,42 @@ serve(async (req) => {
       }
     }
 
-    // Fetch sales data for the period
-    const { data: sales, error: salesError } = await supabase
+    // Fetch sales data for the period (tenant-scoped)
+    let salesQuery = supabase
       .from("sales_transactions")
       .select("*")
       .gte("created_at", periodStart)
       .lte("created_at", periodEnd + "T23:59:59");
+    if (tenantId) salesQuery = salesQuery.eq("tenant_id", tenantId);
+    const { data: sales, error: salesError } = await salesQuery;
 
     if (salesError) {
       console.error("Sales fetch error:", salesError);
       throw salesError;
     }
 
-    // Fetch expenses for the period
-    const { data: expenses, error: expensesError } = await supabase
+    // Fetch expenses for the period (tenant-scoped)
+    let expensesQuery = supabase
       .from("expenses")
       .select("*")
       .gte("date_incurred", periodStart)
       .lte("date_incurred", periodEnd);
+    if (tenantId) expensesQuery = expensesQuery.eq("tenant_id", tenantId);
+    const { data: expenses, error: expensesError } = await expensesQuery;
 
     if (expensesError) {
       console.error("Expenses fetch error:", expensesError);
       throw expensesError;
     }
 
-    // Fetch invoices for the period
-    const { data: invoices, error: invoicesError } = await supabase
+    // Fetch invoices for the period (tenant-scoped)
+    let invoicesQuery = supabase
       .from("invoices")
       .select("*")
       .gte("invoice_date", periodStart)
       .lte("invoice_date", periodEnd);
+    if (tenantId) invoicesQuery = invoicesQuery.eq("tenant_id", tenantId);
+    const { data: invoices, error: invoicesError } = await invoicesQuery;
 
     if (invoicesError) {
       console.error("Invoices fetch error:", invoicesError);
