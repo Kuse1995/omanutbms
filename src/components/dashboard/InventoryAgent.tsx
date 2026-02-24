@@ -139,83 +139,152 @@ export function InventoryAgent() {
       const from = (currentPage - 1) * ITEMS_PER_PAGE;
       const to = from + ITEMS_PER_PAGE - 1;
 
-      // First get total count with same filters
-      let countQuery = supabase
-        .from("inventory")
-        .select("id", { count: "exact", head: true })
-        .eq("tenant_id", tenantId)
-        .eq("is_archived", showArchived);
-      
-      if (currentBranch && isMultiBranchEnabled && !viewAllLocations) {
-        countQuery = countQuery.eq("default_location_id", currentBranch.id);
-      }
-      if (classFilter) {
-        countQuery = countQuery.eq("inventory_class", classFilter);
-      }
-      // Add search filter
-      if (debouncedSearch.trim()) {
-        const searchPattern = `%${debouncedSearch.trim()}%`;
-        countQuery = countQuery.or(`name.ilike.${searchPattern},sku.ilike.${searchPattern}`);
-      }
-      
-      const { count } = await countQuery;
-      setTotalCount(count || 0);
+      const useBranchInventory = currentBranch && isMultiBranchEnabled && !viewAllLocations;
 
-      // Fetch paginated inventory with variant counts and location info
-      let query = supabase
-        .from("inventory")
-        .select(`
-          *,
-          branches!default_location_id(name)
-        `)
-        .eq("tenant_id", tenantId)
-        .eq("is_archived", showArchived);
-      
-      // Filter by branch when one is selected
-      if (currentBranch && isMultiBranchEnabled && !viewAllLocations) {
-        query = query.eq("default_location_id", currentBranch.id);
-      }
-      if (classFilter) {
-        query = query.eq("inventory_class", classFilter);
-      }
-      // Add search filter
-      if (debouncedSearch.trim()) {
-        const searchPattern = `%${debouncedSearch.trim()}%`;
-        query = query.or(`name.ilike.${searchPattern},sku.ilike.${searchPattern}`);
-      }
-      
-      const { data: inventoryData, error } = await query
-        .order("name")
-        .range(from, to);
+      if (useBranchInventory) {
+        // Branch-specific: query branch_inventory joined with inventory
+        const { count: branchCount } = await supabase
+          .from("branch_inventory")
+          .select("id", { count: "exact", head: true })
+          .eq("tenant_id", tenantId)
+          .eq("branch_id", currentBranch.id)
+          .gt("current_stock", 0);
 
-      if (error) throw error;
+        const { data: branchData, error } = await supabase
+          .from("branch_inventory")
+          .select(`
+            id,
+            current_stock,
+            reserved,
+            inventory:inventory_id(*)
+          `)
+          .eq("tenant_id", tenantId)
+          .eq("branch_id", currentBranch.id)
+          .gt("current_stock", 0)
+          .range(from, to);
 
-      // Fetch variant counts for each product
-      const { data: variantsData } = await supabase
-        .from("product_variants")
-        .select("product_id, variant_type")
-        .eq("tenant_id", tenantId)
-        .eq("is_active", true);
+        if (error) throw error;
 
-      // Count variants per product
-      const variantCounts: Record<string, { colors: number; sizes: number }> = {};
-      variantsData?.forEach((v) => {
-        if (!variantCounts[v.product_id]) {
-          variantCounts[v.product_id] = { colors: 0, sizes: 0 };
+        // Map branch_inventory data, overlay branch stock onto inventory record
+        let enrichedItems = (branchData || [])
+          .filter((item: any) => item.inventory && item.inventory.is_archived === showArchived)
+          .map((item: any) => ({
+            ...item.inventory,
+            current_stock: item.current_stock,
+            reserved: item.reserved || item.inventory.reserved || 0,
+            location_name: currentBranch.name,
+          }));
+
+        // Apply class filter client-side
+        if (classFilter) {
+          enrichedItems = enrichedItems.filter((item: any) => item.inventory_class === classFilter);
         }
-        if (v.variant_type === "color") variantCounts[v.product_id].colors++;
-        if (v.variant_type === "size") variantCounts[v.product_id].sizes++;
-      });
 
-      const enrichedInventory = ((inventoryData || []) as any[]).map((item) => ({
-        ...item,
-        color_count: variantCounts[item.id]?.colors || 0,
-        size_count: variantCounts[item.id]?.sizes || 0,
-        technical_specs: item.technical_specs as unknown as TechnicalSpec[] | null,
-        location_name: item.branches?.name || null,
-      }));
+        // Apply search filter client-side
+        if (debouncedSearch.trim()) {
+          const search = debouncedSearch.trim().toLowerCase();
+          enrichedItems = enrichedItems.filter((item: any) =>
+            item.name?.toLowerCase().includes(search) ||
+            (item.sku && item.sku.toLowerCase().includes(search))
+          );
+        }
 
-      setInventory(enrichedInventory);
+        // Sort by name
+        enrichedItems.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
+
+        // Fetch variant counts
+        const { data: variantsData } = await supabase
+          .from("product_variants")
+          .select("product_id, variant_type")
+          .eq("tenant_id", tenantId)
+          .eq("is_active", true);
+
+        const variantCounts: Record<string, { colors: number; sizes: number }> = {};
+        variantsData?.forEach((v) => {
+          if (!variantCounts[v.product_id]) {
+            variantCounts[v.product_id] = { colors: 0, sizes: 0 };
+          }
+          if (v.variant_type === "color") variantCounts[v.product_id].colors++;
+          if (v.variant_type === "size") variantCounts[v.product_id].sizes++;
+        });
+
+        const finalItems = enrichedItems.map((item: any) => ({
+          ...item,
+          color_count: variantCounts[item.id]?.colors || 0,
+          size_count: variantCounts[item.id]?.sizes || 0,
+          technical_specs: item.technical_specs as unknown as TechnicalSpec[] | null,
+        }));
+
+        setTotalCount(debouncedSearch.trim() || classFilter ? finalItems.length : (branchCount || 0));
+        setInventory(finalItems);
+      } else {
+        // Global / All Locations view: query inventory table directly
+        let countQuery = supabase
+          .from("inventory")
+          .select("id", { count: "exact", head: true })
+          .eq("tenant_id", tenantId)
+          .eq("is_archived", showArchived);
+
+        if (classFilter) {
+          countQuery = countQuery.eq("inventory_class", classFilter);
+        }
+        if (debouncedSearch.trim()) {
+          const searchPattern = `%${debouncedSearch.trim()}%`;
+          countQuery = countQuery.or(`name.ilike.${searchPattern},sku.ilike.${searchPattern}`);
+        }
+        
+        const { count } = await countQuery;
+        setTotalCount(count || 0);
+
+        let query = supabase
+          .from("inventory")
+          .select(`
+            *,
+            branches!default_location_id(name)
+          `)
+          .eq("tenant_id", tenantId)
+          .eq("is_archived", showArchived);
+
+        if (classFilter) {
+          query = query.eq("inventory_class", classFilter);
+        }
+        if (debouncedSearch.trim()) {
+          const searchPattern = `%${debouncedSearch.trim()}%`;
+          query = query.or(`name.ilike.${searchPattern},sku.ilike.${searchPattern}`);
+        }
+        
+        const { data: inventoryData, error } = await query
+          .order("name")
+          .range(from, to);
+
+        if (error) throw error;
+
+        // Fetch variant counts for each product
+        const { data: variantsData } = await supabase
+          .from("product_variants")
+          .select("product_id, variant_type")
+          .eq("tenant_id", tenantId)
+          .eq("is_active", true);
+
+        const variantCounts: Record<string, { colors: number; sizes: number }> = {};
+        variantsData?.forEach((v) => {
+          if (!variantCounts[v.product_id]) {
+            variantCounts[v.product_id] = { colors: 0, sizes: 0 };
+          }
+          if (v.variant_type === "color") variantCounts[v.product_id].colors++;
+          if (v.variant_type === "size") variantCounts[v.product_id].sizes++;
+        });
+
+        const enrichedInventory = ((inventoryData || []) as any[]).map((item) => ({
+          ...item,
+          color_count: variantCounts[item.id]?.colors || 0,
+          size_count: variantCounts[item.id]?.sizes || 0,
+          technical_specs: item.technical_specs as unknown as TechnicalSpec[] | null,
+          location_name: item.branches?.name || null,
+        }));
+
+        setInventory(enrichedInventory);
+      }
       
       // Low stock items - fetch separately without pagination for alerts
       const { data: lowStockData } = await supabase
