@@ -84,99 +84,71 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
     }
 
     try {
-      // Fetch inventory data (only if inventory is enabled)
-      let inventoryData: { current_stock: number; unit_price: number; reorder_level: number | null }[] = [];
-      if (features.inventory) {
-        const { data } = await supabase
-          .from("inventory")
-          .select("current_stock, unit_price, reorder_level")
-          .eq("tenant_id", tenantId);
-        inventoryData = data || [];
-      }
-
-      // Fetch pending invoices (actual invoices, not transactions)
-      const { data: pendingInvoicesData } = await supabase
-        .from("invoices")
-        .select("id")
-        .eq("tenant_id", tenantId)
-        .in("status", ["pending", "draft"]);
-
-      // Fetch approved agents (only if agents is enabled)
-      let agentsData: { status: string }[] = [];
-      if (features.agents) {
-        const { data } = await supabase
-          .from("agent_applications")
-          .select("status")
-          .eq("tenant_id", tenantId)
-          .eq("status", "approved");
-        agentsData = data || [];
-      }
-
-      // Revenue source of truth: payment_receipts (includes both direct sales and invoice payments)
       const startOfMonth = new Date();
       startOfMonth.setDate(1);
       startOfMonth.setHours(0, 0, 0, 0);
       const startOfMonthStr = startOfMonth.toISOString().split("T")[0];
-      
-      // Fetch ALL receipts for this month (direct sales + invoice payments)
-      const { data: allReceiptsData } = await supabase
-        .from("payment_receipts")
-        .select("amount_paid, payment_date, client_email, client_name")
-        .eq("tenant_id", tenantId)
-        .gte("payment_date", startOfMonthStr);
-
-      // Calculate total revenue from all receipts
-      const totalRevenue = allReceiptsData?.reduce((sum, r: any) => sum + Number(r.amount_paid ?? 0), 0) || 0;
-
-      // Get unique clients from receipts (actual paying customers)
-      const uniqueClients = new Set(
-        allReceiptsData?.map(r => r.client_email || r.client_name).filter(Boolean)
-      ).size;
-
-      const totalValue = inventoryData.reduce(
-        (sum, item) => sum + item.current_stock * Number(item.unit_price),
-        0
-      );
-      const lowStock = inventoryData.filter(
-        (item) => item.current_stock < (item.reorder_level || 10)
-      ).length;
-
-      // Get today's date for daily metrics
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const todayDateStr = today.toISOString().split("T")[0];
 
-      // Fetch today's receipts (all payments received today)
-      const { data: todayReceiptsData } = await supabase
-        .from("payment_receipts")
-        .select("id, amount_paid")
-        .eq("tenant_id", tenantId)
-        .eq("payment_date", todayDateStr);
+      // Run all independent queries in parallel
+      const [
+        inventoryResult,
+        pendingInvoicesResult,
+        agentsResult,
+        allReceiptsResult,
+        todayReceiptsResult,
+        pendingJobsResult,
+        livestockResult,
+      ] = await Promise.all([
+        // Inventory data
+        features.inventory
+          ? supabase.from("inventory").select("current_stock, unit_price, reorder_level").eq("tenant_id", tenantId)
+          : Promise.resolve({ data: [] }),
+        // Pending invoices
+        supabase.from("invoices").select("id").eq("tenant_id", tenantId).in("status", ["pending", "draft"]),
+        // Approved agents
+        features.agents
+          ? supabase.from("agent_applications").select("status").eq("tenant_id", tenantId).eq("status", "approved")
+          : Promise.resolve({ data: [] }),
+        // Monthly receipts
+        supabase.from("payment_receipts").select("amount_paid, payment_date, client_email, client_name").eq("tenant_id", tenantId).gte("payment_date", startOfMonthStr),
+        // Today's receipts
+        supabase.from("payment_receipts").select("id, amount_paid").eq("tenant_id", tenantId).eq("payment_date", todayDateStr),
+        // Pending jobs
+        supabase.from("invoices").select("id").eq("tenant_id", tenantId).eq("status", "pending"),
+        // Livestock count
+        features.inventory
+          ? supabase.from("inventory").select("current_stock").eq("tenant_id", tenantId).eq("category", "livestock")
+          : Promise.resolve({ data: [] }),
+      ]);
 
-      const todaySalesCount = todayReceiptsData?.length || 0;
-      const todaySalesRevenue = todayReceiptsData?.reduce((sum, r: any) => sum + Number(r.amount_paid || 0), 0) || 0;
+      const inventoryData = inventoryResult.data || [];
+      const pendingInvoicesData = pendingInvoicesResult.data || [];
+      const agentsData = agentsResult.data || [];
+      const allReceiptsData = allReceiptsResult.data || [];
+      const todayReceiptsData = todayReceiptsResult.data || [];
+      const pendingJobs = pendingJobsResult.data || [];
+      const livestockData = livestockResult.data || [];
 
-      // Fetch pending/in-progress invoices for jobs in progress
-      const { data: pendingJobs } = await supabase
-        .from("invoices")
-        .select("id")
-        .eq("tenant_id", tenantId)
-        .eq("status", "pending");
-
-      // Fetch livestock count (items in livestock category)
-      let livestockCount = 0;
-      if (features.inventory) {
-        const { data: livestockData } = await supabase
-          .from("inventory")
-          .select("current_stock")
-          .eq("tenant_id", tenantId)
-          .eq("category", "livestock");
-        livestockCount = livestockData?.reduce((sum, item) => sum + item.current_stock, 0) || 0;
-      }
+      const totalRevenue = allReceiptsData.reduce((sum: number, r: any) => sum + Number(r.amount_paid ?? 0), 0);
+      const uniqueClients = new Set(
+        allReceiptsData.map((r: any) => r.client_email || r.client_name).filter(Boolean)
+      ).size;
+      const totalValue = inventoryData.reduce(
+        (sum: number, item: any) => sum + item.current_stock * Number(item.unit_price), 0
+      );
+      const lowStock = inventoryData.filter(
+        (item: any) => item.current_stock < (item.reorder_level || 10)
+      ).length;
+      const todaySalesCount = todayReceiptsData.length;
+      const todaySalesRevenue = todayReceiptsData.reduce((sum: number, r: any) => sum + Number(r.amount_paid || 0), 0);
+      const livestockCount = livestockData.reduce((sum: number, item: any) => sum + item.current_stock, 0);
 
       setMetrics({
         inventoryValue: totalValue,
-        pendingInvoices: pendingInvoicesData?.length || 0,
+        pendingInvoices: pendingInvoicesData.length,
         activeAgents: agentsData.length,
         lowStockAlerts: lowStock,
         totalRevenue,
@@ -187,7 +159,7 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
         bookingsToday: todaySalesCount,
         appointmentsToday: todaySalesCount,
         patientsToday: todaySalesCount,
-        jobsInProgress: pendingJobs?.length || 0,
+        jobsInProgress: pendingJobs.length,
         livestockCount,
       });
     } catch (error) {
