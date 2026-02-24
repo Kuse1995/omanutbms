@@ -13,11 +13,12 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { 
   MessageCircle, Plus, Trash2, Phone, Loader2, 
   Crown, UserCog, Calculator, Users, ShoppingCart, Banknote, Eye, Wrench,
-  Check, X
+  Check, X, Monitor, HardHat
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -277,6 +278,12 @@ export function WhatsAppSettings() {
     enabled: !!tenantId,
   });
 
+  // Split mappings into BMS users and employee self-service
+  const bmsUserMappings = mappings?.filter(m => !m.is_employee_self_service) || [];
+  const employeeMappings = mappings?.filter(m => m.is_employee_self_service) || [];
+  const activeBmsCount = bmsUserMappings.filter(m => m.is_active).length;
+  const activeEmpCount = employeeMappings.filter(m => m.is_active).length;
+
   // Add mapping mutation (for BMS users)
   const addMutation = useMutation({
     mutationFn: async (mapping: typeof newMapping) => {
@@ -290,12 +297,10 @@ export function WhatsAppSettings() {
         is_employee_self_service: false,
       };
       
-      // Only add employee_id if selected
       if (mapping.employee_id) {
         insertData.employee_id = mapping.employee_id;
       }
       
-      // Only add branch_id if multi-branch and selected
       if (isMultiBranchEnabled && mapping.branch_id) {
         insertData.branch_id = mapping.branch_id;
       }
@@ -320,11 +325,11 @@ export function WhatsAppSettings() {
       const selectedEmployee = employees?.find(e => e.id === mapping.employee_id);
       const insertData: any = {
         tenant_id: tenantId,
-        user_id: null, // No BMS user account required
+        user_id: null,
         employee_id: mapping.employee_id,
         whatsapp_number: mapping.whatsapp_number,
         display_name: mapping.display_name || selectedEmployee?.full_name || "Employee",
-        role: "viewer", // Limited role for self-service (viewer is valid in DB enum)
+        role: "viewer",
         created_by: user?.id,
         is_employee_self_service: true,
       };
@@ -371,7 +376,6 @@ export function WhatsAppSettings() {
 
   const handleUserSelect = (userId: string) => {
     const selectedUser = tenantUsers?.find((u) => u.user_id === userId);
-    // Map BMS role to closest WhatsApp role
     const bmsRole = selectedUser?.role || "viewer";
     const mappedRole = (Object.keys(whatsappRoles).includes(bmsRole) ? bmsRole : "viewer") as WhatsAppRoleKey;
     
@@ -385,6 +389,57 @@ export function WhatsAppSettings() {
 
   const selectedRoleConfig = whatsappRoles[newMapping.role];
   const RoleIcon = selectedRoleConfig?.icon || Eye;
+
+  const renderMappingRow = (mapping: WhatsAppMapping) => {
+    const roleConfig = whatsappRoles[mapping.role as WhatsAppRoleKey] || whatsappRoles.viewer;
+    const MappingRoleIcon = roleConfig.icon;
+    return (
+      <TableRow key={mapping.id}>
+        <TableCell className="font-mono">{mapping.whatsapp_number}</TableCell>
+        <TableCell>{mapping.display_name}</TableCell>
+        <TableCell>
+          <Badge variant="outline" className={`capitalize gap-1 ${roleConfig.bgColor}`}>
+            <MappingRoleIcon className={`h-3 w-3 ${roleConfig.color}`} />
+            {roleConfig.label}
+          </Badge>
+        </TableCell>
+        <TableCell>
+          <Switch
+            checked={mapping.is_active}
+            onCheckedChange={(checked) => toggleMutation.mutate({ id: mapping.id, is_active: checked })}
+          />
+        </TableCell>
+        <TableCell className="text-muted-foreground text-sm">
+          {mapping.last_used_at ? format(new Date(mapping.last_used_at), "MMM d, HH:mm") : "Never"}
+        </TableCell>
+        <TableCell className="text-right">
+          <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(mapping.id)}>
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        </TableCell>
+      </TableRow>
+    );
+  };
+
+  const renderEmptyState = (type: "bms" | "employee") => (
+    <div className="text-center py-8 text-muted-foreground">
+      {type === "bms" ? (
+        <Monitor className="h-12 w-12 mx-auto mb-3 opacity-50" />
+      ) : (
+        <HardHat className="h-12 w-12 mx-auto mb-3 opacity-50" />
+      )}
+      <p>
+        {type === "bms"
+          ? "No BMS users registered yet."
+          : "No employee self-service numbers yet."}
+      </p>
+      <p className="text-sm">
+        {type === "bms"
+          ? "Add team members who have BMS dashboard accounts."
+          : "Add employees who need WhatsApp-only access for tasks, attendance & payslips."}
+      </p>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -410,102 +465,151 @@ export function WhatsAppSettings() {
         </CardContent>
       </Card>
 
-      {/* Mappings Table */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
-          <div>
-            <CardTitle>Registered Phone Numbers</CardTitle>
-            <CardDescription>Team members who can access BMS via WhatsApp</CardDescription>
+      {/* Summary Counts */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Card className="p-4">
+          <div className="text-2xl font-bold">{mappings?.length || 0}</div>
+          <div className="text-xs text-muted-foreground">Total Registered</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-2xl font-bold text-blue-600">{activeBmsCount}</div>
+          <div className="text-xs text-muted-foreground">Active BMS Users</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-2xl font-bold text-emerald-600">{activeEmpCount}</div>
+          <div className="text-xs text-muted-foreground">Active Employees</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-2xl font-bold text-amber-600">
+            {mappings?.filter(m => !m.is_active).length || 0}
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setIsEmployeeModalOpen(true)} className="gap-2">
-              <Users className="h-4 w-4" />
-              Add Employee Self-Service
-            </Button>
-            <Button onClick={() => setIsAddModalOpen(true)} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Add BMS User
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : mappings && mappings.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Phone Number</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Last Used</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {mappings.map((mapping) => {
-                  const roleConfig = whatsappRoles[mapping.role as WhatsAppRoleKey] || whatsappRoles.viewer;
-                  const MappingRoleIcon = roleConfig.icon;
-                  return (
-                    <TableRow key={mapping.id}>
-                      <TableCell className="font-mono">{mapping.whatsapp_number}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {mapping.display_name}
-                          {mapping.is_employee_self_service && (
-                            <Badge variant="secondary" className="text-xs">Self-Service</Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={`capitalize gap-1 ${roleConfig.bgColor}`}>
-                          <MappingRoleIcon className={`h-3 w-3 ${roleConfig.color}`} />
-                          {roleConfig.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Switch
-                          checked={mapping.is_active}
-                          onCheckedChange={(checked) => toggleMutation.mutate({ id: mapping.id, is_active: checked })}
-                        />
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {mapping.last_used_at ? format(new Date(mapping.last_used_at), "MMM d, HH:mm") : "Never"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(mapping.id)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              <MessageCircle className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p>No phone numbers registered yet.</p>
-              <p className="text-sm">Add team members to enable WhatsApp access.</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          <div className="text-xs text-muted-foreground">Inactive</div>
+        </Card>
+      </div>
 
-      {/* Add Modal */}
+      {/* Tabbed Content */}
+      <Tabs defaultValue="bms-users" className="space-y-4">
+        <TabsList className="h-auto gap-1">
+          <TabsTrigger value="bms-users" className="flex items-center gap-2">
+            <Monitor className="h-4 w-4" />
+            BMS Users
+            <Badge variant="secondary" className="ml-1 text-xs h-5 px-1.5">{bmsUserMappings.length}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="employees" className="flex items-center gap-2">
+            <HardHat className="h-4 w-4" />
+            Employee Self-Service
+            <Badge variant="secondary" className="ml-1 text-xs h-5 px-1.5">{employeeMappings.length}</Badge>
+          </TabsTrigger>
+        </TabsList>
+
+        {/* BMS Users Tab */}
+        <TabsContent value="bms-users">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Monitor className="h-5 w-5 text-blue-600" />
+                  BMS Dashboard Users
+                </CardTitle>
+                <CardDescription>
+                  Team members with BMS login accounts who also use WhatsApp for quick actions like recording sales, checking stock, and generating invoices.
+                </CardDescription>
+              </div>
+              <Button onClick={() => setIsAddModalOpen(true)} className="gap-2">
+                <Plus className="h-4 w-4" />
+                Add BMS User
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : bmsUserMappings.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Phone Number</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Last Used</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {bmsUserMappings.map(renderMappingRow)}
+                  </TableBody>
+                </Table>
+              ) : (
+                renderEmptyState("bms")
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Employee Self-Service Tab */}
+        <TabsContent value="employees">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <HardHat className="h-5 w-5 text-emerald-600" />
+                  Employee Self-Service
+                </CardTitle>
+                <CardDescription>
+                  Employees who don't have a BMS login account but can use WhatsApp to check their tasks, clock in/out, view attendance, and see their payslip.
+                </CardDescription>
+              </div>
+              <Button onClick={() => setIsEmployeeModalOpen(true)} className="gap-2" variant="outline">
+                <Plus className="h-4 w-4" />
+                Add Employee
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : employeeMappings.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Phone Number</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Last Used</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {employeeMappings.map(renderMappingRow)}
+                  </TableBody>
+                </Table>
+              ) : (
+                renderEmptyState("employee")
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Add BMS User Modal */}
       <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Add WhatsApp Number</DialogTitle>
-            <DialogDescription>Link a team member's WhatsApp number to access BMS</DialogDescription>
+            <DialogTitle className="flex items-center gap-2">
+              <Monitor className="h-5 w-5 text-blue-600" />
+              Add BMS User to WhatsApp
+            </DialogTitle>
+            <DialogDescription>
+              Link a team member who already has a BMS dashboard account so they can also use WhatsApp for quick actions.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {/* Team Member Selection */}
             <div className="space-y-2">
-              <Label>Team Member</Label>
+              <Label>Team Member *</Label>
               <Select value={newMapping.user_id} onValueChange={handleUserSelect}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select a team member" />
@@ -520,7 +624,6 @@ export function WhatsAppSettings() {
               </Select>
             </div>
 
-            {/* Link to Employee (Optional) */}
             <div className="space-y-2">
               <Label>Link to Employee Record <span className="text-muted-foreground text-xs">(optional)</span></Label>
               <Select value={newMapping.employee_id || "none"} onValueChange={(v) => setNewMapping({ ...newMapping, employee_id: v === "none" ? "" : v })}>
@@ -541,7 +644,6 @@ export function WhatsAppSettings() {
               </p>
             </div>
 
-            {/* Branch Assignment (if multi-branch) */}
             {isMultiBranchEnabled && branches && branches.length > 1 && (
               <div className="space-y-2">
                 <Label>Branch Assignment <span className="text-muted-foreground text-xs">(optional)</span></Label>
@@ -564,9 +666,8 @@ export function WhatsAppSettings() {
               </div>
             )}
 
-            {/* WhatsApp Number */}
             <div className="space-y-2">
-              <Label>WhatsApp Number</Label>
+              <Label>WhatsApp Number *</Label>
               <Input
                 value={newMapping.whatsapp_number}
                 onChange={(e) => setNewMapping({ ...newMapping, whatsapp_number: e.target.value })}
@@ -574,7 +675,6 @@ export function WhatsAppSettings() {
               />
             </div>
 
-            {/* Display Name */}
             <div className="space-y-2">
               <Label>Display Name</Label>
               <Input
@@ -584,7 +684,6 @@ export function WhatsAppSettings() {
               />
             </div>
 
-            {/* Role Selection with Icon */}
             <div className="space-y-2">
               <Label>WhatsApp Role</Label>
               <Select value={newMapping.role} onValueChange={(v) => setNewMapping({ ...newMapping, role: v as WhatsAppRoleKey })}>
@@ -608,7 +707,6 @@ export function WhatsAppSettings() {
               </Select>
             </div>
 
-            {/* Role Permission Preview */}
             {selectedRoleConfig && (
               <div className={`p-4 rounded-lg border ${selectedRoleConfig.bgColor}`}>
                 <div className="flex items-center gap-2 mb-3">
@@ -661,15 +759,14 @@ export function WhatsAppSettings() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-primary" />
+              <HardHat className="h-5 w-5 text-emerald-600" />
               Add Employee Self-Service Access
             </DialogTitle>
             <DialogDescription>
-              Allow an employee to check their own tasks, attendance, and payslip via WhatsApp without needing a BMS account.
+              Allow an employee to check their own tasks, attendance, and payslip via WhatsApp — no BMS account needed.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {/* Employee Selection */}
             <div className="space-y-2">
               <Label>Select Employee *</Label>
               <Select 
@@ -696,7 +793,6 @@ export function WhatsAppSettings() {
               </Select>
             </div>
 
-            {/* WhatsApp Number */}
             <div className="space-y-2">
               <Label>WhatsApp Number *</Label>
               <Input
@@ -706,7 +802,6 @@ export function WhatsAppSettings() {
               />
             </div>
 
-            {/* Display Name */}
             <div className="space-y-2">
               <Label>Display Name</Label>
               <Input
@@ -716,10 +811,9 @@ export function WhatsAppSettings() {
               />
             </div>
 
-            {/* Permissions Preview */}
-            <div className="p-4 rounded-lg border bg-slate-50 border-slate-200">
+            <div className="p-4 rounded-lg border bg-emerald-50 border-emerald-200">
               <div className="flex items-center gap-2 mb-3">
-                <Wrench className="h-5 w-5 text-slate-600" />
+                <HardHat className="h-5 w-5 text-emerald-600" />
                 <span className="font-medium">Employee Self-Service Access</span>
               </div>
               
