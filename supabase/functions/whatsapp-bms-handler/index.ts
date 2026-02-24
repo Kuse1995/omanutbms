@@ -15,18 +15,27 @@ const HELP_MESSAGE = `Hey there! 👋 I'm your business assistant.
 Here's what I can help with:
 
 📦 *Sales & Stock*
-Just tell me what you sold, like "sold 5 cement 2500 cash" or ask "check stock cement"
+"sold 5 cement 2500 cash" or "check stock cement" or "list products"
+
+💳 *Credit Sales*
+"sold 3 bags to John on credit 1500" or "who owes me"
+
+📋 *Invoices & Quotes*
+"invoice John 5 bags cement 2500" or "quote for ABC 10 bags 5000"
+
+📊 *Reports*
+"daily report" or "sales today" or "sales this week"
 
 👔 *Your Work*
-Say "my tasks" to see what's pending, "clock in" when you arrive, or "my pay" for your latest payslip
+"my tasks", "clock in", "my pay"
 
-📋 *Documents*
-Need a receipt or invoice? Just ask - "last receipt" or "send invoice"
+📄 *Documents*
+"last receipt" or "send invoice 2026-0001"
 
 💰 *Expenses*
-Log spending with "spent 200 on transport"
+"spent 200 on transport"
 
-Just chat naturally - I understand broken English and shortcuts! Say "cancel" anytime to start fresh.`;
+Just chat naturally - I understand shortcuts! Say "cancel" anytime to start fresh.`;
 
 const UNREGISTERED_MESSAGE = `Hi! I don't recognize this number yet.
 
