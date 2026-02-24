@@ -1,43 +1,49 @@
 
 
-# Fix "column quantity does not exist" Error in Stock Transfer Completion
+# Seed Branch Inventory for Lusaka Main Store
 
 ## Problem
 
-When clicking **Mark Complete** on a stock transfer, the `complete_stock_transfer` database function fails with the error: **column "quantity" does not exist**.
+The `branch_inventory` table is nearly empty. "Lusaka Main" has **zero records**, yet there are **3,067 active inventory items** in the global `inventory` table. This means branch-level stock tracking, transfers, and sales isolation cannot function properly because no items have been assigned to any location.
 
-The function has a fallback path that reads from the `inventory` table when no `branch_inventory` record exists for the source location. In that fallback, it uses `SELECT quantity` but the `inventory` table's column is named `current_stock`, not `quantity`.
+## Solution
 
-## Root Cause
-
-In the `complete_stock_transfer` function, around this section:
-
-```sql
--- If no branch_inventory exists for source, create one from main inventory
-IF v_source_branch_inv_id IS NULL THEN
-    SELECT quantity INTO v_source_stock        -- BUG: should be current_stock
-    FROM public.inventory 
-    WHERE id = v_transfer.inventory_id;
-```
-
-The `stock_transfers` table has a `quantity` column (which works fine), but the `inventory` table uses `current_stock`. The function confuses the two.
-
-## Fix
-
-Run a database migration to replace the `complete_stock_transfer` function, changing `SELECT quantity` to `SELECT current_stock` when reading from the `inventory` table. Everything else in the function remains the same.
+Create a database migration that bulk-inserts `branch_inventory` records for a designated "home" branch (Lusaka Main) using all existing active inventory items. This acts as a one-time seed to bootstrap location-specific stock management.
 
 ## Technical Details
 
-### Migration SQL
+### Database Migration
 
-A single `CREATE OR REPLACE FUNCTION` statement that corrects the one line from:
+Run a single SQL `INSERT ... SELECT` statement that:
+
+1. Takes every active, non-archived item from `inventory` that has `current_stock > 0`
+2. Creates a corresponding `branch_inventory` record for "Lusaka Main" (`5edce03c-614f-42b8-8fca-7cb9402e4b7a`)
+3. Copies the `current_stock` value from the global inventory as the starting stock
+4. Sets a default `reorder_level` of 10
+5. Uses `ON CONFLICT DO NOTHING` to avoid duplicates if some records already exist
+
 ```sql
-SELECT quantity INTO v_source_stock FROM public.inventory WHERE id = v_transfer.inventory_id;
-```
-to:
-```sql
-SELECT current_stock INTO v_source_stock FROM public.inventory WHERE id = v_transfer.inventory_id;
+INSERT INTO public.branch_inventory (tenant_id, branch_id, inventory_id, current_stock, reorder_level)
+SELECT 
+  tenant_id,
+  '5edce03c-614f-42b8-8fca-7cb9402e4b7a',  -- Lusaka Main
+  id,
+  current_stock,
+  10
+FROM public.inventory
+WHERE is_archived = false
+  AND current_stock > 0
+ON CONFLICT DO NOTHING;
 ```
 
-No other changes are needed. The rest of the function correctly references `stock_transfers.quantity` and `branch_inventory.current_stock`.
+### What This Achieves
+
+- Lusaka Main will have ~3,067 `branch_inventory` records matching the global stock
+- The stock transfer modal will correctly show items available at Lusaka Main
+- Sales can be properly isolated to Lusaka Main's stock
+- Future transfers from Lusaka Main to other branches will deduct from its specific stock
+
+### No Code Changes Required
+
+This is a data-only migration. The existing transfer modal, sales recorder, and inventory views already query `branch_inventory` -- they just need the data to exist.
 
