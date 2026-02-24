@@ -949,6 +949,16 @@ export function ProductModal({ open, onOpenChange, product, onSuccess }: Product
 
         if (error) throw error;
 
+        // Sync branch_inventory so product appears in Sales for the assigned location
+        if (insertedProduct?.id && formData.default_location_id && formData.default_location_id !== "none") {
+          await supabase.from("branch_inventory").upsert({
+            inventory_id: insertedProduct.id,
+            branch_id: formData.default_location_id,
+            tenant_id: tenantId,
+            current_stock: isServiceItem ? 9999 : formData.current_stock,
+          }, { onConflict: "inventory_id,branch_id" });
+        }
+
         // Create pending variants for fashion products
         if (isFashionMode && pendingVariants.length > 0 && insertedProduct?.id) {
           const variantInserts = pendingVariants.map(v => ({
