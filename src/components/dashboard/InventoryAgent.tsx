@@ -94,10 +94,6 @@ interface InventoryItem {
 const ITEMS_PER_PAGE = 100;
 
 export function InventoryAgent() {
-  const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  const [lowStockItems, setLowStockItems] = useState<InventoryItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isVariantsModalOpen, setIsVariantsModalOpen] = useState(false);
@@ -108,201 +104,140 @@ export function InventoryAgent() {
   const [itemToRestore, setItemToRestore] = useState<InventoryItem | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [classFilter, setClassFilter] = useState<string | null>(null);
-  // Search state
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
-  // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkArchiveDialogOpen, setBulkArchiveDialogOpen] = useState(false);
   const [bulkMoveDialogOpen, setBulkMoveDialogOpen] = useState(false);
   const [targetBranchId, setTargetBranchId] = useState<string | null>(null);
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
-  // Tab state for inventory vs movements view
   const [activeTab, setActiveTab] = useState<"inventory" | "movements">("inventory");
-  // View all locations toggle (read-only cross-branch visibility)
   const [viewAllLocations, setViewAllLocations] = useState(false);
   const { toast } = useToast();
   const { tenantId } = useTenant();
   const { currentBranch, isMultiBranchEnabled, branches } = useBranch();
   const { terminology, currencySymbol } = useFeatures();
   const { config, businessType } = useBusinessConfig();
+  const queryClient = useQueryClient();
   const formFields = config.formFields;
   const showMaterialsAndConsumables = businessType === 'fashion';
-  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
-  const fetchInventory = async () => {
-    if (!tenantId) return;
+  const inventoryQueryKey = useMemo(() => [
+    'inventory', tenantId, currentBranch?.id, currentPage, showArchived, classFilter, debouncedSearch, viewAllLocations
+  ], [tenantId, currentBranch?.id, currentPage, showArchived, classFilter, debouncedSearch, viewAllLocations]);
+
+  const fetchInventoryData = useCallback(async () => {
+    if (!tenantId) return { inventory: [], totalCount: 0, lowStockItems: [] };
     
-    try {
-      const from = (currentPage - 1) * ITEMS_PER_PAGE;
-      const to = from + ITEMS_PER_PAGE - 1;
+    const from = (currentPage - 1) * ITEMS_PER_PAGE;
+    const to = from + ITEMS_PER_PAGE - 1;
+    const useBranchInventory = currentBranch && isMultiBranchEnabled && !viewAllLocations;
 
-      const useBranchInventory = currentBranch && isMultiBranchEnabled && !viewAllLocations;
+    let inventoryItems: InventoryItem[] = [];
+    let total = 0;
 
-      if (useBranchInventory) {
-        // Branch-specific: run count, data, and variant queries in parallel
-        const [countResult, dataResult, variantsResult] = await Promise.all([
-          supabase
-            .from("branch_inventory")
-            .select("id", { count: "exact", head: true })
-            .eq("tenant_id", tenantId)
-            .eq("branch_id", currentBranch.id)
-            .gt("current_stock", 0),
-          supabase
-            .from("branch_inventory")
-            .select(`
-              id,
-              current_stock,
-              reserved,
-              inventory:inventory_id(id, sku, name, current_stock, wholesale_stock, unit_price, cost_price, original_price, reorder_level, image_url, category, status, item_type, inventory_class, unit_of_measure, default_location_id, is_archived)
-            `)
-            .eq("tenant_id", tenantId)
-            .eq("branch_id", currentBranch.id)
-            .gt("current_stock", 0)
-            .range(from, to),
-          supabase
-            .from("product_variants")
-            .select("product_id, variant_type")
-            .eq("tenant_id", tenantId)
-            .eq("is_active", true),
-        ]);
+    if (useBranchInventory) {
+      const [countResult, dataResult, variantsResult] = await Promise.all([
+        supabase.from("branch_inventory").select("id", { count: "exact", head: true })
+          .eq("tenant_id", tenantId).eq("branch_id", currentBranch.id).gt("current_stock", 0),
+        supabase.from("branch_inventory").select(`
+            id, current_stock, reserved,
+            inventory:inventory_id(id, sku, name, current_stock, wholesale_stock, unit_price, cost_price, original_price, reorder_level, image_url, category, status, item_type, inventory_class, unit_of_measure, default_location_id, is_archived)
+          `).eq("tenant_id", tenantId).eq("branch_id", currentBranch.id).gt("current_stock", 0).range(from, to),
+        supabase.from("product_variants").select("product_id, variant_type").eq("tenant_id", tenantId).eq("is_active", true),
+      ]);
 
-        if (dataResult.error) throw dataResult.error;
+      if (dataResult.error) throw dataResult.error;
 
-        let enrichedItems = (dataResult.data || [])
-          .filter((item: any) => item.inventory && item.inventory.is_archived === showArchived)
-          .map((item: any) => ({
-            ...item.inventory,
-            current_stock: item.current_stock,
-            reserved: item.reserved || item.inventory.reserved || 0,
-            location_name: currentBranch.name,
-          }));
+      let enrichedItems = (dataResult.data || [])
+        .filter((item: any) => item.inventory && item.inventory.is_archived === showArchived)
+        .map((item: any) => ({ ...item.inventory, current_stock: item.current_stock, reserved: item.reserved || item.inventory.reserved || 0, location_name: currentBranch.name }));
 
-        if (classFilter) {
-          enrichedItems = enrichedItems.filter((item: any) => item.inventory_class === classFilter);
-        }
-        if (debouncedSearch.trim()) {
-          const search = debouncedSearch.trim().toLowerCase();
-          enrichedItems = enrichedItems.filter((item: any) =>
-            item.name?.toLowerCase().includes(search) ||
-            (item.sku && item.sku.toLowerCase().includes(search))
-          );
-        }
-        enrichedItems.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
-
-        const variantCounts: Record<string, { colors: number; sizes: number }> = {};
-        variantsResult.data?.forEach((v) => {
-          if (!variantCounts[v.product_id]) {
-            variantCounts[v.product_id] = { colors: 0, sizes: 0 };
-          }
-          if (v.variant_type === "color") variantCounts[v.product_id].colors++;
-          if (v.variant_type === "size") variantCounts[v.product_id].sizes++;
-        });
-
-        const finalItems = enrichedItems.map((item: any) => ({
-          ...item,
-          color_count: variantCounts[item.id]?.colors || 0,
-          size_count: variantCounts[item.id]?.sizes || 0,
-          technical_specs: item.technical_specs as unknown as TechnicalSpec[] | null,
-        }));
-
-        setTotalCount(debouncedSearch.trim() || classFilter ? finalItems.length : (countResult.count || 0));
-        setInventory(finalItems);
-      } else {
-        // Global / All Locations view: run count, data, and variant queries in parallel
-        let countQuery = supabase
-          .from("inventory")
-          .select("id", { count: "exact", head: true })
-          .eq("tenant_id", tenantId)
-          .eq("is_archived", showArchived);
-
-        if (classFilter) countQuery = countQuery.eq("inventory_class", classFilter);
-        if (debouncedSearch.trim()) {
-          const searchPattern = `%${debouncedSearch.trim()}%`;
-          countQuery = countQuery.or(`name.ilike.${searchPattern},sku.ilike.${searchPattern}`);
-        }
-
-        let dataQuery = supabase
-          .from("inventory")
-          .select(`
-            id, sku, name, current_stock, wholesale_stock, unit_price, cost_price, original_price,
-            reorder_level, liters_per_unit, image_url, category, status, item_type,
-            inventory_class, unit_of_measure, default_location_id, is_archived,
-            color_count, size_count, description, highlight, features, certifications, technical_specs,
-            branches!default_location_id(name)
-          `)
-          .eq("tenant_id", tenantId)
-          .eq("is_archived", showArchived);
-
-        if (classFilter) dataQuery = dataQuery.eq("inventory_class", classFilter);
-        if (debouncedSearch.trim()) {
-          const searchPattern = `%${debouncedSearch.trim()}%`;
-          dataQuery = dataQuery.or(`name.ilike.${searchPattern},sku.ilike.${searchPattern}`);
-        }
-
-        const [countResult, dataResult, variantsResult] = await Promise.all([
-          countQuery,
-          dataQuery.order("name").range(from, to),
-          supabase
-            .from("product_variants")
-            .select("product_id, variant_type")
-            .eq("tenant_id", tenantId)
-            .eq("is_active", true),
-        ]);
-
-        if (dataResult.error) throw dataResult.error;
-        setTotalCount(countResult.count || 0);
-
-        const variantCounts: Record<string, { colors: number; sizes: number }> = {};
-        variantsResult.data?.forEach((v) => {
-          if (!variantCounts[v.product_id]) {
-            variantCounts[v.product_id] = { colors: 0, sizes: 0 };
-          }
-          if (v.variant_type === "color") variantCounts[v.product_id].colors++;
-          if (v.variant_type === "size") variantCounts[v.product_id].sizes++;
-        });
-
-        const enrichedInventory = ((dataResult.data || []) as any[]).map((item) => ({
-          ...item,
-          color_count: variantCounts[item.id]?.colors || 0,
-          size_count: variantCounts[item.id]?.sizes || 0,
-          technical_specs: item.technical_specs as unknown as TechnicalSpec[] | null,
-          location_name: item.branches?.name || null,
-        }));
-
-        setInventory(enrichedInventory);
+      if (classFilter) enrichedItems = enrichedItems.filter((item: any) => item.inventory_class === classFilter);
+      if (debouncedSearch.trim()) {
+        const search = debouncedSearch.trim().toLowerCase();
+        enrichedItems = enrichedItems.filter((item: any) => item.name?.toLowerCase().includes(search) || (item.sku && item.sku.toLowerCase().includes(search)));
       }
-      
-      // Low stock items - fetch separately without pagination for alerts
-      const { data: lowStockData } = await supabase
-        .from("inventory")
-        .select("id, name, sku, current_stock, reorder_level, item_type, category")
-        .eq("tenant_id", tenantId)
-        .eq("is_archived", false)
-        .lt("current_stock", 10);
-      
-      const serviceCategories = ['consultation', 'project', 'retainer', 'training', 'support', 'package', 'treatment', 'haircut', 'styling', 'coloring', 'spa', 'bridal', 'barbering', 'consultation_fee', 'lab_test', 'procedure', 'vaccination', 'repair', 'maintenance', 'diagnostics', 'service', 'services', 'maintenance_service'];
-      setLowStockItems(
-        ((lowStockData || []) as any[]).filter((item) => {
-          const isService = item.item_type === 'service' || serviceCategories.includes(item.category || '');
-          return !isService && item.current_stock < (item.reorder_level || 10);
-        })
-      );
-    } catch (error) {
-      console.error("Error fetching inventory:", error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch inventory data",
-        variant: "destructive",
+      enrichedItems.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
+
+      const variantCounts: Record<string, { colors: number; sizes: number }> = {};
+      variantsResult.data?.forEach((v) => {
+        if (!variantCounts[v.product_id]) variantCounts[v.product_id] = { colors: 0, sizes: 0 };
+        if (v.variant_type === "color") variantCounts[v.product_id].colors++;
+        if (v.variant_type === "size") variantCounts[v.product_id].sizes++;
       });
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+
+      inventoryItems = enrichedItems.map((item: any) => ({
+        ...item, color_count: variantCounts[item.id]?.colors || 0, size_count: variantCounts[item.id]?.sizes || 0,
+        technical_specs: item.technical_specs as unknown as TechnicalSpec[] | null,
+      }));
+      total = debouncedSearch.trim() || classFilter ? inventoryItems.length : (countResult.count || 0);
+    } else {
+      let countQuery = supabase.from("inventory").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("is_archived", showArchived);
+      if (classFilter) countQuery = countQuery.eq("inventory_class", classFilter);
+      if (debouncedSearch.trim()) { const p = `%${debouncedSearch.trim()}%`; countQuery = countQuery.or(`name.ilike.${p},sku.ilike.${p}`); }
+
+      let dataQuery = supabase.from("inventory").select(`
+          id, sku, name, current_stock, wholesale_stock, unit_price, cost_price, original_price,
+          reorder_level, liters_per_unit, image_url, category, status, item_type,
+          inventory_class, unit_of_measure, default_location_id, is_archived,
+          color_count, size_count, description, highlight, features, certifications, technical_specs,
+          branches!default_location_id(name)
+        `).eq("tenant_id", tenantId).eq("is_archived", showArchived);
+      if (classFilter) dataQuery = dataQuery.eq("inventory_class", classFilter);
+      if (debouncedSearch.trim()) { const p = `%${debouncedSearch.trim()}%`; dataQuery = dataQuery.or(`name.ilike.${p},sku.ilike.${p}`); }
+
+      const [countResult, dataResult, variantsResult] = await Promise.all([
+        countQuery,
+        dataQuery.order("name").range(from, to),
+        supabase.from("product_variants").select("product_id, variant_type").eq("tenant_id", tenantId).eq("is_active", true),
+      ]);
+
+      if (dataResult.error) throw dataResult.error;
+      total = countResult.count || 0;
+
+      const variantCounts: Record<string, { colors: number; sizes: number }> = {};
+      variantsResult.data?.forEach((v) => {
+        if (!variantCounts[v.product_id]) variantCounts[v.product_id] = { colors: 0, sizes: 0 };
+        if (v.variant_type === "color") variantCounts[v.product_id].colors++;
+        if (v.variant_type === "size") variantCounts[v.product_id].sizes++;
+      });
+
+      inventoryItems = ((dataResult.data || []) as any[]).map((item) => ({
+        ...item, color_count: variantCounts[item.id]?.colors || 0, size_count: variantCounts[item.id]?.sizes || 0,
+        technical_specs: item.technical_specs as unknown as TechnicalSpec[] | null,
+        location_name: item.branches?.name || null,
+      }));
     }
-  };
+
+    // Low stock items
+    const { data: lowStockData } = await supabase
+      .from("inventory").select("id, name, sku, current_stock, reorder_level, item_type, category")
+      .eq("tenant_id", tenantId).eq("is_archived", false).lt("current_stock", 10);
+
+    const serviceCategories = ['consultation', 'project', 'retainer', 'training', 'support', 'package', 'treatment', 'haircut', 'styling', 'coloring', 'spa', 'bridal', 'barbering', 'consultation_fee', 'lab_test', 'procedure', 'vaccination', 'repair', 'maintenance', 'diagnostics', 'service', 'services', 'maintenance_service'];
+    const lowStock = ((lowStockData || []) as any[]).filter((item) => {
+      const isService = item.item_type === 'service' || serviceCategories.includes(item.category || '');
+      return !isService && item.current_stock < (item.reorder_level || 10);
+    });
+
+    return { inventory: inventoryItems, totalCount: total, lowStockItems: lowStock };
+  }, [tenantId, currentBranch?.id, isMultiBranchEnabled, viewAllLocations, currentPage, showArchived, classFilter, debouncedSearch]);
+
+  const { data: inventoryData, isLoading, isFetching: isRefreshing, refetch: fetchInventory } = useQuery({
+    queryKey: inventoryQueryKey,
+    queryFn: fetchInventoryData,
+    enabled: !!tenantId,
+    staleTime: 2 * 60 * 1000, // 2 minutes — data stays fresh, no refetch on tab switch
+    gcTime: 10 * 60 * 1000, // 10 minutes — keep in cache even when unmounted
+    refetchOnWindowFocus: false,
+  });
+
+  const inventory = inventoryData?.inventory || [];
+  const totalCount = inventoryData?.totalCount || 0;
+  const lowStockItems = inventoryData?.lowStockItems || [];
+  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
   // Debounce search term
   useEffect(() => {
@@ -312,21 +247,14 @@ export function InventoryAgent() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  useEffect(() => {
-    if (tenantId) {
-      fetchInventory();
-    }
-  }, [tenantId, currentBranch?.id, currentPage, showArchived, classFilter, debouncedSearch]);
-
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
     setSelectedIds(new Set());
   }, [currentBranch?.id, showArchived, classFilter, debouncedSearch]);
 
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await fetchInventory();
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ['inventory', tenantId] });
   };
 
   const handleAddProduct = () => {
