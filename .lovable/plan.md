@@ -1,22 +1,43 @@
 
-# Filter Out Archived Items from Stock Transfer Selection
+
+# Fix "column quantity does not exist" Error in Stock Transfer Completion
 
 ## Problem
-The stock transfer modal shows **all** inventory items, including 1,703 archived ones (out of 4,791 total). There is an `is_archived` boolean column on the `inventory` table, but the transfer modal queries don't filter on it.
+
+When clicking **Mark Complete** on a stock transfer, the `complete_stock_transfer` database function fails with the error: **column "quantity" does not exist**.
+
+The function has a fallback path that reads from the `inventory` table when no `branch_inventory` record exists for the source location. In that fallback, it uses `SELECT quantity` but the `inventory` table's column is named `current_stock`, not `quantity`.
+
+## Root Cause
+
+In the `complete_stock_transfer` function, around this section:
+
+```sql
+-- If no branch_inventory exists for source, create one from main inventory
+IF v_source_branch_inv_id IS NULL THEN
+    SELECT quantity INTO v_source_stock        -- BUG: should be current_stock
+    FROM public.inventory 
+    WHERE id = v_transfer.inventory_id;
+```
+
+The `stock_transfers` table has a `quantity` column (which works fine), but the `inventory` table uses `current_stock`. The function confuses the two.
 
 ## Fix
 
-### File: `src/components/dashboard/StockTransferModal.tsx`
+Run a database migration to replace the `complete_stock_transfer` function, changing `SELECT quantity` to `SELECT current_stock` when reading from the `inventory` table. Everything else in the function remains the same.
 
-Two queries need an additional filter:
+## Technical Details
 
-1. **Branch-specific query** (line ~140): The join to `inventory:inventory_id(name, sku)` doesn't filter archived items. Add `.eq('inventory.is_archived', false)` or filter client-side after the join since Supabase embedded filters can be tricky. The cleaner approach is to filter client-side by checking `item.inventory?.is_archived !== true` before mapping.
+### Migration SQL
 
-2. **Global fallback query** (line ~163): Add `.eq('is_archived', false)` to the inventory query chain, right after `.eq('tenant_id', tenant.id)`.
+A single `CREATE OR REPLACE FUNCTION` statement that corrects the one line from:
+```sql
+SELECT quantity INTO v_source_stock FROM public.inventory WHERE id = v_transfer.inventory_id;
+```
+to:
+```sql
+SELECT current_stock INTO v_source_stock FROM public.inventory WHERE id = v_transfer.inventory_id;
+```
 
-### Changes Summary
+No other changes are needed. The rest of the function correctly references `stock_transfers.quantity` and `branch_inventory.current_stock`.
 
-- Branch inventory path: filter out items where the joined inventory record has `is_archived = true`
-- Global inventory fallback: add `.eq('is_archived', false)` to the query
-
-This ensures only active, non-archived products appear in the transfer item picker.
