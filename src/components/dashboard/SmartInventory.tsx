@@ -87,50 +87,103 @@ export function SmartInventory() {
       const from = (currentPage - 1) * ITEMS_PER_PAGE;
       const to = from + ITEMS_PER_PAGE - 1;
 
-      // First get total count
-      let countQuery = supabase
-        .from("inventory")
-        .select("id", { count: "exact", head: true })
-        .eq("tenant_id", tenantId)
-        .eq("is_archived", false);
-      
-      if (currentBranch && isMultiBranchEnabled) {
-        countQuery = countQuery.eq("default_location_id", currentBranch.id);
-      }
+      const useBranchInventory = currentBranch && isMultiBranchEnabled;
 
-      // Apply search filter to count
-      if (debouncedSearch.trim()) {
-        const searchPattern = `%${debouncedSearch.trim()}%`;
-        countQuery = countQuery.or(`name.ilike.${searchPattern},sku.ilike.${searchPattern}`);
-      }
-      
-      const { count } = await countQuery;
-      setTotalCount(count || 0);
+      if (useBranchInventory) {
+        // Branch-specific: query branch_inventory joined with inventory
+        let countQuery = supabase
+          .from("branch_inventory")
+          .select("id", { count: "exact", head: true })
+          .eq("tenant_id", tenantId)
+          .eq("branch_id", currentBranch.id)
+          .gt("current_stock", 0);
 
-      // Then fetch paginated data
-      let query = supabase
-        .from("inventory")
-        .select("id, sku, name, current_stock, reserved, ai_prediction, status, item_type, category, default_location_id")
-        .eq("tenant_id", tenantId)
-        .eq("is_archived", false);
-      
-      // If a specific branch is selected, filter by default_location_id
-      if (currentBranch && isMultiBranchEnabled) {
-        query = query.eq("default_location_id", currentBranch.id);
-      }
+        if (debouncedSearch.trim()) {
+          // For branch_inventory count with search, we need a different approach
+          // We'll get the count from the data query instead
+        }
 
-      // Apply search filter to data query
-      if (debouncedSearch.trim()) {
-        const searchPattern = `%${debouncedSearch.trim()}%`;
-        query = query.or(`name.ilike.${searchPattern},sku.ilike.${searchPattern}`);
-      }
-      
-      const { data, error } = await query
-        .order("name")
-        .range(from, to);
+        const { count: branchCount } = await countQuery;
 
-      if (error) throw error;
-      setInventory(data || []);
+        let query = supabase
+          .from("branch_inventory")
+          .select(`
+            id,
+            current_stock,
+            reserved,
+            inventory:inventory_id(id, sku, name, ai_prediction, status, item_type, category, is_archived)
+          `)
+          .eq("tenant_id", tenantId)
+          .eq("branch_id", currentBranch.id)
+          .gt("current_stock", 0)
+          .range(from, to);
+
+        const { data: branchData, error } = await query;
+        if (error) throw error;
+
+        // Map branch_inventory data to InventoryItem format
+        let mappedItems: InventoryItem[] = (branchData || [])
+          .filter((item: any) => item.inventory && !item.inventory.is_archived)
+          .map((item: any) => ({
+            id: item.inventory.id,
+            sku: item.inventory.sku,
+            name: item.inventory.name,
+            current_stock: item.current_stock,
+            reserved: item.reserved || 0,
+            ai_prediction: item.inventory.ai_prediction,
+            status: item.inventory.status,
+            item_type: item.inventory.item_type,
+            category: item.inventory.category,
+          }));
+
+        // Apply search filter client-side for branch inventory
+        if (debouncedSearch.trim()) {
+          const search = debouncedSearch.trim().toLowerCase();
+          mappedItems = mappedItems.filter(item =>
+            item.name.toLowerCase().includes(search) ||
+            (item.sku && item.sku.toLowerCase().includes(search))
+          );
+        }
+
+        // Sort by name
+        mappedItems.sort((a, b) => a.name.localeCompare(b.name));
+
+        setTotalCount(debouncedSearch.trim() ? mappedItems.length : (branchCount || 0));
+        setInventory(mappedItems);
+      } else {
+        // Global view: query inventory table directly
+        let countQuery = supabase
+          .from("inventory")
+          .select("id", { count: "exact", head: true })
+          .eq("tenant_id", tenantId)
+          .eq("is_archived", false);
+
+        if (debouncedSearch.trim()) {
+          const searchPattern = `%${debouncedSearch.trim()}%`;
+          countQuery = countQuery.or(`name.ilike.${searchPattern},sku.ilike.${searchPattern}`);
+        }
+        
+        const { count } = await countQuery;
+        setTotalCount(count || 0);
+
+        let query = supabase
+          .from("inventory")
+          .select("id, sku, name, current_stock, reserved, ai_prediction, status, item_type, category, default_location_id")
+          .eq("tenant_id", tenantId)
+          .eq("is_archived", false);
+
+        if (debouncedSearch.trim()) {
+          const searchPattern = `%${debouncedSearch.trim()}%`;
+          query = query.or(`name.ilike.${searchPattern},sku.ilike.${searchPattern}`);
+        }
+        
+        const { data, error } = await query
+          .order("name")
+          .range(from, to);
+
+        if (error) throw error;
+        setInventory(data || []);
+      }
     } catch (error) {
       console.error("Error fetching inventory:", error);
       toast({
