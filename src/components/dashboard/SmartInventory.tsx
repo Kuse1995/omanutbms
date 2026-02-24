@@ -142,7 +142,7 @@ export function SmartInventory() {
         setTotalCount(debouncedSearch.trim() ? mappedItems.length : (countResult.count || 0));
         setInventory(mappedItems);
       } else {
-        // Global view: query inventory table directly
+        // Global view: run count and data queries in parallel
         let countQuery = supabase
           .from("inventory")
           .select("id", { count: "exact", head: true })
@@ -153,27 +153,26 @@ export function SmartInventory() {
           const searchPattern = `%${debouncedSearch.trim()}%`;
           countQuery = countQuery.or(`name.ilike.${searchPattern},sku.ilike.${searchPattern}`);
         }
-        
-        const { count } = await countQuery;
-        setTotalCount(count || 0);
 
-        let query = supabase
+        let dataQuery = supabase
           .from("inventory")
-          .select("id, sku, name, current_stock, reserved, ai_prediction, status, item_type, category, default_location_id")
+          .select("id, sku, name, current_stock, reserved, ai_prediction, status, item_type, category")
           .eq("tenant_id", tenantId)
           .eq("is_archived", false);
 
         if (debouncedSearch.trim()) {
           const searchPattern = `%${debouncedSearch.trim()}%`;
-          query = query.or(`name.ilike.${searchPattern},sku.ilike.${searchPattern}`);
+          dataQuery = dataQuery.or(`name.ilike.${searchPattern},sku.ilike.${searchPattern}`);
         }
-        
-        const { data, error } = await query
-          .order("name")
-          .range(from, to);
 
-        if (error) throw error;
-        setInventory(data || []);
+        const [countResult, dataResult] = await Promise.all([
+          countQuery,
+          dataQuery.order("name").range(from, to),
+        ]);
+
+        if (dataResult.error) throw dataResult.error;
+        setTotalCount(countResult.count || 0);
+        setInventory(dataResult.data || []);
       }
     } catch (error) {
       console.error("Error fetching inventory:", error);
