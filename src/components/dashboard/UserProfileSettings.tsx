@@ -23,31 +23,20 @@ const DEPARTMENTS = [
   "Other"
 ];
 
-export function UserProfileSettings() {
-  const { user, profile, refreshProfile } = useAuth();
+// Inner form component that only renders when profile is available
+function UserProfileForm({ profile: initialProfile }: { profile: NonNullable<ReturnType<typeof useAuth>['profile']> }) {
+  const { user, refreshProfile } = useAuth();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [fullName, setFullName] = useState(profile?.full_name || "");
-  const [title, setTitle] = useState(profile?.title || "");
-  const [department, setDepartment] = useState(profile?.department || "");
-  const [phone, setPhone] = useState(profile?.phone || "");
-  const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || "");
+  // Initialize directly from the profile that's guaranteed to exist
+  const [fullName, setFullName] = useState(initialProfile.full_name || "");
+  const [title, setTitle] = useState(initialProfile.title || "");
+  const [department, setDepartment] = useState(initialProfile.department || "");
+  const [phone, setPhone] = useState(initialProfile.phone || "");
+  const [avatarUrl, setAvatarUrl] = useState(initialProfile.avatar_url || "");
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const hasInitialized = useRef(false);
-
-  // Sync state when profile first loads (only once to prevent flickering)
-  useEffect(() => {
-    if (profile && !hasInitialized.current) {
-      setFullName(profile.full_name || "");
-      setTitle(profile.title || "");
-      setDepartment(profile.department || "");
-      setPhone(profile.phone || "");
-      setAvatarUrl(profile.avatar_url || "");
-      hasInitialized.current = true;
-    }
-  }, [profile]);
 
   const getInitials = (name: string) => {
     return name
