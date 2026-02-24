@@ -1,52 +1,22 @@
 
-# Fix Profile Flickering and Maximum Update Depth Error
+# Filter Out Archived Items from Stock Transfer Selection
 
-## Root Cause
+## Problem
+The stock transfer modal shows **all** inventory items, including 1,703 archived ones (out of 4,791 total). There is an `is_archived` boolean column on the `inventory` table, but the transfer modal queries don't filter on it.
 
-The console shows a **"Maximum update depth exceeded"** error originating from `NotificationsCenter`. This error causes the entire dashboard (including the Settings/Profile tab) to enter a re-render loop, producing the flickering you see. The profile form also has a secondary issue where fields render empty before being populated.
+## Fix
 
-## What's Going Wrong
+### File: `src/components/dashboard/StockTransferModal.tsx`
 
-1. **NotificationsCenter infinite loop**: The `fetchNotifications` function is defined inside the component but NOT wrapped in `useCallback`. It gets recreated on every render. The `throttledFetch` useMemo captures a stale reference, and when notifications state updates, it triggers a re-render, which creates a new `fetchNotifications`, which can trigger another fetch cycle -- causing the "Maximum update depth exceeded" error.
+Two queries need an additional filter:
 
-2. **Profile form double-render**: The form fields initialize with `useState(profile?.phone || "")` on line 31-35. Since `profile` is `null` on the first render, all fields start empty (`""`). Then the `useEffect` on line 41 fires and sets them again, causing a visible flash from empty to filled.
+1. **Branch-specific query** (line ~140): The join to `inventory:inventory_id(name, sku)` doesn't filter archived items. Add `.eq('inventory.is_archived', false)` or filter client-side after the join since Supabase embedded filters can be tricky. The cleaner approach is to filter client-side by checking `item.inventory?.is_archived !== true` before mapping.
 
-3. **Auth context cascade**: Every `refreshProfile()` call (after save/upload) creates a new profile object reference. Even with the `JSON.stringify` comparison, the auth state change propagates through `TenantProvider` and `BranchProvider`, causing the whole dashboard to re-render.
+2. **Global fallback query** (line ~163): Add `.eq('is_archived', false)` to the inventory query chain, right after `.eq('tenant_id', tenant.id)`.
 
-## Fixes
+### Changes Summary
 
-### Fix 1: Stabilize NotificationsCenter (stops the infinite loop)
-- Wrap `fetchNotifications` in `useCallback` so it has a stable reference
-- This prevents the "Maximum update depth exceeded" error that cascades into all other components
+- Branch inventory path: filter out items where the joined inventory record has `is_archived = true`
+- Global inventory fallback: add `.eq('is_archived', false)` to the query
 
-### Fix 2: Eliminate profile form flash
-- Remove the `useEffect` sync pattern entirely
-- Instead, derive initial values directly: don't render the form until `profile` is available
-- Use a simple early return with no spinner (just render nothing or the card shell) so there's no loading flash
-- Keep the `hasInitialized` ref but use it to set initial state only once via lazy initialization
-
-### Fix 3: Prevent refreshProfile from triggering unnecessary re-renders
-- After saving profile data, DON'T call `refreshProfile()` since the local state already has the correct values
-- Only call `refreshProfile` for avatar changes where the URL comes from the server
-
-## Technical Details
-
-### File: `src/components/dashboard/NotificationsCenter.tsx`
-- Wrap `fetchNotifications` in `useCallback` with proper dependencies
-- Update `throttledFetch` useMemo to depend on the stable callback
-
-### File: `src/components/dashboard/UserProfileSettings.tsx`
-- Remove the `useEffect` that syncs profile to form state
-- Instead, use a guard: if `!profile`, return the Card with a minimal placeholder (no spinner)
-- Initialize `useState` values lazily from profile on first meaningful render using a key pattern or conditional rendering
-- Remove `await refreshProfile()` from `handleSave` (local state is already correct)
-- Keep `refreshProfile` only in avatar upload/remove handlers
-
-### File: `src/hooks/useAuth.tsx`
-- Memoize the `refreshProfile` function with `useCallback` to prevent it from being recreated on every render and causing downstream re-renders
-
-## Expected Result
-- No more "Maximum update depth exceeded" error
-- Profile tab loads instantly without any flicker or loading spinner
-- Saving profile doesn't trigger a full dashboard re-render cycle
-- The fix is minimal and targeted -- no architectural changes needed
+This ensures only active, non-archived products appear in the transfer item picker.
