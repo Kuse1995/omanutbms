@@ -111,13 +111,29 @@ export function LocationsManager() {
         .select("branch_id, current_stock")
         .eq("tenant_id", tenant.id);
 
-      const locationsWithStats: LocationWithStats[] = (branchesData || []).map((branch: any) => ({
-        ...branch,
-        type: branch.type || 'Store',
-        user_count: usersData?.filter(u => u.branch_id === branch.id).length || 0,
-        employee_count: employeesData?.filter(e => e.branch_id === branch.id).length || 0,
-        inventory_count: inventoryData?.filter(i => i.branch_id === branch.id).reduce((sum, i) => sum + (i.current_stock || 0), 0) || 0,
-      }));
+      // Get items assigned via default_location_id
+      const { data: inventoryByLocation } = await supabase
+        .from("inventory")
+        .select("default_location_id")
+        .eq("tenant_id", tenant.id)
+        .not("default_location_id", "is", null);
+
+      const locationsWithStats: LocationWithStats[] = (branchesData || []).map((branch: any) => {
+        const branchInvCount = inventoryData
+          ?.filter(i => i.branch_id === branch.id)
+          .reduce((sum, i) => sum + (i.current_stock || 0), 0) || 0;
+
+        const assignedCount = inventoryByLocation
+          ?.filter(i => i.default_location_id === branch.id).length || 0;
+
+        return {
+          ...branch,
+          type: branch.type || 'Store',
+          user_count: usersData?.filter(u => u.branch_id === branch.id).length || 0,
+          employee_count: employeesData?.filter(e => e.branch_id === branch.id).length || 0,
+          inventory_count: Math.max(branchInvCount, assignedCount),
+        };
+      });
 
       setLocations(locationsWithStats);
     } catch (error: any) {
