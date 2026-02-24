@@ -181,7 +181,7 @@ export function UserProfileSettings() {
           department: department,
           phone: phone || null,
           avatar_url: avatarUrl || null,
-        } as any, { onConflict: 'user_id' });
+        }, { onConflict: 'user_id' });
 
       if (error) throw error;
 
