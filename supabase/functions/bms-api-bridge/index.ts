@@ -23,17 +23,20 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'record_sale', 'check_stock', 'list_products', 'generate_invoice', 'record_expense', 
     'get_sales_summary', 'get_sales_details', 'check_customer',
     'my_tasks', 'task_details', 'my_schedule', 'clock_in', 'clock_out', 'my_attendance', 'my_pay',
-    'team_attendance', 'pending_orders', 'low_stock_alerts', 'update_order_status'
+    'team_attendance', 'pending_orders', 'low_stock_alerts', 'update_order_status',
+    'create_invoice', 'create_quotation', 'who_owes', 'daily_report', 'credit_sale'
   ],
   manager: [
     'record_sale', 'check_stock', 'list_products', 'generate_invoice', 'record_expense', 
     'get_sales_summary', 'get_sales_details', 'check_customer',
     'my_tasks', 'task_details', 'my_schedule', 'clock_in', 'clock_out', 'my_attendance', 'my_pay',
-    'team_attendance', 'pending_orders', 'low_stock_alerts', 'update_order_status'
+    'team_attendance', 'pending_orders', 'low_stock_alerts', 'update_order_status',
+    'create_invoice', 'create_quotation', 'who_owes', 'daily_report', 'credit_sale'
   ],
   accountant: [
     'check_stock', 'list_products', 'generate_invoice', 'record_expense', 'get_sales_summary', 'get_sales_details',
-    'my_tasks', 'my_schedule', 'clock_in', 'clock_out', 'my_attendance', 'my_pay'
+    'my_tasks', 'my_schedule', 'clock_in', 'clock_out', 'my_attendance', 'my_pay',
+    'create_invoice', 'create_quotation', 'who_owes', 'daily_report'
   ],
   hr_manager: [
     'check_stock', 'list_products', 'get_sales_summary',
@@ -42,11 +45,13 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
   ],
   sales_rep: [
     'record_sale', 'check_stock', 'list_products', 'get_sales_details', 'check_customer',
-    'my_tasks', 'task_details', 'my_schedule', 'clock_in', 'clock_out', 'my_attendance', 'my_pay'
+    'my_tasks', 'task_details', 'my_schedule', 'clock_in', 'clock_out', 'my_attendance', 'my_pay',
+    'create_quotation', 'who_owes', 'credit_sale'
   ],
   cashier: [
     'record_sale', 'check_stock', 'list_products',
-    'clock_in', 'clock_out', 'my_attendance', 'my_pay'
+    'clock_in', 'clock_out', 'my_attendance', 'my_pay',
+    'credit_sale'
   ],
   staff: [
     'record_sale', 'check_stock', 'list_products', 'record_expense', 'get_sales_details',
