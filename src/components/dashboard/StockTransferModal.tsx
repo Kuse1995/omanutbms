@@ -136,7 +136,7 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
   const fetchSourceInventory = async () => {
     if (!tenant?.id || !sourceId) return;
     try {
-      // Try branch_inventory for branch-specific stock
+      // Fetch branch-specific stock for the source location
       const { data: branchData, error: branchError } = await supabase
         .from('branch_inventory')
         .select(`
@@ -153,37 +153,10 @@ export const StockTransferModal: React.FC<StockTransferModalProps> = ({
         console.error('Error fetching branch inventory:', branchError);
       }
 
-      // If branch_inventory has records, use those
-      if (branchData && branchData.length > 0) {
-        setAvailableInventory(branchData.map((item: any) => ({
-          id: item.inventory_id,
-          product_name: item.inventory?.name || 'Unknown',
-          sku: item.inventory?.sku || '',
-          current_stock: item.current_stock || 0,
-        })));
-        return;
-      }
-
-      // Fallback: show global inventory items that have stock
-      // This handles cases where items haven't been assigned to branch_inventory yet
-      const { data: globalData, error: globalError } = await supabase
-        .from('inventory')
-        .select('id, name, sku, current_stock')
-        .eq('tenant_id', tenant.id)
-        .eq('is_archived', false)
-        .gt('current_stock', 0)
-        .order('name');
-
-      if (globalError) {
-        console.error('Error fetching global inventory:', globalError);
-        setAvailableInventory([]);
-        return;
-      }
-
-      setAvailableInventory((globalData || []).map((item: any) => ({
-        id: item.id,
-        product_name: item.name || 'Unknown',
-        sku: item.sku || '',
+      setAvailableInventory((branchData || []).map((item: any) => ({
+        id: item.inventory_id,
+        product_name: item.inventory?.name || 'Unknown',
+        sku: item.inventory?.sku || '',
         current_stock: item.current_stock || 0,
       })));
     } catch (error) {
