@@ -1,88 +1,77 @@
 
-# Subscription Payment Tracking System
 
-## Current Situation
+# Fix Profile Flickering and User Management Issues
 
-- A `subscription_payments` table already exists in the database with fields for amount, plan, status, payment method, phone number, tenant reference, etc.
-- There are 15+ payment records, but ALL are stuck at `pending` status -- none have been verified/completed
-- There is NO admin UI to view, track, or manually confirm these payments
-- The super admin panel has a "Stats/Overview" tab with revenue projections, but no actual payment history
+## Problem Analysis
 
-## What We'll Build
+Two distinct issues were identified:
 
-A new **"Billing" tab** in the Super Admin Panel that provides:
+### 1. Profile Settings Flickering
+The `Profile` interface in `useAuth.tsx` (line 16-23) is missing the `phone` field that exists in the database. This causes:
+- `UserProfileSettings` to use `(profile as any)?.phone` -- a type cast workaround
+- The `refreshProfile()` function returns a new object reference every time, triggering the `useEffect([profile])` in `UserProfileSettings`, which resets all form fields
+- This creates a visible flicker as fields blank out then refill
 
-### 1. Subscription Payments Dashboard
-A card-based summary at the top showing:
-- Total payments this month (count and amount)
-- Confirmed/completed payments
-- Pending payments awaiting verification
-- Failed/expired payments
+### 2. User Management (Authorized Emails)
+The `AuthorizedEmailsManager` has a console.log on every render (line 65) and the role update now uses the `sync_user_role_by_email` RPC. The main issue is that `fetchEmails` depends on `tenantId` which may be null during initial load, causing the component to show "Loading..." indefinitely or fail silently.
 
-### 2. Payment History Table
-A full table of all `subscription_payments` records showing:
-- Tenant name (joined from `tenants` table)
-- Amount and currency
-- Plan (Starter/Pro/Enterprise) and billing period (monthly/annual)
-- Payment method and operator (MTN/Airtel)
-- Phone number used
-- Status badge (pending/completed/failed)
-- Date submitted
-- Date verified (if completed)
+## Fixes
 
-With filters for:
-- Status (All / Pending / Completed / Failed)
-- Date range (this month / last month / custom)
-- Search by tenant name
-
-### 3. Manual Payment Confirmation
-A "Confirm Payment" action button on pending payments that:
-- Sets `status` to `completed` and `verified_at` to now
-- Updates the tenant's `business_profiles.billing_status` to `active`
-- Sets `billing_start_date` to today and `billing_end_date` to +30 days (monthly) or +365 days (annual)
-- Shows a confirmation dialog before proceeding
-
-### 4. Subscription Expiry Overview
-A separate card listing tenants whose `billing_end_date` has passed or is approaching, so you can quickly see who needs renewal follow-up.
-
----
-
-## Technical Details
-
-### Files to Create
-| File | Purpose |
-|------|---------|
-| `src/components/dashboard/SubscriptionPaymentsManager.tsx` | Main component with payment table, filters, summary cards, and manual confirmation |
-
-### Files to Modify
-| File | Change |
-|------|--------|
-| `src/components/dashboard/SuperAdminPanel.tsx` | Add new "Billing" tab with the `SubscriptionPaymentsManager` component |
-
-### Database
-No schema changes needed -- the `subscription_payments` table already has all required fields (`status`, `verified_at`, `tenant_id`, `amount`, `plan_key`, `billing_period`, `payment_method`, `operator`, `phone_number`, `created_at`).
-
-The manual confirmation action will update:
-1. `subscription_payments.status` -> `completed`, `verified_at` -> `now()`
-2. `business_profiles.billing_status` -> `active`, `billing_start_date` -> today, `billing_end_date` -> today + period
-
-### Component Structure
+### Fix 1: Update `Profile` interface in `useAuth.tsx`
+Add the missing `phone` field to the `Profile` interface so the type system is correct and no `as any` casts are needed.
 
 ```text
-SubscriptionPaymentsManager
-+-- Summary Cards (4 cards: total, confirmed, pending, failed)
-+-- Filter Bar (status dropdown, date range, search input)
-+-- Expiry Alerts Card (tenants past due or expiring within 7 days)
-+-- Payments Table
-    +-- Each row: tenant name, amount, plan, method, phone, status badge, date, actions
-    +-- "Confirm" button on pending rows -> opens AlertDialog -> updates DB
+interface Profile {
+  id: string;
+  user_id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  department: string | null;
+  title: string | null;     // already exists but ensure it's here
+  phone: string | null;     // ADD THIS - exists in DB but missing from interface
+  last_login: string | null; // ADD THIS - exists in DB
+}
 ```
 
-### Key Queries
-- Fetch all payments: `subscription_payments` joined with `tenants` for name, ordered by `created_at DESC`
-- Expiry check: `business_profiles` where `billing_end_date < today + 7 days` and `billing_status = 'active'`
-- Confirm payment: update `subscription_payments` status + update `business_profiles` billing dates
+### Fix 2: Stabilize `UserProfileSettings` to prevent flickering
+The `useEffect([profile])` fires every time the profile object reference changes, resetting form state and causing flicker. Fix this by:
+- Adding a `hasInitialized` ref to only sync from profile on first load (not on every profile change)
+- Remove `(profile as any)?.phone` casts now that the type includes `phone`
+- Prevent `refreshProfile` from triggering form resets after saves (since the local state is already correct)
 
-### Access Control
-- Only visible in the Super Admin Panel (already gated by `is_super_admin()` check)
-- Uses existing RLS policies on `subscription_payments` and `business_profiles`
+```text
+// Use a ref to track if we've done the initial sync
+const hasInitialized = useRef(false);
+
+useEffect(() => {
+  if (profile && !hasInitialized.current) {
+    setFullName(profile.full_name || "");
+    setTitle(profile.title || "");
+    setDepartment(profile.department || "");
+    setPhone(profile.phone || "");
+    setAvatarUrl(profile.avatar_url || "");
+    hasInitialized.current = true;
+  }
+}, [profile]);
+```
+
+### Fix 3: Remove noisy console.log in AuthorizedEmailsManager
+Line 65 logs auth state on every render, which adds noise. Remove it.
+
+### Fix 4: Clean up type casts in UserProfileSettings
+Replace all `(profile as any)?.phone` with `profile?.phone` and remove `as any` from the upsert calls since `phone` is now in the type.
+
+## Files to Modify
+
+| File | Change |
+|------|--------|
+| `src/hooks/useAuth.tsx` | Add `phone`, `last_login` to `Profile` interface (lines 16-23) |
+| `src/components/dashboard/UserProfileSettings.tsx` | Add `hasInitialized` ref to prevent re-sync flicker; remove `as any` casts |
+| `src/components/dashboard/AuthorizedEmailsManager.tsx` | Remove debug console.log on line 65 |
+
+## Impact
+- Profile tab will load once without flickering
+- Form fields will populate on first load and stay stable
+- Saves will update local state + DB without triggering a form reset loop
+- User management will continue working as before but without debug noise
+
