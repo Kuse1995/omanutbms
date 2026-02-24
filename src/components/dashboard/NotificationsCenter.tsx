@@ -169,7 +169,7 @@ export function NotificationsCenter() {
     } catch (error) {
       console.error('[NotificationsCenter] Error fetching notifications:', error);
     }
-  };
+  }, []);
 
   // Throttled version for realtime updates (max once per 5 seconds)
   const throttledFetch = useMemo(
