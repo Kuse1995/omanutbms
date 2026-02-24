@@ -1024,6 +1024,45 @@ function generatePromptForMissingFields(intent: string, missingFields: string[],
     return `Who should I create the invoice for?${haveSummary}`;
   }
 
+  if (intent === 'create_invoice') {
+    if (missingFields.includes('customer_name') && missingFields.includes('items')) {
+      return `Who is the invoice for and what items? Example: "invoice John 5 bags cement 2500"${haveSummary}`;
+    }
+    if (missingFields.includes('customer_name')) {
+      return `Who is the invoice for?${haveSummary}`;
+    }
+    if (missingFields.includes('items')) {
+      return `What items should I include? E.g. "5 bags cement at 500 each"${haveSummary}`;
+    }
+  }
+
+  if (intent === 'create_quotation') {
+    if (missingFields.includes('customer_name') && missingFields.includes('items')) {
+      return `Who is the quotation for and what items? Example: "quote John 10 bags at 500"${haveSummary}`;
+    }
+    if (missingFields.includes('customer_name')) {
+      return `Who is the quotation for?${haveSummary}`;
+    }
+    if (missingFields.includes('items')) {
+      return `What items should I quote? E.g. "10 bags cement at 500"${haveSummary}`;
+    }
+  }
+
+  if (intent === 'credit_sale') {
+    if (missingFields.includes('customer_name')) {
+      return `Who are you selling to on credit?${haveSummary}`;
+    }
+    if (missingFields.includes('product') && missingFields.includes('amount')) {
+      return `What did you sell on credit and for how much?${haveSummary}`;
+    }
+    if (missingFields.includes('product')) {
+      return `What product was sold on credit?${haveSummary}`;
+    }
+    if (missingFields.includes('amount')) {
+      return `How much was the credit sale for?${haveSummary}`;
+    }
+  }
+
   // Friendly generic fallback
   const fieldNames = missingFields.map(f => f.replace(/_/g, ' ')).join(' and ');
   return `Just need the ${fieldNames} to continue.${haveSummary}`;
