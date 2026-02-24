@@ -1,55 +1,56 @@
 
-# Fix: Products Not Appearing in Sales After Location Assignment
+
+# Fix: Stock Item Counts Not Showing on Locations Page
 
 ## Problem
 
-When you add a new product and assign it to a storage location (branch), the product doesn't appear in the Sales product picker for that branch. This happens because:
+The Locations page shows "0" for the Stock Items column on most branches. This happens because:
 
-1. The product form saves the location as `default_location_id` on the inventory table
-2. But it never creates a matching record in the branch-level stock table
-3. The Sales screen queries branch-level stock -- so items without a branch stock record are invisible
+1. Products are assigned to locations via `default_location_id` on the `inventory` table
+2. But the Locations page only counts items from the `branch_inventory` table
+3. Most existing products were created before the branch_inventory sync fix, so they have no `branch_inventory` records despite being assigned to a location
+
+For example, the KITWE branch has 1,426 products assigned to it, but the Stock Items column shows 0.
 
 ## Solution
 
-After a product is created (or updated with a new location), automatically create the corresponding branch stock record so the item immediately appears in the Sales product picker for that branch.
+Update the `LocationsManager` to count stock items from **both** sources:
+
+1. **`branch_inventory`** -- items that have explicit branch stock records (accurate current stock)
+2. **`inventory.default_location_id`** -- items assigned to a location but without a branch_inventory record yet
+
+The displayed count will be the higher of the two, ensuring all assigned products are reflected.
 
 ## Changes
 
-### File: `src/components/dashboard/ProductModal.tsx`
+### File: `src/components/dashboard/LocationsManager.tsx`
 
-**On product creation (after insert succeeds):**
-- If a storage location was selected, insert a row into `branch_inventory` with:
-  - `inventory_id` = the new product's ID
-  - `branch_id` = the selected `default_location_id`
-  - `tenant_id` = current tenant
-  - `current_stock` = the product's initial `current_stock` value
+**Add a second query** for inventory items grouped by `default_location_id`:
 
-**On product update (after update succeeds):**
-- If the storage location changed, handle both the old and new location:
-  - If the location was removed or changed, optionally zero out the old branch stock
-  - If a new location was set, upsert a `branch_inventory` row with the product's current stock
-
-This ensures the product is visible in Sales immediately after creation, without needing a separate restock step.
-
-## Technical Details
-
-After the existing insert on line ~932, add:
-
-```
-// After successful insert, sync branch_inventory
-if (insertedProduct?.id && formData.default_location_id && formData.default_location_id !== "none") {
-  await supabase.from("branch_inventory").upsert({
-    inventory_id: insertedProduct.id,
-    branch_id: formData.default_location_id,
-    tenant_id: tenantId,
-    current_stock: isServiceItem ? 9999 : formData.current_stock,
-  }, { onConflict: "inventory_id,branch_id" });
-}
+```typescript
+const { data: inventoryByLocation } = await supabase
+  .from("inventory")
+  .select("default_location_id")
+  .eq("tenant_id", tenant.id)
+  .not("default_location_id", "is", null);
 ```
 
-After the existing update on line ~919, add similar logic that checks if the location changed and syncs accordingly.
+**Update the stats mapping** to combine both counts:
 
-No database migrations are needed -- the `branch_inventory` table and its insert RLS policy already exist.
+```typescript
+const branchInvCount = inventoryData
+  ?.filter(i => i.branch_id === branch.id)
+  .reduce((sum, i) => sum + (i.current_stock || 0), 0) || 0;
+
+const assignedCount = inventoryByLocation
+  ?.filter(i => i.default_location_id === branch.id).length || 0;
+
+// Show the more meaningful number
+inventory_count: Math.max(branchInvCount, assignedCount),
+```
+
+This way, even if `branch_inventory` records haven't been created yet, the Locations page will still show how many products are assigned to each branch. As users create new products (which now auto-sync to `branch_inventory`), the counts will naturally converge.
 
 ### Files to modify
-- `src/components/dashboard/ProductModal.tsx` (sync branch_inventory on create and update)
+- `src/components/dashboard/LocationsManager.tsx`
+
