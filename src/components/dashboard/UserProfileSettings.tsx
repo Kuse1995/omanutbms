@@ -360,3 +360,30 @@ function UserProfileForm({ profile: initialProfile }: { profile: NonNullable<Ret
     </Card>
   );
 }
+
+// Outer component that guards rendering until profile is loaded
+export function UserProfileSettings() {
+  const { profile } = useAuth();
+
+  if (!profile) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <User className="h-5 w-5 text-primary" />
+            Profile Settings
+          </CardTitle>
+          <CardDescription>
+            Update your personal information and profile picture
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">Loading profile...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Key on profile.user_id ensures form re-initializes only if user changes
+  return <UserProfileForm key={profile.user_id} profile={profile} />;
+}

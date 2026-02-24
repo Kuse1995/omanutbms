@@ -178,7 +178,7 @@ export function NotificationsCenter() {
         fetchNotifications();
       }
     }, 5000),
-    []
+    [fetchNotifications]
   );
 
   useEffect(() => {
