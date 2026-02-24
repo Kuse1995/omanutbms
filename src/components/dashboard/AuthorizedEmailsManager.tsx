@@ -67,8 +67,11 @@ export function AuthorizedEmailsManager() {
   useEffect(() => {
     if (tenantId || isSuperAdminUser) {
       fetchEmails();
+    } else if (!tenantLoading && !authLoading) {
+      // No tenant context available and loading is done — stop spinner
+      setLoading(false);
     }
-  }, [tenantId, isSuperAdminUser]);
+  }, [tenantId, isSuperAdminUser, tenantLoading, authLoading]);
 
   // Helper to get branch name
   const getBranchName = (branchId: string | null): string => {
