@@ -368,7 +368,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error };
   };
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     if (user) {
       const { data: profileData } = await supabase
         .from("profiles")
@@ -383,7 +383,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
       }
     }
-  };
+  }, [user]);
 
   // Permission checks using centralized role config
   const canAdd = canAddRecords(role);

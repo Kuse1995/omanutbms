@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bell, Mail, Heart, AlertTriangle, ArrowRightLeft, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -36,8 +36,8 @@ export function NotificationsCenter() {
   const isMountedRef = useRef(true);
   const hasFetchedRef = useRef(false);
 
-  // Stable fetch function that doesn't change between renders
-  const fetchNotifications = async () => {
+  // Stable fetch function wrapped in useCallback to prevent infinite re-render loops
+  const fetchNotifications = useCallback(async () => {
     // Prevent concurrent fetches
     if (!isMountedRef.current) return;
     const allNotifications: Notification[] = [];
@@ -169,7 +169,7 @@ export function NotificationsCenter() {
     } catch (error) {
       console.error('[NotificationsCenter] Error fetching notifications:', error);
     }
-  };
+  }, []);
 
   // Throttled version for realtime updates (max once per 5 seconds)
   const throttledFetch = useMemo(
@@ -178,7 +178,7 @@ export function NotificationsCenter() {
         fetchNotifications();
       }
     }, 5000),
-    []
+    [fetchNotifications]
   );
 
   useEffect(() => {
