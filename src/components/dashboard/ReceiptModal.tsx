@@ -11,8 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/hooks/useTenant";
 import { guardTenant } from "@/lib/tenant-utils";
 import { Loader2, Sparkles, Download, Printer, AlertCircle } from "lucide-react";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
+import { exportElementToPDF } from "@/lib/pdf-utils";
 import { format } from "date-fns";
 import { TenantDocumentHeader, DocumentComplianceFooter } from "./TenantDocumentHeader";
 
