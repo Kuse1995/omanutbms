@@ -1,6 +1,6 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BookOpen, Scale, FileSpreadsheet, TrendingUp, CreditCard, Receipt, FileText } from "lucide-react";
+import { BookOpen, Scale, FileSpreadsheet, TrendingUp, CreditCard, Receipt, FileText, Landmark } from "lucide-react";
 import { GeneralLedger } from "./GeneralLedger";
 import { TrialBalance } from "./TrialBalance";
 import { BalanceSheet } from "./BalanceSheet";
@@ -9,6 +9,7 @@ import AccountsPayable from "./AccountsPayable";
 import AccountsReceivableAging from "./AccountsReceivableAging";
 import { CreditSalesReport } from "./CreditSalesReport";
 import { FinancialReportGenerator } from "./FinancialReportGenerator";
+import { AccountBalancesDashboard } from "./AccountBalancesDashboard";
 
 /**
  * AdvancedAccounting - Add-on accounting module
