@@ -13,7 +13,10 @@ import { useTenant } from "@/hooks/useTenant";
 interface BalanceSheetData {
   assets: {
     current: {
-      cash: number;
+      cashOnHand: number;
+      mobileMoneyBalance: number;
+      bankBalance: number;
+      cardPosBalance: number;
       accountsReceivable: number;
       inventory: number;
       totalCurrent: number;
