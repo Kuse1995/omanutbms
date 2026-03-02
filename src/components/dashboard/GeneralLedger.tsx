@@ -93,18 +93,19 @@ export function GeneralLedger() {
       const ledgerEntries: LedgerEntry[] = [];
       let runningBalance = 0;
 
-      // Add sales as revenue (credit to revenue, debit to cash/receivables)
+      // Add sales as revenue (credit to revenue, debit to payment-method-specific account)
       // total_amount_zmw is already NET of discounts
       ((salesRes.data as any[]) || []).forEach((sale) => {
         const saleAmount = Number(sale.total_amount_zmw || 0);
         const discountAmount = Number(sale.discount_amount || 0);
+        const accountName = getAccountNameFromPaymentMethod(sale.payment_method);
         
         runningBalance += saleAmount;
         ledgerEntries.push({
           id: `sale-${sale.id}`,
           date: sale.created_at,
           description: `Sale: ${sale.product_name} x${sale.quantity}${discountAmount > 0 ? ` (Discount: K${discountAmount.toLocaleString()})` : ''}`,
-          account: "Revenue - Product Sales",
+          account: accountName,
           debit: 0,
           credit: saleAmount,
           balance: runningBalance,
