@@ -58,6 +58,10 @@ export function AdvancedAccounting() {
                 <FileText className="h-4 w-4 mr-2" />
                 Credit Sales
               </TabsTrigger>
+              <TabsTrigger value="account-balances" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                <Landmark className="h-4 w-4 mr-2" />
+                Account Balances
+              </TabsTrigger>
             </TabsList>
           </CardHeader>
           <CardContent className="pt-4">
