@@ -12,7 +12,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Landmark, Plus, Search, Download, Calculator, Eye, Pencil, Trash2, 
-  AlertTriangle, TrendingDown, Package, Building2, Car, Monitor, Cog, Armchair
+  AlertTriangle, TrendingDown, Package, Building2, Car, Monitor, Cog, Armchair,
+  FileSpreadsheet
 } from "lucide-react";
 import { format } from "date-fns";
 import { 
