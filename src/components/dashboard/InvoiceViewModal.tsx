@@ -3,8 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { Printer, Loader2, Download } from "lucide-react";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
+import { exportElementToPDF } from "@/lib/pdf-utils";
 import { TenantDocumentHeader, DocumentBankDetails, DocumentComplianceFooter } from "./TenantDocumentHeader";
 
 interface Invoice {
