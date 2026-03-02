@@ -296,8 +296,20 @@ export function BalanceSheet() {
                     <h5 className="font-semibold text-[#004B8D] mb-2">Current Assets</h5>
                     <div className="space-y-2 pl-4">
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Cash & Cash Equivalents</span>
-                        <span>K {data.assets.current.cash.toLocaleString()}</span>
+                        <span className="text-muted-foreground">Cash on Hand</span>
+                        <span>K {data.assets.current.cashOnHand.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Mobile Money Balance</span>
+                        <span>K {data.assets.current.mobileMoneyBalance.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Bank Balance</span>
+                        <span>K {data.assets.current.bankBalance.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Card/POS Receivable</span>
+                        <span>K {data.assets.current.cardPosBalance.toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Accounts Receivable</span>
