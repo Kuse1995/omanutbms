@@ -42,9 +42,13 @@ import {
   XCircle,
   MoreHorizontal,
   Loader2,
+  Pencil,
+  History,
 } from "lucide-react";
 import { format } from "date-fns";
 import { StockTransferModal } from "./StockTransferModal";
+import { EditTransferModal } from "./EditTransferModal";
+import { TransferHistoryDialog } from "./TransferHistoryDialog";
 
 type TransferStatus = 'pending' | 'in_transit' | 'completed' | 'cancelled';
 
@@ -91,6 +95,11 @@ export function StockTransfersManager() {
   const [selectedTransfer, setSelectedTransfer] = useState<Transfer | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editTransfer, setEditTransfer] = useState<Transfer | null>(null);
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [historyTransferId, setHistoryTransferId] = useState<string | null>(null);
+  const [historyProductName, setHistoryProductName] = useState<string | undefined>();
   
   // User's branch assignment for transfer completion check
   const userBranchId = tenantUser?.branch_id;
@@ -280,6 +289,24 @@ export function StockTransfersManager() {
     setRejectDialogOpen(true);
   };
 
+  const canEditTransfer = (transfer: Transfer): boolean => {
+    if (transfer.status === 'completed' || transfer.status === 'cancelled') return false;
+    if (userRole === 'admin' || userRole === 'manager') return true;
+    if (user?.id && transfer.requested_by === user.id) return true;
+    return false;
+  };
+
+  const openEditModal = (transfer: Transfer) => {
+    setEditTransfer(transfer);
+    setEditModalOpen(true);
+  };
+
+  const openHistoryDialog = (transfer: Transfer) => {
+    setHistoryTransferId(transfer.id);
+    setHistoryProductName(transfer.product_name);
+    setHistoryDialogOpen(true);
+  };
+
   const filteredTransfers = transfers.filter((t) => {
     const matchesSearch = 
       t.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -441,40 +468,51 @@ export function StockTransfersManager() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        {transfer.status === 'pending' && isAdmin && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleApprove(transfer)}>
-                                <CheckCircle2 className="h-4 w-4 mr-2 text-green-600" />
-                                Approve
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => openRejectDialog(transfer)}>
-                                <XCircle className="h-4 w-4 mr-2 text-destructive" />
-                                Reject
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
-                        {transfer.status === 'in_transit' && (
-                          canCompleteTransfer(transfer) ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleComplete(transfer)}
-                              disabled={actionLoading}
-                            >
-                              Mark Complete
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="h-4 w-4" />
                             </Button>
-                          ) : (
-                            <Badge variant="outline" className="text-xs text-muted-foreground">
-                              Awaiting receipt at {transfer.to_branch_name}
-                            </Badge>
-                          )
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {/* Edit action */}
+                            {canEditTransfer(transfer) && (
+                              <DropdownMenuItem onClick={() => openEditModal(transfer)}>
+                                <Pencil className="h-4 w-4 mr-2" />
+                                Edit
+                              </DropdownMenuItem>
+                            )}
+                            {/* Approve/Reject for pending */}
+                            {transfer.status === 'pending' && isAdmin && (
+                              <>
+                                <DropdownMenuItem onClick={() => handleApprove(transfer)}>
+                                  <CheckCircle2 className="h-4 w-4 mr-2 text-green-600" />
+                                  Approve
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openRejectDialog(transfer)}>
+                                  <XCircle className="h-4 w-4 mr-2 text-destructive" />
+                                  Reject
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                            {/* Complete for in_transit */}
+                            {transfer.status === 'in_transit' && canCompleteTransfer(transfer) && (
+                              <DropdownMenuItem onClick={() => handleComplete(transfer)}>
+                                <CheckCircle2 className="h-4 w-4 mr-2 text-green-600" />
+                                Mark Complete
+                              </DropdownMenuItem>
+                            )}
+                            {/* View History — always available */}
+                            <DropdownMenuItem onClick={() => openHistoryDialog(transfer)}>
+                              <History className="h-4 w-4 mr-2" />
+                              View History
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        {transfer.status === 'in_transit' && !canCompleteTransfer(transfer) && (
+                          <Badge variant="outline" className="text-xs text-muted-foreground ml-2">
+                            Awaiting receipt at {transfer.to_branch_name}
+                          </Badge>
                         )}
                       </TableCell>
                     </TableRow>
@@ -526,6 +564,22 @@ export function StockTransfersManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Transfer Modal */}
+      <EditTransferModal
+        open={editModalOpen}
+        onOpenChange={setEditModalOpen}
+        onSuccess={fetchTransfers}
+        transfer={editTransfer}
+      />
+
+      {/* Transfer History Dialog */}
+      <TransferHistoryDialog
+        open={historyDialogOpen}
+        onOpenChange={setHistoryDialogOpen}
+        transferId={historyTransferId}
+        productName={historyProductName}
+      />
     </div>
   );
 }
