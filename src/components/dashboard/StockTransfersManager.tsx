@@ -564,6 +564,22 @@ export function StockTransfersManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Transfer Modal */}
+      <EditTransferModal
+        open={editModalOpen}
+        onOpenChange={setEditModalOpen}
+        onSuccess={fetchTransfers}
+        transfer={editTransfer}
+      />
+
+      {/* Transfer History Dialog */}
+      <TransferHistoryDialog
+        open={historyDialogOpen}
+        onOpenChange={setHistoryDialogOpen}
+        transferId={historyTransferId}
+        productName={historyProductName}
+      />
     </div>
   );
 }
