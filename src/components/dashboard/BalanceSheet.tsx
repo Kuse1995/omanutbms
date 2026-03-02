@@ -125,28 +125,46 @@ export function BalanceSheet() {
           .lte("created_at", asOfDate + "T23:59:59"),
       ]);
 
-      // Calculate Assets
-      const totalSalesRevenue = (salesRes.data || []).reduce((sum, s) => sum + Number(s.total_amount_zmw), 0);
+      // Calculate Assets - broken down by payment method
+      const salesData = (salesRes.data || []) as any[];
       const totalExpenses = (expensesRes.data || []).reduce((sum, e) => sum + Number(e.amount_zmw), 0);
-      
-      // Paid invoices add to cash
-      const paidInvoices = (invoicesRes.data || []).filter((inv) => inv.status === "paid");
-      const invoiceRevenue = paidInvoices.reduce((sum, inv) => sum + Number(inv.total_amount), 0);
-      
+
+      // Aggregate sales by payment method
+      const methodTotals: Record<string, number> = { cash: 0, mobile_money: 0, bank_transfer: 0, card: 0 };
+      salesData.forEach((s) => {
+        const method = normalizeMethod(s.payment_method);
+        methodTotals[method] += Number(s.total_amount_zmw || 0);
+      });
+
+      // Also fetch payment_receipts for invoice payments to the right account
+      const [receiptsRes2] = await Promise.all([
+        supabase.from("payment_receipts").select("amount_paid, payment_method, invoice_id")
+          .eq("tenant_id", tenantId).lte("payment_date", asOfDate),
+      ]);
+      ((receiptsRes2.data as any[]) || []).forEach((r) => {
+        if (r.invoice_id) {
+          const method = normalizeMethod(r.payment_method);
+          methodTotals[method] += Number(r.amount_paid || 0);
+        }
+      });
+
+      // Expenses reduce cash (default) since expenses don't have payment_method yet
+      const cashOnHand = Math.max(0, methodTotals.cash - totalExpenses);
+      const mobileMoneyBalance = Math.max(0, methodTotals.mobile_money);
+      const bankBalance = Math.max(0, methodTotals.bank_transfer);
+      const cardPosBalance = Math.max(0, methodTotals.card);
+
       // Pending invoices = Accounts Receivable
       const pendingInvoices = (invoicesRes.data || []).filter((inv) => inv.status !== "paid");
       const accountsReceivable = pendingInvoices.reduce((sum, inv) => sum + Number(inv.total_amount), 0);
-      
-      // Cash = all revenue - all expenses
-      const cash = totalSalesRevenue + invoiceRevenue - totalExpenses;
-      
+
       // Inventory value
       const inventoryValue = (inventoryRes.data || []).reduce(
         (sum, item) => sum + (Number(item.current_stock) * Number(item.unit_price)),
         0
       );
 
-      const totalCurrentAssets = cash + accountsReceivable + inventoryValue;
+      const totalCurrentAssets = cashOnHand + mobileMoneyBalance + bankBalance + cardPosBalance + accountsReceivable + inventoryValue;
       const totalAssets = totalCurrentAssets;
 
       // Calculate Liabilities from accounts_payable table
