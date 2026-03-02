@@ -232,7 +232,18 @@ Office Desk,Furniture,,2024-03-01,2500,200,7,straight_line,Main Office,Reception
 
     for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
       const batch = validRows.slice(i, i + BATCH_SIZE).map(r => ({
-        ...r.data,
+        name: r.data.name as string,
+        category: r.data.category as string,
+        purchase_date: r.data.purchase_date as string,
+        purchase_cost: r.data.purchase_cost as number,
+        salvage_value: r.data.salvage_value as number,
+        useful_life_years: r.data.useful_life_years as number,
+        depreciation_method: r.data.depreciation_method as string,
+        serial_number: r.data.serial_number as string | null,
+        location: r.data.location as string | null,
+        assigned_to: r.data.assigned_to as string | null,
+        description: r.data.description as string | null,
+        status: "active",
         tenant_id: tenantId,
       }));
 
