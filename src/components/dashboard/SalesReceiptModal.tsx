@@ -2,8 +2,7 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Loader2, Download, Printer, Mail, CheckCircle } from "lucide-react";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
+import { exportElementToPDF } from "@/lib/pdf-utils";
 import { format } from "date-fns";
 import { TenantDocumentHeader, DocumentComplianceFooter } from "./TenantDocumentHeader";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
@@ -102,51 +101,14 @@ export function SalesReceiptModal({
     const element = document.getElementById("sales-receipt-content");
     if (!element) return;
 
-    // Check if this is a credit invoice vs a paid receipt
     const isCredit = paymentMethod === "credit_invoice";
 
     setIsDownloading(true);
     try {
-      // Clone element for capturing to avoid viewport issues on mobile
-      const clone = element.cloneNode(true) as HTMLElement;
-      clone.style.position = 'absolute';
-      clone.style.left = '-9999px';
-      clone.style.top = '0';
-      clone.style.width = '600px'; // Fixed width for consistent PDF
-      clone.style.maxWidth = '600px';
-      clone.style.overflow = 'visible';
-      clone.style.height = 'auto';
-      document.body.appendChild(clone);
-
-      const canvas = await html2canvas(clone, { 
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: "#ffffff",
-        logging: false,
-        width: 600,
-        windowWidth: 600,
+      await exportElementToPDF({
+        element,
+        filename: `${isCredit ? "invoice" : "receipt"}-${receiptNumber}.pdf`,
       });
-      
-      document.body.removeChild(clone);
-      
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF("p", "mm", "a4");
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = pdfWidth - 20; // 10mm margin on each side
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      const xOffset = 10; // 10mm left margin
-      const yOffset = 10; // 10mm top margin
-      
-      // Handle multi-page if content is too tall
-      if (imgHeight > pdfHeight - 20) {
-        pdf.addImage(imgData, "PNG", xOffset, yOffset, imgWidth, imgHeight);
-      } else {
-        pdf.addImage(imgData, "PNG", xOffset, yOffset, imgWidth, imgHeight);
-      }
-      
-      pdf.save(`${isCredit ? "invoice" : "receipt"}-${receiptNumber}.pdf`);
     } catch (error) {
       console.error("PDF generation error:", error);
     } finally {

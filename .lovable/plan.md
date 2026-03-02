@@ -1,39 +1,56 @@
 
 
-# Fix PDF Cropping on Long Invoices, Quotations & Receipts
+# Fix: Stock Item Counts Not Showing on Locations Page
 
 ## Problem
-All three document modals (Invoice, Quotation, Receipt) render the entire document as a single image and squeeze it onto one A4 page. When a document has many line items, the content either shrinks to unreadable size or gets cut off at the bottom.
+
+The Locations page shows "0" for the Stock Items column on most branches. This happens because:
+
+1. Products are assigned to locations via `default_location_id` on the `inventory` table
+2. But the Locations page only counts items from the `branch_inventory` table
+3. Most existing products were created before the branch_inventory sync fix, so they have no `branch_inventory` records despite being assigned to a location
+
+For example, the KITWE branch has 1,426 products assigned to it, but the Stock Items column shows 0.
 
 ## Solution
-Create a shared **multi-page PDF utility** that slices the rendered canvas into A4-sized pages with proper margins, then update all three modals to use it.
 
-## New File: `src/lib/pdf-utils.ts`
-A reusable `exportElementToPDF` function that:
-1. Clones the target element at a fixed width (600px) for consistent rendering
-2. Renders it via `html2canvas` with image preloading
-3. Calculates how many A4 pages the content spans
-4. Slices the canvas into page-height chunks, adding each as a separate page in jsPDF
-5. Returns or saves the PDF
+Update the `LocationsManager` to count stock items from **both** sources:
 
-Core logic:
-- A4 content area = 210mm wide, 297mm tall, with 10mm margins
-- Scale rendered canvas width to fit A4 content width
-- Loop through canvas in page-height pixel increments, drawing each slice onto a new PDF page
+1. **`branch_inventory`** -- items that have explicit branch stock records (accurate current stock)
+2. **`inventory.default_location_id`** -- items assigned to a location but without a branch_inventory record yet
 
-## Files to Update
+The displayed count will be the higher of the two, ensuring all assigned products are reflected.
 
-### `src/components/dashboard/InvoiceViewModal.tsx`
-Replace the `handleDownloadPDF` function (lines 109-159) with a call to the shared utility.
+## Changes
 
-### `src/components/dashboard/QuotationViewModal.tsx`
-Replace the `handleDownloadPDF` function (lines 92-131) with a call to the shared utility.
+### File: `src/components/dashboard/LocationsManager.tsx`
 
-### `src/components/dashboard/SalesReceiptModal.tsx`
-Replace the `handleDownloadPDF` function (lines 101-153) with a call to the shared utility.
+**Add a second query** for inventory items grouped by `default_location_id`:
 
-### Bonus: Other modals using the same broken pattern
-The same fix applies to `ExpenseViewModal`, `ForumViewModal`, `DonationRequestViewModal`, `CashFlowStatement`, `ReceiptModal`, and all financial report exports. These will also be updated to use the shared utility, preventing the same cropping issue everywhere.
+```typescript
+const { data: inventoryByLocation } = await supabase
+  .from("inventory")
+  .select("default_location_id")
+  .eq("tenant_id", tenant.id)
+  .not("default_location_id", "is", null);
+```
 
-## No database changes needed.
+**Update the stats mapping** to combine both counts:
+
+```typescript
+const branchInvCount = inventoryData
+  ?.filter(i => i.branch_id === branch.id)
+  .reduce((sum, i) => sum + (i.current_stock || 0), 0) || 0;
+
+const assignedCount = inventoryByLocation
+  ?.filter(i => i.default_location_id === branch.id).length || 0;
+
+// Show the more meaningful number
+inventory_count: Math.max(branchInvCount, assignedCount),
+```
+
+This way, even if `branch_inventory` records haven't been created yet, the Locations page will still show how many products are assigned to each branch. As users create new products (which now auto-sync to `branch_inventory`), the counts will naturally converge.
+
+### Files to modify
+- `src/components/dashboard/LocationsManager.tsx`
 

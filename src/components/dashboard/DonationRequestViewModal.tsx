@@ -5,8 +5,7 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Heart, User, Mail, Phone, MapPin, Calendar, MessageSquare, Download, Loader2 } from "lucide-react";
 import { format } from "date-fns";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
+import { exportElementToPDF } from "@/lib/pdf-utils";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 interface DonationRequest {
@@ -48,29 +47,10 @@ export function DonationRequestViewModal({ request, isOpen, onClose }: DonationR
 
     setIsDownloading(true);
     try {
-      const canvas = await html2canvas(printContent, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
+      await exportElementToPDF({
+        element: printContent,
+        filename: `donation-request-${request.donor_name.replace(/\s+/g, '-').toLowerCase()}-${format(new Date(request.created_at), "yyyy-MM-dd")}.pdf`,
       });
-      
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4",
-      });
-      
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
-      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-      const imgX = (pdfWidth - imgWidth * ratio) / 2;
-      const imgY = 10;
-      
-      pdf.addImage(imgData, "PNG", imgX, imgY, imgWidth * ratio, imgHeight * ratio);
-      pdf.save(`donation-request-${request.donor_name.replace(/\s+/g, '-').toLowerCase()}-${format(new Date(request.created_at), "yyyy-MM-dd")}.pdf`);
     } catch (error) {
       console.error("Error generating PDF:", error);
     } finally {

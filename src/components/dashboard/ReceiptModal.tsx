@@ -11,8 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useTenant } from "@/hooks/useTenant";
 import { guardTenant } from "@/lib/tenant-utils";
 import { Loader2, Sparkles, Download, Printer, AlertCircle } from "lucide-react";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
+import { exportElementToPDF } from "@/lib/pdf-utils";
 import { format } from "date-fns";
 import { TenantDocumentHeader, DocumentComplianceFooter } from "./TenantDocumentHeader";
 
@@ -164,35 +163,10 @@ export function ReceiptModal({ isOpen, onClose, onSuccess, invoice }: ReceiptMod
     if (!element) return;
 
     try {
-      // Clone element for capturing to avoid viewport issues on mobile
-      const clone = element.cloneNode(true) as HTMLElement;
-      clone.style.position = 'absolute';
-      clone.style.left = '-9999px';
-      clone.style.top = '0';
-      clone.style.width = '600px';
-      clone.style.maxWidth = '600px';
-      clone.style.overflow = 'visible';
-      clone.style.height = 'auto';
-      document.body.appendChild(clone);
-
-      const canvas = await html2canvas(clone, { 
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: "#ffffff",
-        logging: false,
-        width: 600,
-        windowWidth: 600,
+      await exportElementToPDF({
+        element,
+        filename: `receipt-${createdReceipt?.receipt_number}.pdf`,
       });
-      
-      document.body.removeChild(clone);
-      
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF("p", "mm", "a4");
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      pdf.addImage(imgData, "PNG", 10, 10, pdfWidth - 20, pdfHeight);
-      pdf.save(`receipt-${createdReceipt?.receipt_number}.pdf`);
     } catch (error) {
       toast({ title: "Error", description: "Failed to generate PDF", variant: "destructive" });
     }
