@@ -87,15 +87,30 @@ export function CashBook() {
     if (!tenantId) return;
     setIsLoading(true);
     try {
+      // Build queries with optional payment method filter
+      let salesQuery = supabase
+        .from("sales_transactions")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .gte("created_at", startDate)
+        .lte("created_at", endDate + "T23:59:59")
+        .order("created_at", { ascending: true });
+
+      let receiptsQuery = supabase
+        .from("payment_receipts")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .gte("payment_date", startDate)
+        .lte("payment_date", endDate)
+        .order("payment_date", { ascending: true });
+
+      if (paymentFilter !== "all") {
+        salesQuery = salesQuery.eq("payment_method", paymentFilter);
+        receiptsQuery = receiptsQuery.eq("payment_method", paymentFilter);
+      }
+
       const [salesRes, expensesRes, receiptsRes] = await Promise.all([
-        supabase
-          .from("sales_transactions")
-          .select("*")
-          .eq("tenant_id", tenantId)
-          .gte("created_at", startDate)
-          .lte("created_at", endDate + "T23:59:59")
-          .eq("payment_method", "cash")
-          .order("created_at", { ascending: true }),
+        salesQuery,
         supabase
           .from("expenses")
           .select("*")
@@ -103,14 +118,7 @@ export function CashBook() {
           .gte("date_incurred", startDate)
           .lte("date_incurred", endDate)
           .order("date_incurred", { ascending: true }),
-        supabase
-          .from("payment_receipts")
-          .select("*")
-          .eq("tenant_id", tenantId)
-          .gte("payment_date", startDate)
-          .lte("payment_date", endDate)
-          .eq("payment_method", "cash")
-          .order("payment_date", { ascending: true }),
+        receiptsQuery,
       ]);
 
       const cashEntries: CashEntry[] = [];
