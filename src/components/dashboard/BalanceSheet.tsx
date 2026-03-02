@@ -184,7 +184,10 @@ export function BalanceSheet() {
       setData({
         assets: {
           current: {
-            cash: Math.max(0, cash),
+            cashOnHand,
+            mobileMoneyBalance,
+            bankBalance,
+            cardPosBalance,
             accountsReceivable,
             inventory: inventoryValue,
             totalCurrent: totalCurrentAssets,
