@@ -12,7 +12,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Landmark, Plus, Search, Download, Calculator, Eye, Pencil, Trash2, 
-  AlertTriangle, TrendingDown, Package, Building2, Car, Monitor, Cog, Armchair
+  AlertTriangle, TrendingDown, Package, Building2, Car, Monitor, Cog, Armchair,
+  FileSpreadsheet
 } from "lucide-react";
 import { format } from "date-fns";
 import { 
@@ -24,6 +25,7 @@ import {
 } from "@/lib/asset-depreciation";
 import { AssetModal } from "./AssetModal";
 import { AssetDepreciationModal } from "./AssetDepreciationModal";
+import { AssetImportModal } from "./AssetImportModal";
 
 interface DbAsset {
   id: string;
@@ -69,6 +71,7 @@ export function AssetsManager() {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<DbAsset | null>(null);
   const [depreciationAsset, setDepreciationAsset] = useState<DbAsset | null>(null);
 
@@ -202,10 +205,16 @@ export function AssetsManager() {
             <p className="text-sm text-muted-foreground">Track and depreciate fixed assets</p>
           </div>
         </div>
-        <Button onClick={() => { setEditingAsset(null); setIsModalOpen(true); }}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Asset
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setIsImportOpen(true)}>
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Import CSV
+          </Button>
+          <Button onClick={() => { setEditingAsset(null); setIsModalOpen(true); }}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Asset
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -429,6 +438,12 @@ export function AssetsManager() {
           asset={depreciationAsset}
         />
       )}
+
+      <AssetImportModal
+        open={isImportOpen}
+        onOpenChange={setIsImportOpen}
+        tenantId={tenantId}
+      />
     </div>
   );
 }

@@ -1,54 +1,56 @@
 
 
-# Add Asset Bulk Import via CSV/Excel Upload
+# Fix: Stock Item Counts Not Showing on Locations Page
 
-## What We're Building
-An "Import Assets" button on the Assets tab that lets users upload a CSV or Excel file containing a list of assets, instead of manually adding them one by one. This follows the same proven pattern as the existing inventory import system.
+## Problem
 
-## How It Works
+The Locations page shows "0" for the Stock Items column on most branches. This happens because:
 
-### User Flow
-1. User clicks **"Import Assets"** button (next to "Add Asset")
-2. A modal opens with drag-and-drop file upload (CSV/Excel) + a downloadable template
-3. If column headers don't match expected fields, a **column mapper** lets users map their columns
-4. A **preview table** shows parsed rows with validation status (green = valid, red = errors)
-5. User clicks **Import** → assets are inserted in batches into the database
+1. Products are assigned to locations via `default_location_id` on the `inventory` table
+2. But the Locations page only counts items from the `branch_inventory` table
+3. Most existing products were created before the branch_inventory sync fix, so they have no `branch_inventory` records despite being assigned to a location
 
-### New File: `src/components/dashboard/AssetImportModal.tsx`
-- Modal with drag-and-drop upload zone for CSV/Excel files
-- Reuses the existing `CSVColumnMapper` component for header mapping
-- Asset-specific schema fields:
-  - `name` (required), `category`, `serial_number`, `purchase_date` (required), `purchase_cost` (required)
-  - `salvage_value`, `useful_life_years`, `depreciation_method`, `location`, `assigned_to`, `description`, `status`
-- Validates each row (name required, cost > 0, valid category, date not in future)
-- Downloadable CSV template with sample data
-- Batch insert (50 at a time) with error handling per row
-- Shows success/failure summary toast
+For example, the KITWE branch has 1,426 products assigned to it, but the Stock Items column shows 0.
 
-### Modified File: `src/components/dashboard/AssetsManager.tsx`
-- Add an **"Import CSV"** button next to "Add Asset" in the header
-- Wire up the `AssetImportModal` with open/close state
-- Invalidate assets query on successful import
+## Solution
 
-### Template CSV columns
-```
-name,category,serial_number,purchase_date,purchase_cost,salvage_value,useful_life_years,depreciation_method,location,assigned_to,description
-Dell Laptop,IT,SN-12345,2024-01-15,15000,1000,5,straight_line,Head Office,Finance Dept,Staff laptop
-Toyota Hilux,Vehicles,VIN-67890,2023-06-01,450000,50000,10,reducing_balance,Lusaka,Operations,Delivery vehicle
+Update the `LocationsManager` to count stock items from **both** sources:
+
+1. **`branch_inventory`** -- items that have explicit branch stock records (accurate current stock)
+2. **`inventory.default_location_id`** -- items assigned to a location but without a branch_inventory record yet
+
+The displayed count will be the higher of the two, ensuring all assigned products are reflected.
+
+## Changes
+
+### File: `src/components/dashboard/LocationsManager.tsx`
+
+**Add a second query** for inventory items grouped by `default_location_id`:
+
+```typescript
+const { data: inventoryByLocation } = await supabase
+  .from("inventory")
+  .select("default_location_id")
+  .eq("tenant_id", tenant.id)
+  .not("default_location_id", "is", null);
 ```
 
-### Validation Rules
-- **Name**: Required, non-empty
-- **Category**: Must match one of: IT, Vehicles, Machinery, Furniture, Buildings, Other (auto-corrected if close match)
-- **Purchase Date**: Required, valid date, not in the future
-- **Purchase Cost**: Required, must be > 0
-- **Salvage Value**: Must be ≥ 0 and < purchase cost
-- **Useful Life**: Must be 1–100 years (defaults to 5)
-- **Depreciation Method**: `straight_line` or `reducing_balance` (defaults to straight_line)
+**Update the stats mapping** to combine both counts:
 
-### Files to create
-- `src/components/dashboard/AssetImportModal.tsx`
+```typescript
+const branchInvCount = inventoryData
+  ?.filter(i => i.branch_id === branch.id)
+  .reduce((sum, i) => sum + (i.current_stock || 0), 0) || 0;
+
+const assignedCount = inventoryByLocation
+  ?.filter(i => i.default_location_id === branch.id).length || 0;
+
+// Show the more meaningful number
+inventory_count: Math.max(branchInvCount, assignedCount),
+```
+
+This way, even if `branch_inventory` records haven't been created yet, the Locations page will still show how many products are assigned to each branch. As users create new products (which now auto-sync to `branch_inventory`), the counts will naturally converge.
 
 ### Files to modify
-- `src/components/dashboard/AssetsManager.tsx` (add import button + modal)
+- `src/components/dashboard/LocationsManager.tsx`
 
