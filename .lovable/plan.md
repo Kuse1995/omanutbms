@@ -1,56 +1,37 @@
 
 
-# Fix: Stock Item Counts Not Showing on Locations Page
+# Make Stock Transfers Editable with Audit Trail
 
-## Problem
+## Current State
+- Stock transfers are **read-only** after creation — no way to edit quantity, notes, or locations
+- The `audit_log` table already has triggers on `stock_transfers` that capture INSERT/UPDATE/DELETE with old and new data — so **audit tracking is already in place**
+- What's missing is the **UI to edit** transfers and a way to **view the edit history**
 
-The Locations page shows "0" for the Stock Items column on most branches. This happens because:
+## What We're Building
 
-1. Products are assigned to locations via `default_location_id` on the `inventory` table
-2. But the Locations page only counts items from the `branch_inventory` table
-3. Most existing products were created before the branch_inventory sync fix, so they have no `branch_inventory` records despite being assigned to a location
+### 1. Edit Transfer Modal
+Add an "Edit" action to transfers that are in `pending` or `in_transit` status (not completed/cancelled). Editable fields:
+- **Quantity** — with validation against available stock
+- **Notes** — reason/context updates
+- **Target location** — can redirect a transfer before completion
+- **Edit reason** (required) — forces the user to explain why they're changing it
 
-For example, the KITWE branch has 1,426 products assigned to it, but the Stock Items column shows 0.
+Restrictions:
+- Only admins/managers or the original requester can edit
+- Completed and cancelled transfers are locked
+- Source location and product cannot be changed (would require a new transfer)
 
-## Solution
+### 2. Edit History Viewer
+A "View History" action on each transfer that opens a dialog showing all changes from the `audit_log` table, displaying:
+- What changed (old value → new value)
+- Who changed it
+- When it was changed
 
-Update the `LocationsManager` to count stock items from **both** sources:
+This uses the existing `audit_log` data — no new tables needed.
 
-1. **`branch_inventory`** -- items that have explicit branch stock records (accurate current stock)
-2. **`inventory.default_location_id`** -- items assigned to a location but without a branch_inventory record yet
+### Files to Modify
+- **`src/components/dashboard/StockTransfersManager.tsx`** — Add "Edit" and "View History" dropdown actions, inline edit modal, and history dialog. Wire up update logic with required edit reason appended to notes.
 
-The displayed count will be the higher of the two, ensuring all assigned products are reflected.
-
-## Changes
-
-### File: `src/components/dashboard/LocationsManager.tsx`
-
-**Add a second query** for inventory items grouped by `default_location_id`:
-
-```typescript
-const { data: inventoryByLocation } = await supabase
-  .from("inventory")
-  .select("default_location_id")
-  .eq("tenant_id", tenant.id)
-  .not("default_location_id", "is", null);
-```
-
-**Update the stats mapping** to combine both counts:
-
-```typescript
-const branchInvCount = inventoryData
-  ?.filter(i => i.branch_id === branch.id)
-  .reduce((sum, i) => sum + (i.current_stock || 0), 0) || 0;
-
-const assignedCount = inventoryByLocation
-  ?.filter(i => i.default_location_id === branch.id).length || 0;
-
-// Show the more meaningful number
-inventory_count: Math.max(branchInvCount, assignedCount),
-```
-
-This way, even if `branch_inventory` records haven't been created yet, the Locations page will still show how many products are assigned to each branch. As users create new products (which now auto-sync to `branch_inventory`), the counts will naturally converge.
-
-### Files to modify
-- `src/components/dashboard/LocationsManager.tsx`
+### No Database Changes
+The existing `audit_table_update` trigger on `stock_transfers` already logs `old_data` and `new_data` to `audit_log` on every UPDATE — so every edit is automatically tracked for auditing.
 
