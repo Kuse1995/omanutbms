@@ -90,16 +90,8 @@ export function SmartInventory() {
       const useBranchInventory = currentBranch && isMultiBranchEnabled;
 
       if (useBranchInventory) {
-        // Branch-specific: run count and data queries in parallel
-        let countQuery = supabase
-          .from("branch_inventory")
-          .select("id", { count: "exact", head: true })
-          .eq("tenant_id", tenantId)
-          .eq("branch_id", currentBranch.id)
-          .gt("current_stock", 0);
-
-        const [countResult, dataResult] = await Promise.all([
-          countQuery,
+        // Branch-specific: query both branch_inventory AND inventory.default_location_id as fallback
+        const [dataResult, fallbackResult] = await Promise.all([
           supabase
             .from("branch_inventory")
             .select(`
@@ -110,25 +102,70 @@ export function SmartInventory() {
             `)
             .eq("tenant_id", tenantId)
             .eq("branch_id", currentBranch.id)
-            .gt("current_stock", 0)
-            .range(from, to),
+            .gt("current_stock", 0),
+          // Fallback: items assigned to this branch via default_location_id
+          supabase
+            .from("inventory")
+            .select("id, sku, name, current_stock, reserved, ai_prediction, status, item_type, category, is_archived")
+            .eq("tenant_id", tenantId)
+            .eq("default_location_id", currentBranch.id)
+            .eq("is_archived", false),
         ]);
 
         if (dataResult.error) throw dataResult.error;
 
+        // Build set of IDs already covered by branch_inventory
+        const branchInvIds = new Set<string>();
         let mappedItems: InventoryItem[] = (dataResult.data || [])
           .filter((item: any) => item.inventory && !item.inventory.is_archived)
+          .map((item: any) => {
+            branchInvIds.add(item.inventory.id);
+            return {
+              id: item.inventory.id,
+              sku: item.inventory.sku,
+              name: item.inventory.name,
+              current_stock: item.current_stock,
+              reserved: item.reserved || 0,
+              ai_prediction: item.inventory.ai_prediction,
+              status: item.inventory.status,
+              item_type: item.inventory.item_type,
+              category: item.inventory.category,
+            };
+          });
+
+        // Merge fallback items not already in branch_inventory results
+        const fallbackItems = (fallbackResult.data || [])
+          .filter((item: any) => !branchInvIds.has(item.id))
           .map((item: any) => ({
-            id: item.inventory.id,
-            sku: item.inventory.sku,
-            name: item.inventory.name,
-            current_stock: item.current_stock,
+            id: item.id,
+            sku: item.sku,
+            name: item.name,
+            current_stock: item.current_stock || 0,
             reserved: item.reserved || 0,
-            ai_prediction: item.inventory.ai_prediction,
-            status: item.inventory.status,
-            item_type: item.inventory.item_type,
-            category: item.inventory.category,
+            ai_prediction: item.ai_prediction,
+            status: item.status,
+            item_type: item.item_type,
+            category: item.category,
           }));
+
+        // Self-healing: create missing branch_inventory records in background
+        if (fallbackItems.length > 0) {
+          const missingRecords = fallbackItems.map((item) => ({
+            tenant_id: tenantId,
+            branch_id: currentBranch.id,
+            inventory_id: item.id,
+            current_stock: item.current_stock,
+            reorder_level: 10,
+          }));
+          supabase.from("branch_inventory").upsert(missingRecords, {
+            onConflict: "branch_id,inventory_id",
+            ignoreDuplicates: true,
+          }).then(({ error }) => {
+            if (error) console.warn("Self-healing branch_inventory sync failed:", error.message);
+          });
+        }
+
+        mappedItems = [...mappedItems, ...fallbackItems];
 
         if (debouncedSearch.trim()) {
           const search = debouncedSearch.trim().toLowerCase();
@@ -139,8 +176,8 @@ export function SmartInventory() {
         }
         mappedItems.sort((a, b) => a.name.localeCompare(b.name));
 
-        setTotalCount(debouncedSearch.trim() ? mappedItems.length : (countResult.count || 0));
-        setInventory(mappedItems);
+        setTotalCount(mappedItems.length);
+        setInventory(mappedItems.slice(from, to + 1));
       } else {
         // Global view: run count and data queries in parallel
         let countQuery = supabase
