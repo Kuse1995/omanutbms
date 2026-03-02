@@ -94,34 +94,10 @@ export function QuotationViewModal({ isOpen, onClose, quotation, onConvertToInvo
 
     setIsDownloading(true);
     try {
-      // Preload all images to ensure they render in the PDF
-      const images = element.querySelectorAll("img");
-      await Promise.all(
-        Array.from(images).map(
-          (img) =>
-            new Promise<void>((resolve) => {
-              if (img.complete) {
-                resolve();
-              } else {
-                img.onload = () => resolve();
-                img.onerror = () => resolve();
-              }
-            })
-        )
-      );
-
-      const canvas = await html2canvas(element, { 
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: "#ffffff",
+      await exportElementToPDF({
+        element,
+        filename: `quotation-${quotation?.quotation_number}.pdf`,
       });
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF("p", "mm", "a4");
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`quotation-${quotation?.quotation_number}.pdf`);
     } catch (error) {
       toast({ title: "Error", description: "Failed to generate PDF", variant: "destructive" });
     } finally {

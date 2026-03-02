@@ -52,29 +52,10 @@ export function ForumViewModal({ forum, isOpen, onClose }: ForumViewModalProps) 
 
     setIsDownloading(true);
     try {
-      const canvas = await html2canvas(printContent, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
+      await exportElementToPDF({
+        element: printContent,
+        filename: `wash-forum-${forum.name.replace(/\s+/g, '-').toLowerCase()}.pdf`,
       });
-      
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4",
-      });
-      
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
-      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-      const imgX = (pdfWidth - imgWidth * ratio) / 2;
-      const imgY = 10;
-      
-      pdf.addImage(imgData, "PNG", imgX, imgY, imgWidth * ratio, imgHeight * ratio);
-      pdf.save(`wash-forum-${forum.name.replace(/\s+/g, '-').toLowerCase()}.pdf`);
     } catch (error) {
       console.error("Error generating PDF:", error);
     } finally {
