@@ -24,6 +24,7 @@ import {
 } from "@/lib/asset-depreciation";
 import { AssetModal } from "./AssetModal";
 import { AssetDepreciationModal } from "./AssetDepreciationModal";
+import { AssetImportModal } from "./AssetImportModal";
 
 interface DbAsset {
   id: string;
