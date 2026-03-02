@@ -175,7 +175,7 @@ export function BalanceSheet() {
       const totalLiabilities = totalCurrentLiabilities;
 
       // Calculate Equity
-      const totalRevenue = totalSalesRevenue + invoiceRevenue;
+      const totalRevenue = Object.values(methodTotals).reduce((a, b) => a + b, 0);
       const netIncome = totalRevenue - totalExpenses;
       const retainedEarnings = 0; // Opening balance, would need historical data
       const currentPeriodEarnings = netIncome;
