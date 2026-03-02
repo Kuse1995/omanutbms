@@ -1,56 +1,37 @@
 
 
-# Fix: Stock Item Counts Not Showing on Locations Page
+# Add Cash Flow Statement to Advanced Accounting
 
-## Problem
+## What We're Building
+A new **"Cash Flow"** tab in the Advanced Accounting section that categorizes all cash movements into the three standard cash flow categories: **Operating Activities**, **Investing Activities**, and **Financing Activities** — following the indirect method format used in standard financial reporting.
 
-The Locations page shows "0" for the Stock Items column on most branches. This happens because:
+## Data Sources (no DB changes needed)
+All data already exists in the database:
+- **Operating**: `sales_transactions` (cash inflows), `payment_receipts` (collections), `expenses` (outflows by category), `payroll_records` (salary payments)
+- **Investing**: `assets` table (purchase_cost for acquisitions, disposal_value for disposals)
+- **Financing**: Can be derived from loan-related expenses or owner contributions (future extensibility)
 
-1. Products are assigned to locations via `default_location_id` on the `inventory` table
-2. But the Locations page only counts items from the `branch_inventory` table
-3. Most existing products were created before the branch_inventory sync fix, so they have no `branch_inventory` records despite being assigned to a location
+## Category Mapping Logic
 
-For example, the KITWE branch has 1,426 products assigned to it, but the Stock Items column shows 0.
+**Operating Activities** (day-to-day business):
+- *Inflows*: Product sales receipts, invoice collections (payment_receipts), service revenue
+- *Outflows*: Salaries & Wages, Rent, Marketing, COGS, Other operating expenses
 
-## Solution
+**Investing Activities** (long-term assets):
+- *Outflows*: Asset purchases (from `assets` table — `purchase_cost` where `purchase_date` falls in range)
+- *Inflows*: Asset disposals (from `assets` table — `disposal_value` where `disposal_date` falls in range)
 
-Update the `LocationsManager` to count stock items from **both** sources:
+**Financing Activities** (debt/equity):
+- Categorized from expense categories containing "loan", "interest", "dividend", "owner" keywords
+- Placeholder section for future loan/equity tracking
 
-1. **`branch_inventory`** -- items that have explicit branch stock records (accurate current stock)
-2. **`inventory.default_location_id`** -- items assigned to a location but without a branch_inventory record yet
+## New File: `src/components/dashboard/CashFlowStatement.tsx`
+- Date range picker + quick period buttons (Last Month, Quarter, Year) — same pattern as P&L
+- Three collapsible sections with line items and subtotals
+- Net cash flow summary card at the bottom
+- PDF export via html2canvas + jsPDF
+- Real-time subscriptions on `sales_transactions`, `expenses`, `payment_receipts`, `assets`
 
-The displayed count will be the higher of the two, ensuring all assigned products are reflected.
-
-## Changes
-
-### File: `src/components/dashboard/LocationsManager.tsx`
-
-**Add a second query** for inventory items grouped by `default_location_id`:
-
-```typescript
-const { data: inventoryByLocation } = await supabase
-  .from("inventory")
-  .select("default_location_id")
-  .eq("tenant_id", tenant.id)
-  .not("default_location_id", "is", null);
-```
-
-**Update the stats mapping** to combine both counts:
-
-```typescript
-const branchInvCount = inventoryData
-  ?.filter(i => i.branch_id === branch.id)
-  .reduce((sum, i) => sum + (i.current_stock || 0), 0) || 0;
-
-const assignedCount = inventoryByLocation
-  ?.filter(i => i.default_location_id === branch.id).length || 0;
-
-// Show the more meaningful number
-inventory_count: Math.max(branchInvCount, assignedCount),
-```
-
-This way, even if `branch_inventory` records haven't been created yet, the Locations page will still show how many products are assigned to each branch. As users create new products (which now auto-sync to `branch_inventory`), the counts will naturally converge.
-
-### Files to modify
-- `src/components/dashboard/LocationsManager.tsx`
+## Modified File: `src/components/dashboard/AdvancedAccounting.tsx`
+- Add a "Cash Flow" tab with `ArrowLeftRight` icon between P&L and A/R tabs
 
