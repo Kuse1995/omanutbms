@@ -138,21 +138,52 @@ export function InventoryAgent() {
     let total = 0;
 
     if (useBranchInventory) {
-      const [countResult, dataResult, variantsResult] = await Promise.all([
-        supabase.from("branch_inventory").select("id", { count: "exact", head: true })
-          .eq("tenant_id", tenantId).eq("branch_id", currentBranch.id).gt("current_stock", 0),
+      const [dataResult, fallbackResult, variantsResult] = await Promise.all([
         supabase.from("branch_inventory").select(`
             id, current_stock, reserved,
             inventory:inventory_id(id, sku, name, current_stock, wholesale_stock, unit_price, cost_price, original_price, reorder_level, image_url, category, status, item_type, inventory_class, unit_of_measure, default_location_id, is_archived)
-          `).eq("tenant_id", tenantId).eq("branch_id", currentBranch.id).gt("current_stock", 0).range(from, to),
+          `).eq("tenant_id", tenantId).eq("branch_id", currentBranch.id).gt("current_stock", 0),
+        // Fallback: items assigned to this branch via default_location_id
+        supabase.from("inventory").select(`
+            id, sku, name, current_stock, wholesale_stock, unit_price, cost_price, original_price,
+            reorder_level, image_url, category, status, item_type, inventory_class, unit_of_measure, default_location_id, is_archived
+          `).eq("tenant_id", tenantId).eq("default_location_id", currentBranch.id).eq("is_archived", showArchived),
         supabase.from("product_variants").select("product_id, variant_type").eq("tenant_id", tenantId).eq("is_active", true),
       ]);
 
       if (dataResult.error) throw dataResult.error;
 
+      const branchInvIds = new Set<string>();
       let enrichedItems = (dataResult.data || [])
         .filter((item: any) => item.inventory && item.inventory.is_archived === showArchived)
-        .map((item: any) => ({ ...item.inventory, current_stock: item.current_stock, reserved: item.reserved || item.inventory.reserved || 0, location_name: currentBranch.name }));
+        .map((item: any) => {
+          branchInvIds.add(item.inventory.id);
+          return { ...item.inventory, current_stock: item.current_stock, reserved: item.reserved || item.inventory.reserved || 0, location_name: currentBranch.name };
+        });
+
+      // Merge fallback items not already in branch_inventory results
+      const fallbackItems = (fallbackResult.data || [])
+        .filter((item: any) => !branchInvIds.has(item.id))
+        .map((item: any) => ({ ...item, reserved: item.reserved || 0, location_name: currentBranch.name }));
+
+      // Self-healing: create missing branch_inventory records in background
+      if (fallbackItems.length > 0) {
+        const missingRecords = fallbackItems.map((item: any) => ({
+          tenant_id: tenantId,
+          branch_id: currentBranch.id,
+          inventory_id: item.id,
+          current_stock: item.current_stock || 0,
+          reorder_level: 10,
+        }));
+        supabase.from("branch_inventory").upsert(missingRecords, {
+          onConflict: "branch_id,inventory_id",
+          ignoreDuplicates: true,
+        }).then(({ error }) => {
+          if (error) console.warn("Self-healing branch_inventory sync failed:", error.message);
+        });
+      }
+
+      enrichedItems = [...enrichedItems, ...fallbackItems];
 
       if (classFilter) enrichedItems = enrichedItems.filter((item: any) => item.inventory_class === classFilter);
       if (debouncedSearch.trim()) {
@@ -172,7 +203,7 @@ export function InventoryAgent() {
         ...item, color_count: variantCounts[item.id]?.colors || 0, size_count: variantCounts[item.id]?.sizes || 0,
         technical_specs: item.technical_specs as unknown as TechnicalSpec[] | null,
       }));
-      total = debouncedSearch.trim() || classFilter ? inventoryItems.length : (countResult.count || 0);
+      total = inventoryItems.length;
     } else {
       let countQuery = supabase.from("inventory").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("is_archived", showArchived);
       if (classFilter) countQuery = countQuery.eq("inventory_class", classFilter);
