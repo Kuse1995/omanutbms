@@ -289,6 +289,24 @@ export function StockTransfersManager() {
     setRejectDialogOpen(true);
   };
 
+  const canEditTransfer = (transfer: Transfer): boolean => {
+    if (transfer.status === 'completed' || transfer.status === 'cancelled') return false;
+    if (userRole === 'admin' || userRole === 'manager') return true;
+    if (user?.id && transfer.requested_by === user.id) return true;
+    return false;
+  };
+
+  const openEditModal = (transfer: Transfer) => {
+    setEditTransfer(transfer);
+    setEditModalOpen(true);
+  };
+
+  const openHistoryDialog = (transfer: Transfer) => {
+    setHistoryTransferId(transfer.id);
+    setHistoryProductName(transfer.product_name);
+    setHistoryDialogOpen(true);
+  };
+
   const filteredTransfers = transfers.filter((t) => {
     const matchesSearch = 
       t.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
