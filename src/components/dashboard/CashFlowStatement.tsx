@@ -87,7 +87,7 @@ export function CashFlowStatement() {
 
     try {
       const [salesRes, receiptsRes, expensesRes, assetsRes] = await Promise.all([
-        supabase.from("sales_transactions").select("total_amount_zmw, payment_method, sale_date").eq("tenant_id", tenantId).gte("sale_date", startDate).lte("sale_date", endDate),
+        supabase.from("sales_transactions").select("total_amount_zmw, payment_method, created_at").eq("tenant_id", tenantId).gte("created_at", startDate).lte("created_at", endDate + "T23:59:59"),
         supabase.from("payment_receipts").select("amount_paid, payment_method, payment_date").eq("tenant_id", tenantId).gte("payment_date", startDate).lte("payment_date", endDate),
         supabase.from("expenses").select("amount_zmw, category, date_incurred").eq("tenant_id", tenantId).gte("date_incurred", startDate).lte("date_incurred", endDate),
         supabase.from("assets").select("purchase_cost, purchase_date, disposal_value, disposal_date, status").eq("tenant_id", tenantId),
