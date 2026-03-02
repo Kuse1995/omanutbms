@@ -5,8 +5,7 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Receipt, Building2, Calendar, Tag, Image, Download, Loader2 } from "lucide-react";
 import { format } from "date-fns";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
+import { exportElementToPDF } from "@/lib/pdf-utils";
 import { TenantDocumentHeader, DocumentComplianceFooter } from "./TenantDocumentHeader";
 
 interface Expense {
