@@ -47,6 +47,10 @@ export function AdvancedAccounting() {
                 <TrendingUp className="h-4 w-4 mr-2" />
                 P&L Statement
               </TabsTrigger>
+              <TabsTrigger value="cashflow" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                <ArrowLeftRight className="h-4 w-4 mr-2" />
+                Cash Flow
+              </TabsTrigger>
               <TabsTrigger value="receivables" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 <Receipt className="h-4 w-4 mr-2" />
                 A/R Aging
@@ -70,6 +74,7 @@ export function AdvancedAccounting() {
             <TabsContent value="trial"><TrialBalance /></TabsContent>
             <TabsContent value="balance"><BalanceSheet /></TabsContent>
             <TabsContent value="pnl"><ProfitLossStatement /></TabsContent>
+            <TabsContent value="cashflow"><CashFlowStatement /></TabsContent>
             <TabsContent value="receivables"><AccountsReceivableAging /></TabsContent>
             <TabsContent value="payables"><AccountsPayable /></TabsContent>
             <TabsContent value="credit-sales"><CreditSalesReport /></TabsContent>
