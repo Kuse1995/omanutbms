@@ -205,10 +205,16 @@ export function AssetsManager() {
             <p className="text-sm text-muted-foreground">Track and depreciate fixed assets</p>
           </div>
         </div>
-        <Button onClick={() => { setEditingAsset(null); setIsModalOpen(true); }}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Asset
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setIsImportOpen(true)}>
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Import CSV
+          </Button>
+          <Button onClick={() => { setEditingAsset(null); setIsModalOpen(true); }}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Asset
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
