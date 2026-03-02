@@ -22,6 +22,16 @@ interface LedgerEntry {
   type: "revenue" | "expense" | "asset" | "liability";
 }
 
+function getAccountNameFromPaymentMethod(method: string | null): string {
+  if (!method) return "Cash Account";
+  const lower = method.toLowerCase().trim();
+  if (lower.includes("mobile") || lower.includes("momo") || lower === "mobile_money") return "Mobile Money Account";
+  if (lower.includes("bank") || lower === "bank_transfer") return "Bank Account";
+  if (lower.includes("card") || lower.includes("pos")) return "Card/POS Account";
+  if (lower === "credit_invoice" || lower === "credit") return "Accounts Receivable";
+  return "Cash Account";
+}
+
 export function GeneralLedger() {
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -93,18 +103,19 @@ export function GeneralLedger() {
       const ledgerEntries: LedgerEntry[] = [];
       let runningBalance = 0;
 
-      // Add sales as revenue (credit to revenue, debit to cash/receivables)
+      // Add sales as revenue (credit to revenue, debit to payment-method-specific account)
       // total_amount_zmw is already NET of discounts
       ((salesRes.data as any[]) || []).forEach((sale) => {
         const saleAmount = Number(sale.total_amount_zmw || 0);
         const discountAmount = Number(sale.discount_amount || 0);
+        const accountName = getAccountNameFromPaymentMethod(sale.payment_method);
         
         runningBalance += saleAmount;
         ledgerEntries.push({
           id: `sale-${sale.id}`,
           date: sale.created_at,
           description: `Sale: ${sale.product_name} x${sale.quantity}${discountAmount > 0 ? ` (Discount: K${discountAmount.toLocaleString()})` : ''}`,
-          account: "Revenue - Product Sales",
+          account: accountName,
           debit: 0,
           credit: saleAmount,
           balance: runningBalance,
@@ -130,15 +141,14 @@ export function GeneralLedger() {
       // Add payment receipts as revenue (actual cash received for invoices)
       // Only include payments linked to invoices to avoid double-counting with sales_transactions
       ((paymentsRes.data as any[]) || []).forEach((payment) => {
-        // Only show payment receipts that are linked to invoices
-        // Direct sales already appear in sales_transactions
         if (payment.invoice_id) {
+          const accountName = getAccountNameFromPaymentMethod(payment.payment_method);
           runningBalance += Number(payment.amount_paid);
           ledgerEntries.push({
             id: `payment-${payment.id}`,
             date: payment.payment_date,
             description: `Payment Receipt ${payment.receipt_number}: ${payment.client_name}`,
-            account: "Revenue - Invoice Payments",
+            account: accountName,
             debit: 0,
             credit: Number(payment.amount_paid),
             balance: runningBalance,

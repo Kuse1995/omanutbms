@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Wallet, Download, ArrowUpCircle, ArrowDownCircle } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
@@ -27,6 +28,7 @@ export function CashBook() {
   const [isLoading, setIsLoading] = useState(true);
   const [startDate, setStartDate] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
+  const [paymentFilter, setPaymentFilter] = useState<string>("all");
   const { tenantId } = useTenant();
 
   useEffect(() => {
@@ -79,21 +81,36 @@ export function CashBook() {
       supabase.removeChannel(payrollChannel);
       supabase.removeChannel(receiptsChannel);
     };
-  }, [startDate, endDate, tenantId]);
+  }, [startDate, endDate, paymentFilter, tenantId]);
 
   const fetchCashData = async () => {
     if (!tenantId) return;
     setIsLoading(true);
     try {
+      // Build queries with optional payment method filter
+      let salesQuery = supabase
+        .from("sales_transactions")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .gte("created_at", startDate)
+        .lte("created_at", endDate + "T23:59:59")
+        .order("created_at", { ascending: true });
+
+      let receiptsQuery = supabase
+        .from("payment_receipts")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .gte("payment_date", startDate)
+        .lte("payment_date", endDate)
+        .order("payment_date", { ascending: true });
+
+      if (paymentFilter !== "all") {
+        salesQuery = salesQuery.eq("payment_method", paymentFilter);
+        receiptsQuery = receiptsQuery.eq("payment_method", paymentFilter);
+      }
+
       const [salesRes, expensesRes, receiptsRes] = await Promise.all([
-        supabase
-          .from("sales_transactions")
-          .select("*")
-          .eq("tenant_id", tenantId)
-          .gte("created_at", startDate)
-          .lte("created_at", endDate + "T23:59:59")
-          .eq("payment_method", "cash")
-          .order("created_at", { ascending: true }),
+        salesQuery,
         supabase
           .from("expenses")
           .select("*")
@@ -101,14 +118,7 @@ export function CashBook() {
           .gte("date_incurred", startDate)
           .lte("date_incurred", endDate)
           .order("date_incurred", { ascending: true }),
-        supabase
-          .from("payment_receipts")
-          .select("*")
-          .eq("tenant_id", tenantId)
-          .gte("payment_date", startDate)
-          .lte("payment_date", endDate)
-          .eq("payment_method", "cash")
-          .order("payment_date", { ascending: true }),
+        receiptsQuery,
       ]);
 
       const cashEntries: CashEntry[] = [];
@@ -232,6 +242,18 @@ export function CashBook() {
               className="w-40"
             />
           </div>
+          <Select value={paymentFilter} onValueChange={setPaymentFilter}>
+            <SelectTrigger className="w-44">
+              <SelectValue placeholder="Payment Method" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Methods</SelectItem>
+              <SelectItem value="cash">Cash</SelectItem>
+              <SelectItem value="mobile_money">Mobile Money</SelectItem>
+              <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+              <SelectItem value="card">Card</SelectItem>
+            </SelectContent>
+          </Select>
           <Button onClick={handleDownloadPDF} variant="outline" size="sm">
             <Download className="h-4 w-4 mr-2" />
             Export PDF

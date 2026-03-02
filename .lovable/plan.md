@@ -1,57 +1,56 @@
 
 
-# Add Account-Based Money Tracking by Payment Method
+# Fix: Stock Item Counts Not Showing on Locations Page
 
-## The Problem
-Currently, the accounting system lumps all revenue into a single "cash" figure. When a sale is made via Cash, Mobile Money, Bank Transfer, or Card, there's no visibility into which account the money sits in. Users can't see how much is in their bank vs. mobile money wallet vs. cash register.
+## Problem
 
-## What We're Building
-A new **"Account Balances"** tab in Advanced Accounting that breaks down money by payment method/account type. Plus, updates to the General Ledger, Balance Sheet, and Cash Book to reflect account-specific entries.
+The Locations page shows "0" for the Stock Items column on most branches. This happens because:
 
-### 1. New Component: `AccountBalancesDashboard.tsx`
-A dedicated tab showing:
-- **Summary cards** for each account type: Cash, Mobile Money, Bank, Card — each showing total inflows, outflows, and current balance
-- **Detailed transaction table** filtered by account, showing every receipt/sale/expense that flowed through that account
-- Date range filtering and PDF export
+1. Products are assigned to locations via `default_location_id` on the `inventory` table
+2. But the Locations page only counts items from the `branch_inventory` table
+3. Most existing products were created before the branch_inventory sync fix, so they have no `branch_inventory` records despite being assigned to a location
 
-Account types derived from existing `payment_method` values in the database:
-- `cash` / `Cash` → **Cash Account**
-- `mobile_money` → **Mobile Money Account**
-- `bank_transfer` → **Bank Account**
-- `card` → **Card Account**
-- `credit_invoice` → **Accounts Receivable** (already tracked)
+For example, the KITWE branch has 1,426 products assigned to it, but the Stock Items column shows 0.
 
-### 2. Update: `GeneralLedger.tsx`
-- Change the `account` field from generic "Revenue - Product Sales" to payment-method-specific accounts:
-  - Cash sale → "Cash Account"
-  - Mobile Money sale → "Mobile Money Account"
-  - Bank Transfer sale → "Bank Account"
-  - Card sale → "Card/POS Account"
-- Same for payment receipts — show which account received the money
+## Solution
 
-### 3. Update: `BalanceSheet.tsx`
-- Break the single `cash` line item into sub-accounts:
-  - Cash on Hand
-  - Mobile Money Balance
-  - Bank Balance
-  - Card/POS Receivable
-- Each calculated by summing inflows minus outflows per payment method
+Update the `LocationsManager` to count stock items from **both** sources:
 
-### 4. Update: `AdvancedAccounting.tsx`
-- Add new "Account Balances" tab with a `Landmark` icon
+1. **`branch_inventory`** -- items that have explicit branch stock records (accurate current stock)
+2. **`inventory.default_location_id`** -- items assigned to a location but without a branch_inventory record yet
 
-### 5. Update: `CashBook.tsx`
-- Add a payment method filter dropdown so users can view the cash book for a specific account (e.g., only Mobile Money transactions)
+The displayed count will be the higher of the two, ensuring all assigned products are reflected.
 
-## No Database Changes Required
-All data already exists — `sales_transactions.payment_method` and `payment_receipts.payment_method` contain the account classification. This is purely a frontend aggregation change.
+## Changes
 
-## Files to Create
-- `src/components/dashboard/AccountBalancesDashboard.tsx`
+### File: `src/components/dashboard/LocationsManager.tsx`
 
-## Files to Modify
-- `src/components/dashboard/AdvancedAccounting.tsx` — add tab
-- `src/components/dashboard/GeneralLedger.tsx` — payment-method-specific accounts
-- `src/components/dashboard/BalanceSheet.tsx` — break cash into sub-accounts
-- `src/components/dashboard/CashBook.tsx` — add payment method filter
+**Add a second query** for inventory items grouped by `default_location_id`:
+
+```typescript
+const { data: inventoryByLocation } = await supabase
+  .from("inventory")
+  .select("default_location_id")
+  .eq("tenant_id", tenant.id)
+  .not("default_location_id", "is", null);
+```
+
+**Update the stats mapping** to combine both counts:
+
+```typescript
+const branchInvCount = inventoryData
+  ?.filter(i => i.branch_id === branch.id)
+  .reduce((sum, i) => sum + (i.current_stock || 0), 0) || 0;
+
+const assignedCount = inventoryByLocation
+  ?.filter(i => i.default_location_id === branch.id).length || 0;
+
+// Show the more meaningful number
+inventory_count: Math.max(branchInvCount, assignedCount),
+```
+
+This way, even if `branch_inventory` records haven't been created yet, the Locations page will still show how many products are assigned to each branch. As users create new products (which now auto-sync to `branch_inventory`), the counts will naturally converge.
+
+### Files to modify
+- `src/components/dashboard/LocationsManager.tsx`
 

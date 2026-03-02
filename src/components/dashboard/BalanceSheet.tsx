@@ -13,7 +13,10 @@ import { useTenant } from "@/hooks/useTenant";
 interface BalanceSheetData {
   assets: {
     current: {
-      cash: number;
+      cashOnHand: number;
+      mobileMoneyBalance: number;
+      bankBalance: number;
+      cardPosBalance: number;
       accountsReceivable: number;
       inventory: number;
       totalCurrent: number;
@@ -32,6 +35,15 @@ interface BalanceSheetData {
     currentPeriodEarnings: number;
     totalEquity: number;
   };
+}
+
+function normalizeMethod(method: string | null): string {
+  if (!method) return "cash";
+  const lower = method.toLowerCase().trim();
+  if (lower.includes("mobile") || lower.includes("momo") || lower === "mobile_money") return "mobile_money";
+  if (lower.includes("bank") || lower === "bank_transfer") return "bank_transfer";
+  if (lower.includes("card") || lower.includes("pos")) return "card";
+  return "cash";
 }
 
 export function BalanceSheet() {
@@ -122,28 +134,46 @@ export function BalanceSheet() {
           .lte("created_at", asOfDate + "T23:59:59"),
       ]);
 
-      // Calculate Assets
-      const totalSalesRevenue = (salesRes.data || []).reduce((sum, s) => sum + Number(s.total_amount_zmw), 0);
+      // Calculate Assets - broken down by payment method
+      const salesData = (salesRes.data || []) as any[];
       const totalExpenses = (expensesRes.data || []).reduce((sum, e) => sum + Number(e.amount_zmw), 0);
-      
-      // Paid invoices add to cash
-      const paidInvoices = (invoicesRes.data || []).filter((inv) => inv.status === "paid");
-      const invoiceRevenue = paidInvoices.reduce((sum, inv) => sum + Number(inv.total_amount), 0);
-      
+
+      // Aggregate sales by payment method
+      const methodTotals: Record<string, number> = { cash: 0, mobile_money: 0, bank_transfer: 0, card: 0 };
+      salesData.forEach((s) => {
+        const method = normalizeMethod(s.payment_method);
+        methodTotals[method] += Number(s.total_amount_zmw || 0);
+      });
+
+      // Also fetch payment_receipts for invoice payments to the right account
+      const [receiptsRes2] = await Promise.all([
+        supabase.from("payment_receipts").select("amount_paid, payment_method, invoice_id")
+          .eq("tenant_id", tenantId).lte("payment_date", asOfDate),
+      ]);
+      ((receiptsRes2.data as any[]) || []).forEach((r) => {
+        if (r.invoice_id) {
+          const method = normalizeMethod(r.payment_method);
+          methodTotals[method] += Number(r.amount_paid || 0);
+        }
+      });
+
+      // Expenses reduce cash (default) since expenses don't have payment_method yet
+      const cashOnHand = Math.max(0, methodTotals.cash - totalExpenses);
+      const mobileMoneyBalance = Math.max(0, methodTotals.mobile_money);
+      const bankBalance = Math.max(0, methodTotals.bank_transfer);
+      const cardPosBalance = Math.max(0, methodTotals.card);
+
       // Pending invoices = Accounts Receivable
       const pendingInvoices = (invoicesRes.data || []).filter((inv) => inv.status !== "paid");
       const accountsReceivable = pendingInvoices.reduce((sum, inv) => sum + Number(inv.total_amount), 0);
-      
-      // Cash = all revenue - all expenses
-      const cash = totalSalesRevenue + invoiceRevenue - totalExpenses;
-      
+
       // Inventory value
       const inventoryValue = (inventoryRes.data || []).reduce(
         (sum, item) => sum + (Number(item.current_stock) * Number(item.unit_price)),
         0
       );
 
-      const totalCurrentAssets = cash + accountsReceivable + inventoryValue;
+      const totalCurrentAssets = cashOnHand + mobileMoneyBalance + bankBalance + cardPosBalance + accountsReceivable + inventoryValue;
       const totalAssets = totalCurrentAssets;
 
       // Calculate Liabilities from accounts_payable table
@@ -154,7 +184,7 @@ export function BalanceSheet() {
       const totalLiabilities = totalCurrentLiabilities;
 
       // Calculate Equity
-      const totalRevenue = totalSalesRevenue + invoiceRevenue;
+      const totalRevenue = Object.values(methodTotals).reduce((a, b) => a + b, 0);
       const netIncome = totalRevenue - totalExpenses;
       const retainedEarnings = 0; // Opening balance, would need historical data
       const currentPeriodEarnings = netIncome;
@@ -163,7 +193,10 @@ export function BalanceSheet() {
       setData({
         assets: {
           current: {
-            cash: Math.max(0, cash),
+            cashOnHand,
+            mobileMoneyBalance,
+            bankBalance,
+            cardPosBalance,
             accountsReceivable,
             inventory: inventoryValue,
             totalCurrent: totalCurrentAssets,
@@ -272,8 +305,20 @@ export function BalanceSheet() {
                     <h5 className="font-semibold text-[#004B8D] mb-2">Current Assets</h5>
                     <div className="space-y-2 pl-4">
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Cash & Cash Equivalents</span>
-                        <span>K {data.assets.current.cash.toLocaleString()}</span>
+                        <span className="text-muted-foreground">Cash on Hand</span>
+                        <span>K {data.assets.current.cashOnHand.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Mobile Money Balance</span>
+                        <span>K {data.assets.current.mobileMoneyBalance.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Bank Balance</span>
+                        <span>K {data.assets.current.bankBalance.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Card/POS Receivable</span>
+                        <span>K {data.assets.current.cardPosBalance.toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Accounts Receivable</span>
