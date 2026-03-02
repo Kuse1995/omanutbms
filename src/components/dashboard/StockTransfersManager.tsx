@@ -95,6 +95,11 @@ export function StockTransfersManager() {
   const [selectedTransfer, setSelectedTransfer] = useState<Transfer | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editTransfer, setEditTransfer] = useState<Transfer | null>(null);
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [historyTransferId, setHistoryTransferId] = useState<string | null>(null);
+  const [historyProductName, setHistoryProductName] = useState<string | undefined>();
   
   // User's branch assignment for transfer completion check
   const userBranchId = tenantUser?.branch_id;
