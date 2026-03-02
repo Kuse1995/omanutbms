@@ -28,6 +28,7 @@ export function CashBook() {
   const [isLoading, setIsLoading] = useState(true);
   const [startDate, setStartDate] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
+  const [paymentFilter, setPaymentFilter] = useState<string>("all");
   const { tenantId } = useTenant();
 
   useEffect(() => {
