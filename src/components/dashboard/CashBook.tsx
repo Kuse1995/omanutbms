@@ -81,7 +81,7 @@ export function CashBook() {
       supabase.removeChannel(payrollChannel);
       supabase.removeChannel(receiptsChannel);
     };
-  }, [startDate, endDate, tenantId]);
+  }, [startDate, endDate, paymentFilter, tenantId]);
 
   const fetchCashData = async () => {
     if (!tenantId) return;
