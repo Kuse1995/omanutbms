@@ -42,9 +42,13 @@ import {
   XCircle,
   MoreHorizontal,
   Loader2,
+  Pencil,
+  History,
 } from "lucide-react";
 import { format } from "date-fns";
 import { StockTransferModal } from "./StockTransferModal";
+import { EditTransferModal } from "./EditTransferModal";
+import { TransferHistoryDialog } from "./TransferHistoryDialog";
 
 type TransferStatus = 'pending' | 'in_transit' | 'completed' | 'cancelled';
 
