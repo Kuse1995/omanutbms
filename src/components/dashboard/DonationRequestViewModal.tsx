@@ -5,8 +5,7 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Heart, User, Mail, Phone, MapPin, Calendar, MessageSquare, Download, Loader2 } from "lucide-react";
 import { format } from "date-fns";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
+import { exportElementToPDF } from "@/lib/pdf-utils";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
 
 interface DonationRequest {
