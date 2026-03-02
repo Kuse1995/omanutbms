@@ -438,6 +438,12 @@ export function AssetsManager() {
           asset={depreciationAsset}
         />
       )}
+
+      <AssetImportModal
+        open={isImportOpen}
+        onOpenChange={setIsImportOpen}
+        tenantId={tenantId}
+      />
     </div>
   );
 }
