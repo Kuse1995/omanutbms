@@ -1,56 +1,37 @@
 
 
-# Fix: Stock Item Counts Not Showing on Locations Page
+# Fix: Inventory Items Not Showing at Assigned Location
 
-## Problem
+## Problem Found
+When you added the "shirt" to House of Dodo and assigned it to the "Production" location, the item's `default_location_id` was correctly set to Production. However, the `branch_inventory` record (which controls visibility when viewing a specific branch) was created pointing to the wrong branch (a branch from a different organization). This means when you select "Production" in the branch selector, the shirt doesn't appear because SmartInventory only looks at `branch_inventory` records for that branch.
 
-The Locations page shows "0" for the Stock Items column on most branches. This happens because:
+The same pattern applies to "needles" — assigned to Production but `branch_inventory` points elsewhere.
 
-1. Products are assigned to locations via `default_location_id` on the `inventory` table
-2. But the Locations page only counts items from the `branch_inventory` table
-3. Most existing products were created before the branch_inventory sync fix, so they have no `branch_inventory` records despite being assigned to a location
-
-For example, the KITWE branch has 1,426 products assigned to it, but the Stock Items column shows 0.
+## Root Cause
+The `SmartInventory` and `InventoryAgent` components, when a branch is selected, **only** query `branch_inventory` for that specific `branch_id`. If the `branch_inventory` record doesn't exist or has a mismatched `branch_id`, the item is invisible — even though `default_location_id` correctly points to that branch.
 
 ## Solution
 
-Update the `LocationsManager` to count stock items from **both** sources:
+### 1. Fix `SmartInventory.tsx` — Fall back to `default_location_id`
+When viewing a specific branch, query **both**:
+- `branch_inventory` where `branch_id` matches (current behavior)
+- `inventory` where `default_location_id` matches but no `branch_inventory` record exists for that branch
 
-1. **`branch_inventory`** -- items that have explicit branch stock records (accurate current stock)
-2. **`inventory.default_location_id`** -- items assigned to a location but without a branch_inventory record yet
+Merge the results, deduplicating by inventory ID. This ensures items assigned to a location always show, even if the `branch_inventory` sync failed.
 
-The displayed count will be the higher of the two, ensuring all assigned products are reflected.
+### 2. Fix `InventoryAgent.tsx` — Same fallback
+Apply the same dual-source query logic so the main inventory management screen also shows items correctly.
 
-## Changes
+### 3. Add a self-healing sync
+When displaying an item found via `default_location_id` (but missing from `branch_inventory`), automatically create the missing `branch_inventory` record in the background. This way the data self-corrects over time.
 
-### File: `src/components/dashboard/LocationsManager.tsx`
+### 4. Fix stale `branch_inventory` data
+Add a one-time data repair: for items where `default_location_id` doesn't match any `branch_inventory.branch_id` within the same tenant, upsert the correct `branch_inventory` record.
 
-**Add a second query** for inventory items grouped by `default_location_id`:
+## Files to Modify
+- `src/components/dashboard/SmartInventory.tsx` — Add fallback query for `default_location_id`
+- `src/components/dashboard/InventoryAgent.tsx` — Same fallback query
 
-```typescript
-const { data: inventoryByLocation } = await supabase
-  .from("inventory")
-  .select("default_location_id")
-  .eq("tenant_id", tenant.id)
-  .not("default_location_id", "is", null);
-```
-
-**Update the stats mapping** to combine both counts:
-
-```typescript
-const branchInvCount = inventoryData
-  ?.filter(i => i.branch_id === branch.id)
-  .reduce((sum, i) => sum + (i.current_stock || 0), 0) || 0;
-
-const assignedCount = inventoryByLocation
-  ?.filter(i => i.default_location_id === branch.id).length || 0;
-
-// Show the more meaningful number
-inventory_count: Math.max(branchInvCount, assignedCount),
-```
-
-This way, even if `branch_inventory` records haven't been created yet, the Locations page will still show how many products are assigned to each branch. As users create new products (which now auto-sync to `branch_inventory`), the counts will naturally converge.
-
-### Files to modify
-- `src/components/dashboard/LocationsManager.tsx`
+## Data Fix (one-time)
+Run a query to create missing `branch_inventory` records for items that have a `default_location_id` but no matching `branch_inventory` row, and clean up cross-tenant branch references.
 
