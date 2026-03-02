@@ -468,40 +468,51 @@ export function StockTransfersManager() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        {transfer.status === 'pending' && isAdmin && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleApprove(transfer)}>
-                                <CheckCircle2 className="h-4 w-4 mr-2 text-green-600" />
-                                Approve
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => openRejectDialog(transfer)}>
-                                <XCircle className="h-4 w-4 mr-2 text-destructive" />
-                                Reject
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
-                        {transfer.status === 'in_transit' && (
-                          canCompleteTransfer(transfer) ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleComplete(transfer)}
-                              disabled={actionLoading}
-                            >
-                              Mark Complete
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="h-4 w-4" />
                             </Button>
-                          ) : (
-                            <Badge variant="outline" className="text-xs text-muted-foreground">
-                              Awaiting receipt at {transfer.to_branch_name}
-                            </Badge>
-                          )
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {/* Edit action */}
+                            {canEditTransfer(transfer) && (
+                              <DropdownMenuItem onClick={() => openEditModal(transfer)}>
+                                <Pencil className="h-4 w-4 mr-2" />
+                                Edit
+                              </DropdownMenuItem>
+                            )}
+                            {/* Approve/Reject for pending */}
+                            {transfer.status === 'pending' && isAdmin && (
+                              <>
+                                <DropdownMenuItem onClick={() => handleApprove(transfer)}>
+                                  <CheckCircle2 className="h-4 w-4 mr-2 text-green-600" />
+                                  Approve
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openRejectDialog(transfer)}>
+                                  <XCircle className="h-4 w-4 mr-2 text-destructive" />
+                                  Reject
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                            {/* Complete for in_transit */}
+                            {transfer.status === 'in_transit' && canCompleteTransfer(transfer) && (
+                              <DropdownMenuItem onClick={() => handleComplete(transfer)}>
+                                <CheckCircle2 className="h-4 w-4 mr-2 text-green-600" />
+                                Mark Complete
+                              </DropdownMenuItem>
+                            )}
+                            {/* View History — always available */}
+                            <DropdownMenuItem onClick={() => openHistoryDialog(transfer)}>
+                              <History className="h-4 w-4 mr-2" />
+                              View History
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        {transfer.status === 'in_transit' && !canCompleteTransfer(transfer) && (
+                          <Badge variant="outline" className="text-xs text-muted-foreground ml-2">
+                            Awaiting receipt at {transfer.to_branch_name}
+                          </Badge>
                         )}
                       </TableCell>
                     </TableRow>
