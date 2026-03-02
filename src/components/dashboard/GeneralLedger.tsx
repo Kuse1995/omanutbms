@@ -22,6 +22,16 @@ interface LedgerEntry {
   type: "revenue" | "expense" | "asset" | "liability";
 }
 
+function getAccountNameFromPaymentMethod(method: string | null): string {
+  if (!method) return "Cash Account";
+  const lower = method.toLowerCase().trim();
+  if (lower.includes("mobile") || lower.includes("momo") || lower === "mobile_money") return "Mobile Money Account";
+  if (lower.includes("bank") || lower === "bank_transfer") return "Bank Account";
+  if (lower.includes("card") || lower.includes("pos")) return "Card/POS Account";
+  if (lower === "credit_invoice" || lower === "credit") return "Accounts Receivable";
+  return "Cash Account";
+}
+
 export function GeneralLedger() {
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);

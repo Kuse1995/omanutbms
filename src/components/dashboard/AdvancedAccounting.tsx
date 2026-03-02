@@ -72,6 +72,7 @@ export function AdvancedAccounting() {
             <TabsContent value="receivables"><AccountsReceivableAging /></TabsContent>
             <TabsContent value="payables"><AccountsPayable /></TabsContent>
             <TabsContent value="credit-sales"><CreditSalesReport /></TabsContent>
+            <TabsContent value="account-balances"><AccountBalancesDashboard /></TabsContent>
           </CardContent>
         </Tabs>
       </Card>

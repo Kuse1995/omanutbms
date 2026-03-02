@@ -37,6 +37,15 @@ interface BalanceSheetData {
   };
 }
 
+function normalizeMethod(method: string | null): string {
+  if (!method) return "cash";
+  const lower = method.toLowerCase().trim();
+  if (lower.includes("mobile") || lower.includes("momo") || lower === "mobile_money") return "mobile_money";
+  if (lower.includes("bank") || lower === "bank_transfer") return "bank_transfer";
+  if (lower.includes("card") || lower.includes("pos")) return "card";
+  return "cash";
+}
+
 export function BalanceSheet() {
   const [data, setData] = useState<BalanceSheetData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
