@@ -71,6 +71,7 @@ export function AssetsManager() {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<DbAsset | null>(null);
   const [depreciationAsset, setDepreciationAsset] = useState<DbAsset | null>(null);
 
