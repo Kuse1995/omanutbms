@@ -29,7 +29,7 @@ serve(async (req) => {
       throw new Error("MOONSHOT_API_KEY is not configured");
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -43,18 +43,18 @@ serve(async (req) => {
       if (fileAttachment.type === "text") {
         // Word doc - text already extracted client-side
         extractedTextContent = fileAttachment.content;
-      } else if (fileAttachment.type === "pdf" && LOVABLE_API_KEY) {
-        // PDFs: Use Gemini via Lovable AI (native PDF support)
+      } else if (fileAttachment.type === "pdf" && GEMINI_API_KEY) {
+        // PDFs: Use Gemini directly (native PDF support)
         try {
           console.log("[omanut-advisor] Extracting text from PDF using Gemini");
-          const visionResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          const visionResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              Authorization: `Bearer ${GEMINI_API_KEY}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              model: "google/gemini-2.5-flash",
+              model: "gemini-2.5-flash",
               messages: [
                 {
                   role: "user",
@@ -685,8 +685,8 @@ When analyzing complex business questions, use step-by-step reasoning to provide
     if (!response || !response.ok) {
       const status = response?.status;
 
-      if (status === 429 && LOVABLE_API_KEY) {
-        console.log("[omanut-advisor] Moonshot rate-limited, falling back to Lovable AI");
+      if (status === 429 && GEMINI_API_KEY) {
+        console.log("[omanut-advisor] Moonshot rate-limited, falling back to Gemini");
         
         // Build messages for fallback (text-only, no vision)
         const fallbackMessages = augmentedMessages.map(m => ({
@@ -695,14 +695,14 @@ When analyzing complex business questions, use step-by-step reasoning to provide
             (Array.isArray(m.content) ? m.content.find((c: any) => c.type === "text")?.text || "" : "")
         }));
         
-        const fallbackResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        const fallbackResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            Authorization: `Bearer ${GEMINI_API_KEY}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
+            model: "gemini-2.5-flash",
             messages: [{ role: "system", content: systemPrompt }, ...fallbackMessages],
             stream: true,
           }),

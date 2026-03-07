@@ -5,7 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
 
 // Enhanced system prompt with better language tolerance and contextual understanding
 const SYSTEM_PROMPT = `You are a forgiving intent parser for Omanut BMS (Business Management System) in Zambia.
@@ -344,8 +344,8 @@ serve(async (req) => {
       );
     }
 
-    if (!LOVABLE_API_KEY) {
-      console.error('LOVABLE_API_KEY not configured');
+    if (!GEMINI_API_KEY) {
+      console.error('GEMINI_API_KEY not configured');
       return new Response(
         JSON.stringify({ error: 'AI service not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -388,14 +388,14 @@ Extract the NEW information from this reply. The user may be answering in broken
     }
 
     // Call Lovable AI Gateway with upgraded model
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Authorization': `Bearer ${GEMINI_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-pro', // Upgraded to more capable model
+        model: 'gemini-2.5-pro',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
