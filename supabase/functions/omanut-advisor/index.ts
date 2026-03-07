@@ -43,18 +43,18 @@ serve(async (req) => {
       if (fileAttachment.type === "text") {
         // Word doc - text already extracted client-side
         extractedTextContent = fileAttachment.content;
-      } else if (fileAttachment.type === "pdf" && LOVABLE_API_KEY) {
-        // PDFs: Use Gemini via Lovable AI (native PDF support)
+      } else if (fileAttachment.type === "pdf" && GEMINI_API_KEY) {
+        // PDFs: Use Gemini directly (native PDF support)
         try {
           console.log("[omanut-advisor] Extracting text from PDF using Gemini");
-          const visionResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          const visionResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              Authorization: `Bearer ${GEMINI_API_KEY}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              model: "google/gemini-2.5-flash",
+              model: "gemini-2.5-flash",
               messages: [
                 {
                   role: "user",
