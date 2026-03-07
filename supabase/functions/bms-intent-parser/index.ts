@@ -5,7 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
 
 // Enhanced system prompt with better language tolerance and contextual understanding
 const SYSTEM_PROMPT = `You are a forgiving intent parser for Omanut BMS (Business Management System) in Zambia.
