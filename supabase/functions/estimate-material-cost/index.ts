@@ -23,9 +23,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const apiKey = Deno.env.get("LOVABLE_API_KEY");
+    const apiKey = Deno.env.get("GEMINI_API_KEY");
     if (!apiKey) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+      throw new Error("GEMINI_API_KEY is not configured");
     }
 
     const { designType, fabric, color, styleNotes, availableMaterials } = await req.json();
