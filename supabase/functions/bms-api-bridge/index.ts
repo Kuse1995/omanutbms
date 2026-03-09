@@ -10,6 +10,42 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 
+// ========== EXTERNAL API KEY AUTH ==========
+// Validates bearer token against bms_integration_configs.api_secret
+async function authenticateExternalApiKey(supabase: any, bearer: string, tenantId: string): Promise<{ valid: boolean; config?: any }> {
+  if (!tenantId) return { valid: false };
+  const { data, error } = await supabase
+    .from('bms_integration_configs')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .eq('is_enabled', true)
+    .eq('api_secret', bearer)
+    .maybeSingle();
+  if (error || !data) return { valid: false };
+  // Update last_api_call_at
+  await supabase
+    .from('bms_integration_configs')
+    .update({ last_api_call_at: new Date().toISOString() })
+    .eq('id', data.id);
+  return { valid: true, config: data };
+}
+
+// Log API call for external requests
+async function logApiCall(supabase: any, tenantId: string, action: string, source: string, responseStatus: string, executionTimeMs: number, errorMessage?: string) {
+  try {
+    await supabase.from('bms_api_logs').insert({
+      tenant_id: tenantId,
+      action,
+      source,
+      response_status: responseStatus,
+      execution_time_ms: executionTimeMs,
+      error_message: errorMessage || null,
+    });
+  } catch (e) {
+    console.error('Failed to log API call:', e);
+  }
+}
+
 function getBearerToken(req: Request): string | null {
   const auth = req.headers.get('Authorization');
   if (!auth) return null;
@@ -260,8 +296,6 @@ serve(async (req) => {
   }
 
   try {
-    // Require auth: either an internal service-role call (from our own backend functions)
-    // or an end-user JWT (dashboard).
     const authHeader = req.headers.get('Authorization');
     const bearer = getBearerToken(req);
     if (!authHeader || !bearer) {
@@ -274,120 +308,186 @@ serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const isInternal = bearer === SUPABASE_SERVICE_ROLE_KEY;
     let callerUserId: string | null = null;
+    let isExternalApi = false;
 
+    // Parse request body
+    const body = await req.json();
+    
+    // Support both Omanut contract format (action/tenant_id) and existing format (intent/entities/context)
+    let intent: string;
+    let entities: Record<string, any>;
+    let context: ExecutionContext;
+    
+    if (body.action) {
+      // Omanut contract format: { action, tenant_id, ...params }
+      intent = body.action;
+      const { action: _a, tenant_id: _t, ...rest } = body;
+      entities = rest;
+      context = {
+        tenant_id: body.tenant_id || '',
+        user_id: null,
+        role: 'admin', // External API gets admin-level access
+        display_name: 'External API',
+      };
+    } else {
+      // Existing format: { intent, entities, context }
+      intent = body.intent;
+      entities = body.entities || {};
+      context = body.context || {};
+    }
+
+    // Health check - no auth required beyond bearer token presence
+    if (intent === 'health_check') {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          data: {
+            status: 'healthy',
+            version: '2.0',
+            timestamp: new Date().toISOString(),
+            supported_actions: [
+              'health_check', 'list_products', 'check_stock', 'get_product_details', 'get_product_variants',
+              'record_sale', 'update_stock', 'create_order', 'get_order_status', 'cancel_order',
+              'get_customer_history', 'create_contact', 'get_company_statistics',
+              'sales_report', 'create_quotation', 'create_invoice', 'list_quotations', 'list_invoices',
+              'get_low_stock_items', 'record_expense', 'get_expenses',
+              'get_outstanding_receivables', 'get_outstanding_payables', 'profit_loss_report',
+              'clock_in', 'clock_out', 'update_order_status', 'generate_payment_link',
+            ],
+          },
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Auth path 1: Internal service role
+    // Auth path 2: External API key (Omanut)
+    // Auth path 3: User JWT
     if (!isInternal) {
-      const supabaseUser = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        global: { headers: { Authorization: authHeader } },
-        auth: { autoRefreshToken: false, persistSession: false },
-      });
-      const { data: { user }, error: userErr } = await supabaseUser.auth.getUser();
-      if (userErr || !user) {
+      // Try external API key auth first (if tenant_id provided)
+      if (context.tenant_id) {
+        const extAuth = await authenticateExternalApiKey(supabase, bearer, context.tenant_id);
+        if (extAuth.valid) {
+          isExternalApi = true;
+          context.role = 'admin';
+          context.user_id = null;
+        }
+      }
+
+      // If not external API, try user JWT
+      if (!isExternalApi) {
+        const supabaseUser = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+          global: { headers: { Authorization: authHeader } },
+          auth: { autoRefreshToken: false, persistSession: false },
+        });
+        const { data: { user }, error: userErr } = await supabaseUser.auth.getUser();
+        if (userErr || !user) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Unauthorized' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        callerUserId = user.id;
+      }
+    }
+
+    // For external API, skip user/employee validation
+    if (!isExternalApi) {
+      if (!intent || !context?.tenant_id || !context?.role) {
         return new Response(
-          JSON.stringify({ success: false, error: 'Unauthorized' }),
-          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ success: false, error: 'Missing required parameters' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      callerUserId = user.id;
+
+      if (!context?.user_id && !context?.employee_id) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Missing user_id or employee_id' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    } else {
+      // External API: tenant_id is required
+      if (!context.tenant_id) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Missing tenant_id' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
-    const { intent, entities, context } = await req.json() as {
-      intent: string;
-      entities: Record<string, any>;
-      context: ExecutionContext;
-    };
-
-    // For self-service employees, user_id may be null but employee_id must exist
-    if (!intent || !context?.tenant_id || !context?.role) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Missing required parameters' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Must have either user_id or employee_id
-    if (!context?.user_id && !context?.employee_id) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Missing user_id or employee_id' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const isSelfService = context.is_self_service || (!context.user_id && !!context.employee_id);
+    const isSelfService = !isExternalApi && (context.is_self_service || (!context.user_id && !!context.employee_id));
 
     // If this is a user JWT call, ensure the caller is the same user claimed in context.
-    if (!isInternal && callerUserId && context.user_id && callerUserId !== context.user_id) {
+    if (!isInternal && !isExternalApi && callerUserId && context.user_id && callerUserId !== context.user_id) {
       return new Response(
         JSON.stringify({ success: false, error: 'Unauthorized: user mismatch' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Authorization: different paths for self-service vs full BMS users
-    if (isSelfService) {
-      // Self-service employee: validate employee belongs to tenant
-      const { data: employee, error: empErr } = await supabase
-        .from('employees')
-        .select('id, full_name, branch_id, employment_status')
-        .eq('tenant_id', context.tenant_id)
-        .eq('id', context.employee_id)
-        .maybeSingle();
+    // Authorization: skip for external API (already validated via api_secret)
+    if (!isExternalApi) {
+      if (isSelfService) {
+        const { data: employee, error: empErr } = await supabase
+          .from('employees')
+          .select('id, full_name, branch_id, employment_status')
+          .eq('tenant_id', context.tenant_id)
+          .eq('id', context.employee_id)
+          .maybeSingle();
 
-      if (empErr || !employee) {
-        return new Response(
-          JSON.stringify({ success: false, error: 'Unauthorized: employee not found' }),
-          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+        if (empErr || !employee) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Unauthorized: employee not found' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
 
-      if (employee.employment_status !== 'active') {
-        return new Response(
-          JSON.stringify({ success: false, error: 'Unauthorized: employee not active' }),
-          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+        if (employee.employment_status !== 'active') {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Unauthorized: employee not active' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
 
-      // Self-service employees can only access limited intents
-      if (!SELF_SERVICE_INTENTS.includes(intent)) {
-        return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: `This action isn't available for self-service. Ask your manager for help with ${intent.replace('_', ' ')}.` 
-          }),
-          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+        if (!SELF_SERVICE_INTENTS.includes(intent)) {
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: `This action isn't available for self-service. Ask your manager for help with ${intent.replace('_', ' ')}.` 
+            }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
 
-      // Store employee data in context for handlers
-      (context as any).employee_data = employee;
-    } else {
-      // Standard BMS user: validate against tenant_users table
-      const { data: tenantUser, error: tuErr } = await supabase
-        .from('tenant_users')
-        .select('role')
-        .eq('tenant_id', context.tenant_id)
-        .eq('user_id', context.user_id)
-        .maybeSingle();
+        (context as any).employee_data = employee;
+      } else {
+        const { data: tenantUser, error: tuErr } = await supabase
+          .from('tenant_users')
+          .select('role')
+          .eq('tenant_id', context.tenant_id)
+          .eq('user_id', context.user_id)
+          .maybeSingle();
 
-      if (tuErr || !tenantUser) {
-        return new Response(
-          JSON.stringify({ success: false, error: 'Unauthorized: tenant access denied' }),
-          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+        if (tuErr || !tenantUser) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Unauthorized: tenant access denied' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
 
-      // Override role from DB (don't trust client-supplied role)
-      context.role = String(tenantUser.role);
+        context.role = String(tenantUser.role);
 
-      // Check role permissions
-      const allowedIntents = ROLE_PERMISSIONS[context.role] || [];
-      if (!allowedIntents.includes(intent)) {
-        return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: `You don't have permission to ${intent.replace('_', ' ')}. Your role: ${context.role}` 
-          }),
-          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        const allowedIntents = ROLE_PERMISSIONS[context.role] || [];
+        if (!allowedIntents.includes(intent)) {
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: `You don't have permission to ${intent.replace('_', ' ')}. Your role: ${context.role}` 
+            }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
       }
     }
 
@@ -405,9 +505,11 @@ serve(async (req) => {
         result = await handleRecordSale(supabase, entities, context);
         break;
       case 'get_sales_summary':
+      case 'get_company_statistics':
         result = await handleGetSalesSummary(supabase, entities, context);
         break;
       case 'get_sales_details':
+      case 'sales_report':
         result = await handleGetSalesDetails(supabase, entities, context);
         break;
       case 'check_customer':
@@ -419,7 +521,6 @@ serve(async (req) => {
       case 'generate_invoice':
         result = await handleGenerateInvoice(supabase, entities, context);
         break;
-      // Employee task intents
       case 'my_tasks':
         result = await handleMyTasks(supabase, entities, context);
         break;
@@ -429,7 +530,6 @@ serve(async (req) => {
       case 'my_schedule':
         result = await handleMySchedule(supabase, entities, context);
         break;
-      // Attendance intents
       case 'clock_in':
         result = await handleClockIn(supabase, entities, context);
         break;
@@ -439,11 +539,9 @@ serve(async (req) => {
       case 'my_attendance':
         result = await handleMyAttendance(supabase, entities, context);
         break;
-      // Payroll intent
       case 'my_pay':
         result = await handleMyPay(supabase, entities, context);
         break;
-      // Management intents
       case 'team_attendance':
         result = await handleTeamAttendance(supabase, entities, context);
         break;
@@ -451,12 +549,12 @@ serve(async (req) => {
         result = await handlePendingOrders(supabase, entities, context);
         break;
       case 'low_stock_alerts':
+      case 'get_low_stock_items':
         result = await handleLowStockAlerts(supabase, entities, context);
         break;
       case 'update_order_status':
         result = await handleUpdateOrderStatus(supabase, entities, context);
         break;
-      // Financial intents
       case 'create_invoice':
         result = await handleCreateInvoice(supabase, entities, context);
         break;
@@ -464,6 +562,7 @@ serve(async (req) => {
         result = await handleCreateQuotation(supabase, entities, context);
         break;
       case 'who_owes':
+      case 'get_outstanding_receivables':
         result = await handleWhoOwes(supabase, entities, context);
         break;
       case 'daily_report':
@@ -472,11 +571,59 @@ serve(async (req) => {
       case 'credit_sale':
         result = await handleCreditSale(supabase, entities, context);
         break;
+      // ========== NEW OMANUT CONTRACT ACTIONS ==========
+      case 'get_product_details':
+        result = await handleGetProductDetails(supabase, entities, context);
+        break;
+      case 'get_product_variants':
+        result = await handleGetProductVariants(supabase, entities, context);
+        break;
+      case 'update_stock':
+        result = await handleUpdateStock(supabase, entities, context);
+        break;
+      case 'create_order':
+        result = await handleCreateOrder(supabase, entities, context);
+        break;
+      case 'get_order_status':
+        result = await handleGetOrderStatus(supabase, entities, context);
+        break;
+      case 'cancel_order':
+        result = await handleCancelOrder(supabase, entities, context);
+        break;
+      case 'get_customer_history':
+        result = await handleGetCustomerHistory(supabase, entities, context);
+        break;
+      case 'list_quotations':
+        result = await handleListQuotations(supabase, entities, context);
+        break;
+      case 'list_invoices':
+        result = await handleListInvoices(supabase, entities, context);
+        break;
+      case 'get_expenses':
+        result = await handleGetExpenses(supabase, entities, context);
+        break;
+      case 'get_outstanding_payables':
+        result = await handleGetOutstandingPayables(supabase, entities, context);
+        break;
+      case 'profit_loss_report':
+        result = await handleProfitLossReport(supabase, entities, context);
+        break;
+      case 'create_contact':
+        result = await handleCreateContact(supabase, entities, context);
+        break;
+      case 'generate_payment_link':
+        result = await handleGeneratePaymentLink(supabase, entities, context);
+        break;
       default:
-        result = { success: false, message: `Unknown intent: ${intent}` };
+        result = { success: false, error: `Unknown action: ${intent}` };
     }
 
     const executionTime = Date.now() - startTime;
+
+    // Log external API calls
+    if (isExternalApi) {
+      await logApiCall(supabase, context.tenant_id, intent, 'external', result.success ? 'success' : 'error', executionTime, result.error);
+    }
 
     return new Response(
       JSON.stringify({
@@ -2624,20 +2771,475 @@ async function handleCreditSale(supabase: any, entities: Record<string, any>, co
   };
 }
 
-// ========== HELPER FUNCTIONS ==========
+// ========== NEW OMANUT CONTRACT HANDLERS ==========
 
-function getStatusEmoji(status: string): string {
-  const map: Record<string, string> = {
-    'pending': '⏳',
-    'confirmed': '✅',
-    'cutting': '✂️',
-    'se wiring': '🧵',
-    'sewing': '🧵',
-    'fitting': '👔',
-    'ready': '🎁',
-    'delivered': '📦',
-    'cancelled': '❌',
-    'draft': '📝',
+async function handleGetProductDetails(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const { product_id, product_name } = entities;
+  
+  if (!product_id && !product_name) {
+    return { success: false, error: 'Please provide product_id or product_name.' };
+  }
+
+  let query = supabase
+    .from('inventory')
+    .select('id, name, sku, description, unit_price, current_stock, reorder_level, category, status, image_url, created_at')
+    .eq('tenant_id', context.tenant_id);
+
+  if (product_id) {
+    query = query.eq('id', product_id);
+  } else {
+    const sanitized = sanitizeUserInput(product_name, 100);
+    query = query.ilike('name', `%${escapeSqlLikePattern(sanitized)}%`);
+  }
+
+  const { data, error } = await query.limit(1).maybeSingle();
+
+  if (error) {
+    console.error('Get product details error:', error);
+    return { success: false, error: 'Failed to get product details.' };
+  }
+
+  if (!data) {
+    return { success: false, error: `Product not found.` };
+  }
+
+  return { success: true, data };
+}
+
+async function handleGetProductVariants(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const { product_id } = entities;
+  
+  if (!product_id) {
+    return { success: false, error: 'Please provide product_id.' };
+  }
+
+  const { data, error } = await supabase
+    .from('product_variants')
+    .select('id, variant_type, variant_value, sku, stock, price_adjustment, is_active')
+    .eq('product_id', product_id)
+    .eq('tenant_id', context.tenant_id)
+    .eq('is_active', true)
+    .order('variant_type');
+
+  if (error) {
+    console.error('Get product variants error:', error);
+    return { success: false, error: 'Failed to get variants.' };
+  }
+
+  return { success: true, data: data || [] };
+}
+
+async function handleUpdateStock(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const { product_name, product_id, quantity, operation } = entities;
+  const qty = Number(quantity);
+  
+  if ((!product_name && !product_id) || !Number.isFinite(qty) || qty <= 0) {
+    return { success: false, error: 'Please provide product_name/product_id, quantity, and operation (add/subtract).' };
+  }
+
+  const op = String(operation || 'add').toLowerCase();
+  if (!['add', 'subtract'].includes(op)) {
+    return { success: false, error: 'Operation must be "add" or "subtract".' };
+  }
+
+  // Find product
+  let query = supabase.from('inventory').select('id, name, current_stock').eq('tenant_id', context.tenant_id);
+  if (product_id) {
+    query = query.eq('id', product_id);
+  } else {
+    query = query.ilike('name', `%${escapeSqlLikePattern(sanitizeUserInput(product_name, 100))}%`);
+  }
+
+  const { data: product, error: pErr } = await query.limit(1).maybeSingle();
+  if (pErr || !product) {
+    return { success: false, error: 'Product not found.' };
+  }
+
+  const newStock = op === 'add' ? product.current_stock + qty : Math.max(0, product.current_stock - qty);
+
+  const { error: updateErr } = await supabase
+    .from('inventory')
+    .update({ current_stock: newStock })
+    .eq('id', product.id);
+
+  if (updateErr) {
+    return { success: false, error: 'Failed to update stock.' };
+  }
+
+  return {
+    success: true,
+    data: { product_name: product.name, previous_stock: product.current_stock, new_stock: newStock, operation: op, quantity: qty },
+    message: `✅ ${product.name}: ${product.current_stock} → ${newStock} (${op === 'add' ? '+' : '-'}${qty})`,
   };
-  return map[status?.toLowerCase()] || '📋';
+}
+
+async function handleCreateOrder(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const { customer_name, customer_phone, items, total_amount } = entities;
+
+  if (!customer_name || !items || !Array.isArray(items) || items.length === 0) {
+    return { success: false, error: 'Please provide customer_name and items array.' };
+  }
+
+  // Create custom order
+  const { data: order, error } = await supabase
+    .from('custom_orders')
+    .insert({
+      tenant_id: context.tenant_id,
+      order_number: '', // Auto-generated by trigger
+      customer_name: sanitizeUserInput(customer_name, 200),
+      whatsapp_number: customer_phone || null,
+      status: 'pending',
+      estimated_cost: total_amount || 0,
+      style_notes: `Order via API: ${items.map((i: any) => `${i.quantity || 1}x ${i.product_name}`).join(', ')}`,
+      created_by: context.user_id,
+    })
+    .select('id, order_number')
+    .single();
+
+  if (error) {
+    console.error('Create order error:', error);
+    return { success: false, error: 'Failed to create order.' };
+  }
+
+  // Create order items
+  for (const item of items) {
+    await supabase.from('custom_order_items').insert({
+      custom_order_id: order.id,
+      tenant_id: context.tenant_id,
+      item_name: sanitizeUserInput(item.product_name || item.name || 'Item', 200),
+      quantity: Number(item.quantity) || 1,
+      unit_price: Number(item.unit_price) || 0,
+    });
+  }
+
+  return {
+    success: true,
+    data: { order_number: order.order_number, order_id: order.id },
+    message: `✅ Order ${order.order_number} created for ${customer_name}.`,
+  };
+}
+
+async function handleGetOrderStatus(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  let { order_number } = entities;
+  if (!order_number) {
+    return { success: false, error: 'Please provide order_number.' };
+  }
+
+  order_number = String(order_number).toUpperCase();
+
+  const { data, error } = await supabase
+    .from('custom_orders')
+    .select('order_number, customer_name, status, due_date, created_at, estimated_cost, style_notes')
+    .eq('tenant_id', context.tenant_id)
+    .ilike('order_number', `%${escapeSqlLikePattern(order_number)}%`)
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) {
+    return { success: false, error: `Order ${order_number} not found.` };
+  }
+
+  return { success: true, data };
+}
+
+async function handleCancelOrder(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  let { order_number, reason } = entities;
+  if (!order_number) {
+    return { success: false, error: 'Please provide order_number.' };
+  }
+
+  order_number = String(order_number).toUpperCase();
+
+  const { data: order, error: fetchErr } = await supabase
+    .from('custom_orders')
+    .select('id, status, order_number')
+    .eq('tenant_id', context.tenant_id)
+    .ilike('order_number', `%${escapeSqlLikePattern(order_number)}%`)
+    .limit(1)
+    .maybeSingle();
+
+  if (fetchErr || !order) {
+    return { success: false, error: `Order ${order_number} not found.` };
+  }
+
+  if (order.status === 'delivered' || order.status === 'cancelled') {
+    return { success: false, error: `Order ${order.order_number} is already ${order.status}.` };
+  }
+
+  const { error: updateErr } = await supabase
+    .from('custom_orders')
+    .update({ status: 'cancelled', style_notes: `Cancelled: ${reason || 'No reason given'}` })
+    .eq('id', order.id);
+
+  if (updateErr) {
+    return { success: false, error: 'Failed to cancel order.' };
+  }
+
+  return {
+    success: true,
+    data: { order_number: order.order_number, status: 'cancelled' },
+    message: `✅ Order ${order.order_number} cancelled.`,
+  };
+}
+
+async function handleGetCustomerHistory(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const { customer_phone, customer_name } = entities;
+
+  if (!customer_phone && !customer_name) {
+    return { success: false, error: 'Please provide customer_phone or customer_name.' };
+  }
+
+  let query = supabase
+    .from('sales')
+    .select('sale_number, customer_name, customer_phone, total_amount, payment_method, sale_date')
+    .eq('tenant_id', context.tenant_id)
+    .order('sale_date', { ascending: false })
+    .limit(20);
+
+  if (customer_phone) {
+    query = query.eq('customer_phone', sanitizeUserInput(customer_phone, 20));
+  } else {
+    query = query.ilike('customer_name', `%${escapeSqlLikePattern(sanitizeUserInput(customer_name, 100))}%`);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    return { success: false, error: 'Failed to fetch customer history.' };
+  }
+
+  const totalSpent = (data || []).reduce((sum: number, s: any) => sum + Number(s.total_amount || 0), 0);
+
+  return {
+    success: true,
+    data: {
+      customer: customer_phone || customer_name,
+      total_purchases: data?.length || 0,
+      total_spent: totalSpent,
+      recent_purchases: data || [],
+    },
+  };
+}
+
+async function handleListQuotations(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const { status, limit: lim } = entities;
+  
+  let query = supabase
+    .from('quotations')
+    .select('id, quotation_number, client_name, total_amount, status, quotation_date, valid_until')
+    .eq('tenant_id', context.tenant_id)
+    .order('quotation_date', { ascending: false })
+    .limit(Math.min(Number(lim) || 20, 50));
+
+  if (status) {
+    query = query.eq('status', sanitizeUserInput(status, 20));
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    return { success: false, error: 'Failed to list quotations.' };
+  }
+
+  return { success: true, data: data || [] };
+}
+
+async function handleListInvoices(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const { status, limit: lim } = entities;
+  
+  let query = supabase
+    .from('invoices')
+    .select('id, invoice_number, client_name, total_amount, paid_amount, status, invoice_date, due_date')
+    .eq('tenant_id', context.tenant_id)
+    .order('invoice_date', { ascending: false })
+    .limit(Math.min(Number(lim) || 20, 50));
+
+  if (status) {
+    query = query.eq('status', sanitizeUserInput(status, 20));
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    return { success: false, error: 'Failed to list invoices.' };
+  }
+
+  return { success: true, data: data || [] };
+}
+
+async function handleGetExpenses(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const { start_date, end_date, category } = entities;
+  
+  let query = supabase
+    .from('expenses')
+    .select('id, vendor_name, amount_zmw, category, date_incurred, notes')
+    .eq('tenant_id', context.tenant_id)
+    .order('date_incurred', { ascending: false })
+    .limit(50);
+
+  if (start_date) query = query.gte('date_incurred', start_date);
+  if (end_date) query = query.lte('date_incurred', end_date);
+  if (category) query = query.eq('category', sanitizeUserInput(category, 50));
+
+  const { data, error } = await query;
+
+  if (error) {
+    return { success: false, error: 'Failed to fetch expenses.' };
+  }
+
+  const total = (data || []).reduce((sum: number, e: any) => sum + Number(e.amount_zmw || 0), 0);
+
+  return {
+    success: true,
+    data: { expenses: data || [], total_amount: total, count: data?.length || 0 },
+  };
+}
+
+async function handleGetOutstandingPayables(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const { data, error } = await supabase
+    .from('accounts_payable')
+    .select('id, vendor_name, amount_zmw, paid_amount, due_date, status, description')
+    .eq('tenant_id', context.tenant_id)
+    .in('status', ['pending', 'partial', 'overdue'])
+    .order('due_date', { ascending: true })
+    .limit(50);
+
+  if (error) {
+    return { success: false, error: 'Failed to fetch payables.' };
+  }
+
+  const totalOwed = (data || []).reduce((sum: number, p: any) => sum + Number(p.amount_zmw || 0) - Number(p.paid_amount || 0), 0);
+
+  return {
+    success: true,
+    data: { payables: data || [], total_outstanding: totalOwed, count: data?.length || 0 },
+  };
+}
+
+async function handleProfitLossReport(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const { start_date, end_date } = entities;
+  
+  const startDt = start_date || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+  const endDt = end_date || new Date().toISOString().split('T')[0];
+
+  const [salesResult, expensesResult] = await Promise.all([
+    supabase
+      .from('sales')
+      .select('total_amount')
+      .eq('tenant_id', context.tenant_id)
+      .gte('sale_date', startDt)
+      .lte('sale_date', endDt),
+    supabase
+      .from('expenses')
+      .select('amount_zmw, category')
+      .eq('tenant_id', context.tenant_id)
+      .gte('date_incurred', startDt)
+      .lte('date_incurred', endDt),
+  ]);
+
+  const totalRevenue = (salesResult.data || []).reduce((sum: number, s: any) => sum + Number(s.total_amount || 0), 0);
+  const totalExpenses = (expensesResult.data || []).reduce((sum: number, e: any) => sum + Number(e.amount_zmw || 0), 0);
+  const netProfit = totalRevenue - totalExpenses;
+
+  // Group expenses by category
+  const expensesByCategory: Record<string, number> = {};
+  (expensesResult.data || []).forEach((e: any) => {
+    const cat = e.category || 'Other';
+    expensesByCategory[cat] = (expensesByCategory[cat] || 0) + Number(e.amount_zmw || 0);
+  });
+
+  return {
+    success: true,
+    data: {
+      period: { start_date: startDt, end_date: endDt },
+      total_revenue: totalRevenue,
+      total_expenses: totalExpenses,
+      net_profit: netProfit,
+      profit_margin: totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100) : 0,
+      expenses_by_category: expensesByCategory,
+      sales_count: salesResult.data?.length || 0,
+    },
+  };
+}
+
+async function handleCreateContact(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const { name, phone, email } = entities;
+
+  if (!name) {
+    return { success: false, error: 'Please provide a contact name.' };
+  }
+
+  const { data, error } = await supabase
+    .from('customers')
+    .insert({
+      tenant_id: context.tenant_id,
+      name: sanitizeUserInput(name, 200),
+      phone: phone ? sanitizeUserInput(phone, 20) : null,
+      email: email ? sanitizeUserInput(email, 200) : null,
+    })
+    .select('id, name, phone, email')
+    .single();
+
+  if (error) {
+    console.error('Create contact error:', error);
+    return { success: false, error: 'Failed to create contact.' };
+  }
+
+  return {
+    success: true,
+    data,
+    message: `✅ Contact "${name}" created.`,
+  };
+}
+
+async function handleGeneratePaymentLink(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const { amount, customer_name, description } = entities;
+
+  if (!amount || !Number.isFinite(Number(amount)) || Number(amount) <= 0) {
+    return { success: false, error: 'Please provide a valid amount.' };
+  }
+
+  // Check if Lenco is configured
+  const LENCO_SECRET_KEY = Deno.env.get('LENCO_SECRET_KEY');
+  if (!LENCO_SECRET_KEY) {
+    return {
+      success: false,
+      error: 'Payment links are not configured. Set up Lenco integration in settings.',
+    };
+  }
+
+  // Call the lenco-payment function
+  try {
+    const paymentResponse = await fetch(`${SUPABASE_URL}/functions/v1/lenco-payment`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        amount: Number(amount),
+        customer_name: customer_name || 'Customer',
+        description: description || 'Payment',
+        tenant_id: context.tenant_id,
+      }),
+    });
+
+    const paymentData = await paymentResponse.json();
+    
+    if (paymentData.success) {
+      return {
+        success: true,
+        data: {
+          payment_link: paymentData.data?.payment_link || paymentData.payment_link,
+          reference: paymentData.data?.reference || paymentData.reference,
+          amount: Number(amount),
+        },
+      };
+    } else {
+      return { success: false, error: paymentData.error || 'Failed to generate payment link.' };
+    }
+  } catch (e) {
+    console.error('Payment link error:', e);
+    return { success: false, error: 'Payment service unavailable.' };
+  }
 }

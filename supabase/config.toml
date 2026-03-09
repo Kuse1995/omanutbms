@@ -53,3 +53,6 @@ verify_jwt = false
 
 [functions.send-sales-receipt]
 verify_jwt = false
+
+[functions.bms-callback-dispatcher]
+verify_jwt = false

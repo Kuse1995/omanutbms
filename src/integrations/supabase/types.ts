@@ -772,6 +772,97 @@ export type Database = {
           },
         ]
       }
+      bms_api_logs: {
+        Row: {
+          action: string
+          created_at: string
+          error_message: string | null
+          execution_time_ms: number | null
+          id: string
+          request_summary: Json | null
+          response_status: string | null
+          source: string
+          tenant_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          error_message?: string | null
+          execution_time_ms?: number | null
+          id?: string
+          request_summary?: Json | null
+          response_status?: string | null
+          source?: string
+          tenant_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          error_message?: string | null
+          execution_time_ms?: number | null
+          id?: string
+          request_summary?: Json | null
+          response_status?: string | null
+          source?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bms_api_logs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bms_integration_configs: {
+        Row: {
+          api_secret: string
+          callback_events: Json
+          callback_url: string | null
+          created_at: string
+          id: string
+          is_enabled: boolean
+          last_api_call_at: string | null
+          last_callback_at: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          api_secret?: string
+          callback_events?: Json
+          callback_url?: string | null
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          last_api_call_at?: string | null
+          last_callback_at?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          api_secret?: string
+          callback_events?: Json
+          callback_url?: string | null
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          last_api_call_at?: string | null
+          last_callback_at?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bms_integration_configs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       branch_inventory: {
         Row: {
           branch_id: string
