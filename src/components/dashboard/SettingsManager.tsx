@@ -61,6 +61,12 @@ export function SettingsManager() {
             Help & Tour
           </TabsTrigger>
           {isAdmin && (
+            <TabsTrigger value="bms" className="flex items-center gap-2">
+              <Zap className="h-4 w-4" />
+              BMS Integration
+            </TabsTrigger>
+          )}
+          {isAdmin && (
             <TabsTrigger value="audit" className="flex items-center gap-2">
               <History className="h-4 w-4" />
               Audit Logs
