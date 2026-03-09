@@ -296,8 +296,6 @@ serve(async (req) => {
   }
 
   try {
-    // Require auth: either an internal service-role call (from our own backend functions)
-    // or an end-user JWT (dashboard).
     const authHeader = req.headers.get('Authorization');
     const bearer = getBearerToken(req);
     if (!authHeader || !bearer) {
@@ -310,120 +308,186 @@ serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const isInternal = bearer === SUPABASE_SERVICE_ROLE_KEY;
     let callerUserId: string | null = null;
+    let isExternalApi = false;
 
+    // Parse request body
+    const body = await req.json();
+    
+    // Support both Omanut contract format (action/tenant_id) and existing format (intent/entities/context)
+    let intent: string;
+    let entities: Record<string, any>;
+    let context: ExecutionContext;
+    
+    if (body.action) {
+      // Omanut contract format: { action, tenant_id, ...params }
+      intent = body.action;
+      const { action: _a, tenant_id: _t, ...rest } = body;
+      entities = rest;
+      context = {
+        tenant_id: body.tenant_id || '',
+        user_id: null,
+        role: 'admin', // External API gets admin-level access
+        display_name: 'External API',
+      };
+    } else {
+      // Existing format: { intent, entities, context }
+      intent = body.intent;
+      entities = body.entities || {};
+      context = body.context || {};
+    }
+
+    // Health check - no auth required beyond bearer token presence
+    if (intent === 'health_check') {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          data: {
+            status: 'healthy',
+            version: '2.0',
+            timestamp: new Date().toISOString(),
+            supported_actions: [
+              'health_check', 'list_products', 'check_stock', 'get_product_details', 'get_product_variants',
+              'record_sale', 'update_stock', 'create_order', 'get_order_status', 'cancel_order',
+              'get_customer_history', 'create_contact', 'get_company_statistics',
+              'sales_report', 'create_quotation', 'create_invoice', 'list_quotations', 'list_invoices',
+              'get_low_stock_items', 'record_expense', 'get_expenses',
+              'get_outstanding_receivables', 'get_outstanding_payables', 'profit_loss_report',
+              'clock_in', 'clock_out', 'update_order_status', 'generate_payment_link',
+            ],
+          },
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Auth path 1: Internal service role
+    // Auth path 2: External API key (Omanut)
+    // Auth path 3: User JWT
     if (!isInternal) {
-      const supabaseUser = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        global: { headers: { Authorization: authHeader } },
-        auth: { autoRefreshToken: false, persistSession: false },
-      });
-      const { data: { user }, error: userErr } = await supabaseUser.auth.getUser();
-      if (userErr || !user) {
+      // Try external API key auth first (if tenant_id provided)
+      if (context.tenant_id) {
+        const extAuth = await authenticateExternalApiKey(supabase, bearer, context.tenant_id);
+        if (extAuth.valid) {
+          isExternalApi = true;
+          context.role = 'admin';
+          context.user_id = null;
+        }
+      }
+
+      // If not external API, try user JWT
+      if (!isExternalApi) {
+        const supabaseUser = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+          global: { headers: { Authorization: authHeader } },
+          auth: { autoRefreshToken: false, persistSession: false },
+        });
+        const { data: { user }, error: userErr } = await supabaseUser.auth.getUser();
+        if (userErr || !user) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Unauthorized' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        callerUserId = user.id;
+      }
+    }
+
+    // For external API, skip user/employee validation
+    if (!isExternalApi) {
+      if (!intent || !context?.tenant_id || !context?.role) {
         return new Response(
-          JSON.stringify({ success: false, error: 'Unauthorized' }),
-          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ success: false, error: 'Missing required parameters' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      callerUserId = user.id;
+
+      if (!context?.user_id && !context?.employee_id) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Missing user_id or employee_id' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    } else {
+      // External API: tenant_id is required
+      if (!context.tenant_id) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Missing tenant_id' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
-    const { intent, entities, context } = await req.json() as {
-      intent: string;
-      entities: Record<string, any>;
-      context: ExecutionContext;
-    };
-
-    // For self-service employees, user_id may be null but employee_id must exist
-    if (!intent || !context?.tenant_id || !context?.role) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Missing required parameters' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Must have either user_id or employee_id
-    if (!context?.user_id && !context?.employee_id) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Missing user_id or employee_id' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const isSelfService = context.is_self_service || (!context.user_id && !!context.employee_id);
+    const isSelfService = !isExternalApi && (context.is_self_service || (!context.user_id && !!context.employee_id));
 
     // If this is a user JWT call, ensure the caller is the same user claimed in context.
-    if (!isInternal && callerUserId && context.user_id && callerUserId !== context.user_id) {
+    if (!isInternal && !isExternalApi && callerUserId && context.user_id && callerUserId !== context.user_id) {
       return new Response(
         JSON.stringify({ success: false, error: 'Unauthorized: user mismatch' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Authorization: different paths for self-service vs full BMS users
-    if (isSelfService) {
-      // Self-service employee: validate employee belongs to tenant
-      const { data: employee, error: empErr } = await supabase
-        .from('employees')
-        .select('id, full_name, branch_id, employment_status')
-        .eq('tenant_id', context.tenant_id)
-        .eq('id', context.employee_id)
-        .maybeSingle();
+    // Authorization: skip for external API (already validated via api_secret)
+    if (!isExternalApi) {
+      if (isSelfService) {
+        const { data: employee, error: empErr } = await supabase
+          .from('employees')
+          .select('id, full_name, branch_id, employment_status')
+          .eq('tenant_id', context.tenant_id)
+          .eq('id', context.employee_id)
+          .maybeSingle();
 
-      if (empErr || !employee) {
-        return new Response(
-          JSON.stringify({ success: false, error: 'Unauthorized: employee not found' }),
-          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+        if (empErr || !employee) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Unauthorized: employee not found' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
 
-      if (employee.employment_status !== 'active') {
-        return new Response(
-          JSON.stringify({ success: false, error: 'Unauthorized: employee not active' }),
-          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+        if (employee.employment_status !== 'active') {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Unauthorized: employee not active' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
 
-      // Self-service employees can only access limited intents
-      if (!SELF_SERVICE_INTENTS.includes(intent)) {
-        return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: `This action isn't available for self-service. Ask your manager for help with ${intent.replace('_', ' ')}.` 
-          }),
-          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+        if (!SELF_SERVICE_INTENTS.includes(intent)) {
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: `This action isn't available for self-service. Ask your manager for help with ${intent.replace('_', ' ')}.` 
+            }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
 
-      // Store employee data in context for handlers
-      (context as any).employee_data = employee;
-    } else {
-      // Standard BMS user: validate against tenant_users table
-      const { data: tenantUser, error: tuErr } = await supabase
-        .from('tenant_users')
-        .select('role')
-        .eq('tenant_id', context.tenant_id)
-        .eq('user_id', context.user_id)
-        .maybeSingle();
+        (context as any).employee_data = employee;
+      } else {
+        const { data: tenantUser, error: tuErr } = await supabase
+          .from('tenant_users')
+          .select('role')
+          .eq('tenant_id', context.tenant_id)
+          .eq('user_id', context.user_id)
+          .maybeSingle();
 
-      if (tuErr || !tenantUser) {
-        return new Response(
-          JSON.stringify({ success: false, error: 'Unauthorized: tenant access denied' }),
-          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+        if (tuErr || !tenantUser) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Unauthorized: tenant access denied' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
 
-      // Override role from DB (don't trust client-supplied role)
-      context.role = String(tenantUser.role);
+        context.role = String(tenantUser.role);
 
-      // Check role permissions
-      const allowedIntents = ROLE_PERMISSIONS[context.role] || [];
-      if (!allowedIntents.includes(intent)) {
-        return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: `You don't have permission to ${intent.replace('_', ' ')}. Your role: ${context.role}` 
-          }),
-          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        const allowedIntents = ROLE_PERMISSIONS[context.role] || [];
+        if (!allowedIntents.includes(intent)) {
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: `You don't have permission to ${intent.replace('_', ' ')}. Your role: ${context.role}` 
+            }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
       }
     }
 
@@ -441,9 +505,11 @@ serve(async (req) => {
         result = await handleRecordSale(supabase, entities, context);
         break;
       case 'get_sales_summary':
+      case 'get_company_statistics':
         result = await handleGetSalesSummary(supabase, entities, context);
         break;
       case 'get_sales_details':
+      case 'sales_report':
         result = await handleGetSalesDetails(supabase, entities, context);
         break;
       case 'check_customer':
@@ -455,7 +521,6 @@ serve(async (req) => {
       case 'generate_invoice':
         result = await handleGenerateInvoice(supabase, entities, context);
         break;
-      // Employee task intents
       case 'my_tasks':
         result = await handleMyTasks(supabase, entities, context);
         break;
@@ -465,7 +530,6 @@ serve(async (req) => {
       case 'my_schedule':
         result = await handleMySchedule(supabase, entities, context);
         break;
-      // Attendance intents
       case 'clock_in':
         result = await handleClockIn(supabase, entities, context);
         break;
@@ -475,11 +539,9 @@ serve(async (req) => {
       case 'my_attendance':
         result = await handleMyAttendance(supabase, entities, context);
         break;
-      // Payroll intent
       case 'my_pay':
         result = await handleMyPay(supabase, entities, context);
         break;
-      // Management intents
       case 'team_attendance':
         result = await handleTeamAttendance(supabase, entities, context);
         break;
@@ -487,12 +549,12 @@ serve(async (req) => {
         result = await handlePendingOrders(supabase, entities, context);
         break;
       case 'low_stock_alerts':
+      case 'get_low_stock_items':
         result = await handleLowStockAlerts(supabase, entities, context);
         break;
       case 'update_order_status':
         result = await handleUpdateOrderStatus(supabase, entities, context);
         break;
-      // Financial intents
       case 'create_invoice':
         result = await handleCreateInvoice(supabase, entities, context);
         break;
@@ -500,6 +562,7 @@ serve(async (req) => {
         result = await handleCreateQuotation(supabase, entities, context);
         break;
       case 'who_owes':
+      case 'get_outstanding_receivables':
         result = await handleWhoOwes(supabase, entities, context);
         break;
       case 'daily_report':
@@ -508,11 +571,59 @@ serve(async (req) => {
       case 'credit_sale':
         result = await handleCreditSale(supabase, entities, context);
         break;
+      // ========== NEW OMANUT CONTRACT ACTIONS ==========
+      case 'get_product_details':
+        result = await handleGetProductDetails(supabase, entities, context);
+        break;
+      case 'get_product_variants':
+        result = await handleGetProductVariants(supabase, entities, context);
+        break;
+      case 'update_stock':
+        result = await handleUpdateStock(supabase, entities, context);
+        break;
+      case 'create_order':
+        result = await handleCreateOrder(supabase, entities, context);
+        break;
+      case 'get_order_status':
+        result = await handleGetOrderStatus(supabase, entities, context);
+        break;
+      case 'cancel_order':
+        result = await handleCancelOrder(supabase, entities, context);
+        break;
+      case 'get_customer_history':
+        result = await handleGetCustomerHistory(supabase, entities, context);
+        break;
+      case 'list_quotations':
+        result = await handleListQuotations(supabase, entities, context);
+        break;
+      case 'list_invoices':
+        result = await handleListInvoices(supabase, entities, context);
+        break;
+      case 'get_expenses':
+        result = await handleGetExpenses(supabase, entities, context);
+        break;
+      case 'get_outstanding_payables':
+        result = await handleGetOutstandingPayables(supabase, entities, context);
+        break;
+      case 'profit_loss_report':
+        result = await handleProfitLossReport(supabase, entities, context);
+        break;
+      case 'create_contact':
+        result = await handleCreateContact(supabase, entities, context);
+        break;
+      case 'generate_payment_link':
+        result = await handleGeneratePaymentLink(supabase, entities, context);
+        break;
       default:
-        result = { success: false, message: `Unknown intent: ${intent}` };
+        result = { success: false, error: `Unknown action: ${intent}` };
     }
 
     const executionTime = Date.now() - startTime;
+
+    // Log external API calls
+    if (isExternalApi) {
+      await logApiCall(supabase, context.tenant_id, intent, 'external', result.success ? 'success' : 'error', executionTime, result.error);
+    }
 
     return new Response(
       JSON.stringify({
