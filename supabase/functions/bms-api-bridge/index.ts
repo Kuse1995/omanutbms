@@ -10,6 +10,42 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 
+// ========== EXTERNAL API KEY AUTH ==========
+// Validates bearer token against bms_integration_configs.api_secret
+async function authenticateExternalApiKey(supabase: any, bearer: string, tenantId: string): Promise<{ valid: boolean; config?: any }> {
+  if (!tenantId) return { valid: false };
+  const { data, error } = await supabase
+    .from('bms_integration_configs')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .eq('is_enabled', true)
+    .eq('api_secret', bearer)
+    .maybeSingle();
+  if (error || !data) return { valid: false };
+  // Update last_api_call_at
+  await supabase
+    .from('bms_integration_configs')
+    .update({ last_api_call_at: new Date().toISOString() })
+    .eq('id', data.id);
+  return { valid: true, config: data };
+}
+
+// Log API call for external requests
+async function logApiCall(supabase: any, tenantId: string, action: string, source: string, responseStatus: string, executionTimeMs: number, errorMessage?: string) {
+  try {
+    await supabase.from('bms_api_logs').insert({
+      tenant_id: tenantId,
+      action,
+      source,
+      response_status: responseStatus,
+      execution_time_ms: executionTimeMs,
+      error_message: errorMessage || null,
+    });
+  } catch (e) {
+    console.error('Failed to log API call:', e);
+  }
+}
+
 function getBearerToken(req: Request): string | null {
   const auth = req.headers.get('Authorization');
   if (!auth) return null;
