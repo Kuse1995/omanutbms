@@ -123,6 +123,15 @@ export function SettingsManager() {
         </TabsContent>
 
         {isAdmin && (
+          <TabsContent value="bms">
+            <div className="space-y-6">
+              <BmsIntegrationSettings />
+              <BmsStatusDashboard />
+            </div>
+          </TabsContent>
+        )}
+
+        {isAdmin && (
           <TabsContent value="audit">
             <AuditLogViewer />
           </TabsContent>
