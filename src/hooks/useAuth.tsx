@@ -66,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   
   // Refs for debouncing and preventing race conditions
-  const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const fetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastFetchedUserIdRef = useRef<string | null>(null);
   const currentUserIdRef = useRef<string | null>(null);
   const isMountedRef = useRef(true);
