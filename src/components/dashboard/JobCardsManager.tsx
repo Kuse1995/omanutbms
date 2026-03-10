@@ -25,6 +25,8 @@ interface JobCard {
   id: string;
   job_number: string;
   customer_id: string | null;
+  customer_name: string | null;
+  customer_phone: string | null;
   vehicle_make: string | null;
   vehicle_model: string | null;
   vehicle_year: number | null;
