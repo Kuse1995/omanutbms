@@ -2873,6 +2873,8 @@ export type Database = {
           created_by: string | null
           customer_complaint: string | null
           customer_id: string | null
+          customer_name: string | null
+          customer_phone: string | null
           demo_session_id: string | null
           diagnosis: string | null
           estimated_labor_hours: number | null
@@ -2908,6 +2910,8 @@ export type Database = {
           created_by?: string | null
           customer_complaint?: string | null
           customer_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
           demo_session_id?: string | null
           diagnosis?: string | null
           estimated_labor_hours?: number | null
@@ -2943,6 +2947,8 @@ export type Database = {
           created_by?: string | null
           customer_complaint?: string | null
           customer_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
           demo_session_id?: string | null
           diagnosis?: string | null
           estimated_labor_hours?: number | null

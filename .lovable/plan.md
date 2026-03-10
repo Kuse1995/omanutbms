@@ -1,27 +1,56 @@
 
 
-# Fix: Job Card Customer Details Cannot Be Amended
+# Fix: Stock Item Counts Not Showing on Locations Page
 
 ## Problem
-The Job Card modal's "Customer" tab only has a dropdown to select an existing customer and a complaint textarea. There are **no text fields** to enter or edit a customer name or phone number. This means:
-- Walk-in customers can't have their name/phone recorded on the job card
-- If a customer's details need correcting, the user has to go edit the customer record separately
-- There's no way to override or amend customer info directly on the job card
 
-## Fix
+The Locations page shows "0" for the Stock Items column on most branches. This happens because:
 
-**Database**: Add `customer_name` and `customer_phone` text columns to the `job_cards` table (nullable, for walk-in overrides or direct entry).
+1. Products are assigned to locations via `default_location_id` on the `inventory` table
+2. But the Locations page only counts items from the `branch_inventory` table
+3. Most existing products were created before the branch_inventory sync fix, so they have no `branch_inventory` records despite being assigned to a location
 
-**UI** (`JobCardModal.tsx`): Add editable "Customer Name" and "Customer Phone" text fields below the customer dropdown on the Customer tab.
-- When a customer is selected from the dropdown, auto-fill these fields with their name/phone
-- Fields remain editable so the user can override or correct details
-- For walk-ins (no customer selected), these fields capture the customer info directly
-- Both fields are saved to the `job_cards` table
+For example, the KITWE branch has 1,426 products assigned to it, but the Stock Items column shows 0.
 
-**List** (`JobCardsManager.tsx`): Show `customer_name` from the job card itself (falling back to the joined customer record).
+## Solution
 
-## Files
-1. **Database migration** -- `ALTER TABLE job_cards ADD COLUMN customer_name text; ADD COLUMN customer_phone text;`
-2. **`src/components/dashboard/JobCardModal.tsx`** -- Add name/phone inputs to Customer tab, auto-fill on dropdown change, include in save payload
-3. **`src/components/dashboard/JobCardsManager.tsx`** -- Display `customer_name`/`customer_phone` from the job card record with fallback to joined customer data
+Update the `LocationsManager` to count stock items from **both** sources:
+
+1. **`branch_inventory`** -- items that have explicit branch stock records (accurate current stock)
+2. **`inventory.default_location_id`** -- items assigned to a location but without a branch_inventory record yet
+
+The displayed count will be the higher of the two, ensuring all assigned products are reflected.
+
+## Changes
+
+### File: `src/components/dashboard/LocationsManager.tsx`
+
+**Add a second query** for inventory items grouped by `default_location_id`:
+
+```typescript
+const { data: inventoryByLocation } = await supabase
+  .from("inventory")
+  .select("default_location_id")
+  .eq("tenant_id", tenant.id)
+  .not("default_location_id", "is", null);
+```
+
+**Update the stats mapping** to combine both counts:
+
+```typescript
+const branchInvCount = inventoryData
+  ?.filter(i => i.branch_id === branch.id)
+  .reduce((sum, i) => sum + (i.current_stock || 0), 0) || 0;
+
+const assignedCount = inventoryByLocation
+  ?.filter(i => i.default_location_id === branch.id).length || 0;
+
+// Show the more meaningful number
+inventory_count: Math.max(branchInvCount, assignedCount),
+```
+
+This way, even if `branch_inventory` records haven't been created yet, the Locations page will still show how many products are assigned to each branch. As users create new products (which now auto-sync to `branch_inventory`), the counts will naturally converge.
+
+### Files to modify
+- `src/components/dashboard/LocationsManager.tsx`
 

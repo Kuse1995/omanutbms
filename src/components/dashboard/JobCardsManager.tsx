@@ -25,6 +25,8 @@ interface JobCard {
   id: string;
   job_number: string;
   customer_id: string | null;
+  customer_name: string | null;
+  customer_phone: string | null;
   vehicle_make: string | null;
   vehicle_model: string | null;
   vehicle_year: number | null;
@@ -291,13 +293,13 @@ export function JobCardsManager() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {card.customers ? (
+                        {(card.customer_name || card.customers?.name) ? (
                           <div>
-                            <div>{card.customers.name}</div>
-                            {card.customers.phone && (
+                            <div>{card.customer_name || card.customers?.name}</div>
+                            {(card.customer_phone || card.customers?.phone) && (
                               <div className="text-xs text-muted-foreground flex items-center gap-1">
                                 <Phone className="w-3 h-3" />
-                                {card.customers.phone}
+                                {card.customer_phone || card.customers?.phone}
                               </div>
                             )}
                           </div>
