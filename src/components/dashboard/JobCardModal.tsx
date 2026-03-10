@@ -97,6 +97,8 @@ export function JobCardModal({ open, onClose, onSuccess, jobCard }: JobCardModal
     if (open && jobCard) {
       setFormData({
         customer_id: jobCard.customer_id || '',
+        customer_name: jobCard.customer_name || '',
+        customer_phone: jobCard.customer_phone || '',
         vehicle_make: jobCard.vehicle_make || '',
         vehicle_model: jobCard.vehicle_model || '',
         vehicle_year: jobCard.vehicle_year?.toString() || '',
