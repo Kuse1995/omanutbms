@@ -351,10 +351,20 @@ export function JobCardModal({ open, onClose, onSuccess, jobCard }: JobCardModal
 
             <TabsContent value="customer" className="space-y-4 mt-4">
               <div className="space-y-2">
-                <Label htmlFor="customer_id">Customer</Label>
+                <Label htmlFor="customer_id">Select Existing Customer</Label>
                 <Select
                   value={formData.customer_id}
-                  onValueChange={(v) => updateField('customer_id', v)}
+                  onValueChange={(v) => {
+                    updateField('customer_id', v);
+                    // Auto-fill name/phone from selected customer
+                    const selected = customers?.find(c => c.id === v);
+                    if (selected) {
+                      updateField('customer_name', selected.name || '');
+                      updateField('customer_phone', selected.phone || '');
+                    } else {
+                      // Cleared selection — keep fields editable
+                    }
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select customer or leave empty for walk-in" />
@@ -368,6 +378,27 @@ export function JobCardModal({ open, onClose, onSuccess, jobCard }: JobCardModal
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="customer_name">Customer Name</Label>
+                  <Input
+                    id="customer_name"
+                    placeholder="Enter customer name"
+                    value={formData.customer_name}
+                    onChange={(e) => updateField('customer_name', e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="customer_phone">Customer Phone</Label>
+                  <Input
+                    id="customer_phone"
+                    placeholder="Enter phone number"
+                    value={formData.customer_phone}
+                    onChange={(e) => updateField('customer_phone', e.target.value)}
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">
