@@ -1,56 +1,35 @@
 
+Goal: make existing job cards truly editable, especially the Customer and Work sections shown in the screenshot.
 
-# Fix: Stock Item Counts Not Showing on Locations Page
+What I found:
+- The Customer and Work tabs already render editable inputs in `src/components/dashboard/JobCardModal.tsx`.
+- The likely reason users feel they “cannot amend” them is that saving an edited job card is broken.
+- In the update mutation, the payload always sends:
+  - `tenant_id: tenantId`
+  - `job_number: ''`
+- That is risky for edits because `job_number` is supposed to stay as the database-generated value. Sending an empty string on update can fail the update or break uniqueness logic, so changes made in Customer/Work appear not to save.
 
-## Problem
+Implementation plan:
+1. Fix the update payload in `JobCardModal.tsx`
+   - Build one base payload for editable fields only.
+   - On create: include `tenant_id` and let the database generate the job number.
+   - On edit: do not send `job_number` and do not resend immutable system fields unless required.
+2. Keep Customer and Work fields fully editable
+   - Preserve the current customer override fields (`customer_name`, `customer_phone`).
+   - Ensure diagnosis, status, assigned technician, dates, and notes are part of the update payload.
+3. Improve error visibility
+   - Show the real backend error message in the destructive toast for failed updates so users/admins can tell exactly why a save failed.
+4. Validate the manager list view behavior
+   - Confirm `JobCardsManager.tsx` continues to read the saved edited values and shows the updated customer/work-related data after refresh.
+5. Test flow to verify fix
+   - Open an existing job card.
+   - Change fields in Customer and Work.
+   - Save and confirm values persist after modal close/reopen.
 
-The Locations page shows "0" for the Stock Items column on most branches. This happens because:
+Files to change:
+- `src/components/dashboard/JobCardModal.tsx`
+- Possibly `src/components/dashboard/JobCardsManager.tsx` only if any displayed fallback logic needs adjustment
 
-1. Products are assigned to locations via `default_location_id` on the `inventory` table
-2. But the Locations page only counts items from the `branch_inventory` table
-3. Most existing products were created before the branch_inventory sync fix, so they have no `branch_inventory` records despite being assigned to a location
-
-For example, the KITWE branch has 1,426 products assigned to it, but the Stock Items column shows 0.
-
-## Solution
-
-Update the `LocationsManager` to count stock items from **both** sources:
-
-1. **`branch_inventory`** -- items that have explicit branch stock records (accurate current stock)
-2. **`inventory.default_location_id`** -- items assigned to a location but without a branch_inventory record yet
-
-The displayed count will be the higher of the two, ensuring all assigned products are reflected.
-
-## Changes
-
-### File: `src/components/dashboard/LocationsManager.tsx`
-
-**Add a second query** for inventory items grouped by `default_location_id`:
-
-```typescript
-const { data: inventoryByLocation } = await supabase
-  .from("inventory")
-  .select("default_location_id")
-  .eq("tenant_id", tenant.id)
-  .not("default_location_id", "is", null);
-```
-
-**Update the stats mapping** to combine both counts:
-
-```typescript
-const branchInvCount = inventoryData
-  ?.filter(i => i.branch_id === branch.id)
-  .reduce((sum, i) => sum + (i.current_stock || 0), 0) || 0;
-
-const assignedCount = inventoryByLocation
-  ?.filter(i => i.default_location_id === branch.id).length || 0;
-
-// Show the more meaningful number
-inventory_count: Math.max(branchInvCount, assignedCount),
-```
-
-This way, even if `branch_inventory` records haven't been created yet, the Locations page will still show how many products are assigned to each branch. As users create new products (which now auto-sync to `branch_inventory`), the counts will naturally converge.
-
-### Files to modify
-- `src/components/dashboard/LocationsManager.tsx`
-
+Expected result:
+- Users will be able to edit existing job cards and successfully save changes made in the Customer and Work tabs.
+- The job number remains unchanged during edits, and updates should stop failing silently.
