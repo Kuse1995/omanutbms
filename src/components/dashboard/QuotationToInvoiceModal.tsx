@@ -69,8 +69,10 @@ export function QuotationToInvoiceModal({ isOpen, onClose, onSuccess, quotation 
   const [discountReason, setDiscountReason] = useState("");
   const [notes, setNotes] = useState("");
   const { toast } = useToast();
-  const { tenantId } = useTenant();
+  const { tenantId, businessProfile } = useTenant();
   const { terminology, logoUrl, companyName } = useBusinessConfig();
+  const { currentBranch } = useBranch();
+  const isMultiBranchEnabled = !!(businessProfile as any)?.multi_branch_enabled;
   
   const defaultItemType = terminology.defaultItemType;
 

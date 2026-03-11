@@ -76,6 +76,8 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
   const { toast } = useToast();
   const { tenantId, businessProfile } = useTenant();
   const { terminology } = useBusinessConfig();
+  const { currentBranch } = useBranch();
+  const isMultiBranchEnabled = !!(businessProfile as any)?.multi_branch_enabled;
   const sourcingLabel = (businessProfile as any)?.sourcing_label || "Sourcing Required";
   
   // Get the default item type from business configuration
