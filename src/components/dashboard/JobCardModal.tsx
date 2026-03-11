@@ -219,7 +219,7 @@ export function JobCardModal({ open, onClose, onSuccess, jobCard }: JobCardModal
       } else {
         const { error } = await supabase
           .from('job_cards')
-          .insert([{ ...editableFields, tenant_id: tenantId }]);
+          .insert([{ ...editableFields, tenant_id: tenantId, job_number: '' }]);
         if (error) throw error;
       }
     },
