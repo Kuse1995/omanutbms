@@ -1,29 +1,56 @@
 
 
-# Fix: Tab Clicks Close the Job Card Edit Modal
+# Fix: Stock Item Counts Not Showing on Locations Page
 
-## Problem Found During Testing
+## Problem
 
-When clicking between tabs (Vehicle, Customer, Work, Pricing) in the edit modal, the modal closes immediately. This happens because the `TabsTrigger` components render as `<button>` elements inside a `<form>`. In HTML, buttons inside forms default to `type="submit"`, so clicking a tab triggers form submission, which calls `handleSubmit` → `mutation.mutate()` → `onSuccess()` → `handleModalClose()`.
+The Locations page shows "0" for the Stock Items column on most branches. This happens because:
 
-This is the **actual root cause** of the "cannot edit" issue -- users literally cannot navigate to the Customer or Work tabs to make changes.
+1. Products are assigned to locations via `default_location_id` on the `inventory` table
+2. But the Locations page only counts items from the `branch_inventory` table
+3. Most existing products were created before the branch_inventory sync fix, so they have no `branch_inventory` records despite being assigned to a location
 
-## Fix
+For example, the KITWE branch has 1,426 products assigned to it, but the Stock Items column shows 0.
 
-**File: `src/components/dashboard/JobCardModal.tsx`**
+## Solution
 
-Add `type="button"` to all four `TabsTrigger` elements so they don't accidentally submit the form:
+Update the `LocationsManager` to count stock items from **both** sources:
 
-```tsx
-<TabsTrigger value="vehicle" type="button" className="gap-1">
-<TabsTrigger value="customer" type="button" className="gap-1">
-<TabsTrigger value="work" type="button" className="gap-1">
-<TabsTrigger value="pricing" type="button" className="gap-1">
+1. **`branch_inventory`** -- items that have explicit branch stock records (accurate current stock)
+2. **`inventory.default_location_id`** -- items assigned to a location but without a branch_inventory record yet
+
+The displayed count will be the higher of the two, ensuring all assigned products are reflected.
+
+## Changes
+
+### File: `src/components/dashboard/LocationsManager.tsx`
+
+**Add a second query** for inventory items grouped by `default_location_id`:
+
+```typescript
+const { data: inventoryByLocation } = await supabase
+  .from("inventory")
+  .select("default_location_id")
+  .eq("tenant_id", tenant.id)
+  .not("default_location_id", "is", null);
 ```
 
-This is a 4-line change at lines 265, 269, 273, 277.
+**Update the stats mapping** to combine both counts:
 
-## Testing the Invoicing Stock Fix
+```typescript
+const branchInvCount = inventoryData
+  ?.filter(i => i.branch_id === branch.id)
+  .reduce((sum, i) => sum + (i.current_stock || 0), 0) || 0;
 
-I was unable to test the invoicing stock reduction because I could not navigate to an invoicing flow that involves products. However, the code changes are correct -- they mirror the proven `SalesRecorder` branch-aware pattern. I recommend the user test this manually by creating an invoice with a product and checking if inventory decreases.
+const assignedCount = inventoryByLocation
+  ?.filter(i => i.default_location_id === branch.id).length || 0;
+
+// Show the more meaningful number
+inventory_count: Math.max(branchInvCount, assignedCount),
+```
+
+This way, even if `branch_inventory` records haven't been created yet, the Locations page will still show how many products are assigned to each branch. As users create new products (which now auto-sync to `branch_inventory`), the counts will naturally converge.
+
+### Files to modify
+- `src/components/dashboard/LocationsManager.tsx`
 
