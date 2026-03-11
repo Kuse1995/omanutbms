@@ -262,19 +262,19 @@ export function JobCardModal({ open, onClose, onSuccess, jobCard }: JobCardModal
         <form onSubmit={handleSubmit}>
           <Tabs defaultValue="vehicle" className="w-full">
             <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="vehicle" className="gap-1">
+              <TabsTrigger value="vehicle" type="button" className="gap-1">
                 <Car className="w-4 h-4" />
                 Vehicle
               </TabsTrigger>
-              <TabsTrigger value="customer" className="gap-1">
+              <TabsTrigger value="customer" type="button" className="gap-1">
                 <User className="w-4 h-4" />
                 Customer
               </TabsTrigger>
-              <TabsTrigger value="work" className="gap-1">
+              <TabsTrigger value="work" type="button" className="gap-1">
                 <Wrench className="w-4 h-4" />
                 Work
               </TabsTrigger>
-              <TabsTrigger value="pricing" className="gap-1">
+              <TabsTrigger value="pricing" type="button" className="gap-1">
                 <DollarSign className="w-4 h-4" />
                 Pricing
               </TabsTrigger>
