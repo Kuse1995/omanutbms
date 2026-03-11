@@ -12,6 +12,7 @@ import { ProductCombobox, ProductOption } from "./ProductCombobox";
 import { Badge } from "@/components/ui/badge";
 import { useTenant } from "@/hooks/useTenant";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
+import { useBranch } from "@/hooks/useBranch";
 
 // Item type for database - aligns with business type
 type ItemType = 'product' | 'service' | 'item' | 'resource';
