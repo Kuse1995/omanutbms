@@ -234,7 +234,7 @@ export function JobCardModal({ open, onClose, onSuccess, jobCard }: JobCardModal
       console.error('Job card mutation error:', error);
       toast({
         title: "Error",
-        description: `Failed to ${isEditing ? 'update' : 'create'} job card. Please try again.`,
+        description: error?.message || `Failed to ${isEditing ? 'update' : 'create'} job card. Please try again.`,
         variant: "destructive",
       });
     },
