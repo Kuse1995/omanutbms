@@ -223,7 +223,6 @@ export function QuotationToInvoiceModal({ isOpen, onClose, onSuccess, quotation 
       // Deduct inventory for product items that are NOT sourcing
       for (const item of items) {
         if (item.product_id && !item.is_sourcing && (item.item_type === 'product' || item.item_type === 'item')) {
-          // Get current stock
           const { data: productData } = await supabase
             .from('inventory')
             .select('current_stock')
@@ -233,11 +232,44 @@ export function QuotationToInvoiceModal({ isOpen, onClose, onSuccess, quotation 
           
           if (productData && productData.current_stock > 0) {
             const newStock = Math.max(0, productData.current_stock - item.quantity);
-            await supabase
-              .from('inventory')
-              .update({ current_stock: newStock })
-              .eq('id', item.product_id)
-              .eq('tenant_id', tenantId);
+
+            if (isMultiBranchEnabled && currentBranch) {
+              const { data: branchInv } = await supabase
+                .from('branch_inventory')
+                .select('id, current_stock')
+                .eq('inventory_id', item.product_id)
+                .eq('branch_id', currentBranch.id)
+                .eq('tenant_id', tenantId)
+                .single();
+
+              if (branchInv) {
+                const branchNewStock = Math.max(0, branchInv.current_stock - item.quantity);
+                await supabase
+                  .from('branch_inventory')
+                  .update({ current_stock: branchNewStock })
+                  .eq('id', branchInv.id);
+              }
+            } else {
+              await supabase
+                .from('inventory')
+                .update({ current_stock: newStock })
+                .eq('id', item.product_id)
+                .eq('tenant_id', tenantId);
+            }
+
+            // Record stock movement
+            await supabase.from('stock_movements').insert({
+              tenant_id: tenantId,
+              inventory_id: item.product_id,
+              branch_id: currentBranch?.id || null,
+              movement_type: 'sale',
+              quantity: item.quantity,
+              quantity_before: productData.current_stock,
+              quantity_after: newStock,
+              reference_type: 'invoice',
+              reference_id: invoice.id,
+              created_by: user?.id || null,
+            });
           }
         }
       }
