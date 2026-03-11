@@ -12,6 +12,7 @@ import { ProductCombobox, ProductOption } from "./ProductCombobox";
 import { Badge } from "@/components/ui/badge";
 import { useTenant } from "@/hooks/useTenant";
 import { useBusinessConfig } from "@/hooks/useBusinessConfig";
+import { useBranch } from "@/hooks/useBranch";
 
 // Item type for database - aligns with business type
 type ItemType = 'product' | 'service' | 'item' | 'resource';
@@ -75,6 +76,8 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
   const { toast } = useToast();
   const { tenantId, businessProfile } = useTenant();
   const { terminology } = useBusinessConfig();
+  const { currentBranch } = useBranch();
+  const isMultiBranchEnabled = !!(businessProfile as any)?.multi_branch_enabled;
   const sourcingLabel = (businessProfile as any)?.sourcing_label || "Sourcing Required";
   
   // Get the default item type from business configuration
@@ -348,11 +351,46 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
             const product = products.find(p => p.id === item.productId);
             if (product && product.current_stock > 0) {
               const newStock = Math.max(0, product.current_stock - item.quantity);
-              await supabase
-                .from('inventory')
-                .update({ current_stock: newStock })
-                .eq('id', item.productId)
-                .eq('tenant_id', tenantId);
+
+              if (isMultiBranchEnabled && currentBranch) {
+                // Branch-aware: deduct from branch_inventory
+                const { data: branchInv } = await supabase
+                  .from('branch_inventory')
+                  .select('id, current_stock')
+                  .eq('inventory_id', item.productId)
+                  .eq('branch_id', currentBranch.id)
+                  .eq('tenant_id', tenantId)
+                  .single();
+
+                if (branchInv) {
+                  const branchNewStock = Math.max(0, branchInv.current_stock - item.quantity);
+                  await supabase
+                    .from('branch_inventory')
+                    .update({ current_stock: branchNewStock })
+                    .eq('id', branchInv.id);
+                }
+              } else {
+                // Global: deduct from inventory table
+                await supabase
+                  .from('inventory')
+                  .update({ current_stock: newStock })
+                  .eq('id', item.productId)
+                  .eq('tenant_id', tenantId);
+              }
+
+              // Record stock movement for audit trail
+              await supabase.from('stock_movements').insert({
+                tenant_id: tenantId,
+                inventory_id: item.productId,
+                branch_id: currentBranch?.id || null,
+                movement_type: 'sale',
+                quantity: item.quantity,
+                quantity_before: product.current_stock,
+                quantity_after: newStock,
+                reference_type: 'invoice',
+                reference_id: invoiceId,
+                created_by: user?.id || null,
+              });
             }
           }
         }
