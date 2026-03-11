@@ -1,56 +1,55 @@
 
 
-# Fix: Stock Item Counts Not Showing on Locations Page
+# Fix: Stock Not Reducing When Invoicing
 
 ## Problem
 
-The Locations page shows "0" for the Stock Items column on most branches. This happens because:
+The `InvoiceFormModal` and `QuotationToInvoiceModal` only deduct stock from the global `inventory` table. In a multi-branch setup, stock is displayed from `branch_inventory`, so the deduction appears to have no effect. The `SalesRecorder` already handles this correctly by checking for multi-branch and deducting from `branch_inventory` when active.
 
-1. Products are assigned to locations via `default_location_id` on the `inventory` table
-2. But the Locations page only counts items from the `branch_inventory` table
-3. Most existing products were created before the branch_inventory sync fix, so they have no `branch_inventory` records despite being assigned to a location
+## Root Cause
 
-For example, the KITWE branch has 1,426 products assigned to it, but the Stock Items column shows 0.
-
-## Solution
-
-Update the `LocationsManager` to count stock items from **both** sources:
-
-1. **`branch_inventory`** -- items that have explicit branch stock records (accurate current stock)
-2. **`inventory.default_location_id`** -- items assigned to a location but without a branch_inventory record yet
-
-The displayed count will be the higher of the two, ensuring all assigned products are reflected.
-
-## Changes
-
-### File: `src/components/dashboard/LocationsManager.tsx`
-
-**Add a second query** for inventory items grouped by `default_location_id`:
-
+In `InvoiceFormModal.tsx` (lines 344-358), stock deduction does:
 ```typescript
-const { data: inventoryByLocation } = await supabase
-  .from("inventory")
-  .select("default_location_id")
-  .eq("tenant_id", tenant.id)
-  .not("default_location_id", "is", null);
+// Only updates global inventory — branch_inventory is untouched
+await supabase.from('inventory').update({ current_stock: newStock }).eq('id', item.productId);
 ```
 
-**Update the stats mapping** to combine both counts:
+The same issue exists in `QuotationToInvoiceModal.tsx` (lines 222-242) and `OrderToInvoiceModal.tsx`.
 
+## Fix
+
+Mirror the `SalesRecorder` pattern in all three invoice creation flows:
+
+### 1. `InvoiceFormModal.tsx`
+- Import `useBranch` hook and `useBusinessConfig` to detect multi-branch mode
+- In the stock deduction block (line 344-358), add branch-aware logic:
+  - If multi-branch enabled and a branch is active: deduct from `branch_inventory` using `branch_id` + `inventory_id`
+  - Else: deduct from global `inventory` (existing behavior)
+- Also record a `stock_movements` entry for audit trail
+
+### 2. `QuotationToInvoiceModal.tsx`
+- Same change: import branch context, add branch-aware deduction in the stock loop (lines 222-242)
+
+### 3. `OrderToInvoiceModal.tsx`
+- This modal doesn't currently deduct stock (it's for custom orders/services), so no change needed unless products are involved
+
+### Key code pattern (from SalesRecorder)
 ```typescript
-const branchInvCount = inventoryData
-  ?.filter(i => i.branch_id === branch.id)
-  .reduce((sum, i) => sum + (i.current_stock || 0), 0) || 0;
-
-const assignedCount = inventoryByLocation
-  ?.filter(i => i.default_location_id === branch.id).length || 0;
-
-// Show the more meaningful number
-inventory_count: Math.max(branchInvCount, assignedCount),
+if (isMultiBranchEnabled && currentBranch) {
+  await supabase
+    .from('branch_inventory')
+    .update({ current_stock: newStock })
+    .eq('inventory_id', item.productId)
+    .eq('branch_id', currentBranch.id);
+} else {
+  await supabase
+    .from('inventory')
+    .update({ current_stock: newStock })
+    .eq('id', item.productId);
+}
 ```
-
-This way, even if `branch_inventory` records haven't been created yet, the Locations page will still show how many products are assigned to each branch. As users create new products (which now auto-sync to `branch_inventory`), the counts will naturally converge.
 
 ### Files to modify
-- `src/components/dashboard/LocationsManager.tsx`
+- `src/components/dashboard/InvoiceFormModal.tsx`
+- `src/components/dashboard/QuotationToInvoiceModal.tsx`
 
