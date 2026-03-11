@@ -388,7 +388,7 @@ export function InvoiceFormModal({ isOpen, onClose, onSuccess, invoice }: Invoic
                 quantity_before: product.current_stock,
                 quantity_after: newStock,
                 reference_type: 'invoice',
-                reference_id: invoiceResult.id,
+                reference_id: invoiceId,
                 created_by: user?.id || null,
               });
             }
