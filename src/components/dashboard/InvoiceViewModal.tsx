@@ -181,7 +181,7 @@ export function InvoiceViewModal({ isOpen, onClose, invoice }: InvoiceViewModalP
             <div ref={invoiceRef} className="p-6 bg-white">
               {/* Header */}
               <TenantDocumentHeader 
-                documentType="INVOICE" 
+                documentType="TAX INVOICE" 
                 documentNumber={invoice.invoice_number}
                 sourceReference={sourceQuotation}
               />

@@ -96,7 +96,7 @@ const menuCategories: MenuCategory[] = [
     id: 'sales-finance',
     label: 'Sales & Finance',
     icon: DollarSign,
-    items: ['sales', 'receipts', 'quotations', 'accounts', 'assets', 'zra-log'],
+    items: ['sales', 'receipts', 'quotations', 'accounts', 'assets', 'zra-log', 'zra-report'],
   },
   {
     id: 'inventory-stock',
@@ -140,6 +140,7 @@ const baseMenuItems: MenuItem[] = [
   { id: "accounts", title: "Accounts", icon: DollarSign, feature: null },
   { id: "assets", title: "Assets", icon: Landmark, feature: null },
   { id: "zra-log", title: "ZRA Log", icon: ShieldCheck, feature: null },
+  { id: "zra-report", title: "ZRA Report", icon: FileText, feature: null },
   { id: "hr", title: "HR & Payroll", icon: Users, feature: 'payroll' },
   { id: "agents", title: "Agents", icon: Users, feature: 'agents' },
   { id: "inventory", title: "Inventory", icon: Package, feature: 'inventory', dynamicTitle: 'inventory' },

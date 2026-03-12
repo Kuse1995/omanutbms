@@ -50,10 +50,11 @@ const ProductionFloor = lazy(() => import("@/components/dashboard/ProductionFloo
 const AssetsManager = lazy(() => import("@/components/dashboard/AssetsManager").then(m => ({ default: m.AssetsManager })));
 const JobCardsManager = lazy(() => import("@/components/dashboard/JobCardsManager").then(m => ({ default: m.JobCardsManager })));
 const ZraSubmissionLog = lazy(() => import("@/components/dashboard/ZraSubmissionLog").then(m => ({ default: m.ZraSubmissionLog })));
+const ZraTransactionReport = lazy(() => import("@/components/dashboard/ZraTransactionReport").then(m => ({ default: m.ZraTransactionReport })));
 
-export type DashboardTab = "dashboard" | "sales" | "receipts" | "quotations" | "accounts" | "assets" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings" | "tenant-settings" | "modules" | "platform-admin" | "branches" | "returns" | "customers" | "custom-orders" | "warehouse" | "stock-transfers" | "locations" | "production-floor" | "job-cards" | "zra-log";
+export type DashboardTab = "dashboard" | "sales" | "receipts" | "quotations" | "accounts" | "assets" | "hr" | "inventory" | "shop" | "agents" | "communities" | "messages" | "contacts" | "website" | "settings" | "tenant-settings" | "modules" | "platform-admin" | "branches" | "returns" | "customers" | "custom-orders" | "warehouse" | "stock-transfers" | "locations" | "production-floor" | "job-cards" | "zra-log" | "zra-report";
 
-const validTabs: DashboardTab[] = ["dashboard", "sales", "receipts", "quotations", "accounts", "assets", "hr", "inventory", "shop", "agents", "communities", "messages", "contacts", "website", "settings", "tenant-settings", "modules", "platform-admin", "branches", "returns", "customers", "custom-orders", "warehouse", "stock-transfers", "locations", "production-floor", "job-cards", "zra-log"];
+const validTabs: DashboardTab[] = ["dashboard", "sales", "receipts", "quotations", "accounts", "assets", "hr", "inventory", "shop", "agents", "communities", "messages", "contacts", "website", "settings", "tenant-settings", "modules", "platform-admin", "branches", "returns", "customers", "custom-orders", "warehouse", "stock-transfers", "locations", "production-floor", "job-cards", "zra-log", "zra-report"];
 
 // Heavy tabs that stay mounted (CSS hidden) once visited for instant switch-back
 const PERSISTENT_TABS: DashboardTab[] = ["inventory", "sales", "accounts", "hr", "shop"];
@@ -214,6 +215,7 @@ const Dashboard = () => {
       case "production-floor": return <ProductionFloor />;
       case "job-cards": return <JobCardsManager />;
       case "zra-log": return <ZraSubmissionLog />;
+      case "zra-report": return <ZraTransactionReport />;
       default: return <DashboardHome />;
     }
   };

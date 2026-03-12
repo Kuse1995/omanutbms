@@ -171,7 +171,7 @@ export function SalesReceiptModal({
         <div className="flex-1 overflow-y-auto overflow-x-hidden -mx-3 px-3 sm:-mx-6 sm:px-6">
           <div id="sales-receipt-content" className="bg-white p-3 sm:p-6 space-y-3 sm:space-y-4 min-w-0">
             <TenantDocumentHeader
-              documentType={isCreditInvoice ? "INVOICE" : "RECEIPT"}
+              documentType={fiscalData?.ysdcrecnum ? "TAX INVOICE" : (isCreditInvoice ? "INVOICE" : "RECEIPT")}
               documentNumber={receiptNumber}
               variant="centered"
             />
@@ -302,28 +302,46 @@ export function SalesReceiptModal({
             )}
 
             {fiscalData?.ysdcrecnum && (
-              <div className="border border-dashed border-muted-foreground/30 rounded-lg p-3 text-xs space-y-1">
-                <p className="font-semibold text-center text-muted-foreground">ZRA Fiscal Data</p>
+              <div className="border border-dashed border-muted-foreground/30 rounded-lg p-3 text-xs space-y-2">
+                <p className="font-bold text-center text-sm">SDC Information</p>
                 <div className="grid grid-cols-2 gap-1">
                   <span className="text-muted-foreground">Fiscal Receipt #:</span>
-                  <span className="font-mono">{fiscalData.ysdcrecnum}</span>
+                  <span className="font-mono font-semibold">{fiscalData.ysdcrecnum}</span>
                   {fiscalData.ysdcid && (
                     <>
                       <span className="text-muted-foreground">SDC ID:</span>
                       <span className="font-mono">{fiscalData.ysdcid}</span>
                     </>
                   )}
+                  <span className="text-muted-foreground">Invoice Type:</span>
+                  <span>{isCreditInvoice ? "Credit Invoice" : "Cash Sale"}</span>
                   {fiscalData.ysdctime && (
                     <>
-                      <span className="text-muted-foreground">ZRA Time:</span>
+                      <span className="text-muted-foreground">VSDC Date/Time:</span>
                       <span>{fiscalData.ysdctime}</span>
                     </>
                   )}
                 </div>
                 {fiscalData.ysdcintdata && (
-                  <p className="font-mono text-[9px] break-all text-muted-foreground mt-1">
-                    Sig: {fiscalData.ysdcintdata.substring(0, 40)}...
-                  </p>
+                  <div className="mt-1">
+                    <span className="text-muted-foreground block">Internal Data:</span>
+                    <p className="font-mono text-[9px] break-all text-muted-foreground">
+                      {fiscalData.ysdcintdata}
+                    </p>
+                  </div>
+                )}
+                {fiscalData.ysdcregsig && (
+                  <div className="mt-1">
+                    <span className="text-muted-foreground block">Fiscal Signature:</span>
+                    <p className="font-mono text-[9px] break-all text-muted-foreground">
+                      {fiscalData.ysdcregsig}
+                    </p>
+                  </div>
+                )}
+                {fiscalData.qr_code && (
+                  <div className="flex justify-center mt-2">
+                    <img src={fiscalData.qr_code} alt="QR Code" className="h-24 w-24" />
+                  </div>
                 )}
               </div>
             )}
