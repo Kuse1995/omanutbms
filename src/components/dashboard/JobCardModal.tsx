@@ -118,7 +118,7 @@ export function JobCardModal({ open, onClose, onSuccess, jobCard }: JobCardModal
       });
     } else if (open && !jobCard) {
       setFormData({
-        customer_id: '',
+        customer_id: 'none',
         customer_name: '',
         customer_phone: '',
         vehicle_make: '',
