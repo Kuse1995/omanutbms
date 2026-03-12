@@ -4,7 +4,7 @@ import {
   MessageSquare, Globe, ShoppingCart, Store, Heart, Receipt, Mail, Building2, 
   Layers, Crown, LogOut, Truck, GraduationCap, Briefcase, GitBranch, RotateCcw, 
   Scissors, UserCircle, Shirt, Warehouse, ArrowLeftRight, MapPin, Factory, 
-  ChevronDown, Landmark, FileText, Wrench, type LucideIcon 
+  ChevronDown, Landmark, FileText, Wrench, ShieldCheck, type LucideIcon 
 } from "lucide-react";
 import {
   Sidebar,
