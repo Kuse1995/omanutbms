@@ -139,6 +139,7 @@ const baseMenuItems: MenuItem[] = [
   { id: "quotations", title: "Quotations", icon: FileText, feature: null },
   { id: "accounts", title: "Accounts", icon: DollarSign, feature: null },
   { id: "assets", title: "Assets", icon: Landmark, feature: null },
+  { id: "zra-log", title: "ZRA Log", icon: ShieldCheck, feature: null },
   { id: "hr", title: "HR & Payroll", icon: Users, feature: 'payroll' },
   { id: "agents", title: "Agents", icon: Users, feature: 'agents' },
   { id: "inventory", title: "Inventory", icon: Package, feature: 'inventory', dynamicTitle: 'inventory' },

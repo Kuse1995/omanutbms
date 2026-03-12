@@ -213,6 +213,7 @@ const Dashboard = () => {
       case "locations": return <LocationsManager />;
       case "production-floor": return <ProductionFloor />;
       case "job-cards": return <JobCardsManager />;
+      case "zra-log": return <ZraSubmissionLog />;
       default: return <DashboardHome />;
     }
   };
