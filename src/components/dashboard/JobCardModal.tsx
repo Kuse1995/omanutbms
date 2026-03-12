@@ -71,7 +71,7 @@ export function JobCardModal({ open, onClose, onSuccess, jobCard }: JobCardModal
 
   // Form state
   const [formData, setFormData] = useState({
-    customer_id: '',
+    customer_id: 'none',
     customer_name: '',
     customer_phone: '',
     vehicle_make: '',
