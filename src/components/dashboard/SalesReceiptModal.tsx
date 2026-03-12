@@ -62,6 +62,7 @@ export function SalesReceiptModal({
   paymentMethod,
   paymentDate,
   litersImpact,
+  fiscalData,
 }: SalesReceiptModalProps) {
   const [isDownloading, setIsDownloading] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
