@@ -24,6 +24,9 @@ export function ZraSettings() {
   const [companyNames, setCompanyNames] = useState('');
   const [securityKey, setSecurityKey] = useState('');
   const [vsdcUrl, setVsdcUrl] = useState('');
+  const [urlMode, setUrlMode] = useState<'standard' | 'sandbox' | 'custom'>('standard');
+  const [vsdcIp, setVsdcIp] = useState('');
+  const [vsdcPort, setVsdcPort] = useState('8080');
 
   useEffect(() => {
     if (businessProfile) {
