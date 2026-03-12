@@ -71,7 +71,7 @@ export function JobCardModal({ open, onClose, onSuccess, jobCard }: JobCardModal
 
   // Form state
   const [formData, setFormData] = useState({
-    customer_id: '',
+    customer_id: 'none',
     customer_name: '',
     customer_phone: '',
     vehicle_make: '',
@@ -88,7 +88,7 @@ export function JobCardModal({ open, onClose, onSuccess, jobCard }: JobCardModal
     parts_total: '',
     intake_date: format(new Date(), 'yyyy-MM-dd'),
     promised_date: '',
-    assigned_technician_id: '',
+    assigned_technician_id: 'none',
     notes: '',
   });
 
@@ -96,7 +96,7 @@ export function JobCardModal({ open, onClose, onSuccess, jobCard }: JobCardModal
   useEffect(() => {
     if (open && jobCard) {
       setFormData({
-        customer_id: jobCard.customer_id || '',
+        customer_id: jobCard.customer_id || 'none',
         customer_name: jobCard.customer_name || '',
         customer_phone: jobCard.customer_phone || '',
         vehicle_make: jobCard.vehicle_make || '',
@@ -113,12 +113,12 @@ export function JobCardModal({ open, onClose, onSuccess, jobCard }: JobCardModal
         parts_total: jobCard.parts_total?.toString() || '',
         intake_date: jobCard.intake_date || format(new Date(), 'yyyy-MM-dd'),
         promised_date: jobCard.promised_date || '',
-        assigned_technician_id: jobCard.assigned_technician_id || '',
+        assigned_technician_id: jobCard.assigned_technician_id || 'none',
         notes: jobCard.notes || '',
       });
     } else if (open && !jobCard) {
       setFormData({
-        customer_id: '',
+        customer_id: 'none',
         customer_name: '',
         customer_phone: '',
         vehicle_make: '',
@@ -135,7 +135,7 @@ export function JobCardModal({ open, onClose, onSuccess, jobCard }: JobCardModal
         parts_total: '',
         intake_date: format(new Date(), 'yyyy-MM-dd'),
         promised_date: '',
-        assigned_technician_id: '',
+        assigned_technician_id: 'none',
         notes: '',
       });
     }
@@ -187,7 +187,7 @@ export function JobCardModal({ open, onClose, onSuccess, jobCard }: JobCardModal
       if (!tenantId) throw new Error('No tenant');
 
       const editableFields = {
-        customer_id: formData.customer_id || null,
+        customer_id: formData.customer_id === 'none' ? null : formData.customer_id || null,
         customer_name: formData.customer_name || null,
         customer_phone: formData.customer_phone || null,
         vehicle_make: formData.vehicle_make || null,
@@ -206,7 +206,7 @@ export function JobCardModal({ open, onClose, onSuccess, jobCard }: JobCardModal
         quoted_total: quotedTotal,
         intake_date: formData.intake_date || null,
         promised_date: formData.promised_date || null,
-        assigned_technician_id: formData.assigned_technician_id || null,
+        assigned_technician_id: formData.assigned_technician_id === 'none' ? null : formData.assigned_technician_id || null,
         notes: formData.notes || null,
       };
 
@@ -368,7 +368,7 @@ export function JobCardModal({ open, onClose, onSuccess, jobCard }: JobCardModal
                     <SelectValue placeholder="Select customer or leave empty for walk-in" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Walk-in Customer</SelectItem>
+                    <SelectItem value="none">Walk-in Customer</SelectItem>
                     {customers?.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.name} {c.phone && `(${c.phone})`}
@@ -439,7 +439,7 @@ export function JobCardModal({ open, onClose, onSuccess, jobCard }: JobCardModal
                       <SelectValue placeholder="Assign technician" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Unassigned</SelectItem>
+                      <SelectItem value="none">Unassigned</SelectItem>
                       {technicians?.map((t) => (
                         <SelectItem key={t.id} value={t.id}>{t.full_name}</SelectItem>
                       ))}
