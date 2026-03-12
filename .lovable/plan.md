@@ -1,38 +1,56 @@
 
 
-# Simplify VSDC URL Configuration
+# Fix: Stock Item Counts Not Showing on Locations Page
 
-## The Problem
+## Problem
 
-The VSDC URL is the local network address of the physical VSDC device ZRA installs on the taxpayer's premises (e.g., `http://192.168.1.100:8080`). This is too technical for most business owners. However, ZRA provides standard URLs during registration, and most taxpayers in Zambia use one of a few known configurations.
+The Locations page shows "0" for the Stock Items column on most branches. This happens because:
+
+1. Products are assigned to locations via `default_location_id` on the `inventory` table
+2. But the Locations page only counts items from the `branch_inventory` table
+3. Most existing products were created before the branch_inventory sync fix, so they have no `branch_inventory` records despite being assigned to a location
+
+For example, the KITWE branch has 1,426 products assigned to it, but the Stock Items column shows 0.
 
 ## Solution
 
-Instead of a raw text input, provide:
+Update the `LocationsManager` to count stock items from **both** sources:
 
-1. **A dropdown with common presets** -- ZRA has a standard sandbox URL and standard production patterns. Offer these as selectable options:
-   - `Sandbox / Testing` → `http://localhost:8080`
-   - `Standard VSDC (Port 8080)` → auto-detected or user enters just the IP
-   - `Custom URL` → falls back to manual entry for advanced users
+1. **`branch_inventory`** -- items that have explicit branch stock records (accurate current stock)
+2. **`inventory.default_location_id`** -- items assigned to a location but without a branch_inventory record yet
 
-2. **Simplified input** -- Instead of asking for a full URL, ask for just the **VSDC IP address** (which ZRA provides on their registration certificate). The system auto-constructs the URL as `http://{ip}:8080/tax`.
-
-3. **Helpful guidance text** -- Add a note explaining: "This is the IP address shown on your ZRA VSDC registration certificate. If unsure, contact your ZRA officer."
-
-4. **Test Connection button** -- Already exists; this gives users instant feedback if the URL works.
+The displayed count will be the higher of the two, ensuring all assigned products are reflected.
 
 ## Changes
 
-### `src/components/dashboard/ZraSettings.tsx`
-- Replace the raw VSDC URL input with a two-option approach:
-  - Radio/select: "Use standard VSDC" vs "Custom URL"
-  - For standard: just an IP address input field with port defaulting to 8080
-  - For custom: full URL input (for advanced users)
-- Add helper text referencing the ZRA registration certificate
-- Auto-construct the full URL from IP + port before saving
+### File: `src/components/dashboard/LocationsManager.tsx`
 
-### `supabase/functions/zra-smart-invoice/index.ts`
-- No changes needed -- it already uses the full URL from the database
+**Add a second query** for inventory items grouped by `default_location_id`:
 
-This keeps the stored value as a full URL (backward compatible) while making the UI much simpler for non-technical users.
+```typescript
+const { data: inventoryByLocation } = await supabase
+  .from("inventory")
+  .select("default_location_id")
+  .eq("tenant_id", tenant.id)
+  .not("default_location_id", "is", null);
+```
+
+**Update the stats mapping** to combine both counts:
+
+```typescript
+const branchInvCount = inventoryData
+  ?.filter(i => i.branch_id === branch.id)
+  .reduce((sum, i) => sum + (i.current_stock || 0), 0) || 0;
+
+const assignedCount = inventoryByLocation
+  ?.filter(i => i.default_location_id === branch.id).length || 0;
+
+// Show the more meaningful number
+inventory_count: Math.max(branchInvCount, assignedCount),
+```
+
+This way, even if `branch_inventory` records haven't been created yet, the Locations page will still show how many products are assigned to each branch. As users create new products (which now auto-sync to `branch_inventory`), the counts will naturally converge.
+
+### Files to modify
+- `src/components/dashboard/LocationsManager.tsx`
 

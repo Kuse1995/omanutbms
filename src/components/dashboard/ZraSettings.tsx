@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Loader2, CheckCircle, XCircle, Zap, ShieldCheck, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,6 +24,9 @@ export function ZraSettings() {
   const [companyNames, setCompanyNames] = useState('');
   const [securityKey, setSecurityKey] = useState('');
   const [vsdcUrl, setVsdcUrl] = useState('');
+  const [urlMode, setUrlMode] = useState<'standard' | 'sandbox' | 'custom'>('standard');
+  const [vsdcIp, setVsdcIp] = useState('');
+  const [vsdcPort, setVsdcPort] = useState('8080');
 
   useEffect(() => {
     if (businessProfile) {
@@ -30,14 +34,39 @@ export function ZraSettings() {
       setCompanyTin((businessProfile as any).zra_company_tin ?? '');
       setCompanyNames((businessProfile as any).zra_company_names ?? '');
       setSecurityKey((businessProfile as any).zra_security_key ?? '');
-      setVsdcUrl((businessProfile as any).zra_vsdc_url ?? '');
+      const savedUrl = (businessProfile as any).zra_vsdc_url ?? '';
+      setVsdcUrl(savedUrl);
+      // Parse saved URL to determine mode
+      if (!savedUrl) {
+        setUrlMode('standard');
+      } else if (savedUrl.includes('localhost')) {
+        setUrlMode('sandbox');
+      } else {
+        // Try to extract IP and port from saved URL
+        const match = savedUrl.match(/^https?:\/\/([^:/]+)(?::(\d+))?/);
+        if (match) {
+          setVsdcIp(match[1]);
+          setVsdcPort(match[2] || '8080');
+          setUrlMode('standard');
+        } else {
+          setUrlMode('custom');
+        }
+      }
     }
   }, [businessProfile]);
+
+  const getConstructedUrl = () => {
+    if (urlMode === 'sandbox') return 'http://localhost:8080';
+    if (urlMode === 'custom') return vsdcUrl;
+    if (!vsdcIp) return '';
+    return `http://${vsdcIp}:${vsdcPort}`;
+  };
 
   const handleSave = async () => {
     if (!tenantId) return;
     setSaving(true);
     try {
+      const finalUrl = getConstructedUrl();
       const { error } = await supabase
         .from('business_profiles')
         .update({
@@ -45,7 +74,7 @@ export function ZraSettings() {
           zra_company_tin: companyTin || null,
           zra_company_names: companyNames || null,
           zra_security_key: securityKey || null,
-          zra_vsdc_url: vsdcUrl || null,
+          zra_vsdc_url: finalUrl || null,
         } as any)
         .eq('tenant_id', tenantId);
 
@@ -140,20 +169,74 @@ export function ZraSettings() {
                     onChange={(e) => setSecurityKey(e.target.value)}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="zra-url">VSDC Server URL</Label>
-                  <Input
-                    id="zra-url"
-                    placeholder="http://your-vsdc-server:port"
-                    value={vsdcUrl}
-                    onChange={(e) => setVsdcUrl(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">Provided by ZRA during VSDC registration</p>
+                <div className="space-y-3 sm:col-span-2">
+                  <Label>VSDC Connection</Label>
+                  <RadioGroup value={urlMode} onValueChange={(v) => setUrlMode(v as any)} className="flex flex-wrap gap-4">
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="standard" id="url-standard" />
+                      <Label htmlFor="url-standard" className="font-normal cursor-pointer">Standard VSDC (enter IP)</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="sandbox" id="url-sandbox" />
+                      <Label htmlFor="url-sandbox" className="font-normal cursor-pointer">Sandbox / Testing</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="custom" id="url-custom" />
+                      <Label htmlFor="url-custom" className="font-normal cursor-pointer">Custom URL</Label>
+                    </div>
+                  </RadioGroup>
+
+                  {urlMode === 'standard' && (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <Label htmlFor="zra-ip">VSDC IP Address</Label>
+                        <Input
+                          id="zra-ip"
+                          placeholder="e.g. 192.168.1.100"
+                          value={vsdcIp}
+                          onChange={(e) => setVsdcIp(e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">From your ZRA VSDC registration certificate</p>
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="zra-port">Port</Label>
+                        <Input
+                          id="zra-port"
+                          placeholder="8080"
+                          value={vsdcPort}
+                          onChange={(e) => setVsdcPort(e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">Usually 8080 (default)</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {urlMode === 'custom' && (
+                    <div className="space-y-1">
+                      <Label htmlFor="zra-url">Full VSDC URL</Label>
+                      <Input
+                        id="zra-url"
+                        placeholder="http://your-vsdc-server:port"
+                        value={vsdcUrl}
+                        onChange={(e) => setVsdcUrl(e.target.value)}
+                      />
+                    </div>
+                  )}
+
+                  {urlMode === 'sandbox' && (
+                    <p className="text-xs text-muted-foreground">Will connect to <code className="bg-muted px-1 rounded">http://localhost:8080</code> for testing.</p>
+                  )}
+
+                  {getConstructedUrl() && (
+                    <p className="text-xs text-muted-foreground">
+                      Server URL: <code className="bg-muted px-1 rounded">{getConstructedUrl()}</code>
+                    </p>
+                  )}
                 </div>
               </div>
 
               <div className="flex items-center gap-3 pt-2">
-                <Button onClick={handleTestConnection} variant="outline" disabled={testing || !companyTin || !securityKey || !vsdcUrl}>
+                <Button onClick={handleTestConnection} variant="outline" disabled={testing || !companyTin || !securityKey || !getConstructedUrl()}>
                   {testing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                   Test Connection
                 </Button>
