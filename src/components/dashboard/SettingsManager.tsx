@@ -6,12 +6,13 @@ import { WhatsAppSettings } from "./WhatsAppSettings";
 import { UserProfileSettings } from "./UserProfileSettings";
 import { BmsIntegrationSettings } from "./BmsIntegrationSettings";
 import { BmsStatusDashboard } from "./BmsStatusDashboard";
+import { ZraSettings } from "./ZraSettings";
 import { useAuth } from "@/hooks/useAuth";
 import { useFeatures } from "@/hooks/useFeatures";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, KeyRound, AlertTriangle, History, PlayCircle, HelpCircle, MessageCircle, UserCircle, Zap } from "lucide-react";
+import { Users, KeyRound, AlertTriangle, History, PlayCircle, HelpCircle, MessageCircle, UserCircle, Zap, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function SettingsManager() {
@@ -60,6 +61,12 @@ export function SettingsManager() {
             <HelpCircle className="h-4 w-4" />
             Help & Tour
           </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="zra" className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4" />
+              ZRA Smart Invoice
+            </TabsTrigger>
+          )}
           {isAdmin && (
             <TabsTrigger value="bms" className="flex items-center gap-2">
               <Zap className="h-4 w-4" />
@@ -121,6 +128,12 @@ export function SettingsManager() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {isAdmin && (
+          <TabsContent value="zra">
+            <ZraSettings />
+          </TabsContent>
+        )}
 
         {isAdmin && (
           <TabsContent value="bms">
