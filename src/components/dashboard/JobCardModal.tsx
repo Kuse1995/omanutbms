@@ -368,7 +368,7 @@ export function JobCardModal({ open, onClose, onSuccess, jobCard }: JobCardModal
                     <SelectValue placeholder="Select customer or leave empty for walk-in" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Walk-in Customer</SelectItem>
+                    <SelectItem value="none">Walk-in Customer</SelectItem>
                     {customers?.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.name} {c.phone && `(${c.phone})`}
