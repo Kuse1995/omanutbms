@@ -6,12 +6,13 @@ import { WhatsAppSettings } from "./WhatsAppSettings";
 import { UserProfileSettings } from "./UserProfileSettings";
 import { BmsIntegrationSettings } from "./BmsIntegrationSettings";
 import { BmsStatusDashboard } from "./BmsStatusDashboard";
+import { ZraSettings } from "./ZraSettings";
 import { useAuth } from "@/hooks/useAuth";
 import { useFeatures } from "@/hooks/useFeatures";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, KeyRound, AlertTriangle, History, PlayCircle, HelpCircle, MessageCircle, UserCircle, Zap } from "lucide-react";
+import { Users, KeyRound, AlertTriangle, History, PlayCircle, HelpCircle, MessageCircle, UserCircle, Zap, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function SettingsManager() {
