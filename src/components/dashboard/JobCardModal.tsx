@@ -135,7 +135,7 @@ export function JobCardModal({ open, onClose, onSuccess, jobCard }: JobCardModal
         parts_total: '',
         intake_date: format(new Date(), 'yyyy-MM-dd'),
         promised_date: '',
-        assigned_technician_id: '',
+        assigned_technician_id: 'none',
         notes: '',
       });
     }
