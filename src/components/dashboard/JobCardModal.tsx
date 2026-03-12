@@ -187,7 +187,7 @@ export function JobCardModal({ open, onClose, onSuccess, jobCard }: JobCardModal
       if (!tenantId) throw new Error('No tenant');
 
       const editableFields = {
-        customer_id: formData.customer_id || null,
+        customer_id: formData.customer_id === 'none' ? null : formData.customer_id || null,
         customer_name: formData.customer_name || null,
         customer_phone: formData.customer_phone || null,
         vehicle_make: formData.vehicle_make || null,
