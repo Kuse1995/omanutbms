@@ -301,6 +301,33 @@ export function SalesReceiptModal({
               </div>
             )}
 
+            {fiscalData?.ysdcrecnum && (
+              <div className="border border-dashed border-muted-foreground/30 rounded-lg p-3 text-xs space-y-1">
+                <p className="font-semibold text-center text-muted-foreground">ZRA Fiscal Data</p>
+                <div className="grid grid-cols-2 gap-1">
+                  <span className="text-muted-foreground">Fiscal Receipt #:</span>
+                  <span className="font-mono">{fiscalData.ysdcrecnum}</span>
+                  {fiscalData.ysdcid && (
+                    <>
+                      <span className="text-muted-foreground">SDC ID:</span>
+                      <span className="font-mono">{fiscalData.ysdcid}</span>
+                    </>
+                  )}
+                  {fiscalData.ysdctime && (
+                    <>
+                      <span className="text-muted-foreground">ZRA Time:</span>
+                      <span>{fiscalData.ysdctime}</span>
+                    </>
+                  )}
+                </div>
+                {fiscalData.ysdcintdata && (
+                  <p className="font-mono text-[9px] break-all text-muted-foreground mt-1">
+                    Sig: {fiscalData.ysdcintdata.substring(0, 40)}...
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Compliance Footer */}
             <DocumentComplianceFooter />
           </div>
