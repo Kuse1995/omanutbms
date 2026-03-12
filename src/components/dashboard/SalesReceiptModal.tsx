@@ -171,7 +171,7 @@ export function SalesReceiptModal({
         <div className="flex-1 overflow-y-auto overflow-x-hidden -mx-3 px-3 sm:-mx-6 sm:px-6">
           <div id="sales-receipt-content" className="bg-white p-3 sm:p-6 space-y-3 sm:space-y-4 min-w-0">
             <TenantDocumentHeader
-              documentType={isCreditInvoice ? "INVOICE" : "RECEIPT"}
+              documentType={fiscalData?.ysdcrecnum ? "TAX INVOICE" : (isCreditInvoice ? "INVOICE" : "RECEIPT")}
               documentNumber={receiptNumber}
               variant="centered"
             />
