@@ -855,6 +855,32 @@ export function SalesRecorder() {
         });
       }
 
+      // ZRA VSDC auto-submit (fire-and-forget)
+      if ((businessProfile as any)?.zra_vsdc_enabled) {
+        const saleNum = paymentMethod === "credit_invoice" ? invoiceNumber : receiptNumber;
+        supabase.functions.invoke('zra-smart-invoice', {
+          body: {
+            action: paymentMethod === "credit_invoice" ? 'submit_invoice' : 'submit_invoice',
+            tenant_id: tenantId,
+            invoice_num: saleNum,
+            items: cart.map(item => ({
+              sku: item.productId || 'ITEM',
+              name: item.name,
+              quantity: item.quantity,
+              unit_price: item.unitPrice,
+            })),
+            client_name: customerName.trim() || null,
+            related_table: paymentMethod === "credit_invoice" ? 'invoices' : 'sales',
+          },
+        }).then(({ data }) => {
+          if (data?.success) {
+            console.log('ZRA submission successful:', data.fiscal_data);
+          } else {
+            console.warn('ZRA submission failed:', data?.error);
+          }
+        }).catch(err => console.warn('ZRA auto-submit error:', err));
+      }
+
       resetAllForm();
       fetchInventory();
     } catch (error) {
