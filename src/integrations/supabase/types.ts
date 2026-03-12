@@ -2788,6 +2788,7 @@ export type Database = {
           is_demo: boolean | null
           notes: string | null
           paid_amount: number
+          print_count: number | null
           risk_adjustment_amount: number | null
           risk_adjustment_notes: string | null
           source_quotation_id: string | null
@@ -2816,6 +2817,7 @@ export type Database = {
           is_demo?: boolean | null
           notes?: string | null
           paid_amount?: number
+          print_count?: number | null
           risk_adjustment_amount?: number | null
           risk_adjustment_notes?: string | null
           source_quotation_id?: string | null
@@ -2844,6 +2846,7 @@ export type Database = {
           is_demo?: boolean | null
           notes?: string | null
           paid_amount?: number
+          print_count?: number | null
           risk_adjustment_amount?: number | null
           risk_adjustment_notes?: string | null
           source_quotation_id?: string | null
@@ -3104,6 +3107,7 @@ export type Database = {
           notes: string | null
           payment_date: string
           payment_method: string | null
+          print_count: number | null
           receipt_number: string
           tenant_id: string | null
         }
@@ -3119,6 +3123,7 @@ export type Database = {
           notes?: string | null
           payment_date?: string
           payment_method?: string | null
+          print_count?: number | null
           receipt_number: string
           tenant_id?: string | null
         }
@@ -3134,6 +3139,7 @@ export type Database = {
           notes?: string | null
           payment_date?: string
           payment_method?: string | null
+          print_count?: number | null
           receipt_number?: string
           tenant_id?: string | null
         }
