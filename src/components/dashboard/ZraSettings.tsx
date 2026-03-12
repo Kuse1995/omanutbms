@@ -236,7 +236,7 @@ export function ZraSettings() {
               </div>
 
               <div className="flex items-center gap-3 pt-2">
-                <Button onClick={handleTestConnection} variant="outline" disabled={testing || !companyTin || !securityKey || !vsdcUrl}>
+                <Button onClick={handleTestConnection} variant="outline" disabled={testing || !companyTin || !securityKey || !getConstructedUrl()}>
                   {testing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                   Test Connection
                 </Button>
