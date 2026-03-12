@@ -62,6 +62,12 @@ export function SettingsManager() {
             Help & Tour
           </TabsTrigger>
           {isAdmin && (
+            <TabsTrigger value="zra" className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4" />
+              ZRA Smart Invoice
+            </TabsTrigger>
+          )}
+          {isAdmin && (
             <TabsTrigger value="bms" className="flex items-center gap-2">
               <Zap className="h-4 w-4" />
               BMS Integration
