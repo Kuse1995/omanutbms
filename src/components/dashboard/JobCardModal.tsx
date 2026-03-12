@@ -206,7 +206,7 @@ export function JobCardModal({ open, onClose, onSuccess, jobCard }: JobCardModal
         quoted_total: quotedTotal,
         intake_date: formData.intake_date || null,
         promised_date: formData.promised_date || null,
-        assigned_technician_id: formData.assigned_technician_id || null,
+        assigned_technician_id: formData.assigned_technician_id === 'none' ? null : formData.assigned_technician_id || null,
         notes: formData.notes || null,
       };
 
