@@ -36,6 +36,14 @@ interface SalesReceiptModalProps {
   paymentMethod: string;
   paymentDate: string;
   litersImpact: number;
+  fiscalData?: {
+    ysdcrecnum?: string;
+    ysdcid?: string;
+    ysdcintdata?: string;
+    ysdcregsig?: string;
+    ysdctime?: string;
+    qr_code?: string;
+  } | null;
 }
 
 export function SalesReceiptModal({
