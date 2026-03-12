@@ -96,7 +96,7 @@ const menuCategories: MenuCategory[] = [
     id: 'sales-finance',
     label: 'Sales & Finance',
     icon: DollarSign,
-    items: ['sales', 'receipts', 'quotations', 'accounts', 'assets', 'zra-log'],
+    items: ['sales', 'receipts', 'quotations', 'accounts', 'assets', 'zra-log', 'zra-report'],
   },
   {
     id: 'inventory-stock',
