@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.bms-callback-dispatcher]
 verify_jwt = false
+
+[functions.zra-smart-invoice]
+verify_jwt = false

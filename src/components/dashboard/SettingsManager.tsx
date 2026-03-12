@@ -130,6 +130,12 @@ export function SettingsManager() {
         </TabsContent>
 
         {isAdmin && (
+          <TabsContent value="zra">
+            <ZraSettings />
+          </TabsContent>
+        )}
+
+        {isAdmin && (
           <TabsContent value="bms">
             <div className="space-y-6">
               <BmsIntegrationSettings />
