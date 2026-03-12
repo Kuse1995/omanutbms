@@ -1045,6 +1045,11 @@ export type Database = {
           whatsapp_messages_used: number | null
           whatsapp_usage_reset_date: string | null
           white_label_enabled: boolean | null
+          zra_company_names: string | null
+          zra_company_tin: string | null
+          zra_security_key: string | null
+          zra_vsdc_enabled: boolean | null
+          zra_vsdc_url: string | null
         }
         Insert: {
           accent_color?: string | null
@@ -1101,6 +1106,11 @@ export type Database = {
           whatsapp_messages_used?: number | null
           whatsapp_usage_reset_date?: string | null
           white_label_enabled?: boolean | null
+          zra_company_names?: string | null
+          zra_company_tin?: string | null
+          zra_security_key?: string | null
+          zra_vsdc_enabled?: boolean | null
+          zra_vsdc_url?: string | null
         }
         Update: {
           accent_color?: string | null
@@ -1157,6 +1167,11 @@ export type Database = {
           whatsapp_messages_used?: number | null
           whatsapp_usage_reset_date?: string | null
           white_label_enabled?: boolean | null
+          zra_company_names?: string | null
+          zra_company_tin?: string | null
+          zra_security_key?: string | null
+          zra_vsdc_enabled?: boolean | null
+          zra_vsdc_url?: string | null
         }
         Relationships: [
           {
@@ -5212,6 +5227,59 @@ export type Database = {
           },
           {
             foreignKeyName: "whatsapp_user_mappings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zra_invoice_log: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          fiscal_data: Json | null
+          flag: string
+          id: string
+          invoice_num: string
+          related_id: string | null
+          related_table: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+          zra_response: Json | null
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          fiscal_data?: Json | null
+          flag?: string
+          id?: string
+          invoice_num: string
+          related_id?: string | null
+          related_table?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          zra_response?: Json | null
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          fiscal_data?: Json | null
+          flag?: string
+          id?: string
+          invoice_num?: string
+          related_id?: string | null
+          related_table?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          zra_response?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zra_invoice_log_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
