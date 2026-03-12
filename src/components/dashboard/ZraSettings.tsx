@@ -34,9 +34,33 @@ export function ZraSettings() {
       setCompanyTin((businessProfile as any).zra_company_tin ?? '');
       setCompanyNames((businessProfile as any).zra_company_names ?? '');
       setSecurityKey((businessProfile as any).zra_security_key ?? '');
-      setVsdcUrl((businessProfile as any).zra_vsdc_url ?? '');
+      const savedUrl = (businessProfile as any).zra_vsdc_url ?? '';
+      setVsdcUrl(savedUrl);
+      // Parse saved URL to determine mode
+      if (!savedUrl) {
+        setUrlMode('standard');
+      } else if (savedUrl.includes('localhost')) {
+        setUrlMode('sandbox');
+      } else {
+        // Try to extract IP and port from saved URL
+        const match = savedUrl.match(/^https?:\/\/([^:/]+)(?::(\d+))?/);
+        if (match) {
+          setVsdcIp(match[1]);
+          setVsdcPort(match[2] || '8080');
+          setUrlMode('standard');
+        } else {
+          setUrlMode('custom');
+        }
+      }
     }
   }, [businessProfile]);
+
+  const getConstructedUrl = () => {
+    if (urlMode === 'sandbox') return 'http://localhost:8080';
+    if (urlMode === 'custom') return vsdcUrl;
+    if (!vsdcIp) return '';
+    return `http://${vsdcIp}:${vsdcPort}`;
+  };
 
   const handleSave = async () => {
     if (!tenantId) return;
