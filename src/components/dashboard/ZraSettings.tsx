@@ -66,6 +66,7 @@ export function ZraSettings() {
     if (!tenantId) return;
     setSaving(true);
     try {
+      const finalUrl = getConstructedUrl();
       const { error } = await supabase
         .from('business_profiles')
         .update({
@@ -73,7 +74,7 @@ export function ZraSettings() {
           zra_company_tin: companyTin || null,
           zra_company_names: companyNames || null,
           zra_security_key: securityKey || null,
-          zra_vsdc_url: vsdcUrl || null,
+          zra_vsdc_url: finalUrl || null,
         } as any)
         .eq('tenant_id', tenantId);
 
