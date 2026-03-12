@@ -439,7 +439,7 @@ export function JobCardModal({ open, onClose, onSuccess, jobCard }: JobCardModal
                       <SelectValue placeholder="Assign technician" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Unassigned</SelectItem>
+                      <SelectItem value="none">Unassigned</SelectItem>
                       {technicians?.map((t) => (
                         <SelectItem key={t.id} value={t.id}>{t.full_name}</SelectItem>
                       ))}
