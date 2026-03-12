@@ -96,7 +96,7 @@ export function JobCardModal({ open, onClose, onSuccess, jobCard }: JobCardModal
   useEffect(() => {
     if (open && jobCard) {
       setFormData({
-        customer_id: jobCard.customer_id || '',
+        customer_id: jobCard.customer_id || 'none',
         customer_name: jobCard.customer_name || '',
         customer_phone: jobCard.customer_phone || '',
         vehicle_make: jobCard.vehicle_make || '',
