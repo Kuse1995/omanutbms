@@ -113,7 +113,7 @@ export function JobCardModal({ open, onClose, onSuccess, jobCard }: JobCardModal
         parts_total: jobCard.parts_total?.toString() || '',
         intake_date: jobCard.intake_date || format(new Date(), 'yyyy-MM-dd'),
         promised_date: jobCard.promised_date || '',
-        assigned_technician_id: jobCard.assigned_technician_id || '',
+        assigned_technician_id: jobCard.assigned_technician_id || 'none',
         notes: jobCard.notes || '',
       });
     } else if (open && !jobCard) {
