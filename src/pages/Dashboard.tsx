@@ -156,7 +156,16 @@ const Dashboard = () => {
     }
   }, [activeTab, canAccessTab, loading, toast, isSuperAdmin, isCustomDesignerEnabled, isProductionTrackingEnabled]);
 
+  const isInactive = businessProfile?.billing_status === 'inactive';
+  const allowedWhenInactive: DashboardTab[] = ["dashboard", "settings", "tenant-settings"];
+
   const handleSetActiveTab = (tab: DashboardTab) => {
+    // Block navigation when subscription is inactive (except dashboard + settings)
+    if (isInactive && !allowedWhenInactive.includes(tab) && !isSuperAdmin) {
+      toast({ title: "Subscription required", description: "Please activate your subscription to access this feature.", variant: "destructive" });
+      return;
+    }
+
     if (tab === "platform-admin") {
       if (isSuperAdmin) {
         setActiveTab(tab);
