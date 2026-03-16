@@ -7,7 +7,7 @@ import {
   Package, DollarSign, Users, AlertTriangle, TrendingUp, Droplets, 
   ShoppingCart, Receipt, FileText, Heart, CreditCard, Clock, 
   GraduationCap, Briefcase, Truck, Wheat, UtensilsCrossed, Scissors,
-  Stethoscope, Wrench, Calendar, Pill, Store, Sparkles, type LucideIcon 
+  Stethoscope, Wrench, Calendar, Pill, Store, Sparkles, ArrowRight, type LucideIcon 
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useFeatures } from "@/hooks/useFeatures";
