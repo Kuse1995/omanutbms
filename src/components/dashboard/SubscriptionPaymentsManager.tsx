@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle2, Clock, XCircle, DollarSign, AlertTriangle, Search, Loader2 } from "lucide-react";
+import { CheckCircle2, Clock, XCircle, DollarSign, AlertTriangle, Search, Loader2, RefreshCw, Zap } from "lucide-react";
 import { format, addDays, addMonths, addYears, isAfter, isBefore, startOfMonth, endOfMonth, subMonths } from "date-fns";
 
 interface Payment {
@@ -26,6 +26,7 @@ interface Payment {
   verified_at: string | null;
   payment_reference: string | null;
   failure_reason: string | null;
+  lenco_reference: string | null;
   tenant_name?: string;
 }
 
@@ -42,6 +43,9 @@ export function SubscriptionPaymentsManager() {
   const [expiringTenants, setExpiringTenants] = useState<ExpiringTenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState<string | null>(null);
+  const [checking, setChecking] = useState<string | null>(null);
+  const [recheckingAll, setRecheckingAll] = useState(false);
+  const [runningExpiry, setRunningExpiry] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [statusFilter, setStatusFilter] = useState("all");
@@ -67,7 +71,6 @@ export function SubscriptionPaymentsManager() {
       return;
     }
 
-    // Fetch tenant names
     const tenantIds = [...new Set((data || []).map(p => p.tenant_id))];
     const { data: tenants } = await supabase
       .from("tenants")
@@ -111,7 +114,6 @@ export function SubscriptionPaymentsManager() {
     if (!selectedPayment) return;
     setConfirming(selectedPayment.id);
 
-    // 1. Update subscription_payments
     const { error: payError } = await supabase
       .from("subscription_payments")
       .update({ status: "completed", verified_at: new Date().toISOString() })
@@ -123,7 +125,6 @@ export function SubscriptionPaymentsManager() {
       return;
     }
 
-    // 2. Update business_profiles billing dates
     const now = new Date();
     const endDate = selectedPayment.billing_period === "annual"
       ? addYears(now, 1)
@@ -144,6 +145,90 @@ export function SubscriptionPaymentsManager() {
     setConfirmDialogOpen(false);
     setSelectedPayment(null);
     fetchPayments();
+    fetchExpiringTenants();
+  };
+
+  const handleCheckWithLenco = async (payment: Payment) => {
+    setChecking(payment.id);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) {
+        toast({ title: "Not authenticated", variant: "destructive" });
+        setChecking(null);
+        return;
+      }
+
+      const res = await supabase.functions.invoke("lenco-check-status", {
+        body: { payment_id: payment.id },
+      });
+
+      if (res.error) {
+        toast({ title: "Lenco check failed", description: String(res.error), variant: "destructive" });
+      } else {
+        const result = res.data;
+        if (result.status === "completed") {
+          toast({ title: "Payment confirmed by Lenco", description: `${payment.tenant_name}'s payment verified & subscription activated.` });
+        } else if (result.status === "failed" || result.status === "expired") {
+          toast({ title: "Payment failed", description: result.failure_reason || "Payment was not successful.", variant: "destructive" });
+        } else {
+          toast({ title: "Still pending", description: `Lenco status: ${result.lenco_status || "pending"}` });
+        }
+      }
+    } catch (err) {
+      toast({ title: "Error checking Lenco", description: String(err), variant: "destructive" });
+    }
+    setChecking(null);
+    fetchPayments();
+    fetchExpiringTenants();
+  };
+
+  const handleRecheckAllPending = async () => {
+    const pendingPayments = payments.filter(p => p.status === "pending");
+    if (pendingPayments.length === 0) {
+      toast({ title: "No pending payments to check" });
+      return;
+    }
+
+    setRecheckingAll(true);
+    let updated = 0;
+    let errors = 0;
+
+    for (const payment of pendingPayments) {
+      try {
+        const res = await supabase.functions.invoke("lenco-check-status", {
+          body: { payment_id: payment.id },
+        });
+        if (!res.error && res.data?.status !== "pending") {
+          updated++;
+        }
+      } catch {
+        errors++;
+      }
+    }
+
+    toast({
+      title: "Recheck complete",
+      description: `${updated} updated, ${errors} errors, ${pendingPayments.length - updated - errors} still pending.`,
+    });
+    setRecheckingAll(false);
+    fetchPayments();
+    fetchExpiringTenants();
+  };
+
+  const handleRunExpiry = async () => {
+    setRunningExpiry(true);
+    try {
+      const res = await supabase.functions.invoke("expire-subscriptions");
+      if (res.error) {
+        toast({ title: "Expiry check failed", description: String(res.error), variant: "destructive" });
+      } else {
+        toast({ title: "Expiry check complete", description: `${res.data?.deactivated || 0} subscription(s) deactivated.` });
+      }
+    } catch (err) {
+      toast({ title: "Error", description: String(err), variant: "destructive" });
+    }
+    setRunningExpiry(false);
     fetchExpiringTenants();
   };
 
@@ -241,10 +326,22 @@ export function SubscriptionPaymentsManager() {
       {expiringTenants.length > 0 && (
         <Card className="border-yellow-500/50">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-yellow-500" />
-              Subscriptions Expiring / Expired ({expiringTenants.length})
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                Subscriptions Expiring / Expired ({expiringTenants.length})
+              </CardTitle>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleRunExpiry}
+                disabled={runningExpiry}
+                className="gap-1"
+              >
+                {runningExpiry ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
+                Run Expiry Check
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
@@ -255,6 +352,7 @@ export function SubscriptionPaymentsManager() {
                     <div>
                       <span className="font-medium">{t.tenant_name}</span>
                       <span className="text-muted-foreground ml-2">({planLabel(t.billing_plan)})</span>
+                      <Badge variant="outline" className="ml-2 text-xs">{t.billing_status}</Badge>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={expired ? "text-destructive font-medium" : "text-yellow-600"}>
@@ -269,7 +367,7 @@ export function SubscriptionPaymentsManager() {
         </Card>
       )}
 
-      {/* Filters */}
+      {/* Filters + Actions */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -297,6 +395,16 @@ export function SubscriptionPaymentsManager() {
             <SelectItem value="last_month">Last Month</SelectItem>
           </SelectContent>
         </Select>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRecheckAllPending}
+          disabled={recheckingAll}
+          className="gap-1 whitespace-nowrap"
+        >
+          {recheckingAll ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+          Recheck All Pending
+        </Button>
       </div>
 
       {/* Payments Table */}
@@ -336,20 +444,38 @@ export function SubscriptionPaymentsManager() {
                     <TableCell className="capitalize">{p.billing_period}</TableCell>
                     <TableCell>{p.operator || p.payment_method || "—"}</TableCell>
                     <TableCell className="text-xs">{p.phone_number || "—"}</TableCell>
-                    <TableCell>{statusBadge(p.status)}</TableCell>
+                    <TableCell>
+                      {statusBadge(p.status)}
+                      {p.failure_reason && (
+                        <p className="text-xs text-destructive mt-1">{p.failure_reason}</p>
+                      )}
+                    </TableCell>
                     <TableCell className="text-xs">{format(new Date(p.created_at), "MMM d, yyyy HH:mm")}</TableCell>
                     <TableCell className="text-xs">{p.verified_at ? format(new Date(p.verified_at), "MMM d, yyyy") : "—"}</TableCell>
                     <TableCell>
-                      {p.status === "pending" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={confirming === p.id}
-                          onClick={() => { setSelectedPayment(p); setConfirmDialogOpen(true); }}
-                        >
-                          {confirming === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "Confirm"}
-                        </Button>
-                      )}
+                      <div className="flex gap-1">
+                        {p.status === "pending" && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              title="Check with Lenco"
+                              disabled={checking === p.id}
+                              onClick={() => handleCheckWithLenco(p)}
+                            >
+                              {checking === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={confirming === p.id}
+                              onClick={() => { setSelectedPayment(p); setConfirmDialogOpen(true); }}
+                            >
+                              {confirming === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "Confirm"}
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
