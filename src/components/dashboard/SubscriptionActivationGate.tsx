@@ -14,9 +14,7 @@ export function SubscriptionActivationGate() {
   const navigate = useNavigate();
   const { plans, planKeys, loading } = useBillingPlans();
   const { countryCode } = useGeoLocation();
-  const [dismissed, setDismissed] = useState(false);
-
-  if (loading || dismissed) return null;
+  if (loading) return null;
 
   return (
     <motion.div
