@@ -257,32 +257,53 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
       <RenewalNoticeBanner />
 
       {/* Payment Required Banner for inactive subscriptions */}
-      {businessProfile?.billing_status === 'inactive' && (
-        <div className="mb-6 p-4 rounded-lg border border-destructive/50 bg-destructive/10">
-          <div className="flex items-center gap-3">
-            <CreditCard className="h-5 w-5 text-destructive flex-shrink-0" />
-            <div className="flex-1">
-              <p className="font-semibold text-destructive">Payment Required</p>
-              <p className="text-sm text-muted-foreground">
-                {tenantUser?.is_owner
-                  ? "Your subscription is inactive. Please subscribe to unlock all features."
-                  : "Your organization's subscription is inactive. Please contact your administrator to activate it."}
-              </p>
+      {businessProfile?.billing_status === 'inactive' && (() => {
+        const deactivatedAt = (businessProfile as any)?.deactivated_at;
+        let countdownText = '';
+        if (deactivatedAt) {
+          const deadline = new Date(deactivatedAt);
+          deadline.setDate(deadline.getDate() + 5);
+          const diff = deadline.getTime() - Date.now();
+          if (diff <= 0) {
+            countdownText = 'Grace period expired. Account deletion is imminent.';
+          } else {
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            countdownText = days > 0
+              ? `Account will be deleted in ${days}d ${hours}h.`
+              : `URGENT: Account will be deleted in ${hours}h.`;
+          }
+        }
+        return (
+          <div className="mb-6 p-4 rounded-lg border border-destructive/50 bg-destructive/10">
+            <div className="flex items-center gap-3">
+              <CreditCard className="h-5 w-5 text-destructive flex-shrink-0" />
+              <div className="flex-1">
+                <p className="font-semibold text-destructive">Payment Required</p>
+                <p className="text-sm text-muted-foreground">
+                  {tenantUser?.is_owner
+                    ? "Your subscription is inactive. Please subscribe to unlock all features."
+                    : "Your organization's subscription is inactive. Please contact your administrator to activate it."}
+                </p>
+                {countdownText && (
+                  <p className="text-xs font-medium text-destructive mt-1">⏳ {countdownText}</p>
+                )}
+              </div>
+              {tenantUser?.is_owner && (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => window.location.href = '/pay'}
+                  className="gap-1 flex-shrink-0"
+                >
+                  Subscribe Now
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              )}
             </div>
-            {tenantUser?.is_owner && (
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() => window.location.href = '/pay'}
-                className="gap-1 flex-shrink-0"
-              >
-                Subscribe Now
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       <div className="mb-6">
         <h2 className="text-2xl font-display font-bold text-[#003366] mb-2">Dashboard Overview</h2>
