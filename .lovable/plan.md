@@ -1,55 +1,32 @@
 
-# ZRA VSDC Developer Self-Check Compliance — IMPLEMENTED
 
-## Summary of Changes
+# Prompt Unpaid Users to Make Payment
 
-### 1. Edge Function Expansion (Items 2-14, 27-29) ✅
-Rewrote `supabase/functions/zra-smart-invoice/index.ts` with 20+ actions covering all VSDC endpoints:
-- `get_code_data`, `get_classification`, `save_branch_customer`, `get_branch_customers`
-- `save_branch_user`, `get_branch_info`, `save_item_composition`
-- `get_item_list`, `get_import_items`, `update_import_item`
-- `save_purchase`, `get_purchases`, `submit_debit_note`
-- `save_stock_item`, `get_stock_items`, `update_stock_quantity`
+## Current State
+- `SubscriptionActivationGate` shows a full-screen overlay for inactive owners, but it's **dismissible** via "Maybe Later" — users can close it and use the dashboard freely without paying.
+- `SidebarUpgradeCTA` shows a small sidebar nudge for inactive/trial users, but it's easy to ignore.
+- `RenewalNoticeBanner` only shows for **active** users approaching renewal — not for unpaid/inactive users.
+- Non-owner team members see nothing at all when the subscription is inactive.
 
-### 2. Invoice Immutability (Items 18, 22-23) ✅
-DB trigger `prevent_zra_submitted_modification` on `sales` and `invoices` tables prevents:
-- Modifying invoice/receipt numbers on ZRA-submitted records
-- Deleting ZRA-submitted records
+## Plan
 
-### 3. Tax Invoice Compliance (Item 19) ✅
-- `SalesReceiptModal` shows "TAX INVOICE" label when fiscal data is present
-- Full SDC Information section: fiscal receipt #, SDC ID, invoice type, VSDC date/time, internal data, fiscal signature, QR code
-- `InvoiceViewModal` header changed to "TAX INVOICE"
-- TPIN, company address, contact info already shown via `TenantDocumentHeader`
+### 1. Make SubscriptionActivationGate non-dismissible for inactive tenants
+- Remove the "Maybe Later" / dismiss button entirely
+- Users with `billing_status = 'inactive'` must select a plan — the overlay blocks all dashboard usage
+- This forces payment before they can access any features
 
-### 4. Reprint COPY Tracking (Item 24) ✅
-Added `print_count` column to `payment_receipts` and `invoices` tables.
+### 2. Add a persistent "Payment Required" banner in DashboardHome for all users
+- When `billing_status === 'inactive'`, show a red alert banner at the top of DashboardHome for **all** tenant users (not just owners)
+- Non-owners see "Contact your administrator to activate your subscription"
+- Owners see "Subscribe Now" with a direct link to `/pay`
 
-### 5. ZRA Transaction Report (Items 30-31) ✅
-New `ZraTransactionReport.tsx` component with:
-- Summary cards (total, success, failed, pending)
-- Filterable table by type, status, date range, search
-- Export to Excel, CSV, and PDF
-- Added as "ZRA Report" tab in dashboard sidebar
+### 3. Restrict dashboard navigation when inactive
+- In `Dashboard.tsx`, when `billing_status === 'inactive'`, force `activeTab` to stay on `"dashboard"` and block switching to other tabs
+- Show a toast: "Please activate your subscription to access this feature"
+- Exception: allow access to `"settings"` so users can still manage their account
 
-### 6. Manual Purchase Entry (Item 15) ✅
-New `ManualPurchaseModal.tsx` for recording purchases from suppliers not on Smart Invoice.
+## Files to Modify
+- `src/components/dashboard/SubscriptionActivationGate.tsx` — remove dismiss, make mandatory
+- `src/components/dashboard/DashboardHome.tsx` — add inactive payment banner for all users
+- `src/pages/Dashboard.tsx` — block tab navigation when inactive (except dashboard + settings)
 
-### 7. Credit/Debit Notes (Items 20-21) ✅
-Edge function supports `submit_refund` (FLAG=REFUND) and `submit_debit_note` (FLAG=DEBIT).
-
-## Files Modified
-- `supabase/functions/zra-smart-invoice/index.ts` — Full rewrite with all VSDC endpoints
-- `src/components/dashboard/SalesReceiptModal.tsx` — TAX INVOICE label, full SDC info
-- `src/components/dashboard/InvoiceViewModal.tsx` — TAX INVOICE label
-- `src/components/dashboard/DashboardSidebar.tsx` — Added ZRA Report nav item
-- `src/pages/Dashboard.tsx` — Added zra-report tab
-
-## New Files
-- `src/components/dashboard/ZraTransactionReport.tsx` — Full ZRA transaction report
-- `src/components/dashboard/ManualPurchaseModal.tsx` — Manual purchase entry form
-
-## DB Migration
-- `prevent_zra_submitted_modification()` trigger function
-- Triggers on `sales` and `invoices` tables
-- `print_count` column on `payment_receipts` and `invoices`
