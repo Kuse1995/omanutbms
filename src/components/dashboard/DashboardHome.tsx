@@ -56,7 +56,7 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
   const [showCustomDesignWizard, setShowCustomDesignWizard] = useState(false);
   const { features, loading: featuresLoading, companyName, currencySymbol } = useFeatures();
   const { layout, terminology, businessType } = useBusinessConfig();
-  const { tenantId } = useTenant();
+  const { tenantId, businessProfile, tenantUser } = useTenant();
   const { isCustomDesignerEnabled, isProductionTrackingEnabled } = useEnterpriseFeatures();
 
   const defaultMetrics: DashboardMetrics = {
