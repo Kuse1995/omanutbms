@@ -260,9 +260,10 @@ export function InventoryAgent() {
     queryKey: inventoryQueryKey,
     queryFn: fetchInventoryData,
     enabled: !!tenantId,
-    staleTime: 2 * 60 * 1000, // 2 minutes — data stays fresh, no refetch on tab switch
+    staleTime: 30 * 1000, // 30 seconds — recover quickly from transient errors
     gcTime: 10 * 60 * 1000, // 10 minutes — keep in cache even when unmounted
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
+    retry: 2,
   });
 
   const inventory = inventoryData?.inventory || [];
