@@ -1014,6 +1014,7 @@ export type Database = {
           created_at: string
           currency: string | null
           currency_symbol: string | null
+          deactivated_at: string | null
           detected_country: string | null
           enabled_features: Json | null
           id: string
@@ -1075,6 +1076,7 @@ export type Database = {
           created_at?: string
           currency?: string | null
           currency_symbol?: string | null
+          deactivated_at?: string | null
           detected_country?: string | null
           enabled_features?: Json | null
           id?: string
@@ -1136,6 +1138,7 @@ export type Database = {
           created_at?: string
           currency?: string | null
           currency_symbol?: string | null
+          deactivated_at?: string | null
           detected_country?: string | null
           enabled_features?: Json | null
           id?: string
