@@ -1,55 +1,51 @@
 
-# ZRA VSDC Developer Self-Check Compliance — IMPLEMENTED
 
-## Summary of Changes
+# 5-Day Grace Period Timer with Tenant Deletion
 
-### 1. Edge Function Expansion (Items 2-14, 27-29) ✅
-Rewrote `supabase/functions/zra-smart-invoice/index.ts` with 20+ actions covering all VSDC endpoints:
-- `get_code_data`, `get_classification`, `save_branch_customer`, `get_branch_customers`
-- `save_branch_user`, `get_branch_info`, `save_item_composition`
-- `get_item_list`, `get_import_items`, `update_import_item`
-- `save_purchase`, `get_purchases`, `submit_debit_note`
-- `save_stock_item`, `get_stock_items`, `update_stock_quantity`
+## Overview
+When a tenant's subscription expires and becomes `inactive`, start a 5-day countdown. If they pay within 5 days, the timer resets. If 5 days pass without payment, the tenant and all their data are permanently deleted.
 
-### 2. Invoice Immutability (Items 18, 22-23) ✅
-DB trigger `prevent_zra_submitted_modification` on `sales` and `invoices` tables prevents:
-- Modifying invoice/receipt numbers on ZRA-submitted records
-- Deleting ZRA-submitted records
+## Database Changes
 
-### 3. Tax Invoice Compliance (Item 19) ✅
-- `SalesReceiptModal` shows "TAX INVOICE" label when fiscal data is present
-- Full SDC Information section: fiscal receipt #, SDC ID, invoice type, VSDC date/time, internal data, fiscal signature, QR code
-- `InvoiceViewModal` header changed to "TAX INVOICE"
-- TPIN, company address, contact info already shown via `TenantDocumentHeader`
+### 1. Add `deactivated_at` column to `business_profiles`
+- `deactivated_at TIMESTAMPTZ DEFAULT NULL` — set when billing_status changes to `inactive`, cleared when it changes back to `active`
+- This column drives the 5-day countdown calculation
 
-### 4. Reprint COPY Tracking (Item 24) ✅
-Added `print_count` column to `payment_receipts` and `invoices` tables.
+### 2. Migration: auto-set `deactivated_at` via trigger
+- On UPDATE of `business_profiles`, if `billing_status` changes to `inactive`, set `deactivated_at = NOW()`
+- If `billing_status` changes to `active` or `trial`, set `deactivated_at = NULL`
+- Backfill: set `deactivated_at = NOW()` for all currently inactive tenants that have `deactivated_at IS NULL`
 
-### 5. ZRA Transaction Report (Items 30-31) ✅
-New `ZraTransactionReport.tsx` component with:
-- Summary cards (total, success, failed, pending)
-- Filterable table by type, status, date range, search
-- Export to Excel, CSV, and PDF
-- Added as "ZRA Report" tab in dashboard sidebar
+## Edge Function: `purge-expired-tenants`
 
-### 6. Manual Purchase Entry (Item 15) ✅
-New `ManualPurchaseModal.tsx` for recording purchases from suppliers not on Smart Invoice.
+A new edge function (called daily by cron) that:
+1. Finds tenants where `billing_status = 'inactive'` AND `deactivated_at < NOW() - 5 days`
+2. For each, cascading delete: `DELETE FROM tenants WHERE id = tenant_id` (cascades to tenant_users, business_profiles, inventory, sales, invoices, etc.)
+3. Logs deleted tenant IDs
 
-### 7. Credit/Debit Notes (Items 20-21) ✅
-Edge function supports `submit_refund` (FLAG=REFUND) and `submit_debit_note` (FLAG=DEBIT).
+## Frontend: Countdown Timer in SubscriptionActivationGate
 
-## Files Modified
-- `supabase/functions/zra-smart-invoice/index.ts` — Full rewrite with all VSDC endpoints
-- `src/components/dashboard/SalesReceiptModal.tsx` — TAX INVOICE label, full SDC info
-- `src/components/dashboard/InvoiceViewModal.tsx` — TAX INVOICE label
-- `src/components/dashboard/DashboardSidebar.tsx` — Added ZRA Report nav item
-- `src/pages/Dashboard.tsx` — Added zra-report tab
+### `SubscriptionActivationGate.tsx`
+- Read `deactivated_at` from `businessProfile`
+- Calculate days/hours remaining from `deactivated_at + 5 days`
+- Display a red countdown banner: "Your account will be permanently deleted in X days Y hours if payment is not received"
+- If < 24 hours, show hours instead of days with urgent styling
 
-## New Files
-- `src/components/dashboard/ZraTransactionReport.tsx` — Full ZRA transaction report
-- `src/components/dashboard/ManualPurchaseModal.tsx` — Manual purchase entry form
+### `DashboardHome.tsx`
+- Show the same countdown in the payment required banner for non-owner users
 
-## DB Migration
-- `prevent_zra_submitted_modification()` trigger function
-- Triggers on `sales` and `invoices` tables
-- `print_count` column on `payment_receipts` and `invoices`
+## Payment Clears Timer
+
+The existing payment confirmation flow (in `SubscriptionPaymentsManager` and Lenco webhook) already sets `billing_status = 'active'`. The new trigger will automatically clear `deactivated_at` when this happens, stopping the countdown.
+
+## Files to Create/Modify
+- **Migration**: Add `deactivated_at` column + trigger to auto-manage it
+- **`supabase/functions/purge-expired-tenants/index.ts`**: New edge function for deletion
+- **Cron job** (via insert tool): Schedule daily purge
+- **`src/components/dashboard/SubscriptionActivationGate.tsx`**: Add countdown timer UI
+- **`src/components/dashboard/DashboardHome.tsx`**: Add countdown to inactive banner
+- **`src/hooks/useTenant.tsx`**: Ensure `deactivated_at` is exposed in `BusinessProfile` interface
+
+## Cascade Safety
+The `tenants` table already has `ON DELETE CASCADE` on `tenant_users`. We need to verify other tables cascade properly or use the edge function to delete in order (inventory, sales, invoices, expenses, etc. → business_profiles → tenants).
+
