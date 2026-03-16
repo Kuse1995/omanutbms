@@ -1,6 +1,7 @@
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { CreditCard, Check, ArrowRight } from "lucide-react";
+import { CreditCard, Check, ArrowRight, AlertTriangle, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +9,7 @@ import { useBillingPlans } from "@/hooks/useBillingPlans";
 import { useGeoLocation } from "@/hooks/useGeoLocation";
 import { formatLocalPrice } from "@/lib/currency-config";
 import { BillingPlan } from "@/lib/billing-plans";
+import { useTenant } from "@/hooks/useTenant";
 
 export function SubscriptionActivationGate() {
   const navigate = useNavigate();
