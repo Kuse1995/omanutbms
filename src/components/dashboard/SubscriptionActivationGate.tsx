@@ -69,6 +69,34 @@ export function SubscriptionActivationGate() {
           </p>
         </div>
 
+        {countdown && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`mb-6 p-4 rounded-lg border flex items-center gap-3 ${
+              countdown.expired || countdown.days === 0
+                ? "border-destructive bg-destructive/10"
+                : "border-orange-500/50 bg-orange-500/10"
+            }`}
+          >
+            {countdown.expired ? (
+              <AlertTriangle className="w-5 h-5 text-destructive flex-shrink-0" />
+            ) : (
+              <Clock className="w-5 h-5 text-orange-500 flex-shrink-0" />
+            )}
+            <p className={`text-sm font-medium ${
+              countdown.expired || countdown.days === 0 ? "text-destructive" : "text-orange-600"
+            }`}>
+              {countdown.expired
+                ? "⚠️ Grace period expired. Your account and all data will be deleted shortly."
+                : countdown.days > 0
+                  ? `⏳ Your account will be permanently deleted in ${countdown.days} day${countdown.days !== 1 ? 's' : ''} and ${countdown.hours} hour${countdown.hours !== 1 ? 's' : ''} if payment is not received.`
+                  : `🚨 URGENT: Your account will be deleted in ${countdown.hours}h ${countdown.minutes}m. Subscribe now to save your data!`
+              }
+            </p>
+          </motion.div>
+        )}
+
         <div className="grid md:grid-cols-3 gap-6 mb-8">
           {planKeys.map((planKey) => {
             const plan = plans[planKey];
