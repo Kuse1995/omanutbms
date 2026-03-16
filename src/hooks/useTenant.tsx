@@ -49,6 +49,7 @@ export interface BusinessProfile {
   billing_start_date: string | null;
   billing_end_date: string | null;
   trial_expires_at?: string | null;
+  deactivated_at?: string | null;
   // TPIN and banking details
   tpin_number?: string | null;
   bank_name?: string | null;

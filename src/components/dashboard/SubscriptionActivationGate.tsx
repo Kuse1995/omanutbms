@@ -11,10 +11,38 @@ import { formatLocalPrice } from "@/lib/currency-config";
 import { BillingPlan } from "@/lib/billing-plans";
 import { useTenant } from "@/hooks/useTenant";
 
+function useGraceCountdown(deactivatedAt: string | null | undefined) {
+  const [timeLeft, setTimeLeft] = useState<{ days: number; hours: number; minutes: number; expired: boolean } | null>(null);
+
+  useEffect(() => {
+    if (!deactivatedAt) { setTimeLeft(null); return; }
+
+    const calc = () => {
+      const deadline = new Date(deactivatedAt);
+      deadline.setDate(deadline.getDate() + 5);
+      const now = new Date();
+      const diff = deadline.getTime() - now.getTime();
+      if (diff <= 0) return { days: 0, hours: 0, minutes: 0, expired: true };
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      return { days, hours, minutes, expired: false };
+    };
+
+    setTimeLeft(calc());
+    const interval = setInterval(() => setTimeLeft(calc()), 60_000);
+    return () => clearInterval(interval);
+  }, [deactivatedAt]);
+
+  return timeLeft;
+}
+
 export function SubscriptionActivationGate() {
   const navigate = useNavigate();
   const { plans, planKeys, loading } = useBillingPlans();
   const { countryCode } = useGeoLocation();
+  const { businessProfile } = useTenant();
+  const countdown = useGraceCountdown(businessProfile?.deactivated_at);
   if (loading) return null;
 
   return (
