@@ -106,7 +106,7 @@ export function SubscriptionActivationGate() {
                 className={`relative p-6 transition-all hover:shadow-lg cursor-pointer border-2 ${
                   plan.popular ? "border-primary shadow-md" : "border-border hover:border-primary/50"
                 }`}
-                onClick={() => navigate(`/pay?plan=${planKey}`)}
+                onClick={() => navigate(`/pay?plan=${planKey}${businessProfile?.deactivated_at ? `&deactivated_at=${encodeURIComponent(businessProfile.deactivated_at)}` : ''}`)}
               >
                 {plan.popular && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2">
@@ -130,7 +130,7 @@ export function SubscriptionActivationGate() {
                   className={`w-full mb-4 gap-2 ${plan.popular ? "" : "bg-foreground hover:bg-foreground/90"}`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    navigate(`/pay?plan=${planKey}`);
+                    navigate(`/pay?plan=${planKey}${businessProfile?.deactivated_at ? `&deactivated_at=${encodeURIComponent(businessProfile.deactivated_at)}` : ''}`);
                   }}
                 >
                   {planKey === "enterprise" ? "Contact Sales" : "Subscribe Now"}

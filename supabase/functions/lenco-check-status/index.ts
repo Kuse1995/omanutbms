@@ -84,103 +84,191 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check status with Lenco API
-    // We store the provider-side collection identifier in `payment_reference` (preferred).
-    // Fallback to metadata values for older rows.
+    // Build list of possible IDs to try for Lenco lookup
     const metadata = (payment.metadata || {}) as Record<string, unknown>;
-    const providerId =
-      (payment.payment_reference as string | null) ||
-      (metadata.lenco_provider_reference as string | null) ||
-      (metadata.lenco_collection_id as string | null);
+    const fullResponse = (metadata.lenco_full_response || {}) as Record<string, unknown>;
+    
+    // Collect all possible provider IDs
+    const possibleIds: string[] = [];
+    
+    // Priority 1: payment_reference (best candidate)
+    if (payment.payment_reference) possibleIds.push(String(payment.payment_reference));
+    
+    // Priority 2: metadata fields
+    if (metadata.lenco_provider_reference) possibleIds.push(String(metadata.lenco_provider_reference));
+    if (metadata.lenco_collection_id) possibleIds.push(String(metadata.lenco_collection_id));
+    
+    // Priority 3: from full stored response
+    if (fullResponse.id) possibleIds.push(String(fullResponse.id));
+    if (fullResponse.lencoReference) possibleIds.push(String(fullResponse.lencoReference));
+    if (fullResponse.collectionId) possibleIds.push(String(fullResponse.collectionId));
+    if (fullResponse.transactionId) possibleIds.push(String(fullResponse.transactionId));
+    
+    // Deduplicate
+    const uniqueIds = [...new Set(possibleIds.filter(Boolean))];
+    
+    console.log("Payment ID:", payment.id);
+    console.log("Possible Lenco IDs to try:", JSON.stringify(uniqueIds));
+    console.log("Our reference:", payment.lenco_reference);
 
-    // Backward-compat fallback (this is our client reference and may not be valid for /collections/{id})
-    const lencoIdForLookup = providerId || payment.lenco_reference;
+    let lencoData: any = null;
+    let lookupSuccess = false;
 
-    const response = await fetch(
-      `${LENCO_BASE_URL}/collections/${encodeURIComponent(String(lencoIdForLookup))}`,
-      {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${lencoSecretKey}`,
-        "Content-Type": "application/json",
-      },
+    // Strategy 1: Try direct collection lookup with each possible ID
+    for (const lookupId of uniqueIds) {
+      try {
+        const response = await fetch(
+          `${LENCO_BASE_URL}/collections/${encodeURIComponent(lookupId)}`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${lencoSecretKey}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        const data = await response.json();
+        console.log(`Lenco lookup by ID '${lookupId}':`, response.status, JSON.stringify(data));
+
+        if (response.ok && data.data) {
+          lencoData = data;
+          lookupSuccess = true;
+          break;
+        }
+      } catch (e) {
+        console.error(`Lenco lookup error for ID '${lookupId}':`, e);
       }
-    );
+    }
 
-    const lencoData = await response.json();
+    // Strategy 2: Try listing collections filtered by our merchant reference
+    if (!lookupSuccess && payment.lenco_reference) {
+      try {
+        const listResponse = await fetch(
+          `${LENCO_BASE_URL}/collections?reference=${encodeURIComponent(payment.lenco_reference)}`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${lencoSecretKey}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
 
+        const listData = await listResponse.json();
+        console.log("Lenco list by reference:", listResponse.status, JSON.stringify(listData));
+
+        if (listResponse.ok) {
+          // Check both array and single-object response shapes
+          const collections = Array.isArray(listData.data) ? listData.data : (listData.data ? [listData.data] : []);
+          if (collections.length > 0) {
+            lencoData = { data: collections[0] };
+            lookupSuccess = true;
+
+            // Save the discovered provider ID for future lookups
+            const discoveredId = collections[0].id || collections[0].lencoReference;
+            if (discoveredId && !payment.payment_reference) {
+              const serviceClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+              await serviceClient
+                .from("subscription_payments")
+                .update({ payment_reference: String(discoveredId) })
+                .eq("id", payment.id);
+              console.log("Backfilled payment_reference:", discoveredId);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Lenco list collections error:", e);
+      }
+    }
+
+    // Strategy 3: If no Lenco lookup succeeded, return current status with diagnostic info
+    if (!lookupSuccess) {
+      console.warn("All Lenco lookups failed for payment:", payment.id);
+      return new Response(
+        JSON.stringify({
+          status: payment.status,
+          payment_id: payment.id,
+          failure_reason: null,
+          lenco_status: null,
+          diagnostic: "Unable to reach payment provider for status update. Will retry on next poll.",
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Process the Lenco response
     let newStatus = payment.status;
     let failureReason = null;
 
-    console.log("Lenco API response:", JSON.stringify(lencoData));
+    const lencoStatus = String(lencoData.data.status || "").toLowerCase();
+    console.log("Lenco status:", lencoStatus);
 
-    if (response.ok && lencoData.data) {
-      const lencoStatus = String(lencoData.data.status || "").toLowerCase();
-      
-      console.log("Lenco status:", lencoStatus);
-      
-      if (lencoStatus === "successful" || lencoStatus === "completed") {
-        newStatus = "completed";
-      } else if (lencoStatus === "failed" || lencoStatus === "declined" || lencoStatus === "cancelled" || lencoStatus === "canceled") {
-        newStatus = "failed";
-        // Handle various field naming conventions from Lenco
-        failureReason = lencoData.data.reasonForFailure || lencoData.data.failureReason || lencoData.data.reason || "Payment failed";
-      } else if (lencoStatus === "expired" || lencoStatus === "timeout") {
-        newStatus = "expired";
-        failureReason = "Payment request expired";
-      } else if (lencoStatus === "insufficient_funds" || lencoStatus === "insufficient-funds") {
-        newStatus = "failed";
-        failureReason = "Insufficient balance";
-      } else if (lencoStatus === "pay-offline" || lencoStatus === "pending" || lencoStatus === "processing") {
-        // Keep as pending
-        newStatus = "pending";
-      }
-      
-      // Check reasonForFailure field even if status is still pending (Lenco sometimes sets reason before status)
-      if (newStatus === "pending" && (lencoData.data.reasonForFailure || lencoData.data.failureReason)) {
-        newStatus = "failed";
-        failureReason = lencoData.data.reasonForFailure || lencoData.data.failureReason;
-        console.log("Detected failure from reason field:", failureReason);
-      }
+    if (lencoStatus === "successful" || lencoStatus === "completed") {
+      newStatus = "completed";
+    } else if (lencoStatus === "failed" || lencoStatus === "declined" || lencoStatus === "cancelled" || lencoStatus === "canceled") {
+      newStatus = "failed";
+      failureReason = lencoData.data.reasonForFailure || lencoData.data.failureReason || lencoData.data.reason || "Payment failed";
+    } else if (lencoStatus === "expired" || lencoStatus === "timeout") {
+      newStatus = "expired";
+      failureReason = "Payment request expired";
+    } else if (lencoStatus === "insufficient_funds" || lencoStatus === "insufficient-funds") {
+      newStatus = "failed";
+      failureReason = "Insufficient balance";
+    } else if (lencoStatus === "pay-offline" || lencoStatus === "pending" || lencoStatus === "processing") {
+      newStatus = "pending";
+    }
 
-      // Update payment record if status changed
-      if (newStatus !== payment.status) {
-        const serviceClient = createClient(
-          supabaseUrl,
-          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-        );
+    // Check reasonForFailure field even if status is still pending
+    if (newStatus === "pending" && (lencoData.data.reasonForFailure || lencoData.data.failureReason)) {
+      newStatus = "failed";
+      failureReason = lencoData.data.reasonForFailure || lencoData.data.failureReason;
+      console.log("Detected failure from reason field:", failureReason);
+    }
 
-        await serviceClient
-          .from("subscription_payments")
+    // Update payment record if status changed
+    if (newStatus !== payment.status) {
+      const serviceClient = createClient(
+        supabaseUrl,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      );
+
+      await serviceClient
+        .from("subscription_payments")
+        .update({
+          status: newStatus,
+          failure_reason: failureReason,
+          verified_at: newStatus === "completed" ? new Date().toISOString() : null,
+        })
+        .eq("id", payment.id);
+
+      // If completed, activate subscription
+      if (newStatus === "completed") {
+        const billingStartDate = new Date();
+        const billingEndDate = new Date();
+
+        if (payment.billing_period === "annual") {
+          billingEndDate.setFullYear(billingEndDate.getFullYear() + 1);
+        } else {
+          billingEndDate.setMonth(billingEndDate.getMonth() + 1);
+        }
+
+        const { error: activationError } = await serviceClient
+          .from("business_profiles")
           .update({
-            status: newStatus,
-            failure_reason: failureReason,
-            verified_at: newStatus === "completed" ? new Date().toISOString() : null,
+            billing_status: "active",
+            billing_plan: payment.plan_key || "growth",
+            billing_start_date: billingStartDate.toISOString(),
+            billing_end_date: billingEndDate.toISOString(),
+            trial_expires_at: null,
+            deactivated_at: null, // Clear deactivation / grace period
           })
-          .eq("id", payment.id);
+          .eq("tenant_id", payment.tenant_id);
 
-        // If completed, activate subscription
-        if (newStatus === "completed") {
-          const billingStartDate = new Date();
-          const billingEndDate = new Date();
-          
-          if (payment.billing_period === "annual") {
-            billingEndDate.setFullYear(billingEndDate.getFullYear() + 1);
-          } else {
-            billingEndDate.setMonth(billingEndDate.getMonth() + 1);
-          }
-
-          // Use plan_key (correct column name)
-          await serviceClient
-            .from("business_profiles")
-            .update({
-              billing_status: "active",
-              billing_plan: payment.plan_key || "growth",
-              billing_start_date: billingStartDate.toISOString(),
-              billing_end_date: billingEndDate.toISOString(),
-              trial_expires_at: null,
-            })
-            .eq("tenant_id", payment.tenant_id);
+        if (activationError) {
+          console.error("Failed to activate subscription:", activationError);
+        } else {
+          console.log(`Subscription activated for tenant ${payment.tenant_id}, plan: ${payment.plan_key}`);
         }
       }
     }

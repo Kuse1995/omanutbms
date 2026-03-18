@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowLeft, Smartphone, Lock, Loader2, CheckCircle2, AlertCircle, Sparkles, Zap, Crown, Check, Clock, AlertTriangle } from "lucide-react";
@@ -20,6 +20,30 @@ import airtelLogo from "@/assets/airtel-money-logo.png";
 
 type PaymentStatus = "idle" | "processing" | "awaiting_confirmation" | "completed" | "failed";
 
+function useGraceCountdown(deactivatedAt: string | null | undefined) {
+  const [timeLeft, setTimeLeft] = useState<{ days: number; hours: number; minutes: number; expired: boolean } | null>(null);
+
+  useEffect(() => {
+    if (!deactivatedAt) { setTimeLeft(null); return; }
+    const calc = () => {
+      const deadline = new Date(deactivatedAt);
+      deadline.setDate(deadline.getDate() + 5);
+      const now = new Date();
+      const diff = deadline.getTime() - now.getTime();
+      if (diff <= 0) return { days: 0, hours: 0, minutes: 0, expired: true };
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      return { days, hours, minutes, expired: false };
+    };
+    setTimeLeft(calc());
+    const interval = setInterval(() => setTimeLeft(calc()), 60_000);
+    return () => clearInterval(interval);
+  }, [deactivatedAt]);
+
+  return timeLeft;
+}
+
 const Pay = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -31,6 +55,10 @@ const Pay = () => {
   // Get plan from URL param or default to current/growth
   const urlPlan = searchParams.get("plan") as BillingPlan | null;
   const initialPlan = urlPlan && planKeys.includes(urlPlan) ? urlPlan : (currentPlan || "growth");
+  const deactivatedAt = searchParams.get("deactivated_at");
+
+  // Grace period countdown
+  const graceCountdown = useGraceCountdown(deactivatedAt);
 
   const [selectedPlan, setSelectedPlan] = useState<BillingPlan>(initialPlan);
   const [billingPeriod, setBillingPeriod] = useState<"monthly" | "annual">("annual");
@@ -90,6 +118,8 @@ const Pay = () => {
           setPaymentStatus("completed");
           toast.success("Payment successful! Your subscription is now active.");
           clearInterval(pollInterval);
+          // Navigate to dashboard after short delay to let user see success
+          setTimeout(() => navigate("/bms"), 2000);
         } else if (response.data?.status === "failed" || response.data?.status === "expired") {
           setPaymentStatus("failed");
           setErrorMessage(getFriendlyErrorMessage(response.data?.failure_reason || (response.data?.status === "expired" ? "Payment request expired" : "Payment failed")));
@@ -205,6 +235,35 @@ const Pay = () => {
 
         <div className="container-custom py-8 md:py-12">
           <div className="max-w-xl mx-auto">
+            {/* Grace Period Warning */}
+            {graceCountdown && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`mb-6 p-4 rounded-lg border flex items-center gap-3 ${
+                  graceCountdown.expired || graceCountdown.days === 0
+                    ? "border-destructive bg-destructive/10"
+                    : "border-orange-500/50 bg-orange-500/10"
+                }`}
+              >
+                {graceCountdown.expired ? (
+                  <AlertTriangle className="w-5 h-5 text-destructive flex-shrink-0" />
+                ) : (
+                  <Clock className="w-5 h-5 text-orange-500 flex-shrink-0" />
+                )}
+                <p className={`text-sm font-medium ${
+                  graceCountdown.expired || graceCountdown.days === 0 ? "text-destructive" : "text-orange-400"
+                }`}>
+                  {graceCountdown.expired
+                    ? "⚠️ Grace period expired. Your account and all data will be deleted shortly."
+                    : graceCountdown.days > 0
+                      ? `⏳ Account deletion in ${graceCountdown.days}d ${graceCountdown.hours}h — subscribe now to keep your data.`
+                      : `🚨 URGENT: Account deletion in ${graceCountdown.hours}h ${graceCountdown.minutes}m!`
+                  }
+                </p>
+              </motion.div>
+            )}
+
             {/* Title */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
