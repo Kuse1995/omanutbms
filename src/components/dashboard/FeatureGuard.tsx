@@ -26,8 +26,12 @@ interface FeatureGuardProps {
 export function FeatureGuard({ feature, children, featureName }: FeatureGuardProps) {
   const { isEnabled, loading: featuresLoading } = useFeatures();
   const { isFeatureAllowed, isActive, plan, planConfig, status, getRequiredPlan, loading: billingLoading } = useBilling();
-  const { plans, loading: plansLoading } = useBillingPlans();
+  const { plans, planKeys, loading: plansLoading } = useBillingPlans();
+  const { businessProfile, tenantUser } = useTenant();
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+
+  const isOwner = tenantUser?.is_owner === true;
+  const deactivatedAt = (businessProfile as any)?.deactivated_at;
 
   const loading = featuresLoading || billingLoading || plansLoading;
 
