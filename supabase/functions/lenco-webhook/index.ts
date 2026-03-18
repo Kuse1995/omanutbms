@@ -48,66 +48,146 @@ Deno.serve(async (req) => {
     const rawBody = await req.text();
     const signature = req.headers.get("x-lenco-signature") || "";
 
-    // Lenient signature verification: log mismatch but still process the webhook
+    // Lenient signature verification
     if (webhookSecret && signature) {
       const isValid = await verifySignature(rawBody, signature, webhookSecret);
       if (!isValid) {
         console.warn("⚠️ Webhook signature mismatch - processing anyway (lenient mode)");
         console.warn("Received signature:", signature.substring(0, 16) + "...");
-        // Do NOT reject - process the webhook regardless
       } else {
         console.log("✅ Webhook signature verified successfully");
       }
-    } else {
-      console.log("ℹ️ No signature verification (secret or signature missing)");
     }
 
     const payload = JSON.parse(rawBody);
     console.log("Lenco webhook received:", JSON.stringify(payload, null, 2));
 
     const { event, data } = payload;
-    
-    // Try multiple reference fields from the webhook payload
-    const reference = data?.reference || data?.merchantReference || data?.merchant_reference;
 
-    if (!reference) {
-      console.error("No reference in webhook payload. Available keys:", Object.keys(data || {}));
+    // Skip non-payment events (e.g. transaction.debit is an internal ledger event)
+    if (event === "transaction.debit" || event === "transaction.credit") {
+      console.log("Skipping ledger event:", event);
       return new Response(
-        JSON.stringify({ error: "Missing reference" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ success: true, skipped: true, reason: "ledger event" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+    
+    // Extract ALL possible identifiers from the webhook payload
+    const reference = data?.reference || data?.merchantReference || data?.merchant_reference || null;
+    const lencoReference = data?.lencoReference || data?.lenco_reference || null;
+    const lencoId = data?.id || null;
+    const phone = data?.creditAccount?.phone || data?.phone || null;
+    const amount = data?.amount ? parseFloat(data.amount) : null;
 
-    // Find the subscription payment by reference (try lenco_reference first, then payment_reference)
+    console.log("Extracted identifiers - reference:", reference, "lencoReference:", lencoReference, "lencoId:", lencoId, "phone:", phone, "amount:", amount);
+
+    // Multi-strategy payment lookup
     let payment: any = null;
-    
-    const { data: paymentByRef, error: findError1 } = await supabase
-      .from("subscription_payments")
-      .select("*, tenant_id")
-      .eq("lenco_reference", reference)
-      .single();
-    
-    if (paymentByRef) {
-      payment = paymentByRef;
-    } else {
-      // Also try matching by payment_reference (Lenco's own ID)
-      const { data: paymentByProviderRef } = await supabase
+
+    // Strategy 1: Match by our merchant reference (best case)
+    if (!payment && reference) {
+      const { data: found } = await supabase
         .from("subscription_payments")
         .select("*, tenant_id")
-        .eq("payment_reference", reference)
+        .eq("lenco_reference", reference)
         .single();
-      
-      if (paymentByProviderRef) {
-        payment = paymentByProviderRef;
+      if (found) {
+        payment = found;
+        console.log("✅ Matched payment by merchant reference:", reference);
+      }
+    }
+
+    // Strategy 2: Match by payment_reference (Lenco's lencoReference or id stored at creation)
+    if (!payment && lencoReference) {
+      const { data: found } = await supabase
+        .from("subscription_payments")
+        .select("*, tenant_id")
+        .eq("payment_reference", lencoReference)
+        .single();
+      if (found) {
+        payment = found;
+        console.log("✅ Matched payment by lencoReference:", lencoReference);
+      }
+    }
+
+    if (!payment && lencoId) {
+      const { data: found } = await supabase
+        .from("subscription_payments")
+        .select("*, tenant_id")
+        .eq("payment_reference", lencoId)
+        .single();
+      if (found) {
+        payment = found;
+        console.log("✅ Matched payment by lencoId:", lencoId);
+      }
+    }
+
+    // Strategy 3: Search metadata JSON for matching Lenco IDs
+    if (!payment && (lencoReference || lencoId)) {
+      const searchTerms = [lencoReference, lencoId].filter(Boolean);
+      for (const term of searchTerms) {
+        // Search in metadata->lenco_full_response for matching id or lencoReference
+        const { data: found } = await supabase
+          .from("subscription_payments")
+          .select("*, tenant_id")
+          .or(`metadata->>lenco_collection_id.eq.${term},metadata->>lenco_provider_reference.eq.${term}`)
+          .eq("status", "pending")
+          .limit(1)
+          .maybeSingle();
+        if (found) {
+          payment = found;
+          console.log("✅ Matched payment by metadata search:", term);
+          break;
+        }
+      }
+    }
+
+    // Strategy 4: Match by phone number + amount (last resort for pending payments)
+    if (!payment && phone && amount) {
+      // Normalize phone: strip leading +, leading 260, or leading 0
+      const phoneDigits = phone.replace(/\D/g, "");
+      const phoneSuffixes: string[] = [];
+      if (phoneDigits.length >= 9) {
+        // Last 9 digits are the core number
+        phoneSuffixes.push(phoneDigits.slice(-9));
+      }
+
+      const { data: candidates } = await supabase
+        .from("subscription_payments")
+        .select("*, tenant_id")
+        .eq("status", "pending")
+        .eq("amount", amount)
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (candidates && candidates.length > 0 && phoneSuffixes.length > 0) {
+        const suffix = phoneSuffixes[0];
+        payment = candidates.find((c: any) => {
+          const cDigits = (c.phone_number || "").replace(/\D/g, "");
+          return cDigits.endsWith(suffix);
+        });
+        if (payment) {
+          console.log("✅ Matched payment by phone+amount:", phone, amount);
+        }
       }
     }
 
     if (!payment) {
-      console.error("Payment not found for reference:", reference);
+      console.error("❌ Payment not found. reference:", reference, "lencoReference:", lencoReference, "lencoId:", lencoId, "phone:", phone, "amount:", amount);
       return new Response(
-        JSON.stringify({ error: "Payment not found" }),
+        JSON.stringify({ error: "Payment not found", identifiers: { reference, lencoReference, lencoId, phone, amount } }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Backfill payment_reference if we now have one from the webhook
+    if (!payment.payment_reference && (lencoReference || lencoId)) {
+      await supabase
+        .from("subscription_payments")
+        .update({ payment_reference: lencoReference || lencoId })
+        .eq("id", payment.id);
+      console.log("Backfilled payment_reference:", lencoReference || lencoId);
     }
 
     let newStatus = "pending";
@@ -134,7 +214,7 @@ Deno.serve(async (req) => {
         break;
       default:
         console.log("Unhandled event type:", event);
-        newStatus = payment.status; // Keep existing status
+        newStatus = payment.status;
     }
 
     // Update payment record
@@ -156,7 +236,6 @@ Deno.serve(async (req) => {
       const billingStartDate = new Date();
       const billingEndDate = new Date();
       
-      // Calculate end date based on billing period
       if (payment.billing_period === "annual") {
         billingEndDate.setFullYear(billingEndDate.getFullYear() + 1);
       } else {
@@ -171,19 +250,19 @@ Deno.serve(async (req) => {
           billing_start_date: billingStartDate.toISOString(),
           billing_end_date: billingEndDate.toISOString(),
           trial_expires_at: null,
-          deactivated_at: null, // Clear deactivation / grace period
+          deactivated_at: null,
         })
         .eq("tenant_id", payment.tenant_id);
 
       if (profileError) {
         console.error("Failed to update business profile:", profileError);
       } else {
-        console.log(`✅ Subscription activated for tenant ${payment.tenant_id} via webhook`);
+        console.log(`✅ Subscription activated for tenant ${payment.tenant_id} via webhook (event: ${event})`);
       }
     }
 
     return new Response(
-      JSON.stringify({ success: true, status: newStatus }),
+      JSON.stringify({ success: true, status: newStatus, payment_id: payment.id }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
