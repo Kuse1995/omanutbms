@@ -1,46 +1,55 @@
 
+# ZRA VSDC Developer Self-Check Compliance — IMPLEMENTED
 
-# Fix: Operations Managers Cannot Create Quotations
+## Summary of Changes
 
-## Root Cause
+### 1. Edge Function Expansion (Items 2-14, 27-29) ✅
+Rewrote `supabase/functions/zra-smart-invoice/index.ts` with 20+ actions covering all VSDC endpoints:
+- `get_code_data`, `get_classification`, `save_branch_customer`, `get_branch_customers`
+- `save_branch_user`, `get_branch_info`, `save_item_composition`
+- `get_item_list`, `get_import_items`, `update_import_item`
+- `save_purchase`, `get_purchases`, `submit_debit_note`
+- `save_stock_item`, `get_stock_items`, `update_stock_quantity`
 
-The `quotations` table INSERT policy correctly includes `operations_manager`, but the **`quotation_items`** table does not. When an operations manager creates a quotation, the parent row inserts fine, but the line items fail with an RLS violation.
+### 2. Invoice Immutability (Items 18, 22-23) ✅
+DB trigger `prevent_zra_submitted_modification` on `sales` and `invoices` tables prevents:
+- Modifying invoice/receipt numbers on ZRA-submitted records
+- Deleting ZRA-submitted records
 
-Additionally, the `quotation_items` UPDATE policy only allows `admin`, so operations managers can't edit quotation items either.
+### 3. Tax Invoice Compliance (Item 19) ✅
+- `SalesReceiptModal` shows "TAX INVOICE" label when fiscal data is present
+- Full SDC Information section: fiscal receipt #, SDC ID, invoice type, VSDC date/time, internal data, fiscal signature, QR code
+- `InvoiceViewModal` header changed to "TAX INVOICE"
+- TPIN, company address, contact info already shown via `TenantDocumentHeader`
 
-**Current policies on `quotation_items`:**
-- INSERT: `is_tenant_admin_or_manager(tenant_id)` — missing `operations_manager`
-- UPDATE: `is_tenant_admin(tenant_id)` — missing `operations_manager` and `manager`
+### 4. Reprint COPY Tracking (Item 24) ✅
+Added `print_count` column to `payment_receipts` and `invoices` tables.
 
-## Fix
+### 5. ZRA Transaction Report (Items 30-31) ✅
+New `ZraTransactionReport.tsx` component with:
+- Summary cards (total, success, failed, pending)
+- Filterable table by type, status, date range, search
+- Export to Excel, CSV, and PDF
+- Added as "ZRA Report" tab in dashboard sidebar
 
-Run two SQL migrations:
+### 6. Manual Purchase Entry (Item 15) ✅
+New `ManualPurchaseModal.tsx` for recording purchases from suppliers not on Smart Invoice.
 
-### 1. Update `quotation_items` INSERT policy
-Drop and recreate to include `operations_manager`:
+### 7. Credit/Debit Notes (Items 20-21) ✅
+Edge function supports `submit_refund` (FLAG=REFUND) and `submit_debit_note` (FLAG=DEBIT).
 
-```sql
-DROP POLICY "Admins/managers can insert quotation_items" ON public.quotation_items;
-CREATE POLICY "Admins/managers/ops can insert quotation_items" ON public.quotation_items
-FOR INSERT TO authenticated
-WITH CHECK (
-  is_tenant_admin_or_manager(tenant_id) 
-  OR has_tenant_role(tenant_id, 'operations_manager'::app_role)
-);
-```
+## Files Modified
+- `supabase/functions/zra-smart-invoice/index.ts` — Full rewrite with all VSDC endpoints
+- `src/components/dashboard/SalesReceiptModal.tsx` — TAX INVOICE label, full SDC info
+- `src/components/dashboard/InvoiceViewModal.tsx` — TAX INVOICE label
+- `src/components/dashboard/DashboardSidebar.tsx` — Added ZRA Report nav item
+- `src/pages/Dashboard.tsx` — Added zra-report tab
 
-### 2. Update `quotation_items` UPDATE policy
-Drop and recreate to include `operations_manager`:
+## New Files
+- `src/components/dashboard/ZraTransactionReport.tsx` — Full ZRA transaction report
+- `src/components/dashboard/ManualPurchaseModal.tsx` — Manual purchase entry form
 
-```sql
-DROP POLICY "Admins can update quotation_items" ON public.quotation_items;
-CREATE POLICY "Admins/managers/ops can update quotation_items" ON public.quotation_items
-FOR UPDATE TO authenticated
-USING (
-  is_tenant_admin_or_manager(tenant_id) 
-  OR has_tenant_role(tenant_id, 'operations_manager'::app_role)
-);
-```
-
-No frontend code changes needed — this is purely a database policy fix.
-
+## DB Migration
+- `prevent_zra_submitted_modification()` trigger function
+- Triggers on `sales` and `invoices` tables
+- `print_count` column on `payment_receipts` and `invoices`
