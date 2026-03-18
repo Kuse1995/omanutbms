@@ -213,7 +213,7 @@ export function InventoryAgent() {
           id, sku, name, current_stock, wholesale_stock, unit_price, cost_price, original_price,
           reorder_level, liters_per_unit, image_url, category, status, item_type,
           inventory_class, unit_of_measure, default_location_id, is_archived,
-          color_count, size_count, description, highlight, features, certifications, technical_specs,
+          description, highlight, features, certifications, technical_specs,
           branches!default_location_id(name)
         `).eq("tenant_id", tenantId).eq("is_archived", showArchived);
       if (classFilter) dataQuery = dataQuery.eq("inventory_class", classFilter);
