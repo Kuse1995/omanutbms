@@ -61,7 +61,7 @@ const Pay = () => {
   const graceCountdown = useGraceCountdown(deactivatedAt);
 
   const [selectedPlan, setSelectedPlan] = useState<BillingPlan>(initialPlan);
-  const [billingPeriod, setBillingPeriod] = useState<"monthly" | "annual">("annual");
+  const [billingPeriod, setBillingPeriod] = useState<"monthly" | "annual">("monthly");
 
   // Mobile money state
   const [phoneNumber, setPhoneNumber] = useState("");
