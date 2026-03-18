@@ -126,7 +126,7 @@ export const roleModuleAccess: Record<AppRole, ModuleKey[]> = {
   ],
   operations_manager: [
     "dashboard", "inventory", "warehouse", "stock-transfers", "locations", "assets",
-    "returns", "production-floor", "custom-orders", "customers", "sales", "receipts"
+    "returns", "production-floor", "custom-orders", "customers", "sales", "receipts", "quotations"
   ],
   accountant: [
     "dashboard", "accounts", "quotations", "assets", "receipts"
