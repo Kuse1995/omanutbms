@@ -158,12 +158,13 @@ const Dashboard = () => {
   }, [activeTab, canAccessTab, loading, toast, isSuperAdmin, isCustomDesignerEnabled, isProductionTrackingEnabled]);
 
   const isInactive = businessProfile?.billing_status === 'inactive';
-  const allowedWhenInactive: DashboardTab[] = ["dashboard", "settings", "tenant-settings"];
+  const allowedWhenInactive: DashboardTab[] = ["dashboard", "settings", "tenant-settings", "modules"];
+  const [subscriptionModalOpen, setSubscriptionModalOpen] = useState(false);
 
   const handleSetActiveTab = (tab: DashboardTab) => {
-    // Block navigation when subscription is inactive (except dashboard + settings)
+    // Block navigation when subscription is inactive (except dashboard + settings + modules)
     if (isInactive && !allowedWhenInactive.includes(tab) && !isSuperAdmin) {
-      toast({ title: "Subscription required", description: "Please activate your subscription to access this feature.", variant: "destructive" });
+      setSubscriptionModalOpen(true);
       return;
     }
 
