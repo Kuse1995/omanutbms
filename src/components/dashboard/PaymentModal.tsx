@@ -98,6 +98,11 @@ export function PaymentModal({ open, onOpenChange }: PaymentModalProps) {
           setPaymentStatus("completed");
           toast.success("Payment successful! Your subscription is now active.");
           clearInterval(pollInterval);
+          // Auto-close modal and reload to refresh billing state
+          setTimeout(() => {
+            onOpenChange(false);
+            window.location.reload();
+          }, 2000);
         } else if (response.data?.status === "failed" || response.data?.status === "expired") {
           setPaymentStatus("failed");
           setErrorMessage(getFriendlyErrorMessage(response.data?.failure_reason || (response.data?.status === "expired" ? "Payment request expired" : "Payment failed")));
