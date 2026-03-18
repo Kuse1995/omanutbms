@@ -18,6 +18,7 @@ interface PayrollRecord {
   overtime_pay: number;
   bonus: number;
   napsa_deduction: number;
+  nhima_deduction?: number;
   paye_deduction: number;
   other_deductions: number;
   loan_deduction: number;
@@ -26,7 +27,11 @@ interface PayrollRecord {
   net_pay: number;
   status: string;
   paid_date: string | null;
+  payment_method?: string | null;
+  payment_reference?: string | null;
+  notes?: string | null;
   employee_name?: string;
+  employee_type?: string;
 }
 
 interface PayslipModalProps {
@@ -99,9 +104,19 @@ export const PayslipModal = ({ isOpen, onClose, payroll }: PayslipModalProps) =>
               <div className="font-medium">{payroll.employee_name || "N/A"}</div>
             </div>
             <div>
+              <div className="text-sm text-muted-foreground">Employee ID</div>
+              <div className="font-medium">{payroll.employee_id || "N/A"}</div>
+            </div>
+            <div>
               <div className="text-sm text-muted-foreground">Status</div>
               <div className="font-medium capitalize">{payroll.status}</div>
             </div>
+            {payroll.employee_type && (
+              <div>
+                <div className="text-sm text-muted-foreground">Employee Type</div>
+                <div className="font-medium capitalize">{payroll.employee_type}</div>
+              </div>
+            )}
             <div>
               <div className="text-sm text-muted-foreground">Period Start</div>
               <div className="font-medium">{format(new Date(payroll.pay_period_start), "dd MMM yyyy")}</div>
@@ -110,10 +125,22 @@ export const PayslipModal = ({ isOpen, onClose, payroll }: PayslipModalProps) =>
               <div className="text-sm text-muted-foreground">Period End</div>
               <div className="font-medium">{format(new Date(payroll.pay_period_end), "dd MMM yyyy")}</div>
             </div>
+            {payroll.payment_method && (
+              <div>
+                <div className="text-sm text-muted-foreground">Payment Method</div>
+                <div className="font-medium capitalize">{payroll.payment_method}</div>
+              </div>
+            )}
+            {payroll.payment_reference && (
+              <div>
+                <div className="text-sm text-muted-foreground">Payment Reference</div>
+                <div className="font-medium">{payroll.payment_reference}</div>
+              </div>
+            )}
           </div>
 
           {/* Statutory waiver notice */}
-          {payroll.napsa_deduction === 0 && payroll.paye_deduction === 0 && payroll.gross_pay > 5100 && (
+          {payroll.napsa_deduction === 0 && payroll.paye_deduction === 0 && (payroll.nhima_deduction ?? 0) === 0 && payroll.gross_pay > 5100 && (
             <Alert className="bg-amber-50 border-amber-200">
               <Info className="h-4 w-4 text-amber-600" />
               <AlertDescription className="text-amber-800 text-sm">
@@ -162,6 +189,10 @@ export const PayslipModal = ({ isOpen, onClose, payroll }: PayslipModalProps) =>
                     <td className="text-right py-2">K{payroll.napsa_deduction.toLocaleString()}</td>
                   </tr>
                   <tr className="border-b">
+                    <td className="py-2">NHIMA (1%)</td>
+                    <td className="text-right py-2">K{(payroll.nhima_deduction ?? 0).toLocaleString()}</td>
+                  </tr>
+                  <tr className="border-b">
                     <td className="py-2">PAYE (Tax)</td>
                     <td className="text-right py-2">K{payroll.paye_deduction.toLocaleString()}</td>
                   </tr>
@@ -181,6 +212,28 @@ export const PayslipModal = ({ isOpen, onClose, payroll }: PayslipModalProps) =>
               </table>
             </div>
           </div>
+
+          {/* Employer Contributions (Informational) */}
+          <div className="p-4 bg-muted/20 rounded-lg border border-border">
+            <h3 className="font-semibold mb-3 text-muted-foreground text-sm">Employer Contributions (Informational)</h3>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="flex justify-between">
+                <span>NAPSA Employer (5%)</span>
+                <span className="font-medium">K{payroll.napsa_deduction.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>NHIMA Employer (1%)</span>
+                <span className="font-medium">K{(payroll.nhima_deduction ?? 0).toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Notes */}
+          {payroll.notes && (
+            <div className="p-3 bg-muted/30 rounded-lg text-sm text-muted-foreground">
+              <span className="font-medium">Notes:</span> {payroll.notes}
+            </div>
+          )}
 
           {/* Net Pay */}
           <div className="bg-primary/10 p-4 rounded-lg text-center">
