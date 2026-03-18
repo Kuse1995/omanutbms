@@ -1,55 +1,60 @@
 
-# ZRA VSDC Developer Self-Check Compliance — IMPLEMENTED
 
-## Summary of Changes
+# Improve Inactive Tenant Experience
 
-### 1. Edge Function Expansion (Items 2-14, 27-29) ✅
-Rewrote `supabase/functions/zra-smart-invoice/index.ts` with 20+ actions covering all VSDC endpoints:
-- `get_code_data`, `get_classification`, `save_branch_customer`, `get_branch_customers`
-- `save_branch_user`, `get_branch_info`, `save_item_composition`
-- `get_item_list`, `get_import_items`, `update_import_item`
-- `save_purchase`, `get_purchases`, `submit_debit_note`
-- `save_stock_item`, `get_stock_items`, `update_stock_quantity`
+## Problem
+When a tenant's subscription is inactive:
+1. Only "dashboard", "settings", and "tenant-settings" tabs are accessible — but **"modules"** (plan/pricing info) is blocked, so users can't even see what plans are available
+2. The `FeatureGuard` component shows a generic "Subscription Required" card with an "Activate Subscription" button that opens the `UpgradePlanModal` — but this is a small, minimal modal without plan comparison or pricing
+3. Non-owner users see the inactive state but have no clear guidance on what to do
+4. When users click blocked sidebar items, they just get a toast notification — no actionable path to reactivate
 
-### 2. Invoice Immutability (Items 18, 22-23) ✅
-DB trigger `prevent_zra_submitted_modification` on `sales` and `invoices` tables prevents:
-- Modifying invoice/receipt numbers on ZRA-submitted records
-- Deleting ZRA-submitted records
+## Fixes
 
-### 3. Tax Invoice Compliance (Item 19) ✅
-- `SalesReceiptModal` shows "TAX INVOICE" label when fiscal data is present
-- Full SDC Information section: fiscal receipt #, SDC ID, invoice type, VSDC date/time, internal data, fiscal signature, QR code
-- `InvoiceViewModal` header changed to "TAX INVOICE"
-- TPIN, company address, contact info already shown via `TenantDocumentHeader`
+### 1. Allow "modules" tab for inactive tenants
+In `Dashboard.tsx`, add `"modules"` to the `allowedWhenInactive` array so users can browse available plans even when inactive.
 
-### 4. Reprint COPY Tracking (Item 24) ✅
-Added `print_count` column to `payment_receipts` and `invoices` tables.
+**File:** `src/pages/Dashboard.tsx` (line 160)
+```
+const allowedWhenInactive: DashboardTab[] = ["dashboard", "settings", "tenant-settings", "modules"];
+```
 
-### 5. ZRA Transaction Report (Items 30-31) ✅
-New `ZraTransactionReport.tsx` component with:
-- Summary cards (total, success, failed, pending)
-- Filterable table by type, status, date range, search
-- Export to Excel, CSV, and PDF
-- Added as "ZRA Report" tab in dashboard sidebar
+### 2. Replace toast with a subscription popup when clicking blocked modules
+Instead of just showing a dismissible toast when inactive users click a blocked tab, show a proper modal dialog with:
+- Clear messaging: "Your subscription is inactive"
+- The 3 plan tiers (Starter/Growth/Enterprise) with pricing and highlights
+- A "Subscribe Now" button per plan that navigates to `/pay?plan=...`
+- Grace period countdown if applicable (using `deactivated_at`)
 
-### 6. Manual Purchase Entry (Item 15) ✅
-New `ManualPurchaseModal.tsx` for recording purchases from suppliers not on Smart Invoice.
+**File:** `src/pages/Dashboard.tsx`
+- Add state for a new `SubscriptionRequiredModal`
+- In `handleSetActiveTab`, when blocking an inactive user, open this modal instead of toasting
 
-### 7. Credit/Debit Notes (Items 20-21) ✅
-Edge function supports `submit_refund` (FLAG=REFUND) and `submit_debit_note` (FLAG=DEBIT).
+### 3. Create `SubscriptionRequiredModal` component
+A new reusable dialog component that:
+- Shows the 3 plan cards (reusing data from `useBillingPlans`)
+- Displays grace period countdown if `deactivated_at` exists
+- Has "Subscribe Now" buttons linking to `/pay?plan=X`
+- Differentiates messaging for owners vs non-owners (owners get pay links, non-owners get "Contact your admin" message)
 
-## Files Modified
-- `supabase/functions/zra-smart-invoice/index.ts` — Full rewrite with all VSDC endpoints
-- `src/components/dashboard/SalesReceiptModal.tsx` — TAX INVOICE label, full SDC info
-- `src/components/dashboard/InvoiceViewModal.tsx` — TAX INVOICE label
-- `src/components/dashboard/DashboardSidebar.tsx` — Added ZRA Report nav item
-- `src/pages/Dashboard.tsx` — Added zra-report tab
+**File:** `src/components/dashboard/SubscriptionRequiredModal.tsx` (new)
 
-## New Files
-- `src/components/dashboard/ZraTransactionReport.tsx` — Full ZRA transaction report
-- `src/components/dashboard/ManualPurchaseModal.tsx` — Manual purchase entry form
+### 4. Update `FeatureGuard` inactive state
+Replace the current static "Subscription Required" card with a more actionable UI that:
+- For owners: shows plan cards inline with direct subscribe buttons
+- For non-owners: shows "Contact your administrator to reactivate"
+- Includes the grace period countdown when applicable
 
-## DB Migration
-- `prevent_zra_submitted_modification()` trigger function
-- Triggers on `sales` and `invoices` tables
-- `print_count` column on `payment_receipts` and `invoices`
+**File:** `src/components/dashboard/FeatureGuard.tsx`
+
+### 5. Add a persistent banner for non-owner users
+Non-owner users (employees) on inactive tenants should see a visible but non-blocking banner at the top of the dashboard explaining the situation and who to contact, rather than being completely locked out of viewing data.
+
+**File:** `src/components/dashboard/DashboardHome.tsx` — add an inactive subscription alert card at the top
+
+## Files to Create/Modify
+- `src/components/dashboard/SubscriptionRequiredModal.tsx` — new modal component
+- `src/pages/Dashboard.tsx` — expand `allowedWhenInactive`, replace toast with modal
+- `src/components/dashboard/FeatureGuard.tsx` — improve inactive state UI with plan cards
+- `src/components/dashboard/DashboardHome.tsx` — add persistent banner for non-owners
+
