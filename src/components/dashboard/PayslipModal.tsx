@@ -189,6 +189,10 @@ export const PayslipModal = ({ isOpen, onClose, payroll }: PayslipModalProps) =>
                     <td className="text-right py-2">K{payroll.napsa_deduction.toLocaleString()}</td>
                   </tr>
                   <tr className="border-b">
+                    <td className="py-2">NHIMA (1%)</td>
+                    <td className="text-right py-2">K{(payroll.nhima_deduction ?? 0).toLocaleString()}</td>
+                  </tr>
+                  <tr className="border-b">
                     <td className="py-2">PAYE (Tax)</td>
                     <td className="text-right py-2">K{payroll.paye_deduction.toLocaleString()}</td>
                   </tr>
@@ -208,6 +212,28 @@ export const PayslipModal = ({ isOpen, onClose, payroll }: PayslipModalProps) =>
               </table>
             </div>
           </div>
+
+          {/* Employer Contributions (Informational) */}
+          <div className="p-4 bg-muted/20 rounded-lg border border-border">
+            <h3 className="font-semibold mb-3 text-muted-foreground text-sm">Employer Contributions (Informational)</h3>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="flex justify-between">
+                <span>NAPSA Employer (5%)</span>
+                <span className="font-medium">K{payroll.napsa_deduction.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>NHIMA Employer (1%)</span>
+                <span className="font-medium">K{(payroll.nhima_deduction ?? 0).toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Notes */}
+          {payroll.notes && (
+            <div className="p-3 bg-muted/30 rounded-lg text-sm text-muted-foreground">
+              <span className="font-medium">Notes:</span> {payroll.notes}
+            </div>
+          )}
 
           {/* Net Pay */}
           <div className="bg-primary/10 p-4 rounded-lg text-center">
