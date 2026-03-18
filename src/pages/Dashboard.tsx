@@ -160,6 +160,15 @@ const Dashboard = () => {
   const isInactive = businessProfile?.billing_status === 'inactive';
   const allowedWhenInactive: DashboardTab[] = ["dashboard", "settings", "tenant-settings", "modules"];
   const [subscriptionModalOpen, setSubscriptionModalOpen] = useState(false);
+  const [autoShowDone, setAutoShowDone] = useState(false);
+
+  // Auto-show subscription modal on load for inactive tenants
+  useEffect(() => {
+    if (isInactive && !isSuperAdmin && !autoShowDone && !loading) {
+      setSubscriptionModalOpen(true);
+      setAutoShowDone(true);
+    }
+  }, [isInactive, isSuperAdmin, autoShowDone, loading]);
 
   const handleSetActiveTab = (tab: DashboardTab) => {
     // Block navigation when subscription is inactive (except dashboard + settings + modules)

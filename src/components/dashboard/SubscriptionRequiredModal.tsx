@@ -6,20 +6,23 @@ import { Badge } from "@/components/ui/badge";
 import { Sparkles, Clock, AlertTriangle, Check, Crown } from "lucide-react";
 import { useBillingPlans } from "@/hooks/useBillingPlans";
 import { useTenant } from "@/hooks/useTenant";
+import { canManageBilling, type AppRole } from "@/lib/role-config";
 import type { BillingPlan } from "@/lib/billing-plans";
 
 interface SubscriptionRequiredModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  dismissable?: boolean;
 }
 
-export function SubscriptionRequiredModal({ open, onOpenChange }: SubscriptionRequiredModalProps) {
+export function SubscriptionRequiredModal({ open, onOpenChange, dismissable = true }: SubscriptionRequiredModalProps) {
   const { plans, planKeys } = useBillingPlans();
   const { businessProfile, tenantUser } = useTenant();
   const [countdown, setCountdown] = useState("");
   const [isUrgent, setIsUrgent] = useState(false);
 
-  const isOwner = tenantUser?.is_owner === true;
+  const userRole = (tenantUser as any)?.role as AppRole | null;
+  const isBillingManager = canManageBilling(userRole, tenantUser?.is_owner);
   const deactivatedAt = (businessProfile as any)?.deactivated_at;
 
   useEffect(() => {
@@ -55,16 +58,29 @@ export function SubscriptionRequiredModal({ open, onOpenChange }: SubscriptionRe
     window.location.href = `/pay?plan=${planKey}`;
   };
 
+  const handleOpenChange = (value: boolean) => {
+    if (!dismissable && !value) return; // Prevent closing if not dismissable
+    onOpenChange(value);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        className="max-w-3xl"
+        onPointerDownOutside={dismissable ? undefined : (e) => e.preventDefault()}
+        onEscapeKeyDown={dismissable ? undefined : (e) => e.preventDefault()}
+      >
+        {/* Hide close button when not dismissable */}
+        {!dismissable && (
+          <style>{`.absolute.right-4.top-4 { display: none !important; }`}</style>
+        )}
         <DialogHeader className="text-center">
           <div className="mx-auto mb-3 w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
             <Sparkles className="w-7 h-7 text-primary" />
           </div>
           <DialogTitle className="text-xl">Your Subscription is Inactive</DialogTitle>
           <DialogDescription>
-            {isOwner
+            {isBillingManager
               ? "Choose a plan below to reactivate your account and unlock all features."
               : "Your organization's subscription is inactive. Please contact your administrator to reactivate."}
           </DialogDescription>
@@ -75,7 +91,7 @@ export function SubscriptionRequiredModal({ open, onOpenChange }: SubscriptionRe
           <div className={`flex items-center gap-2 p-3 rounded-lg border ${
             isUrgent 
               ? "border-destructive/50 bg-destructive/10 text-destructive" 
-              : "border-warning/50 bg-warning/10 text-warning-foreground"
+              : "border-muted bg-muted/50 text-muted-foreground"
           }`}>
             {isUrgent ? (
               <AlertTriangle className="w-4 h-4 flex-shrink-0" />
@@ -90,8 +106,8 @@ export function SubscriptionRequiredModal({ open, onOpenChange }: SubscriptionRe
           </div>
         )}
 
-        {/* Plan cards - only show for owners */}
-        {isOwner ? (
+        {/* Plan cards - show for billing managers */}
+        {isBillingManager ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
             {planKeys.map((key) => {
               const plan = plans[key];
