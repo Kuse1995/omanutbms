@@ -9,6 +9,7 @@ import { OnboardingTour } from "@/components/dashboard/OnboardingTour";
 import { WelcomeVideoModal } from "@/components/dashboard/WelcomeVideoModal";
 import { BusinessTypeSetupWizard } from "@/components/dashboard/BusinessTypeSetupWizard";
 import { SubscriptionActivationGate } from "@/components/dashboard/SubscriptionActivationGate";
+import { SubscriptionRequiredModal } from "@/components/dashboard/SubscriptionRequiredModal";
 import { Loader2 } from "lucide-react";
 import { useOnboardingTour } from "@/hooks/useOnboardingTour";
 import { useFeatures } from "@/hooks/useFeatures";
@@ -157,12 +158,13 @@ const Dashboard = () => {
   }, [activeTab, canAccessTab, loading, toast, isSuperAdmin, isCustomDesignerEnabled, isProductionTrackingEnabled]);
 
   const isInactive = businessProfile?.billing_status === 'inactive';
-  const allowedWhenInactive: DashboardTab[] = ["dashboard", "settings", "tenant-settings"];
+  const allowedWhenInactive: DashboardTab[] = ["dashboard", "settings", "tenant-settings", "modules"];
+  const [subscriptionModalOpen, setSubscriptionModalOpen] = useState(false);
 
   const handleSetActiveTab = (tab: DashboardTab) => {
-    // Block navigation when subscription is inactive (except dashboard + settings)
+    // Block navigation when subscription is inactive (except dashboard + settings + modules)
     if (isInactive && !allowedWhenInactive.includes(tab) && !isSuperAdmin) {
-      toast({ title: "Subscription required", description: "Please activate your subscription to access this feature.", variant: "destructive" });
+      setSubscriptionModalOpen(true);
       return;
     }
 
@@ -268,6 +270,11 @@ const Dashboard = () => {
            tenantUser?.is_owner === true && (
             <SubscriptionActivationGate />
           )}
+
+          <SubscriptionRequiredModal 
+            open={subscriptionModalOpen} 
+            onOpenChange={setSubscriptionModalOpen} 
+          />
           
           {!tourLoading && !welcomeVideoCompleted && businessProfile?.onboarding_completed && (
             <WelcomeVideoModal onComplete={onWelcomeVideoComplete} />
