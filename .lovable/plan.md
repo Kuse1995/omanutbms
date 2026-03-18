@@ -1,55 +1,40 @@
 
-# ZRA VSDC Developer Self-Check Compliance — IMPLEMENTED
 
-## Summary of Changes
+# Fix: Inventory Showing 0 Items
 
-### 1. Edge Function Expansion (Items 2-14, 27-29) ✅
-Rewrote `supabase/functions/zra-smart-invoice/index.ts` with 20+ actions covering all VSDC endpoints:
-- `get_code_data`, `get_classification`, `save_branch_customer`, `get_branch_customers`
-- `save_branch_user`, `get_branch_info`, `save_item_composition`
-- `get_item_list`, `get_import_items`, `update_import_item`
-- `save_purchase`, `get_purchases`, `submit_debit_note`
-- `save_stock_item`, `get_stock_items`, `update_stock_quantity`
+## Root Cause
 
-### 2. Invoice Immutability (Items 18, 22-23) ✅
-DB trigger `prevent_zra_submitted_modification` on `sales` and `invoices` tables prevents:
-- Modifying invoice/receipt numbers on ZRA-submitted records
-- Deleting ZRA-submitted records
+The query in `InventoryAgent.tsx` line 216 selects `color_count` and `size_count` directly from the `inventory` table, but **these columns do not exist** in the database. This causes a PostgREST 400 error on every fetch, which is caught silently, resulting in 0 items displayed.
 
-### 3. Tax Invoice Compliance (Item 19) ✅
-- `SalesReceiptModal` shows "TAX INVOICE" label when fiscal data is present
-- Full SDC Information section: fiscal receipt #, SDC ID, invoice type, VSDC date/time, internal data, fiscal signature, QR code
-- `InvoiceViewModal` header changed to "TAX INVOICE"
-- TPIN, company address, contact info already shown via `TenantDocumentHeader`
+The `color_count` and `size_count` values are already correctly computed from the `product_variants` table later in the code (lines 231-239), so selecting them from the database is both incorrect and redundant.
 
-### 4. Reprint COPY Tracking (Item 24) ✅
-Added `print_count` column to `payment_receipts` and `invoices` tables.
+This bug affects **all tenants**, not just Zed Mart.
 
-### 5. ZRA Transaction Report (Items 30-31) ✅
-New `ZraTransactionReport.tsx` component with:
-- Summary cards (total, success, failed, pending)
-- Filterable table by type, status, date range, search
-- Export to Excel, CSV, and PDF
-- Added as "ZRA Report" tab in dashboard sidebar
+## Fix
 
-### 6. Manual Purchase Entry (Item 15) ✅
-New `ManualPurchaseModal.tsx` for recording purchases from suppliers not on Smart Invoice.
+### `src/components/dashboard/InventoryAgent.tsx`
 
-### 7. Credit/Debit Notes (Items 20-21) ✅
-Edge function supports `submit_refund` (FLAG=REFUND) and `submit_debit_note` (FLAG=DEBIT).
+Remove `color_count, size_count,` from the SELECT string on line 216:
 
-## Files Modified
-- `supabase/functions/zra-smart-invoice/index.ts` — Full rewrite with all VSDC endpoints
-- `src/components/dashboard/SalesReceiptModal.tsx` — TAX INVOICE label, full SDC info
-- `src/components/dashboard/InvoiceViewModal.tsx` — TAX INVOICE label
-- `src/components/dashboard/DashboardSidebar.tsx` — Added ZRA Report nav item
-- `src/pages/Dashboard.tsx` — Added zra-report tab
+```typescript
+// Before (line 212-218):
+let dataQuery = supabase.from("inventory").select(`
+    id, sku, name, current_stock, wholesale_stock, unit_price, cost_price, original_price,
+    reorder_level, liters_per_unit, image_url, category, status, item_type,
+    inventory_class, unit_of_measure, default_location_id, is_archived,
+    color_count, size_count, description, highlight, features, certifications, technical_specs,
+    branches!default_location_id(name)
+  `)
 
-## New Files
-- `src/components/dashboard/ZraTransactionReport.tsx` — Full ZRA transaction report
-- `src/components/dashboard/ManualPurchaseModal.tsx` — Manual purchase entry form
+// After:
+let dataQuery = supabase.from("inventory").select(`
+    id, sku, name, current_stock, wholesale_stock, unit_price, cost_price, original_price,
+    reorder_level, liters_per_unit, image_url, category, status, item_type,
+    inventory_class, unit_of_measure, default_location_id, is_archived,
+    description, highlight, features, certifications, technical_specs,
+    branches!default_location_id(name)
+  `)
+```
 
-## DB Migration
-- `prevent_zra_submitted_modification()` trigger function
-- Triggers on `sales` and `invoices` tables
-- `print_count` column on `payment_receipts` and `invoices`
+One line change. The variant counts are already computed from the `product_variants` query and merged in lines 231-239.
+
