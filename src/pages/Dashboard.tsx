@@ -270,6 +270,11 @@ const Dashboard = () => {
            tenantUser?.is_owner === true && (
             <SubscriptionActivationGate />
           )}
+
+          <SubscriptionRequiredModal 
+            open={subscriptionModalOpen} 
+            onOpenChange={setSubscriptionModalOpen} 
+          />
           
           {!tourLoading && !welcomeVideoCompleted && businessProfile?.onboarding_completed && (
             <WelcomeVideoModal onComplete={onWelcomeVideoComplete} />
