@@ -313,6 +313,7 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
       </SidebarHeader>
 
       <SidebarContent className="px-2 py-4">
+        <SidebarUpgradeCTA />
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
