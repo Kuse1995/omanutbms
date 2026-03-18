@@ -367,23 +367,34 @@ Deno.serve(async (req) => {
 
           if (response.ok) {
             successfulVariant = { phone: accountNumber, operator: lencoOperator };
-            console.log("Lenco mobile money success:", JSON.stringify(lencoResponse));
+            console.log("Lenco mobile money success (full response):", JSON.stringify(lencoResponse));
+            console.log("Lenco response data keys:", Object.keys(lencoResponse?.data || {}));
+            
+            // Extract provider-side reference with extensive fallbacks
+            // Different Lenco API versions return different field names
+            const providerRef = lencoResponse?.data?.lencoReference 
+              || lencoResponse?.data?.id 
+              || lencoResponse?.data?.collectionId
+              || lencoResponse?.data?.collection_id
+              || lencoResponse?.data?.transactionId
+              || lencoResponse?.data?.transaction_id
+              || lencoResponse?.data?.reference
+              || null;
+            
+            console.log("Extracted provider reference:", providerRef);
             
             // Update payment record with successful variant info
             await supabase
               .from("subscription_payments")
               .update({
-                // Store provider-side identifiers so status polling can query /collections/{id}
-                // Lenco typically returns both:
-                // - data.id (UUID)
-                // - data.lencoReference (numeric/string)
-                // We prefer lencoReference for the collections lookup, but keep both in metadata.
-                payment_reference: lencoResponse?.data?.lencoReference || lencoResponse?.data?.id || null,
+                payment_reference: providerRef,
                 provider: "lenco",
                 metadata: { 
                   ...(paymentRecord?.metadata || {}),
                   successful_phone_variant: accountNumber,
                   successful_operator_variant: lencoOperator,
+                  // Store the ENTIRE Lenco response so we never lose any field
+                  lenco_full_response: lencoResponse?.data || null,
                   lenco_collection_id: lencoResponse?.data?.id || null,
                   lenco_provider_reference: lencoResponse?.data?.lencoReference || null,
                 },

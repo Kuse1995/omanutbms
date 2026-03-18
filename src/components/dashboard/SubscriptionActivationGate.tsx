@@ -130,7 +130,7 @@ export function SubscriptionActivationGate() {
                   className={`w-full mb-4 gap-2 ${plan.popular ? "" : "bg-foreground hover:bg-foreground/90"}`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    navigate(`/pay?plan=${planKey}`);
+                    navigate(`/pay?plan=${planKey}${businessProfile?.deactivated_at ? `&deactivated_at=${encodeURIComponent(businessProfile.deactivated_at)}` : ''}`);
                   }}
                 >
                   {planKey === "enterprise" ? "Contact Sales" : "Subscribe Now"}
