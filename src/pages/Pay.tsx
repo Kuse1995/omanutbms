@@ -211,6 +211,35 @@ const Pay = () => {
 
         <div className="container-custom py-8 md:py-12">
           <div className="max-w-xl mx-auto">
+            {/* Grace Period Warning */}
+            {graceCountdown && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`mb-6 p-4 rounded-lg border flex items-center gap-3 ${
+                  graceCountdown.expired || graceCountdown.days === 0
+                    ? "border-destructive bg-destructive/10"
+                    : "border-orange-500/50 bg-orange-500/10"
+                }`}
+              >
+                {graceCountdown.expired ? (
+                  <AlertTriangle className="w-5 h-5 text-destructive flex-shrink-0" />
+                ) : (
+                  <Clock className="w-5 h-5 text-orange-500 flex-shrink-0" />
+                )}
+                <p className={`text-sm font-medium ${
+                  graceCountdown.expired || graceCountdown.days === 0 ? "text-destructive" : "text-orange-400"
+                }`}>
+                  {graceCountdown.expired
+                    ? "⚠️ Grace period expired. Your account and all data will be deleted shortly."
+                    : graceCountdown.days > 0
+                      ? `⏳ Account deletion in ${graceCountdown.days}d ${graceCountdown.hours}h — subscribe now to keep your data.`
+                      : `🚨 URGENT: Account deletion in ${graceCountdown.hours}h ${graceCountdown.minutes}m!`
+                  }
+                </p>
+              </motion.div>
+            )}
+
             {/* Title */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
