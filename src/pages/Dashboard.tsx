@@ -282,7 +282,8 @@ const Dashboard = () => {
 
           <SubscriptionRequiredModal 
             open={subscriptionModalOpen} 
-            onOpenChange={setSubscriptionModalOpen} 
+            onOpenChange={setSubscriptionModalOpen}
+            dismissable={!autoShowDone || subscriptionModalOpen}
           />
           
           {!tourLoading && !welcomeVideoCompleted && businessProfile?.onboarding_completed && (
