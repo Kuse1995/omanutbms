@@ -11,6 +11,7 @@ import { ShieldX, Lock, Sparkles, Check, Crown, Clock, AlertTriangle } from "luc
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { UpgradePlanModal } from "./UpgradePlanModal";
+import { canManageBilling, type AppRole } from "@/lib/role-config";
 
 interface FeatureGuardProps {
   feature: FeatureKey;
@@ -30,7 +31,8 @@ export function FeatureGuard({ feature, children, featureName }: FeatureGuardPro
   const { businessProfile, tenantUser } = useTenant();
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
 
-  const isOwner = tenantUser?.is_owner === true;
+  const userRole = (tenantUser as any)?.role as AppRole | null;
+  const isOwner = canManageBilling(userRole, tenantUser?.is_owner);
   const deactivatedAt = (businessProfile as any)?.deactivated_at;
 
   const loading = featuresLoading || billingLoading || plansLoading;

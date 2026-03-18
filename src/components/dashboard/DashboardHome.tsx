@@ -281,7 +281,7 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
               <div className="flex-1">
                 <p className="font-semibold text-destructive">Payment Required</p>
                 <p className="text-sm text-muted-foreground">
-                  {tenantUser?.is_owner
+                  {(tenantUser?.is_owner || (tenantUser as any)?.role === 'admin')
                     ? "Your subscription is inactive. Please subscribe to unlock all features."
                     : "Your organization's subscription is inactive. Please contact your administrator to activate it."}
                 </p>
@@ -289,7 +289,7 @@ export function DashboardHome({ setActiveTab }: DashboardHomeProps) {
                   <p className="text-xs font-medium text-destructive mt-1">⏳ {countdownText}</p>
                 )}
               </div>
-              {tenantUser?.is_owner && (
+              {(tenantUser?.is_owner || (tenantUser as any)?.role === 'admin') && (
                 <Button
                   size="sm"
                   variant="destructive"

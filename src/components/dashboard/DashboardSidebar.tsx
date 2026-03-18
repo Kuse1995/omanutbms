@@ -38,6 +38,8 @@ import type { DashboardTab } from "@/pages/Dashboard";
 import type { FeatureKey } from "@/lib/feature-config";
 import { Skeleton } from "@/components/ui/skeleton";
 import { hasModuleAccess, type ModuleKey } from "@/lib/role-config";
+import { useBilling } from "@/hooks/useBilling";
+import { SidebarUpgradeCTA } from "./SidebarUpgradeCTA";
 
 interface DashboardSidebarProps {
   activeTab: DashboardTab;
@@ -311,6 +313,7 @@ export function DashboardSidebar({ activeTab, setActiveTab }: DashboardSidebarPr
       </SidebarHeader>
 
       <SidebarContent className="px-2 py-4">
+        <SidebarUpgradeCTA />
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>

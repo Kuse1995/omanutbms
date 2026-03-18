@@ -176,6 +176,11 @@ export function canDeleteRecords(role: AppRole | null): boolean {
   return role === "admin";
 }
 
+// Check if a user can manage billing (owner or admin role)
+export function canManageBilling(role: AppRole | null, isOwner: boolean | null | undefined): boolean {
+  return isOwner === true || role === "admin";
+}
+
 // Get all roles as options for select dropdowns
 export function getRoleOptions(): { value: AppRole; label: string }[] {
   return (Object.keys(roleConfig) as AppRole[]).map(role => ({
