@@ -18,6 +18,7 @@ interface PayrollRecord {
   overtime_pay: number;
   bonus: number;
   napsa_deduction: number;
+  nhima_deduction?: number;
   paye_deduction: number;
   other_deductions: number;
   loan_deduction: number;
@@ -26,7 +27,11 @@ interface PayrollRecord {
   net_pay: number;
   status: string;
   paid_date: string | null;
+  payment_method?: string | null;
+  payment_reference?: string | null;
+  notes?: string | null;
   employee_name?: string;
+  employee_type?: string;
 }
 
 interface PayslipModalProps {
