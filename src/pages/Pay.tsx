@@ -31,6 +31,10 @@ const Pay = () => {
   // Get plan from URL param or default to current/growth
   const urlPlan = searchParams.get("plan") as BillingPlan | null;
   const initialPlan = urlPlan && planKeys.includes(urlPlan) ? urlPlan : (currentPlan || "growth");
+  const deactivatedAt = searchParams.get("deactivated_at");
+
+  // Grace period countdown
+  const graceCountdown = useGraceCountdown(deactivatedAt);
 
   const [selectedPlan, setSelectedPlan] = useState<BillingPlan>(initialPlan);
   const [billingPeriod, setBillingPeriod] = useState<"monthly" | "annual">("annual");
