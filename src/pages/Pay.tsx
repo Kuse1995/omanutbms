@@ -94,6 +94,8 @@ const Pay = () => {
           setPaymentStatus("completed");
           toast.success("Payment successful! Your subscription is now active.");
           clearInterval(pollInterval);
+          // Navigate to dashboard after short delay to let user see success
+          setTimeout(() => navigate("/bms"), 2000);
         } else if (response.data?.status === "failed" || response.data?.status === "expired") {
           setPaymentStatus("failed");
           setErrorMessage(getFriendlyErrorMessage(response.data?.failure_reason || (response.data?.status === "expired" ? "Payment request expired" : "Payment failed")));
