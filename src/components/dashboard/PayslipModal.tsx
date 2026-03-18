@@ -104,9 +104,19 @@ export const PayslipModal = ({ isOpen, onClose, payroll }: PayslipModalProps) =>
               <div className="font-medium">{payroll.employee_name || "N/A"}</div>
             </div>
             <div>
+              <div className="text-sm text-muted-foreground">Employee ID</div>
+              <div className="font-medium">{payroll.employee_id || "N/A"}</div>
+            </div>
+            <div>
               <div className="text-sm text-muted-foreground">Status</div>
               <div className="font-medium capitalize">{payroll.status}</div>
             </div>
+            {payroll.employee_type && (
+              <div>
+                <div className="text-sm text-muted-foreground">Employee Type</div>
+                <div className="font-medium capitalize">{payroll.employee_type}</div>
+              </div>
+            )}
             <div>
               <div className="text-sm text-muted-foreground">Period Start</div>
               <div className="font-medium">{format(new Date(payroll.pay_period_start), "dd MMM yyyy")}</div>
@@ -115,10 +125,22 @@ export const PayslipModal = ({ isOpen, onClose, payroll }: PayslipModalProps) =>
               <div className="text-sm text-muted-foreground">Period End</div>
               <div className="font-medium">{format(new Date(payroll.pay_period_end), "dd MMM yyyy")}</div>
             </div>
+            {payroll.payment_method && (
+              <div>
+                <div className="text-sm text-muted-foreground">Payment Method</div>
+                <div className="font-medium capitalize">{payroll.payment_method}</div>
+              </div>
+            )}
+            {payroll.payment_reference && (
+              <div>
+                <div className="text-sm text-muted-foreground">Payment Reference</div>
+                <div className="font-medium">{payroll.payment_reference}</div>
+              </div>
+            )}
           </div>
 
           {/* Statutory waiver notice */}
-          {payroll.napsa_deduction === 0 && payroll.paye_deduction === 0 && payroll.gross_pay > 5100 && (
+          {payroll.napsa_deduction === 0 && payroll.paye_deduction === 0 && (payroll.nhima_deduction ?? 0) === 0 && payroll.gross_pay > 5100 && (
             <Alert className="bg-amber-50 border-amber-200">
               <Info className="h-4 w-4 text-amber-600" />
               <AlertDescription className="text-amber-800 text-sm">
