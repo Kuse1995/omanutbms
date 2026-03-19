@@ -482,6 +482,59 @@ Extract the NEW information from this reply. The user may be answering in broken
       };
     }
 
+    // ========== SEMANTIC INTENT FALLBACK ==========
+    // If confidence is low or intent is help/unknown, try semantic matching against known intents
+    if (parsedIntent.confidence === 'low' && parsedIntent.intent === 'help' && tenant_id) {
+      try {
+        const GEMINI_KEY = Deno.env.get('GEMINI_API_KEY');
+        if (GEMINI_KEY) {
+          const embResponse = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${GEMINI_KEY}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                model: 'models/text-embedding-004',
+                content: { parts: [{ text: message.substring(0, 512) }] },
+                taskType: 'RETRIEVAL_QUERY',
+              }),
+            }
+          );
+
+          if (embResponse.ok) {
+            const embResult = await embResponse.json();
+            const queryEmbedding = embResult.embedding?.values;
+            if (queryEmbedding && queryEmbedding.length > 0) {
+              const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+              const supabase = createClient(
+                Deno.env.get('SUPABASE_URL')!,
+                Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+              );
+
+              const { data: matches } = await supabase.rpc('match_embeddings', {
+                query_embedding: `[${queryEmbedding.join(',')}]`,
+                match_tenant_id: tenant_id,
+                match_entity_type: 'intent',
+                match_threshold: 0.5,
+                match_count: 1,
+              });
+
+              if (matches && matches.length > 0) {
+                // content_text format: "intent_name: example phrase"
+                const matchedIntent = matches[0].content_text.split(':')[0].trim();
+                console.log(`[intent-parser] Semantic fallback matched: ${matchedIntent} (similarity: ${matches[0].similarity})`);
+                parsedIntent.intent = matchedIntent;
+                parsedIntent.confidence = 'medium';
+                parsedIntent.semantic_match = true;
+              }
+            }
+          }
+        }
+      } catch (semanticErr) {
+        console.error('[intent-parser] Semantic fallback error:', semanticErr);
+      }
+    }
+
     const executionTime = Date.now() - startTime;
     console.log('[bms-intent-parser] Parsed:', JSON.stringify(parsedIntent), 'in', executionTime, 'ms');
 

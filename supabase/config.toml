@@ -68,3 +68,12 @@ verify_jwt = false
 
 [functions.whatsapp-stock-extractor]
 verify_jwt = false
+
+[functions.generate-embeddings]
+verify_jwt = false
+
+[functions.semantic-search]
+verify_jwt = false
+
+[functions.embed-on-change]
+verify_jwt = false
