@@ -2999,6 +2999,15 @@ async function handleCreateOrder(supabase: any, entities: Record<string, any>, c
     });
   }
 
+  // Fire new_order callback
+  fireCallback(context.tenant_id, 'new_order', {
+    order_number: order.order_number,
+    customer: customer_name,
+    items_count: items.length,
+    total_amount: total_amount || 0,
+    type: 'custom_order',
+  });
+
   return {
     success: true,
     data: { order_number: order.order_number, order_id: order.id },
