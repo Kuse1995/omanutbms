@@ -2826,6 +2826,22 @@ async function handleCreditSale(supabase: any, entities: Record<string, any>, co
       .eq('id', productItem.id);
   }
 
+  // Fire new_order callback for credit sale
+  fireCallback(context.tenant_id, 'new_order', {
+    invoice_number: invoiceNumber,
+    customer: customer_name,
+    amount,
+    type: 'credit_sale',
+    product: resolvedItemName,
+    quantity,
+  });
+
+  // Check stock level callbacks
+  if (productItem) {
+    const newStock = productItem.current_stock - quantity;
+    checkStockCallbacks(context.tenant_id, productItem.name, newStock, productItem.reorder_level);
+  }
+
   return {
     success: true,
     message: `✅ Credit sale recorded!\n\n👤 ${customer_name}\n📦 ${quantity > 1 ? `${quantity}x ` : ''}${resolvedItemName}\n💰 K${amount.toLocaleString()} (on credit)\n📋 Invoice: ${invoiceNumber}\n📅 Due: 30 days\n\n💡 Say "who owes" to see all outstanding.`,
