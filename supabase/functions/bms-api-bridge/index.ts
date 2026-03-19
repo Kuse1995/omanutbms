@@ -724,7 +724,7 @@ serve(async (req) => {
         ...result,
         execution_time_ms: executionTime,
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json', 'X-BMS-Version': API_VERSION } }
     );
 
   } catch (error) {
