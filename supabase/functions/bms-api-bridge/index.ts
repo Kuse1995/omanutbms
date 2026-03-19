@@ -3281,6 +3281,13 @@ async function handleCreateContact(supabase: any, entities: Record<string, any>,
     return { success: false, error: 'Failed to create contact.' };
   }
 
+  // Fire new_contact callback
+  fireCallback(context.tenant_id, 'new_contact', {
+    contact_name: name,
+    phone: phone || null,
+    email: email || null,
+  });
+
   return {
     success: true,
     data,
