@@ -3459,3 +3459,91 @@ async function handleBulkAddInventory(supabase: any, entities: Record<string, an
   if (error) return { success: false, error: 'Failed to add products: ' + error.message };
   return { success: true, data: { added: data?.length || 0, products: data }, message: `✅ Added ${data?.length || 0} products to inventory!` };
 }
+
+// ========== BATCH OPERATIONS ==========
+// Allows executing multiple operations in a single API call
+async function handleBatchOperations(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const { operations } = entities;
+  if (!operations || !Array.isArray(operations) || operations.length === 0) {
+    return { success: false, error: 'No operations provided. Send { operations: [{ action, ...params }] }' };
+  }
+  if (operations.length > 50) {
+    return { success: false, error: 'Maximum 50 operations per batch.' };
+  }
+
+  const results: any[] = [];
+  let succeeded = 0;
+  let failed = 0;
+
+  for (const op of operations) {
+    const { action, ...opParams } = op;
+    if (!action) {
+      results.push({ success: false, error: 'Missing action field', index: results.length });
+      failed++;
+      continue;
+    }
+
+    // Prevent recursive batch calls
+    if (action === 'batch_operations') {
+      results.push({ success: false, error: 'Cannot nest batch_operations', index: results.length });
+      failed++;
+      continue;
+    }
+
+    try {
+      // Re-use the existing handler logic by mapping action to handler
+      let result: any;
+      const opContext = { ...context };
+
+      switch (action) {
+        case 'check_stock':
+          result = await handleCheckStock(supabase, opParams, opContext);
+          break;
+        case 'list_products':
+          result = await handleListProducts(supabase, opParams, opContext);
+          break;
+        case 'record_sale':
+          result = await handleRecordSale(supabase, opParams, opContext);
+          break;
+        case 'create_contact':
+          result = await handleCreateContact(supabase, opParams, opContext);
+          break;
+        case 'create_invoice':
+          result = await handleCreateInvoice(supabase, opParams, opContext);
+          break;
+        case 'create_quotation':
+          result = await handleCreateQuotation(supabase, opParams, opContext);
+          break;
+        case 'create_order':
+          result = await handleCreateOrder(supabase, opParams, opContext);
+          break;
+        case 'record_expense':
+          result = await handleRecordExpense(supabase, opParams, opContext);
+          break;
+        case 'bulk_add_inventory':
+          result = await handleBulkAddInventory(supabase, opParams, opContext);
+          break;
+        default:
+          result = { success: false, error: `Unsupported batch action: ${action}` };
+      }
+
+      results.push({ ...result, action, index: results.length });
+      if (result.success) succeeded++;
+      else failed++;
+    } catch (err) {
+      results.push({ success: false, error: err instanceof Error ? err.message : 'Unknown error', action, index: results.length });
+      failed++;
+    }
+  }
+
+  return {
+    success: failed === 0,
+    data: {
+      total: operations.length,
+      succeeded,
+      failed,
+      results,
+    },
+    message: `Batch complete: ${succeeded} succeeded, ${failed} failed`,
+  };
+}
