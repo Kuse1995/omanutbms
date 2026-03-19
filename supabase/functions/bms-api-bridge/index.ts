@@ -3248,3 +3248,57 @@ async function handleGeneratePaymentLink(supabase: any, entities: Record<string,
     return { success: false, error: 'Payment service unavailable.' };
   }
 }
+
+// ========== WHATSAPP ONBOARDING: CREATE TENANT ==========
+async function handleCreateTenantFromWhatsApp(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const { business_name, business_type, currency, owner_name, phone } = entities;
+  if (!business_name || !owner_name || !phone) {
+    return { success: false, error: 'Missing required fields: business_name, owner_name, phone' };
+  }
+  const { data: existingMapping } = await supabase
+    .from('whatsapp_user_mappings').select('id').eq('whatsapp_number', phone).maybeSingle();
+  if (existingMapping) {
+    return { success: false, error: 'This phone number is already registered with a business.' };
+  }
+  try {
+    const slug = business_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').substring(0, 30) + '-' + crypto.randomUUID().substring(0, 8);
+    const { data: tenant, error: tenantErr } = await supabase
+      .from('tenants').insert({ name: business_name, slug }).select('id').single();
+    if (tenantErr || !tenant) return { success: false, error: 'Failed to create business account.' };
+    const tenantId = tenant.id;
+    await supabase.from('business_profiles').insert({
+      tenant_id: tenantId, company_name: business_name, business_type: business_type || null,
+      preferred_currency: currency || 'USD', currency: currency || 'USD',
+      billing_status: 'inactive', billing_plan: 'starter', onboarding_completed: false,
+      inventory_enabled: true, payroll_enabled: true, website_enabled: false,
+      impact_enabled: false, agents_enabled: false, tax_enabled: true,
+    });
+    await supabase.from('tenant_statistics').insert({ tenant_id: tenantId });
+    await supabase.from('whatsapp_user_mappings').insert({
+      tenant_id: tenantId, whatsapp_number: phone, display_name: owner_name,
+      role: 'admin', is_active: true, is_owner: true,
+    });
+    return { success: true, data: { tenant_id: tenantId, business_name }, message: 'Business account created successfully!' };
+  } catch (err) {
+    console.error('WhatsApp tenant creation error:', err);
+    return { success: false, error: 'Account creation failed. Please try again.' };
+  }
+}
+
+// ========== BULK ADD INVENTORY ==========
+async function handleBulkAddInventory(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const { products } = entities;
+  if (!products || !Array.isArray(products) || products.length === 0) return { success: false, error: 'No products provided.' };
+  if (products.length > 100) return { success: false, error: 'Maximum 100 products per upload.' };
+  const rows = products.map((p: any) => ({
+    tenant_id: context.tenant_id,
+    name: String(p.name || '').substring(0, 200),
+    sku: String(p.sku || `SKU-${crypto.randomUUID().substring(0, 8)}`).substring(0, 50),
+    unit_price: Math.max(0, Number(p.price) || 0),
+    current_stock: Math.max(0, Math.round(Number(p.quantity) || 0)),
+    reorder_level: 10, status: 'healthy', category: 'finished_good',
+  }));
+  const { data, error } = await supabase.from('inventory').insert(rows).select('id, name');
+  if (error) return { success: false, error: 'Failed to add products: ' + error.message };
+  return { success: true, data: { added: data?.length || 0, products: data }, message: `✅ Added ${data?.length || 0} products to inventory!` };
+}
