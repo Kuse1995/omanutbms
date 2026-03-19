@@ -729,6 +729,18 @@ serve(async (req) => {
       case 'batch_operations':
         result = await handleBatchOperations(supabase, entities, context);
         break;
+      case 'send_receipt':
+        result = await handleSendReceipt(supabase, entities, context);
+        break;
+      case 'send_invoice':
+        result = await handleSendInvoice(supabase, entities, context);
+        break;
+      case 'send_quotation':
+        result = await handleSendQuotation(supabase, entities, context);
+        break;
+      case 'send_payslip':
+        result = await handleSendPayslip(supabase, entities, context);
+        break;
       default:
         result = { success: false, error: `Unknown action: ${intent}` };
     }
