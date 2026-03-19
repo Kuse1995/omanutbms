@@ -134,43 +134,60 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'get_sales_summary', 'get_sales_details', 'check_customer',
     'my_tasks', 'task_details', 'my_schedule', 'clock_in', 'clock_out', 'my_attendance', 'my_pay',
     'team_attendance', 'pending_orders', 'low_stock_alerts', 'update_order_status',
-    'create_invoice', 'create_quotation', 'who_owes', 'daily_report', 'credit_sale'
+    'create_invoice', 'create_quotation', 'who_owes', 'daily_report', 'credit_sale',
+    'get_product_variants', 'update_stock', 'create_order', 'get_order_status', 'cancel_order',
+    'get_customer_history', 'create_contact', 'get_expenses', 'get_outstanding_receivables',
+    'get_outstanding_payables', 'profit_loss_report', 'generate_payment_link',
+    'bulk_add_inventory', 'batch_operations', 'get_product_details',
+    'send_receipt', 'send_invoice', 'send_quotation', 'send_payslip',
+    'list_quotations', 'list_invoices',
   ],
   manager: [
     'record_sale', 'check_stock', 'list_products', 'generate_invoice', 'record_expense', 
     'get_sales_summary', 'get_sales_details', 'check_customer',
     'my_tasks', 'task_details', 'my_schedule', 'clock_in', 'clock_out', 'my_attendance', 'my_pay',
     'team_attendance', 'pending_orders', 'low_stock_alerts', 'update_order_status',
-    'create_invoice', 'create_quotation', 'who_owes', 'daily_report', 'credit_sale'
+    'create_invoice', 'create_quotation', 'who_owes', 'daily_report', 'credit_sale',
+    'get_product_variants', 'update_stock', 'create_order', 'get_order_status', 'cancel_order',
+    'get_customer_history', 'create_contact', 'get_expenses', 'get_outstanding_receivables',
+    'get_outstanding_payables', 'profit_loss_report', 'generate_payment_link',
+    'bulk_add_inventory', 'batch_operations', 'get_product_details',
+    'send_receipt', 'send_invoice', 'send_quotation', 'send_payslip',
+    'list_quotations', 'list_invoices',
   ],
   accountant: [
     'check_stock', 'list_products', 'generate_invoice', 'record_expense', 'get_sales_summary', 'get_sales_details',
     'my_tasks', 'my_schedule', 'clock_in', 'clock_out', 'my_attendance', 'my_pay',
-    'create_invoice', 'create_quotation', 'who_owes', 'daily_report'
+    'create_invoice', 'create_quotation', 'who_owes', 'daily_report',
+    'get_expenses', 'get_outstanding_receivables', 'get_outstanding_payables', 'profit_loss_report',
+    'send_receipt', 'send_invoice', 'send_quotation',
+    'list_quotations', 'list_invoices',
   ],
   hr_manager: [
     'check_stock', 'list_products', 'get_sales_summary',
     'my_tasks', 'my_schedule', 'clock_in', 'clock_out', 'my_attendance', 'my_pay',
-    'team_attendance'
+    'team_attendance', 'send_payslip',
   ],
   sales_rep: [
     'record_sale', 'check_stock', 'list_products', 'get_sales_details', 'check_customer',
     'my_tasks', 'task_details', 'my_schedule', 'clock_in', 'clock_out', 'my_attendance', 'my_pay',
-    'create_quotation', 'who_owes', 'credit_sale'
+    'create_quotation', 'who_owes', 'credit_sale',
+    'create_order', 'get_order_status', 'get_customer_history', 'get_product_variants',
+    'send_receipt', 'send_quotation',
   ],
   cashier: [
     'record_sale', 'check_stock', 'list_products',
     'clock_in', 'clock_out', 'my_attendance', 'my_pay',
-    'credit_sale'
+    'credit_sale', 'send_receipt',
   ],
   staff: [
     'record_sale', 'check_stock', 'list_products', 'record_expense', 'get_sales_details',
     'my_tasks', 'task_details', 'my_schedule', 'clock_in', 'clock_out', 'my_attendance', 'my_pay',
-    'update_order_status'
+    'update_order_status', 'send_receipt',
   ],
   viewer: [
     'check_stock', 'list_products', 'get_sales_summary', 'get_sales_details',
-    'clock_in', 'clock_out', 'my_attendance'
+    'clock_in', 'clock_out', 'my_attendance',
   ],
 };
 
