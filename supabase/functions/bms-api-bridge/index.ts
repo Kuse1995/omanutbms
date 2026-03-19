@@ -1,14 +1,59 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+const API_VERSION = 'v1';
+const RATE_LIMIT_PER_MINUTE = 60;
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-bms-version',
 };
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
+
+// ========== RATE LIMITING ==========
+async function checkRateLimit(supabase: any, tenantId: string): Promise<{ allowed: boolean; remaining: number }> {
+  const windowStart = new Date();
+  windowStart.setSeconds(0, 0); // Round to current minute
+  const windowKey = windowStart.toISOString();
+
+  // Upsert: increment counter for this minute window
+  const { data, error } = await supabase
+    .from('api_rate_limits')
+    .upsert(
+      { tenant_id: tenantId, window_start: windowKey, request_count: 1 },
+      { onConflict: 'tenant_id,window_start', ignoreDuplicates: false }
+    )
+    .select('request_count')
+    .single();
+
+  if (error) {
+    // If upsert failed, try increment
+    const { data: existing } = await supabase
+      .from('api_rate_limits')
+      .select('request_count')
+      .eq('tenant_id', tenantId)
+      .eq('window_start', windowKey)
+      .maybeSingle();
+
+    if (existing) {
+      const newCount = (existing.request_count || 0) + 1;
+      await supabase
+        .from('api_rate_limits')
+        .update({ request_count: newCount })
+        .eq('tenant_id', tenantId)
+        .eq('window_start', windowKey);
+      return { allowed: newCount <= RATE_LIMIT_PER_MINUTE, remaining: Math.max(0, RATE_LIMIT_PER_MINUTE - newCount) };
+    }
+    // Fallback: allow if we can't check
+    return { allowed: true, remaining: RATE_LIMIT_PER_MINUTE };
+  }
+
+  const count = data?.request_count || 1;
+  return { allowed: count <= RATE_LIMIT_PER_MINUTE, remaining: Math.max(0, RATE_LIMIT_PER_MINUTE - count) };
+}
 
 // ========== EXTERNAL API KEY AUTH ==========
 // Validates bearer token against bms_integration_configs.api_secret
@@ -372,8 +417,9 @@ serve(async (req) => {
           success: true,
           data: {
             status: 'healthy',
-            version: '2.0',
+            version: API_VERSION,
             timestamp: new Date().toISOString(),
+            rate_limit: `${RATE_LIMIT_PER_MINUTE} requests/minute`,
             supported_actions: [
               'health_check', 'list_products', 'check_stock', 'get_product_details', 'get_product_variants',
               'record_sale', 'update_stock', 'create_order', 'get_order_status', 'cancel_order',
@@ -382,10 +428,11 @@ serve(async (req) => {
               'get_low_stock_items', 'record_expense', 'get_expenses',
               'get_outstanding_receivables', 'get_outstanding_payables', 'profit_loss_report',
               'clock_in', 'clock_out', 'update_order_status', 'generate_payment_link',
+              'batch_operations',
             ],
           },
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json', 'X-BMS-Version': API_VERSION } }
       );
     }
 
@@ -400,6 +447,15 @@ serve(async (req) => {
           isExternalApi = true;
           context.role = 'admin';
           context.user_id = null;
+
+          // Rate limiting for external API calls
+          const rateCheck = await checkRateLimit(supabase, context.tenant_id);
+          if (!rateCheck.allowed) {
+            return new Response(
+              JSON.stringify({ success: false, error: 'Rate limit exceeded. Max 60 requests per minute.', retry_after: 60 }),
+              { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': '60', 'X-RateLimit-Remaining': '0' } }
+            );
+          }
         }
       }
 
@@ -649,6 +705,9 @@ serve(async (req) => {
       case 'bulk_add_inventory':
         result = await handleBulkAddInventory(supabase, entities, context);
         break;
+      case 'batch_operations':
+        result = await handleBatchOperations(supabase, entities, context);
+        break;
       default:
         result = { success: false, error: `Unknown action: ${intent}` };
     }
@@ -665,7 +724,7 @@ serve(async (req) => {
         ...result,
         execution_time_ms: executionTime,
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json', 'X-BMS-Version': API_VERSION } }
     );
 
   } catch (error) {
@@ -3399,4 +3458,92 @@ async function handleBulkAddInventory(supabase: any, entities: Record<string, an
   const { data, error } = await supabase.from('inventory').insert(rows).select('id, name');
   if (error) return { success: false, error: 'Failed to add products: ' + error.message };
   return { success: true, data: { added: data?.length || 0, products: data }, message: `✅ Added ${data?.length || 0} products to inventory!` };
+}
+
+// ========== BATCH OPERATIONS ==========
+// Allows executing multiple operations in a single API call
+async function handleBatchOperations(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const { operations } = entities;
+  if (!operations || !Array.isArray(operations) || operations.length === 0) {
+    return { success: false, error: 'No operations provided. Send { operations: [{ action, ...params }] }' };
+  }
+  if (operations.length > 50) {
+    return { success: false, error: 'Maximum 50 operations per batch.' };
+  }
+
+  const results: any[] = [];
+  let succeeded = 0;
+  let failed = 0;
+
+  for (const op of operations) {
+    const { action, ...opParams } = op;
+    if (!action) {
+      results.push({ success: false, error: 'Missing action field', index: results.length });
+      failed++;
+      continue;
+    }
+
+    // Prevent recursive batch calls
+    if (action === 'batch_operations') {
+      results.push({ success: false, error: 'Cannot nest batch_operations', index: results.length });
+      failed++;
+      continue;
+    }
+
+    try {
+      // Re-use the existing handler logic by mapping action to handler
+      let result: any;
+      const opContext = { ...context };
+
+      switch (action) {
+        case 'check_stock':
+          result = await handleCheckStock(supabase, opParams, opContext);
+          break;
+        case 'list_products':
+          result = await handleListProducts(supabase, opParams, opContext);
+          break;
+        case 'record_sale':
+          result = await handleRecordSale(supabase, opParams, opContext);
+          break;
+        case 'create_contact':
+          result = await handleCreateContact(supabase, opParams, opContext);
+          break;
+        case 'create_invoice':
+          result = await handleCreateInvoice(supabase, opParams, opContext);
+          break;
+        case 'create_quotation':
+          result = await handleCreateQuotation(supabase, opParams, opContext);
+          break;
+        case 'create_order':
+          result = await handleCreateOrder(supabase, opParams, opContext);
+          break;
+        case 'record_expense':
+          result = await handleRecordExpense(supabase, opParams, opContext);
+          break;
+        case 'bulk_add_inventory':
+          result = await handleBulkAddInventory(supabase, opParams, opContext);
+          break;
+        default:
+          result = { success: false, error: `Unsupported batch action: ${action}` };
+      }
+
+      results.push({ ...result, action, index: results.length });
+      if (result.success) succeeded++;
+      else failed++;
+    } catch (err) {
+      results.push({ success: false, error: err instanceof Error ? err.message : 'Unknown error', action, index: results.length });
+      failed++;
+    }
+  }
+
+  return {
+    success: failed === 0,
+    data: {
+      total: operations.length,
+      succeeded,
+      failed,
+      results,
+    },
+    message: `Batch complete: ${succeeded} succeeded, ${failed} failed`,
+  };
 }
