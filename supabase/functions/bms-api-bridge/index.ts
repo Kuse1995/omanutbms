@@ -46,6 +46,35 @@ async function logApiCall(supabase: any, tenantId: string, action: string, sourc
   }
 }
 
+// ========== CALLBACK DISPATCH HELPER ==========
+// Fire-and-forget: sends event to bms-callback-dispatcher without blocking the response
+function fireCallback(tenantId: string, event: string, data: any) {
+  try {
+    fetch(`${SUPABASE_URL}/functions/v1/bms-callback-dispatcher`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ event, tenant_id: tenantId, data }),
+    }).catch(err => console.error(`[fireCallback] ${event} failed:`, err));
+  } catch (e) {
+    console.error(`[fireCallback] ${event} error:`, e);
+  }
+}
+
+// Large sale threshold in ZMW
+const LARGE_SALE_THRESHOLD = 5000;
+
+// Check stock level after a sale and fire low_stock/out_of_stock callbacks
+function checkStockCallbacks(tenantId: string, productName: string, newStock: number, reorderLevel: number, sku?: string) {
+  if (newStock <= 0) {
+    fireCallback(tenantId, 'out_of_stock', { product_name: productName, sku: sku || '', current_stock: 0 });
+  } else if (newStock < reorderLevel) {
+    fireCallback(tenantId, 'low_stock', { product_name: productName, current_stock: newStock, reorder_level: reorderLevel, sku: sku || '' });
+  }
+}
+
 function getBearerToken(req: Request): string | null {
   const auth = req.headers.get('Authorization');
   if (!auth) return null;
