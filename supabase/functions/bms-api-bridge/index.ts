@@ -614,9 +614,14 @@ serve(async (req) => {
       case 'generate_payment_link':
         result = await handleGeneratePaymentLink(supabase, entities, context);
         break;
+      case 'create_tenant_from_whatsapp':
+        result = await handleCreateTenantFromWhatsApp(supabase, entities, context);
+        break;
+      case 'bulk_add_inventory':
+        result = await handleBulkAddInventory(supabase, entities, context);
+        break;
       default:
         result = { success: false, error: `Unknown action: ${intent}` };
-    }
 
     const executionTime = Date.now() - startTime;
 
