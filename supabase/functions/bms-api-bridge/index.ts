@@ -705,6 +705,9 @@ serve(async (req) => {
       case 'bulk_add_inventory':
         result = await handleBulkAddInventory(supabase, entities, context);
         break;
+      case 'batch_operations':
+        result = await handleBatchOperations(supabase, entities, context);
+        break;
       default:
         result = { success: false, error: `Unknown action: ${intent}` };
     }
