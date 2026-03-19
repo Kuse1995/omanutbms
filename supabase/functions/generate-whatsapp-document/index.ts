@@ -290,7 +290,7 @@ serve(async (req) => {
       tagline: businessProfile?.tagline || null,
       slogan: businessProfile?.slogan || null,
       impactEnabled: businessProfile?.impact_enabled ?? false,
-      impactUnitLabel: 'Liters of Clean Water',
+      impactUnitLabel: businessProfile?.sourcing_label || 'Units of Impact',
       currencySymbol: businessProfile?.currency_symbol || 'K',
     };
 
