@@ -46,6 +46,35 @@ async function logApiCall(supabase: any, tenantId: string, action: string, sourc
   }
 }
 
+// ========== CALLBACK DISPATCH HELPER ==========
+// Fire-and-forget: sends event to bms-callback-dispatcher without blocking the response
+function fireCallback(tenantId: string, event: string, data: any) {
+  try {
+    fetch(`${SUPABASE_URL}/functions/v1/bms-callback-dispatcher`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ event, tenant_id: tenantId, data }),
+    }).catch(err => console.error(`[fireCallback] ${event} failed:`, err));
+  } catch (e) {
+    console.error(`[fireCallback] ${event} error:`, e);
+  }
+}
+
+// Large sale threshold in ZMW
+const LARGE_SALE_THRESHOLD = 5000;
+
+// Check stock level after a sale and fire low_stock/out_of_stock callbacks
+function checkStockCallbacks(tenantId: string, productName: string, newStock: number, reorderLevel: number, sku?: string) {
+  if (newStock <= 0) {
+    fireCallback(tenantId, 'out_of_stock', { product_name: productName, sku: sku || '', current_stock: 0 });
+  } else if (newStock < reorderLevel) {
+    fireCallback(tenantId, 'low_stock', { product_name: productName, current_stock: newStock, reorder_level: reorderLevel, sku: sku || '' });
+  }
+}
+
 function getBearerToken(req: Request): string | null {
   const auth = req.headers.get('Authorization');
   if (!auth) return null;
@@ -964,6 +993,33 @@ K${amount.toLocaleString()} from ${customer_name || 'walk-in customer'} by ${pay
 ${quantity > 1 ? `${quantity}x ` : ''}${resolvedItemName} • ${receiptNumber}
 
 Your receipt PDF is attached above.`;
+
+  // Fire callbacks: payment_confirmed and optionally large_sale
+  fireCallback(context.tenant_id, 'payment_confirmed', {
+    sale_number: saleNumber,
+    receipt_number: receiptNumber,
+    amount,
+    product: resolvedItemName,
+    quantity,
+    payment_method,
+    customer_name: customer_name || 'Walk-in Customer',
+  });
+
+  if (amount >= LARGE_SALE_THRESHOLD) {
+    fireCallback(context.tenant_id, 'large_sale', {
+      sale_number: saleNumber,
+      amount,
+      threshold: LARGE_SALE_THRESHOLD,
+      product: resolvedItemName,
+      customer_name: customer_name || 'Walk-in Customer',
+    });
+  }
+
+  // Check stock level callbacks
+  if (productItem) {
+    const newStock = productItem.current_stock - quantity;
+    checkStockCallbacks(context.tenant_id, productItem.name, newStock, productItem.reorder_level);
+  }
 
   return {
     success: true,
@@ -2374,6 +2430,15 @@ async function handleCreateInvoice(supabase: any, entities: Record<string, any>,
     `  • ${item.quantity}x ${item.description} @ K${item.unit_price.toLocaleString()}`
   ).join('\n');
 
+  // Fire new_order callback
+  fireCallback(context.tenant_id, 'new_order', {
+    invoice_number: invoiceNumber,
+    customer: customer_name,
+    total: totalAmount,
+    items_count: invoiceItems.length,
+    type: 'invoice',
+  });
+
   return {
     success: true,
     message: `✅ Invoice ${invoiceNumber} created!\n\n👤 ${customer_name}\n${itemsSummary}\n\n💰 Subtotal: K${subtotal.toLocaleString()}${taxAmount > 0 ? `\n🏛️ Tax: K${taxAmount.toLocaleString()}` : ''}\n━━━━━━━━━━━━━━━━\n💵 Total: K${totalAmount.toLocaleString()}\n📅 Due: 30 days\n\n💡 Say "send invoice ${invoiceNumber}" to get the PDF.`,
@@ -2770,6 +2835,22 @@ async function handleCreditSale(supabase: any, entities: Record<string, any>, co
       .eq('id', productItem.id);
   }
 
+  // Fire new_order callback for credit sale
+  fireCallback(context.tenant_id, 'new_order', {
+    invoice_number: invoiceNumber,
+    customer: customer_name,
+    amount,
+    type: 'credit_sale',
+    product: resolvedItemName,
+    quantity,
+  });
+
+  // Check stock level callbacks
+  if (productItem) {
+    const newStock = productItem.current_stock - quantity;
+    checkStockCallbacks(context.tenant_id, productItem.name, newStock, productItem.reorder_level);
+  }
+
   return {
     success: true,
     message: `✅ Credit sale recorded!\n\n👤 ${customer_name}\n📦 ${quantity > 1 ? `${quantity}x ` : ''}${resolvedItemName}\n💰 K${amount.toLocaleString()} (on credit)\n📋 Invoice: ${invoiceNumber}\n📅 Due: 30 days\n\n💡 Say "who owes" to see all outstanding.`,
@@ -2917,6 +2998,15 @@ async function handleCreateOrder(supabase: any, entities: Record<string, any>, c
       unit_price: Number(item.unit_price) || 0,
     });
   }
+
+  // Fire new_order callback
+  fireCallback(context.tenant_id, 'new_order', {
+    order_number: order.order_number,
+    customer: customer_name,
+    items_count: items.length,
+    total_amount: total_amount || 0,
+    type: 'custom_order',
+  });
 
   return {
     success: true,
@@ -3190,6 +3280,13 @@ async function handleCreateContact(supabase: any, entities: Record<string, any>,
     console.error('Create contact error:', error);
     return { success: false, error: 'Failed to create contact.' };
   }
+
+  // Fire new_contact callback
+  fireCallback(context.tenant_id, 'new_contact', {
+    contact_name: name,
+    phone: phone || null,
+    email: email || null,
+  });
 
   return {
     success: true,

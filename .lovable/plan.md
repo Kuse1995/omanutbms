@@ -1,83 +1,67 @@
 
+# WhatsApp-First BMS: All 4 Phases Implemented
 
-# Align WhatsApp Features with BMS Automation Callbacks
+## Phase 1: Workflow State Machine ✅
+- Created `whatsapp_conversations` table (phone, tenant_id, current_workflow, workflow_step, workflow_state JSONB, expires_at)
+- UNIQUE index on phone — one active workflow per number
+- RLS enabled with service role full access
+- Workflow engine utilities: `getActiveWorkflow`, `startWorkflow`, `advanceWorkflow`, `completeWorkflow`, `cancelWorkflow`
+- Handler checks for active workflow BEFORE intent parsing
 
-## Problem
+## Phase 2: WhatsApp Tenant Onboarding ✅
+- Unregistered users can say "register" / "sign up" to start onboarding
+- 5-step guided flow: business name → type → currency → owner name → confirm
+- `create_tenant_from_whatsapp` action in bms-api-bridge creates tenant, business_profile, tenant_statistics, and whatsapp_user_mapping
+- Rate limiting: checks for existing workflow before allowing new registration
+- UNREGISTERED_MESSAGE updated to mention registration option
 
-The system has three disconnected layers:
-1. **WhatsApp handler** — processes user messages, calls the BMS bridge
-2. **BMS API bridge** — executes business logic (sales, stock, invoices, etc.)
-3. **BMS callback dispatcher** — designed to send outbound notifications to the Omanut platform
+## Phase 3: Photo-Based Stock Upload ✅
+- New `whatsapp-stock-extractor` edge function using Lovable AI (Gemini 2.5 Pro vision)
+- Downloads image from Twilio with auth, sends to vision AI with structured tool calling
+- Extracts product array: name, price, quantity, sku, unit
+- Stock upload workflow: receive image → extract → confirm → bulk insert
+- `bulk_add_inventory` action in bms-api-bridge for batch inventory insertion (max 100 items)
+- Triggers: sending an image, or saying "add stock" / "upload products"
 
-The callback dispatcher exists but is **never called**. When a sale is recorded via WhatsApp (or the dashboard), no outbound notification is sent to the Omanut platform. The callback events configured in `BmsIntegrationSettings` (`low_stock`, `new_order`, `payment_confirmed`, etc.) are dead code.
+## Phase 4: Guided Invoice & Document Creation ✅
+- Step-by-step invoice/quotation creation: ask customer → add items loop → review → create → deliver PDF
+- Smart item matching: looks up inventory prices when user enters product name
+- Price prompt if price not found in inventory
+- Auto-PDF delivery after creation via generate-whatsapp-document
+- Triggers: "guided invoice", "new invoice", "guided quote", "new quotation"
 
-## Solution
+## Phase 5: Softer Grace Period Strategy ✅
+- Extended grace period from 5 days to 30 days
+- Replaced permanent deletion with soft-archive (`archived_at` column)
+- Tiered lifecycle: Day 0 inactive → Day 14 read-only → Day 30 archived → Day 120 permanent purge
+- Updated `purge-expired-tenants` to archive at 30 days, purge at 90 days after archive
+- Softened all user-facing messaging ("archived" not "deleted", data preserved 90 days)
+- `SubscriptionActivationGate` shows read-only mode indicator after day 14
 
-Wire the BMS API bridge to fire callbacks after key operations, so the Omanut platform receives real-time notifications about business events.
-
-## Changes
-
-### 1. Add callback dispatch helper to `bms-api-bridge`
-
-Create a lightweight `fireCallback()` function inside the bridge that calls the `bms-callback-dispatcher` edge function after successful operations. This is non-blocking (fire-and-forget) so it doesn't slow down the response.
-
-```text
-async function fireCallback(tenantId, event, data) {
-  // POST to bms-callback-dispatcher with service role
-  // Non-blocking: don't await, catch errors silently
-}
-```
-
-### 2. Wire callbacks to existing bridge operations
-
-| Bridge Action | Callback Event | Data Payload |
-|---|---|---|
-| `record_sale` | `payment_confirmed` | sale_number, amount, product, payment_method |
-| `record_sale` (large) | `large_sale` | sale_number, amount, threshold |
-| `credit_sale` | `new_order` | invoice_number, customer, amount |
-| `create_order` | `new_order` | order_number, customer, items |
-| `create_invoice` | `new_order` | invoice_number, customer, total |
-| `record_expense` | (future) | — |
-| Stock drops below reorder | `low_stock` | product_name, current_stock, reorder_level |
-| Stock hits zero | `out_of_stock` | product_name, sku |
-| `create_contact` | `new_contact` | contact_name, phone |
-
-### 3. Add daily summary callback trigger
-
-Create a new edge function `bms-daily-summary-callback` that runs on a schedule (end of day) and fires the `daily_summary` callback event for each tenant that has it enabled. This reuses the existing `daily_report` logic from the bridge.
-
-### 4. Wire invoice overdue detection
-
-In the existing `expire-subscriptions` scheduled function (or a new lightweight cron), check for overdue invoices and fire `invoice_overdue` callbacks.
-
-### 5. Update `bms-callback-dispatcher` CORS headers
-
-Add the missing `x-supabase-*` headers to the CORS config for consistency.
+## Phase 6: WhatsApp-Automation Callback Alignment ✅
+- Added `fireCallback()` helper to `bms-api-bridge` (fire-and-forget, non-blocking)
+- Wired callbacks to key operations:
+  - `record_sale` → `payment_confirmed` + `large_sale` (if ≥K5,000)
+  - `credit_sale` → `new_order`
+  - `create_invoice` → `new_order`
+  - `create_order` → `new_order`
+  - `create_contact` → `new_contact`
+  - Stock drops → `low_stock` / `out_of_stock` (automatic after sales)
+- Created `bms-daily-summary-callback` edge function for scheduled `daily_summary` + `invoice_overdue` callbacks
+- Updated CORS headers on `bms-callback-dispatcher`
 
 ## Files Modified
+- `supabase/functions/whatsapp-bms-handler/index.ts` — Full rewrite with workflow engine + all 4 phases
+- `supabase/functions/bms-api-bridge/index.ts` — Added callback wiring, `fireCallback()`, `checkStockCallbacks()`, `create_tenant_from_whatsapp`, `bulk_add_inventory`
+- `supabase/functions/bms-callback-dispatcher/index.ts` — Updated CORS headers
+- `supabase/functions/purge-expired-tenants/index.ts` — Rewritten: 30-day archive + 90-day purge
+- `src/components/dashboard/SubscriptionRequiredModal.tsx` — 30-day countdown, softer language
+- `src/components/dashboard/SubscriptionActivationGate.tsx` — Read-only mode indicator, softer messaging
 
-| File | Change |
-|---|---|
-| `supabase/functions/bms-api-bridge/index.ts` | Add `fireCallback()` helper; call it after `record_sale`, `credit_sale`, `create_order`, `create_invoice`, `create_contact`, and stock-change operations |
-| `supabase/functions/bms-callback-dispatcher/index.ts` | Minor CORS update |
-| `supabase/functions/bms-daily-summary-callback/index.ts` | New function: scheduled daily summary that fires callbacks for all enabled tenants |
+## New Files
+- `supabase/functions/whatsapp-stock-extractor/index.ts` — Vision AI product extraction
+- `supabase/functions/bms-daily-summary-callback/index.ts` — Scheduled daily summary + invoice overdue callbacks
 
-## Architecture After Change
-
-```text
-WhatsApp User
-    │
-    ▼
-whatsapp-bms-handler
-    │
-    ▼
-bms-api-bridge  ──(after success)──►  bms-callback-dispatcher  ──►  Omanut Platform
-    │                                         ▲
-    ▼                                         │
-  Database  ◄── dashboard UI                  │
-                                              │
-bms-daily-summary-callback (cron) ────────────┘
-```
-
-No database changes required. No frontend changes needed.
-
+## DB Migrations
+- `whatsapp_conversations` table with RLS, unique phone index, expiry index, auto-updated_at trigger
+- `business_profiles.archived_at` column added
