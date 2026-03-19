@@ -445,6 +445,15 @@ serve(async (req) => {
           isExternalApi = true;
           context.role = 'admin';
           context.user_id = null;
+
+          // Rate limiting for external API calls
+          const rateCheck = await checkRateLimit(supabase, context.tenant_id);
+          if (!rateCheck.allowed) {
+            return new Response(
+              JSON.stringify({ success: false, error: 'Rate limit exceeded. Max 60 requests per minute.', retry_after: 60 }),
+              { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': '60', 'X-RateLimit-Remaining': '0' } }
+            );
+          }
         }
       }
 
