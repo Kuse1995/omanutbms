@@ -622,6 +622,7 @@ serve(async (req) => {
         break;
       default:
         result = { success: false, error: `Unknown action: ${intent}` };
+    }
 
     const executionTime = Date.now() - startTime;
 
