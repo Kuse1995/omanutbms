@@ -994,6 +994,33 @@ ${quantity > 1 ? `${quantity}x ` : ''}${resolvedItemName} • ${receiptNumber}
 
 Your receipt PDF is attached above.`;
 
+  // Fire callbacks: payment_confirmed and optionally large_sale
+  fireCallback(context.tenant_id, 'payment_confirmed', {
+    sale_number: saleNumber,
+    receipt_number: receiptNumber,
+    amount,
+    product: resolvedItemName,
+    quantity,
+    payment_method,
+    customer_name: customer_name || 'Walk-in Customer',
+  });
+
+  if (amount >= LARGE_SALE_THRESHOLD) {
+    fireCallback(context.tenant_id, 'large_sale', {
+      sale_number: saleNumber,
+      amount,
+      threshold: LARGE_SALE_THRESHOLD,
+      product: resolvedItemName,
+      customer_name: customer_name || 'Walk-in Customer',
+    });
+  }
+
+  // Check stock level callbacks
+  if (productItem) {
+    const newStock = productItem.current_stock - quantity;
+    checkStockCallbacks(context.tenant_id, productItem.name, newStock, productItem.reorder_level);
+  }
+
   return {
     success: true,
     message: receiptMessage,
