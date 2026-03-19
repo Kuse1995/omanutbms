@@ -1963,6 +1963,47 @@ export type Database = {
           },
         ]
       }
+      embeddings: {
+        Row: {
+          content_text: string
+          created_at: string
+          embedding: string
+          entity_id: string | null
+          entity_type: string
+          id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          content_text: string
+          created_at?: string
+          embedding: string
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          content_text?: string
+          created_at?: string
+          embedding?: string
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "embeddings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employee_attendance: {
         Row: {
           change_log: Json | null
