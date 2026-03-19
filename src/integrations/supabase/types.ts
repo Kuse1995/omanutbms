@@ -423,6 +423,35 @@ export type Database = {
           },
         ]
       }
+      api_rate_limits: {
+        Row: {
+          id: string
+          request_count: number
+          tenant_id: string
+          window_start: string
+        }
+        Insert: {
+          id?: string
+          request_count?: number
+          tenant_id: string
+          window_start?: string
+        }
+        Update: {
+          id?: string
+          request_count?: number
+          tenant_id?: string
+          window_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_rate_limits_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       asset_logs: {
         Row: {
           action: string
@@ -1184,6 +1213,62 @@ export type Database = {
             foreignKeyName: "business_profiles_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      callback_queue: {
+        Row: {
+          api_secret: string
+          attempts: number
+          callback_url: string
+          completed_at: string | null
+          created_at: string
+          event: string
+          id: string
+          last_error: string | null
+          max_attempts: number
+          next_retry_at: string
+          payload: Json
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          api_secret: string
+          attempts?: number
+          callback_url: string
+          completed_at?: string | null
+          created_at?: string
+          event: string
+          id?: string
+          last_error?: string | null
+          max_attempts?: number
+          next_retry_at?: string
+          payload?: Json
+          status?: string
+          tenant_id: string
+        }
+        Update: {
+          api_secret?: string
+          attempts?: number
+          callback_url?: string
+          completed_at?: string | null
+          created_at?: string
+          event?: string
+          id?: string
+          last_error?: string | null
+          max_attempts?: number
+          next_retry_at?: string
+          payload?: Json
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "callback_queue_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
