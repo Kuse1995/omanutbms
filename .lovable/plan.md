@@ -30,13 +30,24 @@
 - Auto-PDF delivery after creation via generate-whatsapp-document
 - Triggers: "guided invoice", "new invoice", "guided quote", "new quotation"
 
+## Phase 5: Softer Grace Period Strategy ✅
+- Extended grace period from 5 days to 30 days
+- Replaced permanent deletion with soft-archive (`archived_at` column)
+- Tiered lifecycle: Day 0 inactive → Day 14 read-only → Day 30 archived → Day 120 permanent purge
+- Updated `purge-expired-tenants` to archive at 30 days, purge at 90 days after archive
+- Softened all user-facing messaging ("archived" not "deleted", data preserved 90 days)
+- `SubscriptionActivationGate` shows read-only mode indicator after day 14
+
 ## Files Modified
 - `supabase/functions/whatsapp-bms-handler/index.ts` — Full rewrite with workflow engine + all 4 phases
 - `supabase/functions/bms-api-bridge/index.ts` — Added `create_tenant_from_whatsapp` and `bulk_add_inventory` actions
-- `supabase/config.toml` — Registered `whatsapp-stock-extractor` function
+- `supabase/functions/purge-expired-tenants/index.ts` — Rewritten: 30-day archive + 90-day purge
+- `src/components/dashboard/SubscriptionRequiredModal.tsx` — 30-day countdown, softer language
+- `src/components/dashboard/SubscriptionActivationGate.tsx` — Read-only mode indicator, softer messaging
 
 ## New Files
 - `supabase/functions/whatsapp-stock-extractor/index.ts` — Vision AI product extraction
 
-## DB Migration
+## DB Migrations
 - `whatsapp_conversations` table with RLS, unique phone index, expiry index, auto-updated_at trigger
+- `business_profiles.archived_at` column added
