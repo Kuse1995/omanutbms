@@ -5588,6 +5588,22 @@ export type Database = {
         Args: { _tenant_id: string }
         Returns: boolean
       }
+      match_embeddings: {
+        Args: {
+          match_count?: number
+          match_entity_type?: string
+          match_tenant_id: string
+          match_threshold?: number
+          query_embedding: string
+        }
+        Returns: {
+          content_text: string
+          entity_id: string
+          entity_type: string
+          id: string
+          similarity: number
+        }[]
+      }
       sync_user_role_by_email: {
         Args: { p_email: string; p_new_role: string; p_tenant_id: string }
         Returns: Json
