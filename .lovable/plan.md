@@ -1,99 +1,48 @@
 
 
-# Implement Gemini Embeddings Across the Platform
+# Align BMS Bridge with Omanut's Updated Integration
 
-## What Are Embeddings and Why They Matter
+## Context
 
-Embeddings convert text into numerical vectors that capture meaning. Instead of keyword matching ("cement" won't find "building materials"), embeddings understand that these concepts are related. This upgrades every search and matching operation in the platform from string matching to semantic understanding.
+The Omanut project has updated its `bms-agent`, `boss-chat`, and `whatsapp-messages` to align with this project's API spec. The changes include:
+- Sending `intent` instead of `action` (already handled by our bridge)
+- Adding aliases for backward compat (already handled)
+- Expanding to 40+ actions including `send_receipt`, `send_invoice`, `send_quotation`, `send_payslip`, `get_sales_summary`, `get_sales_details`, `bulk_add_inventory`, `check_customer`, `who_owes`, `daily_report`, etc.
 
-## Where Embeddings Will Be Used
+## Gaps Found
 
-### 1. Smart Product Search (highest impact)
-Currently all product/inventory search uses `.toLowerCase().includes()` — exact substring matching. With embeddings, a user searching "building materials" would find cement, sand, and bricks. A WhatsApp user saying "the round thing for water" could match "LifeStraw Personal Filter."
+The bridge already handles most of the new intents. However:
 
-### 2. WhatsApp Intent Parsing Fallback
-The intent parser sometimes fails on very broken English or novel expressions. Before falling back to "unknown intent," we can compare the user's message embedding against a library of known intent examples to find the closest match — dramatically reducing "I don't understand" responses.
+1. **Missing handlers**: `send_receipt`, `send_invoice`, `send_quotation`, `send_payslip` — Omanut now sends these but the bridge has no case for them. These should trigger document generation and return the document URL (or send via WhatsApp).
 
-### 3. Customer & Contact Deduplication
-When creating contacts via WhatsApp or the dashboard, embed the name and compare against existing contacts to flag potential duplicates (e.g., "J. Mulenga" vs "John Mulenga" vs "Mulenga John").
+2. **Missing from ROLE_PERMISSIONS**: `send_receipt`, `send_invoice`, `send_quotation`, `send_payslip`, `create_contact`, `create_order`, `get_order_status`, `cancel_order`, `get_customer_history`, `get_product_variants`, `update_stock`, `get_expenses`, `get_outstanding_receivables`, `get_outstanding_payables`, `profit_loss_report`, `generate_payment_link`, `bulk_add_inventory`, `batch_operations` are handled in the switch but not in ROLE_PERMISSIONS (so non-external-API users get blocked).
 
-### 4. Smart Advisor Context (Omanut Advisor)
-Instead of sending the entire business context to the AI advisor, embed the user's question and retrieve only the most relevant data chunks — reducing token usage and improving answer quality.
+3. **Missing from health_check supported_actions**: Several new intents (`send_receipt`, `send_invoice`, `send_quotation`, `send_payslip`, `credit_sale`, `daily_report`, `who_owes`, `bulk_add_inventory`, `check_customer`, `my_tasks`, `my_attendance`, `my_pay`, `my_schedule`, `team_attendance`, `pending_orders`, `create_contact`) are not listed.
 
-### 5. Blog Content Suggestions
-When writing blog posts, find semantically similar existing posts to avoid duplication and suggest related topics.
+## Changes
 
-## Technical Architecture
+### 1. `supabase/functions/bms-api-bridge/index.ts`
 
-### New Edge Function: `generate-embeddings`
-A central embedding service that all other functions call:
+**a) Add document-send handlers** (`send_receipt`, `send_invoice`, `send_quotation`, `send_payslip`): Each handler looks up the relevant document by number/ID, generates a PDF URL (using existing pdf-utils or storage), and returns it. These reuse existing invoice/receipt/quotation query logic.
 
-```text
-POST /functions/v1/generate-embeddings
-Body: { texts: ["cement bags", "building materials"], model: "text-embedding-004" }
-Returns: { embeddings: [[0.12, -0.34, ...], [...]] }
-```
+**b) Expand ROLE_PERMISSIONS**: Add missing intents to appropriate roles:
+- Admin/Manager: all new intents
+- Accountant: `send_receipt`, `send_invoice`, `send_quotation`, `get_expenses`, `get_outstanding_receivables`, `get_outstanding_payables`, `profit_loss_report`
+- Sales rep: `send_receipt`, `send_quotation`, `create_order`, `get_order_status`, `get_customer_history`
+- Cashier: `send_receipt`
+- Staff: `send_receipt`
 
-Uses the Gemini Embedding API (`text-embedding-004` model, 768 dimensions).
+**c) Update health_check supported_actions** to include all handled intents.
 
-### Database: `embeddings` Table
-Stores pre-computed embeddings with pgvector:
+**d) Add switch cases** for `send_receipt`, `send_invoice`, `send_quotation`, `send_payslip`.
 
-```text
-embeddings table:
-  id, tenant_id, entity_type (product/contact/intent/blog),
-  entity_id, content_text, embedding (vector(768)),
-  created_at, updated_at
-```
+### 2. No database changes required
 
-Requires enabling the `vector` PostgreSQL extension.
+### 3. No frontend changes required
 
-### Embedding Lifecycle
-- **Products**: Generate embedding on insert/update (name + description + category)
-- **Contacts**: Generate embedding on insert (name + company + notes)  
-- **Intent examples**: Pre-seeded library of ~50 example phrases per intent
-- **Blog posts**: Generate on publish (title + excerpt)
+## Files Modified
 
-### Search Flow
-
-```text
-User types "building supplies" in search
-  → Frontend calls generate-embeddings with query
-  → pgvector finds nearest neighbors: SELECT * FROM embeddings 
-    WHERE tenant_id = X ORDER BY embedding <=> query_vector LIMIT 10
-  → Returns matched entity_ids (product IDs)
-  → Frontend fetches full product records
-```
-
-## Changes Required
-
-| File / Resource | Change |
+| File | Change |
 |---|---|
-| **Migration** | Enable `vector` extension, create `embeddings` table with indexes |
-| **`generate-embeddings/index.ts`** (new) | Central edge function calling Gemini embedding API |
-| **`embed-on-change/index.ts`** (new) | Webhook-triggered function that embeds products/contacts on insert/update |
-| **`semantic-search/index.ts`** (new) | Edge function: takes query text + entity_type, returns nearest matches |
-| **`bms-intent-parser/index.ts`** | Add embedding fallback for low-confidence or unknown intents |
-| **`bms-api-bridge/index.ts`** | Wire `check_stock` and `list_products` to use semantic search when keyword match returns nothing |
-| **`ProductCombobox.tsx`** | Add semantic search option when exact match returns few results |
-| **`InventoryAgent.tsx`** | Enhance search to call semantic-search endpoint as fallback |
-| **`CustomersManager.tsx`** | Add duplicate detection on new contact creation |
-
-## Implementation Order
-
-1. Database migration (enable vector, create table)
-2. `generate-embeddings` edge function
-3. `semantic-search` edge function  
-4. `embed-on-change` edge function (auto-embed on data changes)
-5. Wire into product search (ProductCombobox, InventoryAgent)
-6. Wire into WhatsApp intent parser fallback
-7. Wire into customer deduplication
-8. Wire into advisor context retrieval
-
-## Notes
-
-- Gemini `text-embedding-004` is called via `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent` using the existing `GEMINI_API_KEY` — no new secrets needed.
-- pgvector's `<=>` operator (cosine distance) handles similarity ranking.
-- Embeddings are tenant-scoped so tenants never see each other's data.
-- The embedding dimension is 768 (Gemini text-embedding-004 default).
+| `supabase/functions/bms-api-bridge/index.ts` | Add 4 send handlers, expand ROLE_PERMISSIONS, update health_check list |
 
