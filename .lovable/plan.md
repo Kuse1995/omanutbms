@@ -65,3 +65,41 @@
 ## DB Migrations
 - `whatsapp_conversations` table with RLS, unique phone index, expiry index, auto-updated_at trigger
 - `business_profiles.archived_at` column added
+
+## Phase 7: Advanced Integration Hardening ✅
+
+### A. HMAC-SHA256 Webhook Signatures
+- All outbound callbacks now include `X-BMS-Signature` header (HMAC-SHA256 of payload using api_secret)
+- Additional headers: `X-BMS-Event`, `X-BMS-Timestamp`, `X-BMS-Version`
+- Omanut platform can verify payload authenticity by computing HMAC and comparing
+
+### B. Callback Retry Queue
+- New `callback_queue` table: stores failed callbacks with exponential backoff (30s → 2m → 8m → 32m → 2h)
+- Max 5 attempts per callback before marking as permanently failed
+- `bms-callback-dispatcher` auto-queues failed deliveries and supports `mode: 'process_retry_queue'`
+- No more lost events when Omanut platform is temporarily down
+
+### C. API Rate Limiting
+- New `api_rate_limits` table: sliding window counter per tenant per minute
+- Default: 60 requests/minute per tenant for external API calls
+- Returns HTTP 429 with `Retry-After` header when exceeded
+- Auto-cleanup trigger removes entries older than 5 minutes
+
+### D. Batch API Endpoint
+- New `batch_operations` intent: execute up to 50 operations in a single API call
+- Supports: check_stock, list_products, record_sale, create_contact, create_invoice, create_quotation, create_order, record_expense, bulk_add_inventory
+- Returns per-operation results with success/failure counts
+- Prevents recursive batch nesting
+
+### E. API Versioning
+- All responses include `X-BMS-Version: v1` header
+- Health check reports version, rate limit info
+- Foundation for future breaking changes via version negotiation
+
+## Files Modified (Phase 7)
+- `supabase/functions/bms-callback-dispatcher/index.ts` — Full rewrite: HMAC signatures, retry queue processing, failed callback queuing
+- `supabase/functions/bms-api-bridge/index.ts` — Rate limiting, batch_operations handler, API versioning headers
+
+## DB Migrations (Phase 7)
+- `callback_queue` table with indexes for retry polling
+- `api_rate_limits` table with sliding window counter + auto-cleanup trigger
