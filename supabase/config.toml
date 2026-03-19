@@ -65,3 +65,6 @@ verify_jwt = false
 
 [functions.purge-expired-tenants]
 verify_jwt = false
+
+[functions.whatsapp-stock-extractor]
+verify_jwt = false
