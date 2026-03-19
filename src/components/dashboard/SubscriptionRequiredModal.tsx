@@ -30,18 +30,18 @@ export function SubscriptionRequiredModal({ open, onOpenChange, dismissable = tr
 
     const update = () => {
       const deadline = new Date(deactivatedAt);
-      deadline.setDate(deadline.getDate() + 5);
+      deadline.setDate(deadline.getDate() + 30); // 30-day grace period
       const diff = deadline.getTime() - Date.now();
 
       if (diff <= 0) {
-        setCountdown("Grace period expired. Account deletion is imminent.");
+        setCountdown("Grace period expired. Your account has been archived.");
         setIsUrgent(true);
         return;
       }
 
       const days = Math.floor(diff / (1000 * 60 * 60 * 24));
       const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      setIsUrgent(days === 0);
+      setIsUrgent(days <= 3);
       setCountdown(
         days > 0
           ? `${days} day${days > 1 ? "s" : ""} and ${hours}h remaining`
@@ -59,7 +59,7 @@ export function SubscriptionRequiredModal({ open, onOpenChange, dismissable = tr
   };
 
   const handleOpenChange = (value: boolean) => {
-    if (!dismissable && !value) return; // Prevent closing if not dismissable
+    if (!dismissable && !value) return;
     onOpenChange(value);
   };
 
@@ -70,7 +70,6 @@ export function SubscriptionRequiredModal({ open, onOpenChange, dismissable = tr
         onPointerDownOutside={dismissable ? undefined : (e) => e.preventDefault()}
         onEscapeKeyDown={dismissable ? undefined : (e) => e.preventDefault()}
       >
-        {/* Hide close button when not dismissable */}
         {!dismissable && (
           <style>{`.absolute.right-4.top-4 { display: none !important; }`}</style>
         )}
@@ -101,7 +100,7 @@ export function SubscriptionRequiredModal({ open, onOpenChange, dismissable = tr
             <p className="text-sm font-medium">
               {isUrgent ? "⚠️ " : "⏳ "}
               {countdown}
-              {!isUrgent && " before account data is permanently deleted."}
+              {!isUrgent && " before your account is archived. Your data will be preserved for 90 days after archival."}
             </p>
           </div>
         )}

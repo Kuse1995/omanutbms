@@ -994,6 +994,7 @@ export type Database = {
           accent_color: string | null
           advanced_accounting_enabled: boolean | null
           agents_enabled: boolean | null
+          archived_at: string | null
           attendance_location_required: boolean | null
           bank_account_name: string | null
           bank_account_number: string | null
@@ -1056,6 +1057,7 @@ export type Database = {
           accent_color?: string | null
           advanced_accounting_enabled?: boolean | null
           agents_enabled?: boolean | null
+          archived_at?: string | null
           attendance_location_required?: boolean | null
           bank_account_name?: string | null
           bank_account_number?: string | null
@@ -1118,6 +1120,7 @@ export type Database = {
           accent_color?: string | null
           advanced_accounting_enabled?: boolean | null
           agents_enabled?: boolean | null
+          archived_at?: string | null
           attendance_location_required?: boolean | null
           bank_account_name?: string | null
           bank_account_number?: string | null

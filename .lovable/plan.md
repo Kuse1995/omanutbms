@@ -1,46 +1,53 @@
 
+# WhatsApp-First BMS: All 4 Phases Implemented
 
-# Softer Grace Period Strategy
+## Phase 1: Workflow State Machine ✅
+- Created `whatsapp_conversations` table (phone, tenant_id, current_workflow, workflow_step, workflow_state JSONB, expires_at)
+- UNIQUE index on phone — one active workflow per number
+- RLS enabled with service role full access
+- Workflow engine utilities: `getActiveWorkflow`, `startWorkflow`, `advanceWorkflow`, `completeWorkflow`, `cancelWorkflow`
+- Handler checks for active workflow BEFORE intent parsing
 
-You're right — permanently deleting all business data after just 5 days is harsh, especially for small businesses in markets where payment delays are common.
+## Phase 2: WhatsApp Tenant Onboarding ✅
+- Unregistered users can say "register" / "sign up" to start onboarding
+- 5-step guided flow: business name → type → currency → owner name → confirm
+- `create_tenant_from_whatsapp` action in bms-api-bridge creates tenant, business_profile, tenant_statistics, and whatsapp_user_mapping
+- Rate limiting: checks for existing workflow before allowing new registration
+- UNREGISTERED_MESSAGE updated to mention registration option
 
-## Proposed Changes
+## Phase 3: Photo-Based Stock Upload ✅
+- New `whatsapp-stock-extractor` edge function using Lovable AI (Gemini 2.5 Pro vision)
+- Downloads image from Twilio with auth, sends to vision AI with structured tool calling
+- Extracts product array: name, price, quantity, sku, unit
+- Stock upload workflow: receive image → extract → confirm → bulk insert
+- `bulk_add_inventory` action in bms-api-bridge for batch inventory insertion (max 100 items)
+- Triggers: sending an image, or saying "add stock" / "upload products"
 
-### 1. Extend grace period to 30 days
-Change from 5 days to 30 days before any data action occurs.
+## Phase 4: Guided Invoice & Document Creation ✅
+- Step-by-step invoice/quotation creation: ask customer → add items loop → review → create → deliver PDF
+- Smart item matching: looks up inventory prices when user enters product name
+- Price prompt if price not found in inventory
+- Auto-PDF delivery after creation via generate-whatsapp-document
+- Triggers: "guided invoice", "new invoice", "guided quote", "new quotation"
 
-### 2. Replace permanent deletion with soft-archive
-Instead of cascading `DELETE`, set an `archived_at` timestamp on the tenant. Archived tenants are invisible but recoverable for 90 days. Only after 90 days of archive does a final purge run.
+## Phase 5: Softer Grace Period Strategy ✅
+- Extended grace period from 5 days to 30 days
+- Replaced permanent deletion with soft-archive (`archived_at` column)
+- Tiered lifecycle: Day 0 inactive → Day 14 read-only → Day 30 archived → Day 120 permanent purge
+- Updated `purge-expired-tenants` to archive at 30 days, purge at 90 days after archive
+- Softened all user-facing messaging ("archived" not "deleted", data preserved 90 days)
+- `SubscriptionActivationGate` shows read-only mode indicator after day 14
 
-### 3. Tiered warning system
-- **Days 1-14**: Gentle reminder banner, full access continues but read-only after day 14
-- **Days 15-30**: Non-dismissible modal, read-only mode (can view/export data but not create new records)
-- **Day 30+**: Account archived, login blocked, data preserved 90 more days
-- **Day 120**: Permanent purge
+## Files Modified
+- `supabase/functions/whatsapp-bms-handler/index.ts` — Full rewrite with workflow engine + all 4 phases
+- `supabase/functions/bms-api-bridge/index.ts` — Added `create_tenant_from_whatsapp` and `bulk_add_inventory` actions
+- `supabase/functions/purge-expired-tenants/index.ts` — Rewritten: 30-day archive + 90-day purge
+- `src/components/dashboard/SubscriptionRequiredModal.tsx` — 30-day countdown, softer language
+- `src/components/dashboard/SubscriptionActivationGate.tsx` — Read-only mode indicator, softer messaging
 
-### 4. WhatsApp payment reminders
-Send WhatsApp messages at day 1, 7, 14, and 25 to the owner's phone via the existing WhatsApp integration.
+## New Files
+- `supabase/functions/whatsapp-stock-extractor/index.ts` — Vision AI product extraction
 
-## Technical Changes
-
-| File | Change |
-|------|--------|
-| `purge-expired-tenants` edge function | Change from `DELETE` to setting `archived_at`, extend to 30-day threshold. Add separate 120-day final purge. |
-| `expire-subscriptions` edge function | Add `deactivated_at` timestamp if not already set |
-| `SubscriptionRequiredModal` | Update countdown from 5 days to 30 days, soften language ("archived" not "deleted") |
-| `SubscriptionActivationGate` | Add read-only mode for days 15-30 instead of full lockout |
-| `TrialBanner` / `RenewalNoticeBanner` | Update messaging to reflect new timeline |
-| Migration | Add `archived_at` column to `business_profiles`, add `is_read_only` computed logic |
-
-## Updated Lifecycle
-
-```text
-Billing expires
-  → Day 0:  Status = inactive, gentle banner
-  → Day 14: Read-only mode enforced
-  → Day 30: Account archived (hidden, not deleted)
-  → Day 120: Permanent purge
-```
-
-This gives businesses 30 days to sort out payment issues, plus 90 more days where an admin could manually recover their data if they come back.
-
+## DB Migrations
+- `whatsapp_conversations` table with RLS, unique phone index, expiry index, auto-updated_at trigger
+- `business_profiles.archived_at` column added
