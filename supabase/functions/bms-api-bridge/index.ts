@@ -1,14 +1,59 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+const API_VERSION = 'v1';
+const RATE_LIMIT_PER_MINUTE = 60;
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-bms-version',
 };
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
+
+// ========== RATE LIMITING ==========
+async function checkRateLimit(supabase: any, tenantId: string): Promise<{ allowed: boolean; remaining: number }> {
+  const windowStart = new Date();
+  windowStart.setSeconds(0, 0); // Round to current minute
+  const windowKey = windowStart.toISOString();
+
+  // Upsert: increment counter for this minute window
+  const { data, error } = await supabase
+    .from('api_rate_limits')
+    .upsert(
+      { tenant_id: tenantId, window_start: windowKey, request_count: 1 },
+      { onConflict: 'tenant_id,window_start', ignoreDuplicates: false }
+    )
+    .select('request_count')
+    .single();
+
+  if (error) {
+    // If upsert failed, try increment
+    const { data: existing } = await supabase
+      .from('api_rate_limits')
+      .select('request_count')
+      .eq('tenant_id', tenantId)
+      .eq('window_start', windowKey)
+      .maybeSingle();
+
+    if (existing) {
+      const newCount = (existing.request_count || 0) + 1;
+      await supabase
+        .from('api_rate_limits')
+        .update({ request_count: newCount })
+        .eq('tenant_id', tenantId)
+        .eq('window_start', windowKey);
+      return { allowed: newCount <= RATE_LIMIT_PER_MINUTE, remaining: Math.max(0, RATE_LIMIT_PER_MINUTE - newCount) };
+    }
+    // Fallback: allow if we can't check
+    return { allowed: true, remaining: RATE_LIMIT_PER_MINUTE };
+  }
+
+  const count = data?.request_count || 1;
+  return { allowed: count <= RATE_LIMIT_PER_MINUTE, remaining: Math.max(0, RATE_LIMIT_PER_MINUTE - count) };
+}
 
 // ========== EXTERNAL API KEY AUTH ==========
 // Validates bearer token against bms_integration_configs.api_secret
