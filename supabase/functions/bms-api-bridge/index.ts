@@ -2430,6 +2430,15 @@ async function handleCreateInvoice(supabase: any, entities: Record<string, any>,
     `  • ${item.quantity}x ${item.description} @ K${item.unit_price.toLocaleString()}`
   ).join('\n');
 
+  // Fire new_order callback
+  fireCallback(context.tenant_id, 'new_order', {
+    invoice_number: invoiceNumber,
+    customer: customer_name,
+    total: totalAmount,
+    items_count: invoiceItems.length,
+    type: 'invoice',
+  });
+
   return {
     success: true,
     message: `✅ Invoice ${invoiceNumber} created!\n\n👤 ${customer_name}\n${itemsSummary}\n\n💰 Subtotal: K${subtotal.toLocaleString()}${taxAmount > 0 ? `\n🏛️ Tax: K${taxAmount.toLocaleString()}` : ''}\n━━━━━━━━━━━━━━━━\n💵 Total: K${totalAmount.toLocaleString()}\n📅 Due: 30 days\n\n💡 Say "send invoice ${invoiceNumber}" to get the PDF.`,
