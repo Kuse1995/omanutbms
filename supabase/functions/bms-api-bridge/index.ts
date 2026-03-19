@@ -417,8 +417,9 @@ serve(async (req) => {
           success: true,
           data: {
             status: 'healthy',
-            version: '2.0',
+            version: API_VERSION,
             timestamp: new Date().toISOString(),
+            rate_limit: `${RATE_LIMIT_PER_MINUTE} requests/minute`,
             supported_actions: [
               'health_check', 'list_products', 'check_stock', 'get_product_details', 'get_product_variants',
               'record_sale', 'update_stock', 'create_order', 'get_order_status', 'cancel_order',
@@ -427,10 +428,11 @@ serve(async (req) => {
               'get_low_stock_items', 'record_expense', 'get_expenses',
               'get_outstanding_receivables', 'get_outstanding_payables', 'profit_loss_report',
               'clock_in', 'clock_out', 'update_order_status', 'generate_payment_link',
+              'batch_operations',
             ],
           },
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json', 'X-BMS-Version': API_VERSION } }
       );
     }
 
