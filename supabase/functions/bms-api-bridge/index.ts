@@ -3664,3 +3664,280 @@ async function handleBatchOperations(supabase: any, entities: Record<string, any
     message: `Batch complete: ${succeeded} succeeded, ${failed} failed`,
   };
 }
+
+// ========== DOCUMENT SEND HANDLERS ==========
+
+async function handleSendReceipt(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const { receipt_number, receipt_id } = entities;
+  
+  if (!receipt_number && !receipt_id) {
+    return { success: false, error: 'Please provide receipt_number or receipt_id' };
+  }
+
+  let query = supabase
+    .from('payment_receipts')
+    .select('id, receipt_number, amount_paid, payment_method, customer_name, customer_phone, created_at, sale_id, tenant_id')
+    .eq('tenant_id', context.tenant_id);
+
+  if (receipt_id) {
+    query = query.eq('id', receipt_id);
+  } else {
+    query = query.eq('receipt_number', sanitizeUserInput(receipt_number, 50));
+  }
+
+  const { data: receipt, error } = await query.maybeSingle();
+
+  if (error || !receipt) {
+    return { success: false, error: `Receipt not found: ${receipt_number || receipt_id}` };
+  }
+
+  // Generate document via generate-whatsapp-document
+  try {
+    const docResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-whatsapp-document`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        type: 'receipt',
+        record_id: receipt.id,
+        tenant_id: context.tenant_id,
+      }),
+    });
+
+    const docResult = await docResponse.json();
+    if (docResult.url) {
+      return {
+        success: true,
+        message: `📄 Receipt ${receipt.receipt_number} ready`,
+        data: {
+          receipt_number: receipt.receipt_number,
+          amount: receipt.amount_paid,
+          customer_name: receipt.customer_name,
+          document_url: docResult.url,
+        },
+      };
+    }
+  } catch (e) {
+    console.error('[send_receipt] Document generation failed:', e);
+  }
+
+  // Fallback: return receipt data without document
+  return {
+    success: true,
+    message: `📄 Receipt ${receipt.receipt_number}: K${receipt.amount_paid} from ${receipt.customer_name || 'Customer'} via ${receipt.payment_method}`,
+    data: receipt,
+  };
+}
+
+async function handleSendInvoice(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const { invoice_number, invoice_id } = entities;
+
+  if (!invoice_number && !invoice_id) {
+    return { success: false, error: 'Please provide invoice_number or invoice_id' };
+  }
+
+  let query = supabase
+    .from('invoices')
+    .select('id, invoice_number, client_name, client_phone, total_amount, status, due_date, created_at, tenant_id')
+    .eq('tenant_id', context.tenant_id);
+
+  if (invoice_id) {
+    query = query.eq('id', invoice_id);
+  } else {
+    query = query.eq('invoice_number', sanitizeUserInput(invoice_number, 50));
+  }
+
+  const { data: invoice, error } = await query.maybeSingle();
+
+  if (error || !invoice) {
+    return { success: false, error: `Invoice not found: ${invoice_number || invoice_id}` };
+  }
+
+  try {
+    const docResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-whatsapp-document`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        type: 'invoice',
+        record_id: invoice.id,
+        tenant_id: context.tenant_id,
+      }),
+    });
+
+    const docResult = await docResponse.json();
+    if (docResult.url) {
+      return {
+        success: true,
+        message: `📄 Invoice ${invoice.invoice_number} ready`,
+        data: {
+          invoice_number: invoice.invoice_number,
+          total_amount: invoice.total_amount,
+          client_name: invoice.client_name,
+          status: invoice.status,
+          document_url: docResult.url,
+        },
+      };
+    }
+  } catch (e) {
+    console.error('[send_invoice] Document generation failed:', e);
+  }
+
+  return {
+    success: true,
+    message: `📄 Invoice ${invoice.invoice_number}: K${invoice.total_amount} for ${invoice.client_name || 'Client'} (${invoice.status})`,
+    data: invoice,
+  };
+}
+
+async function handleSendQuotation(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const { quotation_number, quotation_id } = entities;
+
+  if (!quotation_number && !quotation_id) {
+    return { success: false, error: 'Please provide quotation_number or quotation_id' };
+  }
+
+  let query = supabase
+    .from('quotations')
+    .select('id, quotation_number, client_name, client_phone, total_amount, status, valid_until, created_at, tenant_id')
+    .eq('tenant_id', context.tenant_id);
+
+  if (quotation_id) {
+    query = query.eq('id', quotation_id);
+  } else {
+    query = query.eq('quotation_number', sanitizeUserInput(quotation_number, 50));
+  }
+
+  const { data: quotation, error } = await query.maybeSingle();
+
+  if (error || !quotation) {
+    return { success: false, error: `Quotation not found: ${quotation_number || quotation_id}` };
+  }
+
+  try {
+    const docResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-whatsapp-document`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        type: 'quotation',
+        record_id: quotation.id,
+        tenant_id: context.tenant_id,
+      }),
+    });
+
+    const docResult = await docResponse.json();
+    if (docResult.url) {
+      return {
+        success: true,
+        message: `📄 Quotation ${quotation.quotation_number} ready`,
+        data: {
+          quotation_number: quotation.quotation_number,
+          total_amount: quotation.total_amount,
+          client_name: quotation.client_name,
+          status: quotation.status,
+          document_url: docResult.url,
+        },
+      };
+    }
+  } catch (e) {
+    console.error('[send_quotation] Document generation failed:', e);
+  }
+
+  return {
+    success: true,
+    message: `📄 Quotation ${quotation.quotation_number}: K${quotation.total_amount} for ${quotation.client_name || 'Client'} (${quotation.status})`,
+    data: quotation,
+  };
+}
+
+async function handleSendPayslip(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
+  const { employee_id, employee_name, payroll_id } = entities;
+
+  if (!employee_id && !employee_name && !payroll_id) {
+    return { success: false, error: 'Please provide employee_id, employee_name, or payroll_id' };
+  }
+
+  // Find the payroll record
+  let payrollQuery = supabase
+    .from('payroll_records')
+    .select('id, employee_id, basic_salary, net_pay, gross_pay, status, pay_period_start, pay_period_end, tenant_id')
+    .eq('tenant_id', context.tenant_id)
+    .eq('status', 'paid')
+    .order('pay_period_end', { ascending: false })
+    .limit(1);
+
+  if (payroll_id) {
+    payrollQuery = supabase
+      .from('payroll_records')
+      .select('id, employee_id, basic_salary, net_pay, gross_pay, status, pay_period_start, pay_period_end, tenant_id')
+      .eq('tenant_id', context.tenant_id)
+      .eq('id', payroll_id);
+  } else if (employee_id) {
+    payrollQuery = payrollQuery.eq('employee_id', employee_id);
+  } else if (employee_name) {
+    // Look up employee by name first
+    const { data: emp } = await supabase
+      .from('employees')
+      .select('id')
+      .eq('tenant_id', context.tenant_id)
+      .ilike('full_name', `%${escapeSqlLikePattern(sanitizeUserInput(employee_name, 100))}%`)
+      .limit(1)
+      .maybeSingle();
+
+    if (!emp) {
+      return { success: false, error: `Employee not found: ${employee_name}` };
+    }
+    payrollQuery = payrollQuery.eq('employee_id', emp.id);
+  }
+
+  const { data: payroll, error } = await payrollQuery.maybeSingle();
+
+  if (error || !payroll) {
+    return { success: false, error: 'No paid payroll record found for this employee' };
+  }
+
+  try {
+    const docResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-whatsapp-document`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        type: 'payslip',
+        record_id: payroll.id,
+        tenant_id: context.tenant_id,
+      }),
+    });
+
+    const docResult = await docResponse.json();
+    if (docResult.url) {
+      return {
+        success: true,
+        message: `📄 Payslip ready for period ${payroll.pay_period_start} to ${payroll.pay_period_end}`,
+        data: {
+          payroll_id: payroll.id,
+          net_pay: payroll.net_pay,
+          gross_pay: payroll.gross_pay,
+          period: `${payroll.pay_period_start} - ${payroll.pay_period_end}`,
+          document_url: docResult.url,
+        },
+      };
+    }
+  } catch (e) {
+    console.error('[send_payslip] Document generation failed:', e);
+  }
+
+  return {
+    success: true,
+    message: `📄 Payslip: Net K${payroll.net_pay} for period ${payroll.pay_period_start} to ${payroll.pay_period_end}`,
+    data: payroll,
+  };
+}
