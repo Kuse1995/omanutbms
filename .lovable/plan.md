@@ -1,55 +1,42 @@
 
-# ZRA VSDC Developer Self-Check Compliance — IMPLEMENTED
+# WhatsApp-First BMS: All 4 Phases Implemented
 
-## Summary of Changes
+## Phase 1: Workflow State Machine ✅
+- Created `whatsapp_conversations` table (phone, tenant_id, current_workflow, workflow_step, workflow_state JSONB, expires_at)
+- UNIQUE index on phone — one active workflow per number
+- RLS enabled with service role full access
+- Workflow engine utilities: `getActiveWorkflow`, `startWorkflow`, `advanceWorkflow`, `completeWorkflow`, `cancelWorkflow`
+- Handler checks for active workflow BEFORE intent parsing
 
-### 1. Edge Function Expansion (Items 2-14, 27-29) ✅
-Rewrote `supabase/functions/zra-smart-invoice/index.ts` with 20+ actions covering all VSDC endpoints:
-- `get_code_data`, `get_classification`, `save_branch_customer`, `get_branch_customers`
-- `save_branch_user`, `get_branch_info`, `save_item_composition`
-- `get_item_list`, `get_import_items`, `update_import_item`
-- `save_purchase`, `get_purchases`, `submit_debit_note`
-- `save_stock_item`, `get_stock_items`, `update_stock_quantity`
+## Phase 2: WhatsApp Tenant Onboarding ✅
+- Unregistered users can say "register" / "sign up" to start onboarding
+- 5-step guided flow: business name → type → currency → owner name → confirm
+- `create_tenant_from_whatsapp` action in bms-api-bridge creates tenant, business_profile, tenant_statistics, and whatsapp_user_mapping
+- Rate limiting: checks for existing workflow before allowing new registration
+- UNREGISTERED_MESSAGE updated to mention registration option
 
-### 2. Invoice Immutability (Items 18, 22-23) ✅
-DB trigger `prevent_zra_submitted_modification` on `sales` and `invoices` tables prevents:
-- Modifying invoice/receipt numbers on ZRA-submitted records
-- Deleting ZRA-submitted records
+## Phase 3: Photo-Based Stock Upload ✅
+- New `whatsapp-stock-extractor` edge function using Lovable AI (Gemini 2.5 Pro vision)
+- Downloads image from Twilio with auth, sends to vision AI with structured tool calling
+- Extracts product array: name, price, quantity, sku, unit
+- Stock upload workflow: receive image → extract → confirm → bulk insert
+- `bulk_add_inventory` action in bms-api-bridge for batch inventory insertion (max 100 items)
+- Triggers: sending an image, or saying "add stock" / "upload products"
 
-### 3. Tax Invoice Compliance (Item 19) ✅
-- `SalesReceiptModal` shows "TAX INVOICE" label when fiscal data is present
-- Full SDC Information section: fiscal receipt #, SDC ID, invoice type, VSDC date/time, internal data, fiscal signature, QR code
-- `InvoiceViewModal` header changed to "TAX INVOICE"
-- TPIN, company address, contact info already shown via `TenantDocumentHeader`
-
-### 4. Reprint COPY Tracking (Item 24) ✅
-Added `print_count` column to `payment_receipts` and `invoices` tables.
-
-### 5. ZRA Transaction Report (Items 30-31) ✅
-New `ZraTransactionReport.tsx` component with:
-- Summary cards (total, success, failed, pending)
-- Filterable table by type, status, date range, search
-- Export to Excel, CSV, and PDF
-- Added as "ZRA Report" tab in dashboard sidebar
-
-### 6. Manual Purchase Entry (Item 15) ✅
-New `ManualPurchaseModal.tsx` for recording purchases from suppliers not on Smart Invoice.
-
-### 7. Credit/Debit Notes (Items 20-21) ✅
-Edge function supports `submit_refund` (FLAG=REFUND) and `submit_debit_note` (FLAG=DEBIT).
+## Phase 4: Guided Invoice & Document Creation ✅
+- Step-by-step invoice/quotation creation: ask customer → add items loop → review → create → deliver PDF
+- Smart item matching: looks up inventory prices when user enters product name
+- Price prompt if price not found in inventory
+- Auto-PDF delivery after creation via generate-whatsapp-document
+- Triggers: "guided invoice", "new invoice", "guided quote", "new quotation"
 
 ## Files Modified
-- `supabase/functions/zra-smart-invoice/index.ts` — Full rewrite with all VSDC endpoints
-- `src/components/dashboard/SalesReceiptModal.tsx` — TAX INVOICE label, full SDC info
-- `src/components/dashboard/InvoiceViewModal.tsx` — TAX INVOICE label
-- `src/components/dashboard/DashboardSidebar.tsx` — Added ZRA Report nav item
-- `src/pages/Dashboard.tsx` — Added zra-report tab
+- `supabase/functions/whatsapp-bms-handler/index.ts` — Full rewrite with workflow engine + all 4 phases
+- `supabase/functions/bms-api-bridge/index.ts` — Added `create_tenant_from_whatsapp` and `bulk_add_inventory` actions
+- `supabase/config.toml` — Registered `whatsapp-stock-extractor` function
 
 ## New Files
-- `src/components/dashboard/ZraTransactionReport.tsx` — Full ZRA transaction report
-- `src/components/dashboard/ManualPurchaseModal.tsx` — Manual purchase entry form
+- `supabase/functions/whatsapp-stock-extractor/index.ts` — Vision AI product extraction
 
 ## DB Migration
-- `prevent_zra_submitted_modification()` trigger function
-- Triggers on `sales` and `invoices` tables
-- `print_count` column on `payment_receipts` and `invoices`
+- `whatsapp_conversations` table with RLS, unique phone index, expiry index, auto-updated_at trigger
