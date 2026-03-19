@@ -38,15 +38,29 @@
 - Softened all user-facing messaging ("archived" not "deleted", data preserved 90 days)
 - `SubscriptionActivationGate` shows read-only mode indicator after day 14
 
+## Phase 6: WhatsApp-Automation Callback Alignment ✅
+- Added `fireCallback()` helper to `bms-api-bridge` (fire-and-forget, non-blocking)
+- Wired callbacks to key operations:
+  - `record_sale` → `payment_confirmed` + `large_sale` (if ≥K5,000)
+  - `credit_sale` → `new_order`
+  - `create_invoice` → `new_order`
+  - `create_order` → `new_order`
+  - `create_contact` → `new_contact`
+  - Stock drops → `low_stock` / `out_of_stock` (automatic after sales)
+- Created `bms-daily-summary-callback` edge function for scheduled `daily_summary` + `invoice_overdue` callbacks
+- Updated CORS headers on `bms-callback-dispatcher`
+
 ## Files Modified
 - `supabase/functions/whatsapp-bms-handler/index.ts` — Full rewrite with workflow engine + all 4 phases
-- `supabase/functions/bms-api-bridge/index.ts` — Added `create_tenant_from_whatsapp` and `bulk_add_inventory` actions
+- `supabase/functions/bms-api-bridge/index.ts` — Added callback wiring, `fireCallback()`, `checkStockCallbacks()`, `create_tenant_from_whatsapp`, `bulk_add_inventory`
+- `supabase/functions/bms-callback-dispatcher/index.ts` — Updated CORS headers
 - `supabase/functions/purge-expired-tenants/index.ts` — Rewritten: 30-day archive + 90-day purge
 - `src/components/dashboard/SubscriptionRequiredModal.tsx` — 30-day countdown, softer language
 - `src/components/dashboard/SubscriptionActivationGate.tsx` — Read-only mode indicator, softer messaging
 
 ## New Files
 - `supabase/functions/whatsapp-stock-extractor/index.ts` — Vision AI product extraction
+- `supabase/functions/bms-daily-summary-callback/index.ts` — Scheduled daily summary + invoice overdue callbacks
 
 ## DB Migrations
 - `whatsapp_conversations` table with RLS, unique phone index, expiry index, auto-updated_at trigger
