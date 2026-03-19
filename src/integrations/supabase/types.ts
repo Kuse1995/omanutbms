@@ -1963,6 +1963,47 @@ export type Database = {
           },
         ]
       }
+      embeddings: {
+        Row: {
+          content_text: string
+          created_at: string
+          embedding: string
+          entity_id: string | null
+          entity_type: string
+          id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          content_text: string
+          created_at?: string
+          embedding: string
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          content_text?: string
+          created_at?: string
+          embedding?: string
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "embeddings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employee_attendance: {
         Row: {
           change_log: Json | null
@@ -5546,6 +5587,22 @@ export type Database = {
       is_tenant_admin_or_manager: {
         Args: { _tenant_id: string }
         Returns: boolean
+      }
+      match_embeddings: {
+        Args: {
+          match_count?: number
+          match_entity_type?: string
+          match_tenant_id: string
+          match_threshold?: number
+          query_embedding: string
+        }
+        Returns: {
+          content_text: string
+          entity_id: string
+          entity_type: string
+          id: string
+          similarity: number
+        }[]
       }
       sync_user_role_by_email: {
         Args: { p_email: string; p_new_role: string; p_tenant_id: string }

@@ -736,6 +736,61 @@ serve(async (req) => {
   }
 });
 
+// ========== SEMANTIC SEARCH HELPER ==========
+async function semanticProductSearch(supabase: any, query: string, tenantId: string, limit: number = 10): Promise<any[]> {
+  try {
+    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+    if (!GEMINI_API_KEY) return [];
+
+    // Generate query embedding
+    const embResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'models/text-embedding-004',
+          content: { parts: [{ text: query.substring(0, 2048) }] },
+          taskType: 'RETRIEVAL_QUERY',
+        }),
+      }
+    );
+
+    if (!embResponse.ok) return [];
+    const embResult = await embResponse.json();
+    const embedding = embResult.embedding?.values;
+    if (!embedding || embedding.length === 0) return [];
+
+    const embeddingStr = `[${embedding.join(',')}]`;
+
+    // Use pgvector similarity search
+    const { data, error } = await supabase.rpc('match_embeddings', {
+      query_embedding: embeddingStr,
+      match_tenant_id: tenantId,
+      match_entity_type: 'product',
+      match_threshold: 0.3,
+      match_count: limit,
+    });
+
+    if (error || !data || data.length === 0) return [];
+
+    // Fetch full inventory records for matched entity_ids
+    const entityIds = data.map((r: any) => r.entity_id).filter(Boolean);
+    if (entityIds.length === 0) return [];
+
+    const { data: products } = await supabase
+      .from('inventory')
+      .select('id, name, sku, current_stock, reorder_level, unit_price, status')
+      .eq('tenant_id', tenantId)
+      .in('id', entityIds);
+
+    return products || [];
+  } catch (e) {
+    console.error('[semanticProductSearch] error:', e);
+    return [];
+  }
+}
+
 async function handleCheckStock(supabase: any, entities: Record<string, any>, context: ExecutionContext) {
   const { product } = entities;
   
@@ -758,7 +813,18 @@ async function handleCheckStock(supabase: any, entities: Record<string, any>, co
     return { success: false, message: 'Failed to check stock.' };
   }
 
-  if (!data || data.length === 0) {
+  // If keyword search found nothing and we have a search term, try semantic search
+  let results = data || [];
+  let searchMethod = 'keyword';
+  if (results.length === 0 && product) {
+    const semanticResults = await semanticProductSearch(supabase, String(product), context.tenant_id, 10);
+    if (semanticResults.length > 0) {
+      results = semanticResults;
+      searchMethod = 'semantic';
+    }
+  }
+
+  if (results.length === 0) {
     return { 
       success: true, 
       message: product 
@@ -768,7 +834,7 @@ async function handleCheckStock(supabase: any, entities: Record<string, any>, co
     };
   }
 
-  const stockList = data.map((item: any) => {
+  const stockList = results.map((item: any) => {
     const status = item.current_stock <= 0 ? '🔴' : 
                    item.current_stock < item.reorder_level ? '🟡' : '🟢';
     return `${status} ${item.name}: ${item.current_stock} units (K${item.unit_price}/unit)`;
@@ -776,8 +842,9 @@ async function handleCheckStock(supabase: any, entities: Record<string, any>, co
 
   return {
     success: true,
-    message: `📦 Stock Levels:\n${stockList}`,
-    data,
+    message: `📦 Stock Levels${searchMethod === 'semantic' ? ' (smart match)' : ''}:\n${stockList}`,
+    data: results,
+    search_method: searchMethod,
   };
 }
 
@@ -3346,6 +3413,23 @@ async function handleCreateContact(supabase: any, entities: Record<string, any>,
     phone: phone || null,
     email: email || null,
   });
+
+  // Auto-embed the new contact for semantic search
+  try {
+    fetch(`${SUPABASE_URL}/functions/v1/embed-on-change`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        entity_type: 'contact',
+        entity_id: data.id,
+        tenant_id: context.tenant_id,
+        record: { name, phone, email },
+      }),
+    }).catch(e => console.error('[embed] contact embed failed:', e));
+  } catch (e) { /* non-blocking */ }
 
   return {
     success: true,
