@@ -3414,6 +3414,23 @@ async function handleCreateContact(supabase: any, entities: Record<string, any>,
     email: email || null,
   });
 
+  // Auto-embed the new contact for semantic search
+  try {
+    fetch(`${SUPABASE_URL}/functions/v1/embed-on-change`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        entity_type: 'contact',
+        entity_id: data.id,
+        tenant_id: context.tenant_id,
+        record: { name, phone, email },
+      }),
+    }).catch(e => console.error('[embed] contact embed failed:', e));
+  } catch (e) { /* non-blocking */ }
+
   return {
     success: true,
     data,
