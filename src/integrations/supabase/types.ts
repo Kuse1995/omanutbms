@@ -5042,6 +5042,56 @@ export type Database = {
           },
         ]
       }
+      whatsapp_conversations: {
+        Row: {
+          completed_fields: string[] | null
+          created_at: string
+          current_workflow: string
+          expires_at: string
+          id: string
+          pending_fields: string[] | null
+          phone: string
+          tenant_id: string | null
+          updated_at: string
+          workflow_state: Json | null
+          workflow_step: string
+        }
+        Insert: {
+          completed_fields?: string[] | null
+          created_at?: string
+          current_workflow: string
+          expires_at?: string
+          id?: string
+          pending_fields?: string[] | null
+          phone: string
+          tenant_id?: string | null
+          updated_at?: string
+          workflow_state?: Json | null
+          workflow_step: string
+        }
+        Update: {
+          completed_fields?: string[] | null
+          created_at?: string
+          current_workflow?: string
+          expires_at?: string
+          id?: string
+          pending_fields?: string[] | null
+          phone?: string
+          tenant_id?: string | null
+          updated_at?: string
+          workflow_state?: Json | null
+          workflow_step?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_conversations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_pending_actions: {
         Row: {
           confirmation_message: string | null
