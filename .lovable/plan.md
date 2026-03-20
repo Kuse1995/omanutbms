@@ -1,48 +1,49 @@
 
 
-# Align BMS Bridge with Omanut's Updated Integration
+# Fix: Receipts Not Being Issued When Paying Quotation-Converted Invoices
 
-## Context
+## Problem Identified
 
-The Omanut project has updated its `bms-agent`, `boss-chat`, and `whatsapp-messages` to align with this project's API spec. The changes include:
-- Sending `intent` instead of `action` (already handled by our bridge)
-- Adding aliases for backward compat (already handled)
-- Expanding to 40+ actions including `send_receipt`, `send_invoice`, `send_quotation`, `send_payslip`, `get_sales_summary`, `get_sales_details`, `bulk_add_inventory`, `check_customer`, `who_owes`, `daily_report`, etc.
+After investigating the House of Dodo data and code, the issue is a **UX gap in the Quotations workflow**:
 
-## Gaps Found
+1. Quotations get converted to invoices correctly (all 12 converted quotations have matching invoices).
+2. But converted invoices are created with `status: draft` and `paid_amount: 0`.
+3. **There is no "Record Payment" button on the Quotations tab for converted quotations.** The user must navigate to a completely separate Invoices tab to find the invoice and click "Pay" there.
+4. The client likely doesn't realize they need to go to a different tab. They stay on the Quotations tab expecting to pay from there.
 
-The bridge already handles most of the new intents. However:
+**Evidence from database**: All 10 quotation-converted invoices for House of Dodo have `paid_amount: 0` and `status: draft`, confirming payments are NOT being recorded.
 
-1. **Missing handlers**: `send_receipt`, `send_invoice`, `send_quotation`, `send_payslip` — Omanut now sends these but the bridge has no case for them. These should trigger document generation and return the document URL (or send via WhatsApp).
+Compare with the Custom Orders workflow, which HAS a direct "Record Payment" button — that workflow works fine.
 
-2. **Missing from ROLE_PERMISSIONS**: `send_receipt`, `send_invoice`, `send_quotation`, `send_payslip`, `create_contact`, `create_order`, `get_order_status`, `cancel_order`, `get_customer_history`, `get_product_variants`, `update_stock`, `get_expenses`, `get_outstanding_receivables`, `get_outstanding_payables`, `profit_loss_report`, `generate_payment_link`, `bulk_add_inventory`, `batch_operations` are handled in the switch but not in ROLE_PERMISSIONS (so non-external-API users get blocked).
+## Solution
 
-3. **Missing from health_check supported_actions**: Several new intents (`send_receipt`, `send_invoice`, `send_quotation`, `send_payslip`, `credit_sale`, `daily_report`, `who_owes`, `bulk_add_inventory`, `check_customer`, `my_tasks`, `my_attendance`, `my_pay`, `my_schedule`, `team_attendance`, `pending_orders`, `create_contact`) are not listed.
+Add a **"Record Payment" button** directly on the QuotationsManager for converted quotations, plus show payment status. This mirrors what Custom Orders already does.
 
-## Changes
+### Changes to `src/components/dashboard/QuotationsManager.tsx`
 
-### 1. `supabase/functions/bms-api-bridge/index.ts`
+1. **Import `ReceiptModal`** and add state for it (`receiptModalOpen`, `selectedInvoice`).
+2. **Fetch invoice data** along with quotations: when a quotation has `converted_to_invoice_id`, fetch the linked invoice's `id`, `invoice_number`, `total_amount`, `paid_amount`, `status`.
+3. **Add a "Pay" button** next to converted quotations (green button with Banknote icon), which opens the `ReceiptModal` pre-filled with the linked invoice data.
+4. **Show payment status badge** on converted quotations (Paid/Partial/Balance Due) so the client can see at a glance which ones still need payment.
+5. **Add a "View Invoice" button** on converted quotations for quick access.
 
-**a) Add document-send handlers** (`send_receipt`, `send_invoice`, `send_quotation`, `send_payslip`): Each handler looks up the relevant document by number/ID, generates a PDF URL (using existing pdf-utils or storage), and returns it. These reuse existing invoice/receipt/quotation query logic.
+### Changes to `src/components/dashboard/ReceiptsManager.tsx`
 
-**b) Expand ROLE_PERMISSIONS**: Add missing intents to appropriate roles:
-- Admin/Manager: all new intents
-- Accountant: `send_receipt`, `send_invoice`, `send_quotation`, `get_expenses`, `get_outstanding_receivables`, `get_outstanding_payables`, `profit_loss_report`
-- Sales rep: `send_receipt`, `send_quotation`, `create_order`, `get_order_status`, `get_customer_history`
-- Cashier: `send_receipt`
-- Staff: `send_receipt`
+No changes needed — the ReceiptsManager already correctly fetches from `payment_receipts` and `sales_transactions`. Once payments are recorded via the new button, they will automatically appear in the Receipts tab.
 
-**c) Update health_check supported_actions** to include all handled intents.
+### Accounting Impact
 
-**d) Add switch cases** for `send_receipt`, `send_invoice`, `send_quotation`, `send_payslip`.
+Once receipts start being created via `payment_receipts`, they will automatically:
+- Show up in the **Receipts** tab
+- Be counted in the **Accounts** dashboard (revenue source of truth)
+- Appear in the **General Ledger** and **Cash Book**
+- Update the **Balance Sheet**
 
-### 2. No database changes required
-
-### 3. No frontend changes required
+No accounting code changes needed — all downstream reports already subscribe to `payment_receipts`.
 
 ## Files Modified
 
 | File | Change |
 |---|---|
-| `supabase/functions/bms-api-bridge/index.ts` | Add 4 send handlers, expand ROLE_PERMISSIONS, update health_check list |
+| `src/components/dashboard/QuotationsManager.tsx` | Add ReceiptModal integration, Pay button, payment status badges, invoice data fetching |
 
