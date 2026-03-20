@@ -12,12 +12,24 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/hooks/useTenant";
-import { Loader2, Plus, Eye, Edit, Trash2, FileCheck, CheckCircle, Lock, ChevronDown, ChevronRight, Users } from "lucide-react";
+import { Loader2, Plus, Eye, Edit, Trash2, FileCheck, CheckCircle, Lock, ChevronDown, ChevronRight, Users, Banknote, FileText } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
 import { QuotationFormModal } from "./QuotationFormModal";
 import { QuotationViewModal } from "./QuotationViewModal";
 import { QuotationToInvoiceModal } from "./QuotationToInvoiceModal";
+import { ReceiptModal } from "./ReceiptModal";
+import { InvoiceViewModal } from "./InvoiceViewModal";
+
+interface LinkedInvoice {
+  id: string;
+  invoice_number: string;
+  client_name: string;
+  client_email: string | null;
+  total_amount: number;
+  paid_amount: number;
+  status: string;
+}
 
 interface Quotation {
   id: string;
@@ -34,6 +46,7 @@ interface Quotation {
   total_amount: number;
   notes: string | null;
   converted_to_invoice_id: string | null;
+  linked_invoice?: LinkedInvoice | null;
 }
 
 interface ClientGroup {
@@ -49,7 +62,11 @@ export function QuotationsManager() {
   const [showFormModal, setShowFormModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showConvertModal, setShowConvertModal] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [showInvoiceViewModal, setShowInvoiceViewModal] = useState(false);
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
+  const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState<LinkedInvoice | null>(null);
+  const [selectedInvoiceForView, setSelectedInvoiceForView] = useState<any>(null);
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const { canAdd, isAdmin } = useAuth();
@@ -74,7 +91,34 @@ export function QuotationsManager() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setQuotations(data || []);
+
+      // Fetch linked invoices for converted quotations
+      const convertedIds = (data || [])
+        .filter((q) => q.converted_to_invoice_id)
+        .map((q) => q.converted_to_invoice_id as string);
+
+      let invoiceMap: Record<string, LinkedInvoice> = {};
+      if (convertedIds.length > 0) {
+        const { data: invoices } = await supabase
+          .from("invoices")
+          .select("id, invoice_number, client_name, client_email, total_amount, paid_amount, status")
+          .in("id", convertedIds);
+
+        if (invoices) {
+          invoices.forEach((inv) => {
+            invoiceMap[inv.id] = inv as LinkedInvoice;
+          });
+        }
+      }
+
+      const enriched = (data || []).map((q) => ({
+        ...q,
+        linked_invoice: q.converted_to_invoice_id
+          ? invoiceMap[q.converted_to_invoice_id] || null
+          : null,
+      }));
+
+      setQuotations(enriched);
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
@@ -147,6 +191,29 @@ export function QuotationsManager() {
     }
   };
 
+  const handleRecordPayment = (quotation: Quotation) => {
+    if (!quotation.linked_invoice) return;
+    setSelectedInvoiceForPayment(quotation.linked_invoice);
+    setShowReceiptModal(true);
+  };
+
+  const handleViewInvoice = async (quotation: Quotation) => {
+    if (!quotation.converted_to_invoice_id) return;
+    try {
+      const { data } = await supabase
+        .from("invoices")
+        .select("*")
+        .eq("id", quotation.converted_to_invoice_id)
+        .single();
+      if (data) {
+        setSelectedInvoiceForView(data);
+        setShowInvoiceViewModal(true);
+      }
+    } catch (error: any) {
+      toast({ title: "Error", description: "Could not load invoice", variant: "destructive" });
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
       draft: "bg-gray-100 text-gray-800",
@@ -157,6 +224,23 @@ export function QuotationsManager() {
       converted: "bg-purple-100 text-purple-800",
     };
     return <Badge className={styles[status] || styles.draft}>{status}</Badge>;
+  };
+
+  const getPaymentBadge = (invoice: LinkedInvoice) => {
+    const paid = Number(invoice.paid_amount || 0);
+    const total = Number(invoice.total_amount || 0);
+
+    if (paid >= total && total > 0) {
+      return <Badge className="bg-green-100 text-green-800">Paid</Badge>;
+    }
+    if (paid > 0) {
+      return (
+        <Badge className="bg-amber-100 text-amber-800">
+          Partial (K {paid.toLocaleString()} / K {total.toLocaleString()})
+        </Badge>
+      );
+    }
+    return <Badge className="bg-red-100 text-red-800">Balance Due: K {total.toLocaleString()}</Badge>;
   };
 
   if (isLoading) {
@@ -224,6 +308,7 @@ export function QuotationsManager() {
                           <TableHead>Valid Until</TableHead>
                           <TableHead>Amount</TableHead>
                           <TableHead>Status</TableHead>
+                          <TableHead>Payment</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -235,6 +320,11 @@ export function QuotationsManager() {
                             <TableCell>{q.valid_until ? format(new Date(q.valid_until), "dd MMM yyyy") : "-"}</TableCell>
                             <TableCell>K {Number(q.total_amount).toLocaleString()}</TableCell>
                             <TableCell>{getStatusBadge(q.status)}</TableCell>
+                            <TableCell>
+                              {q.status === "converted" && q.linked_invoice
+                                ? getPaymentBadge(q.linked_invoice)
+                                : <span className="text-muted-foreground text-xs">—</span>}
+                            </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-1">
                                 <Button
@@ -244,6 +334,44 @@ export function QuotationsManager() {
                                 >
                                   <Eye className="h-4 w-4" />
                                 </Button>
+
+                                {/* Record Payment – only for converted quotations with outstanding balance */}
+                                {q.status === "converted" && q.linked_invoice && (
+                                  <>
+                                    {Number(q.linked_invoice.paid_amount || 0) < Number(q.linked_invoice.total_amount) && (
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              onClick={() => handleRecordPayment(q)}
+                                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                            >
+                                              <Banknote className="h-4 w-4" />
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>Record Payment</TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                    )}
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => handleViewInvoice(q)}
+                                          >
+                                            <FileText className="h-4 w-4 text-blue-600" />
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>View Invoice</TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  </>
+                                )}
+
                                 <TooltipProvider>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
@@ -324,6 +452,21 @@ export function QuotationsManager() {
         onSuccess={fetchQuotations}
         quotation={selectedQuotation}
       />
+
+      <ReceiptModal
+        isOpen={showReceiptModal}
+        onClose={() => setShowReceiptModal(false)}
+        onSuccess={fetchQuotations}
+        invoice={selectedInvoiceForPayment}
+      />
+
+      {showInvoiceViewModal && selectedInvoiceForView && (
+        <InvoiceViewModal
+          isOpen={showInvoiceViewModal}
+          onClose={() => { setShowInvoiceViewModal(false); setSelectedInvoiceForView(null); }}
+          invoice={selectedInvoiceForView}
+        />
+      )}
     </>
   );
 }
