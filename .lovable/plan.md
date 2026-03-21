@@ -1,49 +1,79 @@
 
 
-# Fix: Receipts Not Being Issued When Paying Quotation-Converted Invoices
+# Add Conversational "Add Stock" Workflow + Fix cost_price in Bridge
 
-## Problem Identified
+## Overview
 
-After investigating the House of Dodo data and code, the issue is a **UX gap in the Quotations workflow**:
+Two changes: (1) a new guided `add_stock` workflow in the WhatsApp handler for text-based product addition, and (2) fixing `handleBulkAddInventory` in the bridge to persist `cost_price`.
 
-1. Quotations get converted to invoices correctly (all 12 converted quotations have matching invoices).
-2. But converted invoices are created with `status: draft` and `paid_amount: 0`.
-3. **There is no "Record Payment" button on the Quotations tab for converted quotations.** The user must navigate to a completely separate Invoices tab to find the invoice and click "Pay" there.
-4. The client likely doesn't realize they need to go to a different tab. They stay on the Quotations tab expecting to pay from there.
+## Changes
 
-**Evidence from database**: All 10 quotation-converted invoices for House of Dodo have `paid_amount: 0` and `status: draft`, confirming payments are NOT being recorded.
+### 1. `supabase/functions/bms-api-bridge/index.ts`
 
-Compare with the Custom Orders workflow, which HAS a direct "Record Payment" button — that workflow works fine.
+**Fix `handleBulkAddInventory`** (line ~3567-3574): Add `cost_price` mapping so the field isn't lost.
 
-## Solution
+```typescript
+// Before
+unit_price: Math.max(0, Number(p.price) || 0),
+current_stock: Math.max(0, Math.round(Number(p.quantity) || 0)),
+reorder_level: 10, status: 'healthy', category: 'finished_good',
 
-Add a **"Record Payment" button** directly on the QuotationsManager for converted quotations, plus show payment status. This mirrors what Custom Orders already does.
+// After — add cost_price
+unit_price: Math.max(0, Number(p.price) || Number(p.unit_price) || 0),
+cost_price: Math.max(0, Number(p.cost_price) || Number(p.cost) || 0),
+current_stock: Math.max(0, Math.round(Number(p.quantity) || Number(p.current_stock) || 0)),
+reorder_level: 10, status: 'healthy', category: 'finished_good',
+```
 
-### Changes to `src/components/dashboard/QuotationsManager.tsx`
+### 2. `supabase/functions/whatsapp-bms-handler/index.ts`
 
-1. **Import `ReceiptModal`** and add state for it (`receiptModalOpen`, `selectedInvoice`).
-2. **Fetch invoice data** along with quotations: when a quotation has `converted_to_invoice_id`, fetch the linked invoice's `id`, `invoice_number`, `total_amount`, `paid_amount`, `status`.
-3. **Add a "Pay" button** next to converted quotations (green button with Banknote icon), which opens the `ReceiptModal` pre-filled with the linked invoice data.
-4. **Show payment status badge** on converted quotations (Paid/Partial/Balance Due) so the client can see at a glance which ones still need payment.
-5. **Add a "View Invoice" button** on converted quotations for quick access.
+**a) Add `processAddStockWorkflow()` function** (~80 lines, placed after the stock upload workflow section around line 670):
 
-### Changes to `src/components/dashboard/ReceiptsManager.tsx`
+Steps: `ask_name` → `ask_quantity` → `ask_price` → `ask_cost` → `confirm`
 
-No changes needed — the ReceiptsManager already correctly fetches from `payment_receipts` and `sales_transactions`. Once payments are recorded via the new button, they will automatically appear in the Receipts tab.
+- Each step validates input (numeric for quantity/price/cost)
+- On confirm: calls `bms-api-bridge` with `bulk_add_inventory` intent for all collected products
+- After confirm: asks "Add another?" — if yes, loops back to `ask_name` with accumulated products list
+- User can say "cancel" at any step
 
-### Accounting Impact
+**b) Add `add_stock` case to workflow router** (line ~682):
 
-Once receipts start being created via `payment_receipts`, they will automatically:
-- Show up in the **Receipts** tab
-- Be counted in the **Accounts** dashboard (revenue source of truth)
-- Appear in the **General Ledger** and **Cash Book**
-- Update the **Balance Sheet**
+```typescript
+case 'add_stock':
+  return processAddStockWorkflow(supabase, workflow, body, phone);
+```
 
-No accounting code changes needed — all downstream reports already subscribe to `payment_receipts`.
+**c) Split trigger patterns** (line ~1112, ~1148):
+
+Current `stockUploadPatterns` triggers photo upload for ALL phrases including "add stock". Split into:
+- **Text triggers** → start `add_stock` workflow: "add stock", "new product", "add product", "add item", "restock"
+- **Photo triggers** → keep `stock_upload` workflow: "upload stock", "upload products", "bulk stock", "add my products"
+
+Text triggers show: "What's the product name?" instead of asking for a photo.
+
+### Conversation Example
+
+```text
+User: "add stock"
+AI: "📦 Let's add a product!\n\nWhat's the product name?"
+User: "Cement"
+AI: "How many units of *Cement* should we stock?"
+User: "50"
+AI: "What's the selling price per unit?"
+User: "250"
+AI: "What's the cost price per unit? (what you paid — say 0 or skip if unsure)"
+User: "180"
+AI: "📦 *Cement*\n• Qty: 50\n• Sell: K250\n• Cost: K180\n\nAdd this? (yes/no)"
+User: "yes"
+AI: "✅ Cement added! Want to add another product? (yes/no)"
+User: "no"
+AI: "All done! Added 1 product. Say 'check stock' to see your inventory."
+```
 
 ## Files Modified
 
 | File | Change |
 |---|---|
-| `src/components/dashboard/QuotationsManager.tsx` | Add ReceiptModal integration, Pay button, payment status badges, invoice data fetching |
+| `supabase/functions/bms-api-bridge/index.ts` | Add `cost_price` mapping in `handleBulkAddInventory` |
+| `supabase/functions/whatsapp-bms-handler/index.ts` | Add `processAddStockWorkflow`, update workflow router, split trigger patterns |
 
