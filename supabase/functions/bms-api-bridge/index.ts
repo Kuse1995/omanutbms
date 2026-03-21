@@ -3568,8 +3568,9 @@ async function handleBulkAddInventory(supabase: any, entities: Record<string, an
     tenant_id: context.tenant_id,
     name: String(p.name || '').substring(0, 200),
     sku: String(p.sku || `SKU-${crypto.randomUUID().substring(0, 8)}`).substring(0, 50),
-    unit_price: Math.max(0, Number(p.price) || 0),
-    current_stock: Math.max(0, Math.round(Number(p.quantity) || 0)),
+    unit_price: Math.max(0, Number(p.price) || Number(p.unit_price) || 0),
+    cost_price: Math.max(0, Number(p.cost_price) || Number(p.cost) || 0),
+    current_stock: Math.max(0, Math.round(Number(p.quantity) || Number(p.current_stock) || 0)),
     reorder_level: 10, status: 'healthy', category: 'finished_good',
   }));
   const { data, error } = await supabase.from('inventory').insert(rows).select('id, name');
