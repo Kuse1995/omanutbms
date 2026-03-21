@@ -1257,7 +1257,7 @@ Your admin can upgrade the plan to keep chatting, or it'll reset next month. Con
     const guidedInvoicePatterns = ['guided invoice', 'step by step invoice', 'create invoice step', 'new invoice'];
     const guidedQuotationPatterns = ['guided quote', 'guided quotation', 'step by step quote', 'new quotation', 'new quote'];
     const stockUploadPatterns = ['upload stock', 'upload products', 'bulk stock', 'add my products', 'stock photo'];
-    const addStockPatterns = ['add stock', 'new product', 'add product', 'add item', 'add items', 'restock', 'add products'];
+    const addStockPatterns = ['add stock', 'add new stock', 'new stock', 'new product', 'add product', 'add item', 'add items', 'restock', 'add products', 'add inventory', 'new item', 'stock up', 'i want to add'];
     
     if (guidedInvoicePatterns.some(p => lowerBody.includes(p))) {
       await startWorkflow(supabase, phoneNumber, mapping.tenant_id, 'guided_invoice', 'ask_customer');
