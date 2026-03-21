@@ -684,6 +684,8 @@ async function processWorkflow(supabase: any, workflow: WorkflowRecord, body: st
       return processOnboardingWorkflow(supabase, workflow, body, phone);
     case 'stock_upload':
       return processStockUploadWorkflow(supabase, workflow, body, phone, formData);
+    case 'add_stock':
+      return processAddStockWorkflow(supabase, workflow, body, phone);
     case 'guided_invoice':
     case 'guided_quotation':
       return processGuidedInvoiceWorkflow(supabase, workflow, body, phone);
