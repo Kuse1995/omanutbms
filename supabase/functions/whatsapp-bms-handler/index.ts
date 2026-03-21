@@ -1111,7 +1111,8 @@ Your admin can upgrade the plan to keep chatting, or it'll reset next month. Con
     // ===== PHASE 4: Check for guided invoice/quotation triggers =====
     const guidedInvoicePatterns = ['guided invoice', 'step by step invoice', 'create invoice step', 'new invoice'];
     const guidedQuotationPatterns = ['guided quote', 'guided quotation', 'step by step quote', 'new quotation', 'new quote'];
-    const stockUploadPatterns = ['add stock', 'upload stock', 'upload products', 'add products', 'add my products', 'bulk stock', 'add items'];
+    const stockUploadPatterns = ['upload stock', 'upload products', 'bulk stock', 'add my products', 'stock photo'];
+    const addStockPatterns = ['add stock', 'new product', 'add product', 'add item', 'add items', 'restock', 'add products'];
     
     if (guidedInvoicePatterns.some(p => lowerBody.includes(p))) {
       await startWorkflow(supabase, phoneNumber, mapping.tenant_id, 'guided_invoice', 'ask_customer');
@@ -1139,6 +1140,23 @@ Your admin can upgrade the plan to keep chatting, or it'll reset next month. Con
         user_id: mapping.user_id,
         display_name: mapping.display_name,
         intent: 'guided_quotation',
+        original_message: body,
+        response_message: msg,
+        success: true,
+        execution_time_ms: Date.now() - startTime,
+      });
+      return createTwiMLResponse(msg);
+    }
+
+    if (addStockPatterns.some(p => lowerBody.includes(p))) {
+      await startWorkflow(supabase, phoneNumber, mapping.tenant_id, 'add_stock', 'ask_name');
+      const msg = "📦 Let's add a product!\n\nWhat's the product name?";
+      await logAudit(supabase, {
+        tenant_id: mapping.tenant_id,
+        whatsapp_number: phoneNumber,
+        user_id: mapping.user_id,
+        display_name: mapping.display_name,
+        intent: 'add_stock',
         original_message: body,
         response_message: msg,
         success: true,
