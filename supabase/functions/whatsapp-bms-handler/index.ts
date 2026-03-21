@@ -438,7 +438,149 @@ async function processStockUploadWorkflow(supabase: any, workflow: WorkflowRecor
   }
 }
 
-// ===================== GUIDED INVOICE WORKFLOW (Phase 4) =====================
+// ===================== CONVERSATIONAL ADD STOCK WORKFLOW =====================
+
+async function processAddStockWorkflow(supabase: any, workflow: WorkflowRecord, body: string, phone: string): Promise<string> {
+  const state = workflow.workflow_state || {};
+  const step = workflow.workflow_step;
+  const lowerBody = body.toLowerCase().trim();
+
+  // Cancel at any step
+  if (lowerBody === 'cancel' || lowerBody === 'stop' || lowerBody === 'quit') {
+    await completeWorkflow(supabase, workflow.id);
+    return "❌ Cancelled. Say \"add stock\" anytime to start again!";
+  }
+
+  switch (step) {
+    case 'ask_name': {
+      if (body.trim().length < 1 || body.trim().length > 200) {
+        return "Please enter a valid product name.";
+      }
+      state.current_product = { name: body.trim() };
+      await advanceWorkflow(supabase, workflow.id, 'ask_quantity', state);
+      return `How many units of *${body.trim()}* should we stock?`;
+    }
+
+    case 'ask_quantity': {
+      const qty = parseInt(body.trim());
+      if (isNaN(qty) || qty < 1) {
+        return "Please enter a valid number (e.g. 50).";
+      }
+      state.current_product.quantity = qty;
+      await advanceWorkflow(supabase, workflow.id, 'ask_price', state);
+      return "What's the selling price per unit?";
+    }
+
+    case 'ask_price': {
+      const price = parseFloat(body.trim().replace(/[^0-9.]/g, ''));
+      if (isNaN(price) || price < 0) {
+        return "Please enter a valid price (e.g. 250).";
+      }
+      state.current_product.price = price;
+      await advanceWorkflow(supabase, workflow.id, 'ask_cost', state);
+      return "What's the cost price per unit? (what you paid — say *0* or *skip* if unsure)";
+    }
+
+    case 'ask_cost': {
+      let costPrice = 0;
+      if (lowerBody !== 'skip' && lowerBody !== 's' && lowerBody !== '-') {
+        costPrice = parseFloat(body.trim().replace(/[^0-9.]/g, ''));
+        if (isNaN(costPrice)) costPrice = 0;
+      }
+      state.current_product.cost_price = costPrice;
+      await advanceWorkflow(supabase, workflow.id, 'confirm', state);
+
+      const p = state.current_product;
+      return `📦 *${p.name}*\n• Qty: ${p.quantity}\n• Sell: K${p.price.toLocaleString()}\n• Cost: K${costPrice.toLocaleString()}\n\nAdd this product? (*yes* / *no*)`;
+    }
+
+    case 'confirm': {
+      const yesPatterns = ['yes', 'y', 'yep', 'yeah', 'ok', 'okay', 'sure', 'confirm', 'go', 'do it'];
+      const noPatterns = ['no', 'n', 'nope', 'nah', 'cancel'];
+
+      if (noPatterns.some(p => lowerBody === p)) {
+        await completeWorkflow(supabase, workflow.id);
+        return "❌ Cancelled. Say \"add stock\" to start again.";
+      }
+
+      if (!yesPatterns.some(p => lowerBody === p)) {
+        return "Say *yes* to add the product or *no* to cancel.";
+      }
+
+      // Add current product to accumulated list
+      if (!state.products) state.products = [];
+      state.products.push(state.current_product);
+      state.current_product = null;
+
+      // Submit all products via bridge
+      try {
+        const bridgeProducts = state.products.map((p: any) => ({
+          name: p.name,
+          price: p.price,
+          cost_price: p.cost_price || 0,
+          quantity: p.quantity,
+        }));
+
+        const bridgeResponse = await fetch(`${SUPABASE_URL}/functions/v1/bms-api-bridge`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            intent: 'bulk_add_inventory',
+            entities: { products: bridgeProducts },
+            context: {
+              tenant_id: workflow.tenant_id,
+              user_id: null,
+              role: 'admin',
+              display_name: 'WhatsApp Add Stock',
+            },
+          }),
+        });
+
+        const result = await bridgeResponse.json();
+
+        if (!result.success) {
+          await completeWorkflow(supabase, workflow.id);
+          return `⚠️ Failed to add product: ${result.error || 'Unknown error'}. Try again with "add stock".`;
+        }
+      } catch (err) {
+        console.error('Add stock bridge error:', err);
+        await completeWorkflow(supabase, workflow.id);
+        return "⚠️ Failed to save product. Please try again.";
+      }
+
+      const lastProduct = state.products[state.products.length - 1];
+      await advanceWorkflow(supabase, workflow.id, 'ask_another', state);
+      return `✅ *${lastProduct.name}* added! (${state.products.length} product${state.products.length > 1 ? 's' : ''} total)\n\nWant to add another product? (*yes* / *no*)`;
+    }
+
+    case 'ask_another': {
+      const yesPatterns = ['yes', 'y', 'yep', 'yeah', 'ok', 'okay', 'sure', 'another', 'more'];
+      const noPatterns = ['no', 'n', 'nope', 'nah', 'done', 'finish', "that's all", 'thats all'];
+
+      if (yesPatterns.some(p => lowerBody === p)) {
+        state.current_product = null;
+        await advanceWorkflow(supabase, workflow.id, 'ask_name', state);
+        return "📦 What's the product name?";
+      }
+
+      if (noPatterns.some(p => lowerBody === p)) {
+        const count = state.products?.length || 0;
+        await completeWorkflow(supabase, workflow.id);
+        return `🎉 All done! Added *${count} product${count > 1 ? 's' : ''}* to inventory.\n\nSay "check stock" to see your inventory or "list products" to browse.`;
+      }
+
+      return "Say *yes* to add another product or *no* to finish.";
+    }
+
+    default:
+      await completeWorkflow(supabase, workflow.id);
+      return "Something went wrong. Say \"add stock\" to try again!";
+  }
+}
+
 
 async function processGuidedInvoiceWorkflow(supabase: any, workflow: WorkflowRecord, body: string, phone: string): Promise<string> {
   const state = workflow.workflow_state || {};
