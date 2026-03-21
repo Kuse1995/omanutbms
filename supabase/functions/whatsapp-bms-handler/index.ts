@@ -38,6 +38,9 @@ Here's what I can help with:
 📸 *Stock Upload*
 Send a photo of your price list to add products!
 
+📦 *Add Stock*
+"add stock" - Add products one by one via chat
+
 Just chat naturally - I understand shortcuts! Say "cancel" anytime to start fresh.`;
 
 const UNREGISTERED_MESSAGE = `Hi! I don't recognize this number yet.
