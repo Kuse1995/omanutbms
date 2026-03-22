@@ -413,7 +413,8 @@ async function processStockUploadWorkflow(supabase: any, workflow: WorkflowRecor
             entities: { products: state.extracted_products },
             context: {
               tenant_id: workflow.tenant_id,
-              user_id: null,
+              user_id: state.user_id || null,
+              employee_id: state.employee_id || null,
               role: 'admin',
               display_name: 'WhatsApp Stock Upload',
             },
@@ -535,7 +536,8 @@ async function processAddStockWorkflow(supabase: any, workflow: WorkflowRecord, 
             entities: { products: bridgeProducts },
             context: {
               tenant_id: workflow.tenant_id,
-              user_id: null,
+              user_id: state.user_id || null,
+              employee_id: state.employee_id || null,
               role: 'admin',
               display_name: 'WhatsApp Add Stock',
             },
@@ -1122,7 +1124,7 @@ Your admin can upgrade the plan to keep chatting, or it'll reset next month. Con
     // ===== PHASE 3: Image message → start stock upload workflow =====
     if (hasMedia && mediaContentType0.startsWith('image/')) {
       // Start stock upload workflow with the image
-      const workflow = await startWorkflow(supabase, phoneNumber, mapping.tenant_id, 'stock_upload', 'waiting_for_image');
+      const workflow = await startWorkflow(supabase, phoneNumber, mapping.tenant_id, 'stock_upload', 'waiting_for_image', { user_id: mapping.user_id, employee_id: mapping.employee_id });
       const response = await processStockUploadWorkflow(supabase, workflow, body, phoneNumber, formData);
       
       await logAudit(supabase, {
@@ -1294,7 +1296,7 @@ Your admin can upgrade the plan to keep chatting, or it'll reset next month. Con
     }
 
     if (addStockPatterns.some(p => lowerBody.includes(p))) {
-      await startWorkflow(supabase, phoneNumber, mapping.tenant_id, 'add_stock', 'ask_name');
+      await startWorkflow(supabase, phoneNumber, mapping.tenant_id, 'add_stock', 'ask_name', { user_id: mapping.user_id, employee_id: mapping.employee_id });
       const msg = "📦 Let's add a product!\n\nWhat's the product name?";
       await logAudit(supabase, {
         tenant_id: mapping.tenant_id,
@@ -1311,7 +1313,7 @@ Your admin can upgrade the plan to keep chatting, or it'll reset next month. Con
     }
 
     if (stockUploadPatterns.some(p => lowerBody.includes(p))) {
-      await startWorkflow(supabase, phoneNumber, mapping.tenant_id, 'stock_upload', 'waiting_for_image');
+      await startWorkflow(supabase, phoneNumber, mapping.tenant_id, 'stock_upload', 'waiting_for_image', { user_id: mapping.user_id, employee_id: mapping.employee_id });
       const msg = "📸 Send me a photo of your price list, product sheet, or handwritten stock list!\n\nI'll read it and add the products for you. Or say \"cancel\" to stop.";
       await logAudit(supabase, {
         tenant_id: mapping.tenant_id,
