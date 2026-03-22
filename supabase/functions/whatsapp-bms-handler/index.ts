@@ -413,7 +413,8 @@ async function processStockUploadWorkflow(supabase: any, workflow: WorkflowRecor
             entities: { products: state.extracted_products },
             context: {
               tenant_id: workflow.tenant_id,
-              user_id: null,
+              user_id: state.user_id || null,
+              employee_id: state.employee_id || null,
               role: 'admin',
               display_name: 'WhatsApp Stock Upload',
             },
