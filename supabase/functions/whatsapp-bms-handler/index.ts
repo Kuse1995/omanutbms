@@ -1296,7 +1296,7 @@ Your admin can upgrade the plan to keep chatting, or it'll reset next month. Con
     }
 
     if (addStockPatterns.some(p => lowerBody.includes(p))) {
-      await startWorkflow(supabase, phoneNumber, mapping.tenant_id, 'add_stock', 'ask_name');
+      await startWorkflow(supabase, phoneNumber, mapping.tenant_id, 'add_stock', 'ask_name', { user_id: mapping.user_id, employee_id: mapping.employee_id });
       const msg = "📦 Let's add a product!\n\nWhat's the product name?";
       await logAudit(supabase, {
         tenant_id: mapping.tenant_id,
