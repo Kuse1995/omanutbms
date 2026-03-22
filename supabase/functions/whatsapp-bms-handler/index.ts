@@ -150,6 +150,22 @@ async function cancelWorkflow(supabase: any, phone: string): Promise<void> {
   await supabase.from('whatsapp_conversations').delete().eq('phone', phone);
 }
 
+const INVENTORY_WORKFLOW_ALLOWED_ROLES = new Set(['admin', 'manager']);
+
+function getInventoryWorkflowRestrictionMessage(mapping: any): string | null {
+  const role = String(mapping?.role || '').toLowerCase();
+
+  if (!mapping?.user_id || mapping?.is_employee_self_service) {
+    return "⚠️ This WhatsApp number is set up for self-service only, so it can’t add products. Ask your manager/admin to link this number to your business account for stock updates.";
+  }
+
+  if (!INVENTORY_WORKFLOW_ALLOWED_ROLES.has(role)) {
+    return `⚠️ Your current access level (${mapping?.role || 'unknown'}) can’t add products. Ask an admin or manager to help with stock updates.`;
+  }
+
+  return null;
+}
+
 // ===================== ONBOARDING WORKFLOW (Phase 2) =====================
 
 const BUSINESS_TYPES = ['Retail', 'Services', 'Manufacturing', 'Food & Beverage', 'Agriculture', 'Other'];
@@ -427,7 +443,10 @@ async function processStockUploadWorkflow(supabase: any, workflow: WorkflowRecor
         if (result.success) {
           return `✅ Added *${result.data?.added || state.extracted_products.length} products* to your inventory!\n\nSay "list products" to see them all, or "check stock" to verify.`;
         } else {
-          return `⚠️ Some products may not have been added: ${result.error || 'Unknown error'}`;
+          const errorMessage = result?.error || 'Unknown error';
+          return bridgeResponse.ok
+            ? `⚠️ Some products may not have been added: ${errorMessage}`
+            : `⚠️ ${errorMessage}`;
         }
       } catch (err) {
         console.error('Bulk inventory error:', err);
@@ -548,7 +567,10 @@ async function processAddStockWorkflow(supabase: any, workflow: WorkflowRecord, 
 
         if (!result.success) {
           await completeWorkflow(supabase, workflow.id);
-          return `⚠️ Failed to add product: ${result.error || 'Unknown error'}. Try again with "add stock".`;
+          const errorMessage = result?.error || 'Unknown error';
+          return bridgeResponse.ok
+            ? `⚠️ Failed to add product: ${errorMessage}.`
+            : `⚠️ ${errorMessage}`;
         }
       } catch (err) {
         console.error('Add stock bridge error:', err);
@@ -1296,6 +1318,22 @@ Your admin can upgrade the plan to keep chatting, or it'll reset next month. Con
     }
 
     if (addStockPatterns.some(p => lowerBody.includes(p))) {
+      const restrictionMessage = getInventoryWorkflowRestrictionMessage(mapping);
+      if (restrictionMessage) {
+        await logAudit(supabase, {
+          tenant_id: mapping.tenant_id,
+          whatsapp_number: phoneNumber,
+          user_id: mapping.user_id,
+          display_name: mapping.display_name,
+          intent: 'add_stock',
+          original_message: body,
+          response_message: restrictionMessage,
+          success: false,
+          execution_time_ms: Date.now() - startTime,
+        });
+        return createTwiMLResponse(restrictionMessage);
+      }
+
       await startWorkflow(supabase, phoneNumber, mapping.tenant_id, 'add_stock', 'ask_name', { user_id: mapping.user_id, employee_id: mapping.employee_id });
       const msg = "📦 Let's add a product!\n\nWhat's the product name?";
       await logAudit(supabase, {
@@ -1313,6 +1351,22 @@ Your admin can upgrade the plan to keep chatting, or it'll reset next month. Con
     }
 
     if (stockUploadPatterns.some(p => lowerBody.includes(p))) {
+      const restrictionMessage = getInventoryWorkflowRestrictionMessage(mapping);
+      if (restrictionMessage) {
+        await logAudit(supabase, {
+          tenant_id: mapping.tenant_id,
+          whatsapp_number: phoneNumber,
+          user_id: mapping.user_id,
+          display_name: mapping.display_name,
+          intent: 'stock_upload',
+          original_message: body,
+          response_message: restrictionMessage,
+          success: false,
+          execution_time_ms: Date.now() - startTime,
+        });
+        return createTwiMLResponse(restrictionMessage);
+      }
+
       await startWorkflow(supabase, phoneNumber, mapping.tenant_id, 'stock_upload', 'waiting_for_image', { user_id: mapping.user_id, employee_id: mapping.employee_id });
       const msg = "📸 Send me a photo of your price list, product sheet, or handwritten stock list!\n\nI'll read it and add the products for you. Or say \"cancel\" to stop.";
       await logAudit(supabase, {
