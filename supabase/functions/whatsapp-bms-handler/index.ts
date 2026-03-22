@@ -1313,7 +1313,7 @@ Your admin can upgrade the plan to keep chatting, or it'll reset next month. Con
     }
 
     if (stockUploadPatterns.some(p => lowerBody.includes(p))) {
-      await startWorkflow(supabase, phoneNumber, mapping.tenant_id, 'stock_upload', 'waiting_for_image');
+      await startWorkflow(supabase, phoneNumber, mapping.tenant_id, 'stock_upload', 'waiting_for_image', { user_id: mapping.user_id, employee_id: mapping.employee_id });
       const msg = "📸 Send me a photo of your price list, product sheet, or handwritten stock list!\n\nI'll read it and add the products for you. Or say \"cancel\" to stop.";
       await logAudit(supabase, {
         tenant_id: mapping.tenant_id,
