@@ -3564,15 +3564,29 @@ async function handleBulkAddInventory(supabase: any, entities: Record<string, an
   const { products } = entities;
   if (!products || !Array.isArray(products) || products.length === 0) return { success: false, error: 'No products provided.' };
   if (products.length > 100) return { success: false, error: 'Maximum 100 products per upload.' };
-  const rows = products.map((p: any) => ({
-    tenant_id: context.tenant_id,
-    name: String(p.name || '').substring(0, 200),
-    sku: String(p.sku || `SKU-${crypto.randomUUID().substring(0, 8)}`).substring(0, 50),
-    unit_price: Math.max(0, Number(p.price) || Number(p.unit_price) || 0),
-    cost_price: Math.max(0, Number(p.cost_price) || Number(p.cost) || 0),
-    current_stock: Math.max(0, Math.round(Number(p.quantity) || Number(p.current_stock) || 0)),
-    reorder_level: 10, status: 'healthy', category: 'finished_good',
-  }));
+  const VALID_INVENTORY_CATEGORIES = new Set([
+    'primary','secondary','bulk','premium','wholesale','electronics','clothing','food','household',
+    'health','other','tuition','supplies','activity','uniform','relief','medical','education',
+    'infrastructure','emergency','consultation','project','retainer','training','support','package',
+    'crops','livestock','seeds','fertilizer','equipment','food_beverage','accommodation','events',
+    'catering','bar','hair','nails','skincare','makeup','massage','bridal','barbering','spa',
+    'consultation_fee','treatment','medication','procedure','test','engine_parts','filters','brakes',
+    'electrical','tyres','body_parts','lighting','accessories','lubricants','cooling','transmission',
+    'service_labor','repair','parts','maintenance_service','diagnostics','products','services','packages','bundles',
+  ]);
+  const rows = products.map((p: any) => {
+    const rawCat = String(p.category || '').toLowerCase().replace(/\s+/g, '_');
+    const category = VALID_INVENTORY_CATEGORIES.has(rawCat) ? rawCat : 'other';
+    return {
+      tenant_id: context.tenant_id,
+      name: String(p.name || '').substring(0, 200),
+      sku: String(p.sku || `SKU-${crypto.randomUUID().substring(0, 8)}`).substring(0, 50),
+      unit_price: Math.max(0, Number(p.price) || Number(p.unit_price) || 0),
+      cost_price: Math.max(0, Number(p.cost_price) || Number(p.cost) || 0),
+      current_stock: Math.max(0, Math.round(Number(p.quantity) || Number(p.current_stock) || 0)),
+      reorder_level: 10, status: 'healthy', category,
+    };
+  });
   const { data, error } = await supabase.from('inventory').insert(rows).select('id, name');
   if (error) return { success: false, error: 'Failed to add products: ' + error.message };
   return { success: true, data: { added: data?.length || 0, products: data }, message: `✅ Added ${data?.length || 0} products to inventory!` };
