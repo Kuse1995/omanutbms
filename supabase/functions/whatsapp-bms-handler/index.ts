@@ -1124,7 +1124,7 @@ Your admin can upgrade the plan to keep chatting, or it'll reset next month. Con
     // ===== PHASE 3: Image message → start stock upload workflow =====
     if (hasMedia && mediaContentType0.startsWith('image/')) {
       // Start stock upload workflow with the image
-      const workflow = await startWorkflow(supabase, phoneNumber, mapping.tenant_id, 'stock_upload', 'waiting_for_image');
+      const workflow = await startWorkflow(supabase, phoneNumber, mapping.tenant_id, 'stock_upload', 'waiting_for_image', { user_id: mapping.user_id, employee_id: mapping.employee_id });
       const response = await processStockUploadWorkflow(supabase, workflow, body, phoneNumber, formData);
       
       await logAudit(supabase, {
