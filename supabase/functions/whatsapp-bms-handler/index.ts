@@ -542,6 +542,8 @@ async function processAddStockWorkflow(supabase: any, workflow: WorkflowRecord, 
           price: p.price,
           cost_price: p.cost_price || 0,
           quantity: p.quantity,
+          category: 'other',
+          inventory_class: 'finished_good',
         }));
 
         const bridgeResponse = await fetch(`${SUPABASE_URL}/functions/v1/bms-api-bridge`, {
