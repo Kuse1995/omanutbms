@@ -1475,7 +1475,10 @@ Your admin can upgrade the plan to keep chatting, or it'll reset next month. Con
 
       if (!intentResponse.ok) {
         console.error('Intent parser error for follow-up');
-        return createTwiMLResponse("Hmm, I didn't quite get that. Can you try saying it differently, or say \"help\" to see what I can do?");
+        const msg = intentResponse.status === 429
+          ? "I'm a bit busy right now 🏃 Please try again in a few seconds!"
+          : "Hmm, I didn't quite get that. Can you try saying it differently, or say \"help\" to see what I can do?";
+        return createTwiMLResponse(msg);
       }
 
       const followUpParsed = await intentResponse.json();
