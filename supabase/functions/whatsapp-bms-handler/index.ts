@@ -426,7 +426,11 @@ async function processStockUploadWorkflow(supabase: any, workflow: WorkflowRecor
           },
           body: JSON.stringify({
             intent: 'bulk_add_inventory',
-            entities: { products: state.extracted_products },
+            entities: { products: (state.extracted_products || []).map((p: any) => ({
+              ...p,
+              category: p.category || 'other',
+              inventory_class: p.inventory_class || 'finished_good',
+            })) },
             context: {
               tenant_id: workflow.tenant_id,
               user_id: state.user_id || null,
