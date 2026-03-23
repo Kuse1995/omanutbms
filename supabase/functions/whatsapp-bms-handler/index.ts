@@ -426,7 +426,11 @@ async function processStockUploadWorkflow(supabase: any, workflow: WorkflowRecor
           },
           body: JSON.stringify({
             intent: 'bulk_add_inventory',
-            entities: { products: state.extracted_products },
+            entities: { products: (state.extracted_products || []).map((p: any) => ({
+              ...p,
+              category: p.category || 'other',
+              inventory_class: p.inventory_class || 'finished_good',
+            })) },
             context: {
               tenant_id: workflow.tenant_id,
               user_id: state.user_id || null,
@@ -542,6 +546,8 @@ async function processAddStockWorkflow(supabase: any, workflow: WorkflowRecord, 
           price: p.price,
           cost_price: p.cost_price || 0,
           quantity: p.quantity,
+          category: 'other',
+          inventory_class: 'finished_good',
         }));
 
         const bridgeResponse = await fetch(`${SUPABASE_URL}/functions/v1/bms-api-bridge`, {

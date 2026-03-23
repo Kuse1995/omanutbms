@@ -3574,9 +3574,23 @@ async function handleBulkAddInventory(supabase: any, entities: Record<string, an
     'electrical','tyres','body_parts','lighting','accessories','lubricants','cooling','transmission',
     'service_labor','repair','parts','maintenance_service','diagnostics','products','services','packages','bundles',
   ]);
+  // Values that belong in inventory_class, NOT category
+  const INVENTORY_CLASS_VALUES = new Set(['finished_good', 'raw_material', 'consumable']);
+  const VALID_CLASSES = new Set(['finished_good', 'raw_material', 'consumable']);
+
   const rows = products.map((p: any) => {
-    const rawCat = String(p.category || '').toLowerCase().replace(/\s+/g, '_');
+    let rawCat = String(p.category || '').toLowerCase().replace(/\s+/g, '_');
+    let inventoryClass = String(p.inventory_class || '').toLowerCase().replace(/\s+/g, '_');
+
+    // If category contains an inventory_class value, move it there
+    if (INVENTORY_CLASS_VALUES.has(rawCat)) {
+      inventoryClass = rawCat;
+      rawCat = '';
+    }
+
     const category = VALID_INVENTORY_CATEGORIES.has(rawCat) ? rawCat : 'other';
+    const finalClass = VALID_CLASSES.has(inventoryClass) ? inventoryClass : 'finished_good';
+
     return {
       tenant_id: context.tenant_id,
       name: String(p.name || '').substring(0, 200),
@@ -3584,11 +3598,17 @@ async function handleBulkAddInventory(supabase: any, entities: Record<string, an
       unit_price: Math.max(0, Number(p.price) || Number(p.unit_price) || 0),
       cost_price: Math.max(0, Number(p.cost_price) || Number(p.cost) || 0),
       current_stock: Math.max(0, Math.round(Number(p.quantity) || Number(p.current_stock) || 0)),
-      reorder_level: 10, status: 'healthy', category,
+      reorder_level: 10, status: 'healthy', category, inventory_class: finalClass,
     };
   });
+
+  console.log('[bulk_add_inventory] Inserting rows sample:', JSON.stringify(rows.slice(0, 2)));
+
   const { data, error } = await supabase.from('inventory').insert(rows).select('id, name');
-  if (error) return { success: false, error: 'Failed to add products: ' + error.message };
+  if (error) {
+    console.error('[bulk_add_inventory] Insert error:', error.message, 'Sample row:', JSON.stringify(rows[0]));
+    return { success: false, error: 'Failed to add products: ' + error.message };
+  }
   return { success: true, data: { added: data?.length || 0, products: data }, message: `✅ Added ${data?.length || 0} products to inventory!` };
 }
 
