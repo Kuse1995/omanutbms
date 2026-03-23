@@ -387,23 +387,33 @@ Extract the NEW information from this reply. The user may be answering in broken
       userPrompt = `Parse this message: "${message}"\n\nContext: User role is ${context.role}. Be forgiving of typos and broken English.`;
     }
 
-    // Call Lovable AI Gateway with upgraded model
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GEMINI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gemini-2.5-pro',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.1, // Slightly higher for more flexibility in understanding
-        response_format: { type: 'json_object' },
-      }),
+    // Call Gemini AI with flash model (faster, lower rate-limit risk)
+    const aiRequestBody = JSON.stringify({
+      model: 'gemini-2.5-flash',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.1,
+      response_format: { type: 'json_object' },
     });
+
+    let response: Response | null = null;
+    const maxRetries = 2;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      response = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${GEMINI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: aiRequestBody,
+      });
+      if (response.status !== 429 || attempt === maxRetries) break;
+      // Exponential backoff: 1s, 2s
+      await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+      console.log(`Retrying intent parser (attempt ${attempt + 2}/${maxRetries + 1}) after 429...`);
+    }
 
     if (!response.ok) {
       if (response.status === 429) {

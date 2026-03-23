@@ -1475,7 +1475,10 @@ Your admin can upgrade the plan to keep chatting, or it'll reset next month. Con
 
       if (!intentResponse.ok) {
         console.error('Intent parser error for follow-up');
-        return createTwiMLResponse("Hmm, I didn't quite get that. Can you try saying it differently, or say \"help\" to see what I can do?");
+        const msg = intentResponse.status === 429
+          ? "I'm a bit busy right now 🏃 Please try again in a few seconds!"
+          : "Hmm, I didn't quite get that. Can you try saying it differently, or say \"help\" to see what I can do?";
+        return createTwiMLResponse(msg);
       }
 
       const followUpParsed = await intentResponse.json();
@@ -1529,7 +1532,11 @@ Your admin can upgrade the plan to keep chatting, or it'll reset next month. Con
       if (!intentResponse.ok) {
         const errorText = await intentResponse.text();
         console.error('Intent parser error:', errorText);
-        const errorMessage = "I'm not sure what you mean. Try telling me in simpler words, or say \"help\" to see examples!";
+        // Differentiate rate limit from genuine parse failure
+        const is429 = intentResponse.status === 429;
+        const errorMessage = is429 
+          ? "I'm a bit busy right now 🏃 Please try again in a few seconds!"
+          : "I'm not sure what you mean. Try telling me in simpler words, or say \"help\" to see examples!";
         await logAudit(supabase, {
           tenant_id: mapping.tenant_id,
           whatsapp_number: phoneNumber,
@@ -1538,7 +1545,7 @@ Your admin can upgrade the plan to keep chatting, or it'll reset next month. Con
           original_message: body,
           response_message: errorMessage,
           success: false,
-          error_message: 'Intent parser failed',
+          error_message: is429 ? 'Rate limited' : 'Intent parser failed',
           execution_time_ms: Date.now() - startTime,
         });
         return createTwiMLResponse(errorMessage);
